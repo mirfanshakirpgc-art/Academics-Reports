@@ -16,7 +16,7 @@ if "assigned_subject" not in st.session_state:
 
 # 3. Secure Gatekeeper Login Check 
 if not st.session_state.logged_in:
-    st.title("🏫 School Management Login Portal")
+    st.title("🏫 Concordia Colleges, Kasur")
     
     username_input = st.text_input("Username")
     password_input = st.text_input("Password", type="password")
