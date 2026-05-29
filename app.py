@@ -128,7 +128,7 @@ AVAILABLE_EXAMS = [
 
 # ----------------- HOME DASHBOARD -----------------
 if st.session_state.logged_in:
-    st.image("logo.jpg", width=150)
+    st.image("logo.jpg", width=75)
     st.title("Concordia Colleges, Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
