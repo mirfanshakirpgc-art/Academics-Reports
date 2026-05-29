@@ -128,7 +128,7 @@ AVAILABLE_EXAMS = [
 
 # ----------------- HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
-    st.title("🎓 School Administration Hub")
+    st.title("🎓 Concordia Colleges. Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
