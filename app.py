@@ -1,5 +1,46 @@
 import streamlit as st
 import pandas as pd
+from sqlalchemy import create_engine, text
+
+# 1. Your working database link configuration
+DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+engine = create_engine(DATABASE_URL)
+
+# 2. Setup user login session memory tracking
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+if "assigned_subject" not in st.session_state:
+    st.session_state.assigned_subject = None
+
+# 3. Secure Gatekeeper Login Check 
+if not st.session_state.logged_in:
+    st.title("🏫 School Management Login Portal")
+    
+    username_input = st.text_input("Username")
+    password_input = st.text_input("Password", type="password")
+    
+    if st.button("Log In"):
+        with engine.connect() as conn:
+            query = text("SELECT role, assigned_subject FROM app_users WHERE username = :u AND password = :p")
+            result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
+            
+            if result:
+                st.session_state.logged_in = True
+                st.session_state.user_role = result[0]         # 'controller' or 'teacher'
+                st.session_state.assigned_subject = result[1]    # e.g., 'COMPUTER'
+                st.success("Access Granted! Loading system...")
+                st.rerun()
+            else:
+                st.error("Incorrect username or password. Please try again.")
+    st.stop() # This completely blocks unauthorized users right here!
+
+# ----------------------------------------------------
+# YOUR ORIGINAL DASHBOARD CODE STARTS DIRECTLY BELOW THIS
+# ----------------------------------------------------
+import streamlit as st
+import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine, text
 
@@ -388,3 +429,6 @@ elif menu_choice == "📈 Master Performance Ledger":
         st.dataframe(pivot_df, use_container_width=True)
         csv = pivot_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
+st.dataframe(pivot_df, use_container_width=True)
+    csv = pivot_df.to_csv(index=False).encode('utf-8')
+    st.download_button("📊 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
