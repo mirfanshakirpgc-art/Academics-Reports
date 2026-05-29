@@ -127,8 +127,8 @@ AVAILABLE_EXAMS = [
 ]
 
 # ----------------- HOME DASHBOARD -----------------
-if menu_choice == "📊 Home Dashboard":
-st.image("logo.jpg", width=150)
+if condition:  # This is your line 130 if-statement
+    st.image("logo.jpg", width=150)
     st.title("Concordia Colleges, Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
