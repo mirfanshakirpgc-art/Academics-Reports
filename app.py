@@ -8,7 +8,7 @@ st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 # --- DATABASE CONNECTION CONFIGURATION ---
 # Change port 6543 to 5432
 # Replace YOUR_TRUE_SUPABASE_ID with the exact 20-character string from your browser URL
-DATABASE_URL = "postgresql+psycopg2://postgres.qykuerwivgxsbxbbtso:9hOb6TcLwSn5GJ20@db.qykuerwivgxsbxbbtso.supabase.co:5432/postgres"
+DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:9hOb6TcLwSn5GJ20@db.qykueriwcvgxsbxbbtso.supabase.co:5432/postgres"
 @st.cache_resource
 def get_db_engine():
     return create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
