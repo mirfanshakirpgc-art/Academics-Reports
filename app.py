@@ -6,8 +6,8 @@ from sqlalchemy import create_engine, text
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- DATABASE CONNECTION CONFIGURATION ---
-DATABASE_URL = "postgresql+psycopg2://postgres.qykuerwivgxsbxbbtso:9hOb6TcLwSn5GJ20@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
-
+# Change port 6543 to 5432
+DATABASE_URL = "postgresql+psycopg2://postgres.qykuerwivgxsbxbbtso:9hOb6TcLwSn5GJ20@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
 @st.cache_resource
 def get_db_engine():
     return create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
