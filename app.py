@@ -106,31 +106,34 @@ elif menu_choice == "📝 Enter Marks":
         with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
         
         st.markdown(f"### 📑 Active Marksheet View — Section: `{sel_section}`")
-        roster_df = run_query("""
-            SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-            FROM students s
-            LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
-            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-            ORDER BY s.id ASC
-        """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
-        
-        if roster_df.empty:
-            st.info(f"💡 No students found registered in section '{sel_section}' yet.")
-        else:
-            roster_df['Marks'] = roster_df['Marks'].fillna("")
-            with st.form("bulk_marks_form"):
-                updated_scores = {}
-                for idx, row in roster_df.iterrows():
-                    col_s1, col_s2 = st.columns([3, 1])
-                    col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
-                    updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
-                
-                if st.form_submit_button("💾 Save Section Marks", type="primary"):
-                    for s_id, score in updated_scores.items():
-                        execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
-                        if score.strip() != "":
-                            execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
-                    st.success("🎉 Section marks matrix saved and updated completely!")
+        try:
+            roster_df = run_query("""
+                SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                FROM students s
+                LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
+                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                ORDER BY s.id ASC
+            """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
+            
+            if roster_df.empty:
+                st.info(f"💡 No students found registered in section '{sel_section}' yet.")
+            else:
+                roster_df['Marks'] = roster_df['Marks'].fillna("")
+                with st.form("bulk_marks_form"):
+                    updated_scores = {}
+                    for idx, row in roster_df.iterrows():
+                        col_s1, col_s2 = st.columns([3, 1])
+                        col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
+                        updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
+                    
+                    if st.form_submit_button("💾 Save Section Marks", type="primary"):
+                        for s_id, score in updated_scores.items():
+                            execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
+                            if score.strip() != "":
+                                execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
+                        st.success("🎉 Section marks matrix saved and updated completely!")
+        except Exception as e:
+            st.error(f"Database sync issue. Please ensure your database tables are created. Error: {e}")
 
     elif entry_mode == "👤 By Single Student Roll Number":
         target_id = st.text_input("🔍 Enter Student Roll Number / ID:")
