@@ -6,14 +6,42 @@ from sqlalchemy import create_engine, text
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- DATABASE CONNECTION CONFIGURATION ---
-# Change port 6543 to 5432
-# Replace YOUR_TRUE_SUPABASE_ID with the exact 20-character string from your browser URL
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:9hOb6TcLwSn5GJ20@db.qykueriwcvgxsbxbbtso.supabase.co:5432/postgres"
+
 @st.cache_resource
 def get_db_engine():
     return create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
 
 engine = get_db_engine()
+
+# --- AUTOMATIC TABLE SETUP ---
+# This ensures your tables exist so the app doesn't crash on startup!
+def initialize_database():
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS students (
+                id INT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                section VARCHAR(100),
+                class VARCHAR(100)
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS marks (
+                id SERIAL PRIMARY KEY,
+                student_id INT REFERENCES students(id) ON DELETE CASCADE,
+                subject VARCHAR(100) NOT NULL,
+                exam_type VARCHAR(100) NOT NULL,
+                marks_obtained VARCHAR(50),
+                total_marks INT,
+                UNIQUE(student_id, subject, exam_type)
+            );
+        """))
+
+try:
+    initialize_database()
+except Exception as e:
+    st.error(f"Failed to initialize database tables: {e}")
 
 def run_query(query, params=()):
     with engine.connect() as conn:
