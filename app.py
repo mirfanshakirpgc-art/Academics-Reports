@@ -88,11 +88,35 @@ menu_choice = st.sidebar.radio(
 )
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
+    # 1. The elif statement comes first!
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
     
-    # --- ADD THIS CSS PRINTING SNIPPET RIGHT HERE ---
+    # 2. Paste the CSS printing snippet INSIDE the block, right here:
     st.markdown("""
         <style>
+        @media print {
+            [data-testid="stSidebar"], 
+            header, 
+            footer, 
+            .stButton,
+            [data-testid="stHeader"] {
+                display: none !important;
+            }
+            [data-testid="stAppViewBlockContainer"] {
+                padding: 0px !important;
+                margin: 0px !important;
+                width: 100% !important;
+            }
+            div, h2, p {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # 3. Your search input follows right underneath
+    search_id = st.text_input("🔍 Search Student Roll Number / ID:")
         @media print {
             /* 1. Hide the Streamlit sidebar, top navigation header, and action buttons */
             [data-testid="stSidebar"], 
