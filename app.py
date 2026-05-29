@@ -128,7 +128,8 @@ AVAILABLE_EXAMS = [
 
 # ----------------- HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
-    st.title("st.image("logo.jpg", width=150)Concordia Colleges. Kasur")
+st.image("logo.jpg", width=150)
+    st.title("Concordia Colleges, Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
