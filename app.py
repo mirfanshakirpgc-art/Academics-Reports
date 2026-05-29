@@ -7,7 +7,7 @@ st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- DATABASE CONNECTION CONFIGURATION ---
 # Using the session pooler endpoint on port 5432 resolves the IPv6 connection constraint!
-DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:9hOb6TcLwSn5GJ20@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:YOUR_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
 @st.cache_resource
 def get_db_engine():
