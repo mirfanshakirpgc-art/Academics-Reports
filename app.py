@@ -1,12 +1,20 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine, text
 
-# 1. Your working database link configuration
-DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
-engine = create_engine(DATABASE_URL)
+st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
-# 2. Setup user login session memory tracking
+# --- DATABASE CONNECTION CONFIGURATION ---
+DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+
+@st.cache_resource
+def get_db_engine():
+    return create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
+
+engine = get_db_engine()
+
+# --- SETUP USER LOGIN SESSION MEMORY TRACKING ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_role" not in st.session_state:
@@ -14,7 +22,7 @@ if "user_role" not in st.session_state:
 if "assigned_subject" not in st.session_state:
     st.session_state.assigned_subject = None
 
-# 3. Secure Gatekeeper Login Check 
+# --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
     st.title("🏫 Concordia Colleges, Kasur")
     
@@ -29,31 +37,12 @@ if not st.session_state.logged_in:
             if result:
                 st.session_state.logged_in = True
                 st.session_state.user_role = result[0]         # 'controller' or 'teacher'
-                st.session_state.assigned_subject = result[1]    # e.g., 'COMPUTER'
+                st.session_state.assigned_subject = result[1]    # e.g., 'COMPUTER' or None
                 st.success("Access Granted! Loading system...")
                 st.rerun()
             else:
                 st.error("Incorrect username or password. Please try again.")
-    st.stop() # This completely blocks unauthorized users right here!
-
-# ----------------------------------------------------
-# YOUR ORIGINAL DASHBOARD CODE STARTS DIRECTLY BELOW THIS
-# ----------------------------------------------------
-import streamlit as st
-import pandas as pd
-import numpy as np
-from sqlalchemy import create_engine, text
-
-st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
-
-# --- DATABASE CONNECTION CONFIGURATION ---
-# Using the session pooler endpoint on port 5432 resolves the IPv6 connection constraint!
-DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
-@st.cache_resource
-def get_db_engine():
-    return create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
-
-engine = get_db_engine()
+    st.stop() 
 
 # --- AUTOMATIC TABLE SETUP ---
 def initialize_database():
@@ -126,28 +115,30 @@ AVAILABLE_EXAMS = [
     "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
 ]
 
-# ----------------- HOME DASHBOARD -----------------
-if st.session_state.logged_in:
-   if st.session_state.logged_in:  # LINE 130 (LEAVE ALONE)
+# ----------------- 📊 HOME DASHBOARD -----------------
+if menu_choice == "📊 Home Dashboard":
     col1, col2 = st.columns([1, 8])
     with col1:
         st.image("logo.jpg", width=90)
     with col2:
         st.title("Concordia Colleges, Kasur")
+        
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
     except Exception:
         s_count, m_count = 0, 0
-    c1, col2 = st.columns(2)
+        
+    c1, col2_metrics = st.columns(2)
     c1.metric("Total Registered Students", s_count)
-    col2.metric("Total Grade Records Captured", m_count)
+    col2_metrics.metric("Total Grade Records Captured", m_count)
 
-# ----------------- ADD STUDENTS -----------------
+# ----------------- ➕ ADD STUDENTS -----------------
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     import_template = pd.DataFrame([{"ID": "", "Full Name": "", "Section": "", "Class": "11th"} for _ in range(35)])
     pasted_data = st.data_editor(import_template, use_container_width=True, num_rows="dynamic", key="bulk_paste_grid")
+    
     if st.button("🚀 Process and Save Bulk Profiles", type="primary"):
         added_counter = 0
         for _, row in pasted_data.iterrows():
@@ -163,7 +154,7 @@ elif menu_choice == "➕ Add Students":
                 added_counter += 1
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
-# ----------------- ENTER MARKS -----------------
+# ----------------- 📝 ENTER MARKS -----------------
 elif menu_choice == "📝 Enter Marks":
     st.title("📝 Interactive Marks Entry Portal")
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number"], horizontal=True)
@@ -171,9 +162,21 @@ elif menu_choice == "📝 Enter Marks":
 
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3 = st.columns(3)
-        with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-        with c2: sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
-        with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
+        with c1: 
+            sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+        with c2: 
+            # If the user is a limited teacher, lock them to their assigned subject!
+            if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
+                teacher_subj = st.session_state.assigned_subject.upper().strip()
+                if teacher_subj in DISCIPLINE_SUBJECTS_MAP[sel_discipline]:
+                    sel_subject = st.selectbox("Select Subject:", [teacher_subj])
+                else:
+                    st.error(f"Your assigned subject '{teacher_subj}' doesn't exist in {sel_discipline}.")
+                    st.stop()
+            else:
+                sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
+        with c3: 
+            sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
         
         row2_1, row2_2 = st.columns(2)
         with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
@@ -206,8 +209,9 @@ elif menu_choice == "📝 Enter Marks":
                             if score.strip() != "":
                                 execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
                         st.success("🎉 Section marks matrix saved and updated completely!")
+                        st.rerun()
         except Exception as e:
-            st.error(f"Database sync issue. Please ensure your database tables are created. Error: {e}")
+            st.error(f"Database sync issue. Error: {e}")
 
     elif entry_mode == "👤 By Single Student Roll Number":
         target_id = st.text_input("🔍 Enter Student Roll Number / ID:")
@@ -229,7 +233,11 @@ elif menu_choice == "📝 Enter Marks":
                 
                 st.markdown("#### Assign Grades")
                 c_sub, c_ex, c_m = st.columns(3)
-                with c_sub: single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
+                with c_sub: 
+                    if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
+                        single_subj = st.selectbox("Choose Subject:", [st.session_state.assigned_subject.upper().strip()], key="single_sub")
+                    else:
+                        single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
                 with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam")
                 with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
                 
@@ -242,8 +250,9 @@ elif menu_choice == "📝 Enter Marks":
                     if single_score.strip() != "":
                         execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(target_id), "sub": single_subj.strip().upper(), "exam": single_exam.strip(), "score": single_score.strip(), "total": single_total})
                     st.success(f"🎉 Marks successfully updated for {s_name}!")
+                    st.rerun()
 
-# ----------------- SECTION SUMMARY REPORT -----------------
+# ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Performance Section Statistics Summary")
     col_a, col_b, col_c = st.columns(3)
@@ -307,7 +316,7 @@ elif menu_choice == "📋 Section Summary Report":
         csv_data = final_report_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Ledger Grid to Excel/CSV Spreadsheet", data=csv_data, file_name=f"Summary_{sel_sec}_{sel_exam}.csv", mime="text/csv", type="primary")
 
-# ----------------- STUDENT RESULT CARDS -----------------
+# ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
     search_id = st.text_input("🔍 Search Student Roll Number / ID:")
@@ -406,7 +415,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
                 st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True)
 
-# ----------------- PERFORMANCE LEDGER -----------------
+# ----------------- 📈 PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
     st.title("📈 Subject-wise Consolidated Performance Ledger")
     c1, c2, c3 = st.columns(3)
@@ -434,7 +443,3 @@ elif menu_choice == "📈 Master Performance Ledger":
         st.dataframe(pivot_df, use_container_width=True)
         csv = pivot_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
-if 'pivot_df' in locals() or 'pivot_df' in globals():
-    st.dataframe(pivot_df, use_container_width=True)
-    csv = pivot_df.to_csv(index=False).encode('utf-8')
-    st.download_button("📊 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
