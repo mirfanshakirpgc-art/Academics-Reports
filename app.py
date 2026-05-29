@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, text
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- DATABASE CONNECTION CONFIGURATION ---
-DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:9hOb6TcLwSn5GJ20@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
+DATABASE_URL = "postgresql+psycopg2://postgres.qykuerwivgxsbxbbtso:9hOb6TcLwSn5GJ20@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
 @st.cache_resource
 def get_db_engine():
