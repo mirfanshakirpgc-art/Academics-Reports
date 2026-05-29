@@ -129,7 +129,7 @@ AVAILABLE_EXAMS = [
 # ----------------- HOME DASHBOARD -----------------
 if st.session_state.logged_in:
    if st.session_state.logged_in:  # LINE 130 (LEAVE ALONE)
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns([1, 8])
     with col1:
         st.image("logo.jpg", width=75)
     with col2:
