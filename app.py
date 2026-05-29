@@ -430,5 +430,5 @@ elif menu_choice == "📈 Master Performance Ledger":
         csv = pivot_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
 st.dataframe(pivot_df, use_container_width=True)
-    csv = pivot_df.to_csv(index=False).encode('utf-8')
-    st.download_button("📊 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
+csv = pivot_df.to_csv(index=False).encode('utf-8')
+st.download_button("📊 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
