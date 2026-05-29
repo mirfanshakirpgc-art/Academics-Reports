@@ -86,7 +86,41 @@ menu_choice = st.sidebar.radio(
     "Go To Module:", 
     ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks", "📋 Section Summary Report", "🪪 Student Result Cards", "📈 Master Performance Ledger"]
 )
-
+# ----------------- 🪪 STUDENT RESULT CARDS -----------------
+elif menu_choice == "🪪 Student Result Cards":
+    st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
+    
+    # --- ADD THIS CSS PRINTING SNIPPET RIGHT HERE ---
+    st.markdown("""
+        <style>
+        @media print {
+            /* 1. Hide the Streamlit sidebar, top navigation header, and action buttons */
+            [data-testid="stSidebar"], 
+            header, 
+            footer, 
+            .stButton,
+            [data-testid="stHeader"] {
+                display: none !important;
+            }
+            
+            /* 2. Remove side padding so the card fills the physical printed page */
+            [data-testid="stAppViewBlockContainer"] {
+                padding: 0px !important;
+                margin: 0px !important;
+                width: 100% !important;
+            }
+            
+            /* 3. Force background colors to show accurately on physical ink paper */
+            div, h2, p {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # (The rest of your original student search and layout code remains below...)
+    search_id = st.text_input("🔍 Search Student Roll Number / ID:")
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
     "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
