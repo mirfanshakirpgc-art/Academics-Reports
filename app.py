@@ -6,7 +6,8 @@ from sqlalchemy import create_engine, text
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- DATABASE CONNECTION CONFIGURATION ---
-DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:9hOb6TcLwSn5GJ20@db.qykueriwcvgxsbxbbtso.supabase.co:5432/postgres"
+# Using the session pooler endpoint on port 5432 resolves the IPv6 connection constraint!
+DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:9hOb6TcLwSn5GJ20@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
 @st.cache_resource
 def get_db_engine():
@@ -15,7 +16,6 @@ def get_db_engine():
 engine = get_db_engine()
 
 # --- AUTOMATIC TABLE SETUP ---
-# This ensures your tables exist so the app doesn't crash on startup!
 def initialize_database():
     with engine.begin() as conn:
         conn.execute(text("""
