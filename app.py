@@ -127,7 +127,7 @@ AVAILABLE_EXAMS = [
 ]
 
 # ----------------- HOME DASHBOARD -----------------
-if condition:  # This is your line 130 if-statement
+if st.session_state.logged_in:
     st.image("logo.jpg", width=150)
     st.title("Concordia Colleges, Kasur")
     try:
