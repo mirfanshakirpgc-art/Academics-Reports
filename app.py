@@ -86,65 +86,7 @@ menu_choice = st.sidebar.radio(
     "Go To Module:", 
     ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks", "📋 Section Summary Report", "🪪 Student Result Cards", "📈 Master Performance Ledger"]
 )
-# ----------------- 🪪 STUDENT RESULT CARDS -----------------
-elif menu_choice == "🪪 Student Result Cards":
-    # 1. The elif statement comes first!
-    st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
-    
-    # 2. Paste the CSS printing snippet INSIDE the block, right here:
-    st.markdown("""
-        <style>
-        @media print {
-            [data-testid="stSidebar"], 
-            header, 
-            footer, 
-            .stButton,
-            [data-testid="stHeader"] {
-                display: none !important;
-            }
-            [data-testid="stAppViewBlockContainer"] {
-                padding: 0px !important;
-                margin: 0px !important;
-                width: 100% !important;
-            }
-            div, h2, p {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # 3. Your search input follows right underneath
-    search_id = st.text_input("🔍 Search Student Roll Number / ID:")
-        @media print {
-            /* 1. Hide the Streamlit sidebar, top navigation header, and action buttons */
-            [data-testid="stSidebar"], 
-            header, 
-            footer, 
-            .stButton,
-            [data-testid="stHeader"] {
-                display: none !important;
-            }
-            
-            /* 2. Remove side padding so the card fills the physical printed page */
-            [data-testid="stAppViewBlockContainer"] {
-                padding: 0px !important;
-                margin: 0px !important;
-                width: 100% !important;
-            }
-            
-            /* 3. Force background colors to show accurately on physical ink paper */
-            div, h2, p {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # (The rest of your original student search and layout code remains below...)
-    search_id = st.text_input("🔍 Search Student Roll Number / ID:")
+
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
     "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
@@ -223,7 +165,6 @@ elif menu_choice == "📝 Enter Marks":
         with c1: 
             sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
         with c2: 
-            # If the user is a limited teacher, lock them to their assigned subject!
             if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
                 teacher_subj = st.session_state.assigned_subject.upper().strip()
                 if teacher_subj in DISCIPLINE_SUBJECTS_MAP[sel_discipline]:
@@ -377,6 +318,31 @@ elif menu_choice == "📋 Section Summary Report":
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
+    
+    # Professional CSS injection to strip website clutter during paper prints
+    st.markdown("""
+        <style>
+        @media print {
+            [data-testid="stSidebar"], 
+            header, 
+            footer, 
+            .stButton,
+            [data-testid="stHeader"] {
+                display: none !important;
+            }
+            [data-testid="stAppViewBlockContainer"] {
+                padding: 0px !important;
+                margin: 0px !important;
+                width: 100% !important;
+            }
+            div, h2, p {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     search_id = st.text_input("🔍 Search Student Roll Number / ID:")
     if search_id and search_id.isdigit():
         student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
@@ -396,108 +362,3 @@ elif menu_choice == "🪪 Student Result Cards":
                     <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
                     <b>CLASS:</b> {grade_class}
                 </p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
-            if not selected_tests:
-                st.warning("Please pick at least one test type option.")
-            else:
-                raw_marks = run_query("""
-                    SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
-                    FROM marks 
-                    WHERE student_id = :id AND exam_type IN :exams
-                """, {"id": int(search_id), "exams": tuple(selected_tests)})
-                
-                assigned_discipline = "MEDICAL"
-                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
-                    if section in [x.upper().strip() for x in secs]:
-                        assigned_discipline = disp
-                        break
-                
-                ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
-                matrix_data = []
-                for subj in ordered_subjects:
-                    row_entry = {"SUBJECTS": subj}
-                    sub_total_obtained = 0
-                    sub_total_max = 0
-                    for exam in selected_tests:
-                        match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
-                        if not match.empty:
-                            obt = str(match['marks_obtained'].iloc[0]).strip().upper()
-                            tot = match['total_marks'].iloc[0]
-                            row_entry[f"{exam} (OBT)"] = obt
-                            if str(obt).replace('.','',1).isdigit():
-                                row_entry[f"{exam} (%)"] = f"{int(float(obt)/tot * 100)}%"
-                                sub_total_obtained += float(obt)
-                                sub_total_max += tot
-                            elif obt == "A":
-                                row_entry[f"{exam} (%)"] = "A"
-                            else:
-                                row_entry[f"{exam} (%)"] = "-"
-                        else:
-                            row_entry[f"{exam} (OBT)"] = "-"
-                            row_entry[f"{exam} (%)"] = "-"
-                    if sub_total_max > 0:
-                        row_entry["SUMMARY (OBT)"] = f"{int(sub_total_obtained)}"
-                        row_entry["SUMMARY (%)"] = f"{int((sub_total_obtained / sub_total_max) * 100)}%"
-                    else:
-                        row_entry["SUMMARY (OBT)"] = "-"
-                        row_entry["SUMMARY (%)"] = "-"
-                    matrix_data.append(row_entry)
-                
-                report_df = pd.DataFrame(matrix_data)
-                total_row = {"SUBJECTS": "⚡ TOTAL"}
-                for exam in selected_tests:
-                    exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
-                    valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                    if not valid_exam_matches.empty:
-                        t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
-                        t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                        total_row[f"{exam} (OBT)"] = f"{int(t_obt)}"
-                        total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
-                    else:
-                        total_row[f"{exam} (OBT)"] = "-"
-                        total_row[f"{exam} (%)"] = "-"
-                
-                valid_all = raw_marks[raw_marks['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                if not valid_all.empty:
-                    m_obt = valid_all['marks_obtained'].astype(float).sum()
-                    m_max = sum([raw_marks[raw_marks['subject']==s.upper().strip()]['total_marks'].iloc[0] for s in ordered_subjects if not raw_marks[raw_marks['subject']==s.upper().strip()].empty])
-                    total_row["SUMMARY (OBT)"] = f"{int(m_obt)}"
-                    total_row["SUMMARY (%)"] = f"{int((m_obt/m_max)*100)}%" if m_max > 0 else "-"
-                else:
-                    total_row["SUMMARY (OBT)"] = "-"
-                    total_row["SUMMARY (%)"] = "-"
-                
-                report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
-                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True)
-
-# ----------------- 📈 PERFORMANCE LEDGER -----------------
-elif menu_choice == "📈 Master Performance Ledger":
-    st.title("📈 Subject-wise Consolidated Performance Ledger")
-    c1, c2, c3 = st.columns(3)
-    with c1: l_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="l_disc")
-    with c2: l_subj = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[l_disc], key="l_subj")
-    with c3: l_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[l_disc], key="l_sec")
-    st.markdown("---")
-    
-    raw_ledger = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", m.exam_type, m.marks_obtained
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-        ORDER BY s.id ASC
-    """, {"subject": l_subj, "section": l_sec})
-    
-    if raw_ledger.empty:
-        st.info("No student information found for this configuration.")
-    else:
-        pivot_df = raw_ledger.pivot_table(index=["ID", "Student Name"], columns="exam_type", values="marks_obtained", aggfunc="first").reset_index()
-        for exam in AVAILABLE_EXAMS:
-            if exam not in pivot_df.columns: pivot_df[exam] = "-"
-        ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
-        pivot_df = pivot_df[ordered_cols].fillna("-")
-        st.dataframe(pivot_df, use_container_width=True)
-        csv = pivot_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
