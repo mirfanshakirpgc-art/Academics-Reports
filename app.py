@@ -70,6 +70,17 @@ def initialize_database():
                 UNIQUE(student_id, subject, exam_type)
             );
         """))
+        # --- NEW ATTENDANCE STORAGE INFRASTRUCTURE ---
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS attendance (
+                id SERIAL PRIMARY KEY,
+                student_id INT REFERENCES students(id) ON DELETE CASCADE,
+                month_name VARCHAR(50) NOT NULL,
+                total_days INT DEFAULT 0,
+                present_days INT DEFAULT 0,
+                UNIQUE(student_id, month_name)
+            );
+        """))
 
 try:
     initialize_database()
@@ -88,7 +99,7 @@ def execute_db_command(command, params=()):
 st.sidebar.title("🏫 Menu Navigation")
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
-    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks", "📋 Section Summary Report", "🪪 Student Result Cards", "📈 Master Performance Ledger"]
+    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "🪪 Student Result Cards", "📈 Master Performance Ledger"]
 )
 
 # --- MAP CONFIGURATIONS ---
@@ -118,6 +129,7 @@ AVAILABLE_EXAMS = [
     "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
     "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
 ]
+AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
@@ -158,101 +170,163 @@ elif menu_choice == "➕ Add Students":
                 added_counter += 1
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
-# ----------------- 📝 ENTER MARKS -----------------
-elif menu_choice == "📝 Enter Marks":
-    st.title("📝 Interactive Marks Entry Portal")
-    entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number"], horizontal=True)
+# ----------------- 📝 ENTER MARKS & ATTENDANCE -----------------
+elif menu_choice == "📝 Enter Marks & Attendance":
+    st.title("📝 Data Intake Management Dashboard")
+    sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
     st.markdown("---")
 
-    if entry_mode == "📋 By Complete Section":
-        c1, c2, c3 = st.columns(3)
-        with c1: 
-            sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-        with c2: 
-            if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
-                teacher_subj = st.session_state.assigned_subject.upper().strip()
-                if teacher_subj in DISCIPLINE_SUBJECTS_MAP[sel_discipline]:
-                    sel_subject = st.selectbox("Select Subject:", [teacher_subj])
-                else:
-                    st.error(f"Your assigned subject '{teacher_subj}' doesn't exist in {sel_discipline}.")
-                    st.stop()
-            else:
-                sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
-        with c3: 
-            sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
-        
-        row2_1, row2_2 = st.columns(2)
-        with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
-        with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
-        
-        st.markdown(f"### 📑 Active Marksheet View — Section: `{sel_section}`")
-        try:
-            roster_df = run_query("""
-                SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-                FROM students s
-                LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                ORDER BY s.id ASC
-            """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
-            
-            if roster_df.empty:
-                st.info(f"💡 No students found registered in section '{sel_section}' yet.")
-            else:
-                roster_df['Marks'] = roster_df['Marks'].fillna("")
-                with st.form("bulk_marks_form"):
-                    updated_scores = {}
-                    for idx, row in roster_df.iterrows():
-                        col_s1, col_s2 = st.columns([3, 1])
-                        col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
-                        updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
-                    
-                    if st.form_submit_button("💾 Save Section Marks", type="primary"):
-                        for s_id, score in updated_scores.items():
-                            execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
-                            if score.strip() != "":
-                                execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
-                        st.success("🎉 Section marks matrix saved and updated completely!")
-                        st.rerun()
-        except Exception as e:
-            st.error(f"Database sync issue. Error: {e}")
+    if sub_tab_selection == "📝 Academic Exam Marks Entry":
+        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number"], horizontal=True)
+        st.markdown("---")
 
-    elif entry_mode == "👤 By Single Student Roll Number":
-        target_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-        if target_id and target_id.isdigit():
-            student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(target_id)})
-            if student_info.empty:
-                st.error("❌ This roll number does not exist in your registered profiles list.")
-            else:
-                s_name = student_info['name'].iloc[0].upper()
-                s_section = student_info['section'].iloc[0].upper().strip()
-                s_class = student_info['class'].iloc[0]
-                st.info(f"👤 **Student Found:** {s_name} | **Class:** {s_class} | **Section Reference:** {s_section}")
-                
-                matched_disp = "MEDICAL"
-                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
-                    if s_section in [x.upper().strip() for x in secs]:
-                        matched_disp = disp
-                        break
-                
-                st.markdown("#### Assign Grades")
-                c_sub, c_ex, c_m = st.columns(3)
-                with c_sub: 
-                    if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
-                        single_subj = st.selectbox("Choose Subject:", [st.session_state.assigned_subject.upper().strip()], key="single_sub")
+        if entry_mode == "📋 By Complete Section":
+            c1, c2, c3 = st.columns(3)
+            with c1: 
+                sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+            with c2: 
+                if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
+                    teacher_subj = st.session_state.assigned_subject.upper().strip()
+                    if teacher_subj in DISCIPLINE_SUBJECTS_MAP[sel_discipline]:
+                        sel_subject = st.selectbox("Select Subject:", [teacher_subj])
                     else:
-                        single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
-                with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam")
-                with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
+                        st.error(f"Your assigned subject '{teacher_subj}' doesn't exist in {sel_discipline}.")
+                        st.stop()
+                else:
+                    sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
+            with c3: 
+                sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
+            
+            row2_1, row2_2 = st.columns(2)
+            with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
+            with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
+            
+            st.markdown(f"### 📑 Active Marksheet View — Section: `{sel_section}`")
+            try:
+                roster_df = run_query("""
+                    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                    FROM students s
+                    LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                    ORDER BY s.id ASC
+                """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
                 
-                existing_record = run_query("SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
-                current_val = str(existing_record['marks_obtained'].iloc[0]) if not existing_record.empty else ""
-                single_score = st.text_input("✏️ Enter Marks Obtained (Use numbers or 'A' for Absent):", value=current_val)
+                if roster_df.empty:
+                    st.info(f"💡 No students found registered in section '{sel_section}' yet.")
+                else:
+                    roster_df['Marks'] = roster_df['Marks'].fillna("")
+                    with st.form("bulk_marks_form"):
+                        updated_scores = {}
+                        for idx, row in roster_df.iterrows():
+                            col_s1, col_s2 = st.columns([3, 1])
+                            col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
+                            updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
+                        
+                        if st.form_submit_button("💾 Save Section Marks", type="primary"):
+                            for s_id, score in updated_scores.items():
+                                execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
+                                if score.strip() != "":
+                                    execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
+                            st.success("🎉 Section marks matrix saved and updated completely!")
+                            st.rerun()
+            except Exception as e:
+                st.error(f"Database sync issue. Error: {e}")
+
+        elif entry_mode == "👤 By Single Student Roll Number":
+            target_id = st.text_input("🔍 Enter Student Roll Number / ID:")
+            if target_id and target_id.isdigit():
+                student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(target_id)})
+                if student_info.empty:
+                    st.error("❌ This roll number does not exist in your registered profiles list.")
+                else:
+                    s_name = student_info['name'].iloc[0].upper()
+                    s_section = student_info['section'].iloc[0].upper().strip()
+                    s_class = student_info['class'].iloc[0]
+                    st.info(f"👤 **Student Found:** {s_name} | **Class:** {s_class} | **Section Reference:** {s_section}")
+                    
+                    matched_disp = "MEDICAL"
+                    for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
+                        if s_section in [x.upper().strip() for x in secs]:
+                            matched_disp = disp
+                            break
+                    
+                    st.markdown("#### Assign Grades")
+                    c_sub, c_ex, c_m = st.columns(3)
+                    with c_sub: 
+                        if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
+                            single_subj = st.selectbox("Choose Subject:", [st.session_state.assigned_subject.upper().strip()], key="single_sub")
+                        else:
+                            single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
+                    with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam")
+                    with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
+                    
+                    existing_record = run_query("SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
+                    current_val = str(existing_record['marks_obtained'].iloc[0]) if not existing_record.empty else ""
+                    single_score = st.text_input("✏️ Enter Marks Obtained (Use numbers or 'A' for Absent):", value=current_val)
+                    
+                    if st.button("💾 Save Student Record Updates", type="primary"):
+                        execute_db_command("DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
+                        if single_score.strip() != "":
+                            execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(target_id), "sub": single_subj.strip().upper(), "exam": single_exam.strip(), "score": single_score.strip(), "total": single_total})
+                        st.success(f"🎉 Marks successfully updated for {s_name}!")
+                        st.rerun()
+
+    elif sub_tab_selection == "📅 Monthly Attendance Entry":
+        st.subheader("📅 Section Attendance Management Interface")
+        col_as1, col_as2, col_as3 = st.columns(3)
+        with col_as1:
+            att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
+        with col_as2:
+            att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec")
+        with col_as3:
+            att_month = st.selectbox("Select Reporting Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+            
+        default_days = st.number_input("Set Total Working Days in Selected Month:", min_value=1, max_value=31, value=24)
+        
+        st.markdown(f"### 📋 Roster Grid: Attendance Ledger for `{att_section}` ({att_month})")
+        
+        students_att_list = run_query("""
+            SELECT s.id AS "ID", s.name AS "Student Name", a.total_days, a.present_days
+            FROM students s
+            LEFT JOIN attendance a ON s.id = a.student_id AND a.month_name = :month
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+            ORDER BY s.id ASC
+        """, {"month": att_month, "section": att_section})
+        
+        if students_att_list.empty:
+            st.info("💡 No student records registered in this section yet.")
+        else:
+            with st.form("bulk_attendance_form"):
+                saved_att_presents = {}
+                saved_att_totals = {}
                 
-                if st.button("💾 Save Student Record Updates", type="primary"):
-                    execute_db_command("DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
-                    if single_score.strip() != "":
-                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(target_id), "sub": single_subj.strip().upper(), "exam": single_exam.strip(), "score": single_score.strip(), "total": single_total})
-                    st.success(f"🎉 Marks successfully updated for {s_name}!")
+                for idx, row in students_att_list.iterrows():
+                    c_b1, c_b2, c_b3 = st.columns([3, 1, 1])
+                    c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                    
+                    init_tot = int(row['total_days']) if pd.notna(row['total_days']) else default_days
+                    init_pres = int(row['present_days']) if pd.notna(row['present_days']) else init_tot
+                    
+                    saved_att_totals[row['ID']] = c_b2.number_input("Total Days", min_value=1, max_value=31, value=init_tot, key=f"tot_{row['ID']}")
+                    saved_att_presents[row['ID']] = c_b3.number_input("Presents", min_value=0, max_value=31, value=init_pres, key=f"pres_{row['ID']}")
+                
+                if st.form_submit_button("💾 Save Section Attendance Ledger", type="primary"):
+                    for s_id in saved_att_totals.keys():
+                        t_d = int(saved_att_totals[s_id])
+                        p_d = int(saved_att_presents[s_id])
+                        
+                        if p_d > t_d:
+                            st.error(f"❌ Entry Error on Student ID {s_id}: Present days ({p_d}) cannot exceed total days ({t_d}). Matrix execution aborted.")
+                            st.stop()
+                            
+                        execute_db_command("""
+                            INSERT INTO attendance (student_id, month_name, total_days, present_days)
+                            VALUES (:s_id, :month, :td, :pd)
+                            ON CONFLICT (student_id, month_name) 
+                            DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
+                        """, {"s_id": int(s_id), "month": att_month, "td": t_d, "pd": p_d})
+                        
+                    st.success("🎉 Monthly Section Attendance ledger matrix compiled and saved successfully!")
                     st.rerun()
 
 # ----------------- 📋 SECTION SUMMARY REPORT -----------------
@@ -342,13 +416,11 @@ elif menu_choice == "🪪 Student Result Cards":
             border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
             page_break = st.toggle("Force 1 Card per Page", value=True)
 
-    # Convert settings names into system-usable variables
     font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
     border_val = "none" if border_style == "None" else border_style
     break_val = "always" if page_break else "auto"
     max_w_val = "800px" if border_style != "None" else "100%"
 
-    # Send choices directly to our CSS engine variables
     st.markdown(f"""
         <style>
         :root {{
@@ -360,7 +432,7 @@ elif menu_choice == "🪪 Student Result Cards":
             --max-width-choice: {max_w_val};
         }}
         
-        /* 🖨️ CRITICAL PRINT INSTRUCTION */
+        /* 🖨️ CRITICAL PRINT INSTRUCTION STYLE ADJUSTMENTS */
         @media print {{
             @page {{
                 size: {paper_size} {paper_orient};
@@ -391,11 +463,49 @@ elif menu_choice == "🪪 Student Result Cards":
                 page-break-after: always !important;
                 break-after: page !important;
             }}
+            
+            /* Ensure styled HTML tables render beautifully during system print previews */
+            .attendance-print-table {{
+                width: 100% !important;
+                border-collapse: collapse !important;
+                margin-top: 15px !important;
+                margin-bottom: 15px !important;
+            }}
+            .attendance-print-table th, .attendance-print-table td {{
+                border: 1px solid #000000 !important;
+                padding: 6px !important;
+                text-align: center !important;
+                font-size: 11pt !important;
+            }}
+            .attendance-print-table th {{
+                background-color: #8b0000 !important;
+                color: white !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }}
         }}
+        
+        /* Dashboard view fallback styling */
+        .attendance-print-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            font-family: sans-serif;
+        }}
+        .attendance-print-table th, .attendance-print-table td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }}
+        .attendance-print-table th {{
+            background-color: #802200;
+            color: white;
+        }}
+        .attendance-print-table tr:nth-child(even){{background-color: #f2f2f2;}}
         </style>
     """, unsafe_allow_html=True)
     
-    # --- PRINT MODE CONTROLLER ---
     print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
     
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
@@ -419,7 +529,6 @@ elif menu_choice == "🪪 Student Result Cards":
             
     st.markdown("---")
 
-    # 3. CORE DATA LOADING & TABLE RENDERING LOGIC
     if search_id and search_id.isdigit():
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if base_student.empty:
@@ -475,6 +584,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 grand_total_obtained = 0.0
                 grand_total_max = 0.0
+                current_card_percentage = 0 
                 
                 for subj in ordered_subjects:
                     row_entry = {"SUBJECTS": subj}
@@ -488,18 +598,31 @@ elif menu_choice == "🪪 Student Result Cards":
                         if not match.empty:
                             obt = str(match['marks_obtained'].iloc[0]).strip().upper()
                             tot = match['total_marks'].iloc[0]
+                            passing_criteria = float(tot) * 0.40
+                            
                             row_entry["Obt. Marks"] = obt
                             row_entry["Total Marks"] = str(tot)
+                            row_entry["Passing Marks"] = f"{int(passing_criteria)}"
+                            
                             if str(obt).replace('.', '', 1).isdigit():
-                                row_entry["Age%"] = f"{int(float(obt)/tot * 100)}%"
+                                numeric_obt = float(obt)
+                                row_entry["Age%"] = f"{int(numeric_obt/tot * 100)}%"
+                                row_entry["Status"] = "Pass" if numeric_obt >= passing_criteria else "Fail"
+                                grand_total_obtained += numeric_obt
+                                grand_total_max += tot
                             elif obt == "A":
                                 row_entry["Age%"] = "A"
+                                row_entry["Status"] = "Absent"
+                                grand_total_max += tot
                             else:
                                 row_entry["Age%"] = "-"
+                                row_entry["Status"] = "-"
                         else:
                             row_entry["Obt. Marks"] = "-"
                             row_entry["Total Marks"] = "-"
+                            row_entry["Passing Marks"] = "-"
                             row_entry["Age%"] = "-"
+                            row_entry["Status"] = "-"
                     else:
                         # --- MULTI TEST MODE COLUMNS ---
                         for exam in selected_tests:
@@ -530,9 +653,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     matrix_data.append(row_entry)
                 
                 report_df = pd.DataFrame(matrix_data)
-                
-                # --- STRUCTURE THE TOTALS DATA RECORD AS A DATAFRAME TO FORCE SYSTEM COERCION ---
-                total_data = {"SUBJECTS": ["⚡ TOTAL"]}
+                total_row = {"SUBJECTS": "⚡ TOTAL"}
                 
                 if num_selected_tests == 1:
                     exam = selected_tests[0]
@@ -542,13 +663,20 @@ elif menu_choice == "🪪 Student Result Cards":
                     if not valid_matches.empty:
                         t_obt = valid_matches['marks_obtained'].astype(float).sum()
                         t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                        total_data["Obt. Marks"] = [f"{int(t_obt)}"]
-                        total_data["Total Marks"] = [f"{int(t_max)}"]
-                        total_data["Age%"] = [f"{int((t_obt/t_max)*100)}%"]
+                        t_pass = t_max * 0.40
+                        current_card_percentage = int((t_obt/t_max)*100)
+                        
+                        total_row["Obt. Marks"] = f"{int(t_obt)}"
+                        total_row["Total Marks"] = f"{int(t_max)}"
+                        total_row["Passing Marks"] = f"{int(t_pass)}"
+                        total_row["Age%"] = f"{current_card_percentage}%"
+                        total_row["Status"] = "Pass" if t_obt >= t_pass else "Fail"
                     else:
-                        total_data["Obt. Marks"] = ["-"]
-                        total_data["Total Marks"] = ["-"]
-                        total_data["Age%"] = ["-"]
+                        total_row["Obt. Marks"] = "-"
+                        total_row["Total Marks"] = "-"
+                        total_row["Passing Marks"] = "-"
+                        total_row["Age%"] = "-"
+                        total_row["Status"] = "-"
                 else:
                     for exam in selected_tests:
                         exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
@@ -556,22 +684,110 @@ elif menu_choice == "🪪 Student Result Cards":
                         if not valid_exam_matches.empty:
                             t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
                             t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                            total_data[f"{exam} (Obt)"] = [f"{int(t_obt)}"]
-                            total_data[f"{exam} (%)"] = [f"{int((t_obt/t_max)*100)}%"]
+                            total_row[f"{exam} (Obt)"] = f"{int(t_obt)}"
+                            total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
                         else:
-                            total_data[f"{exam} (Obt)"] = ["-"]
-                            total_data[f"{exam} (%)"] = ["-"]
+                            total_row[f"{exam} (Obt)"] = "-"
+                            total_row[f"{exam} (%)"] = "-"
                     
                     if grand_total_max > 0:
-                        total_data["Total Age%"] = [f"{int((grand_total_obtained / grand_total_max) * 100)}%"]
+                        current_card_percentage = int((grand_total_obtained / grand_total_max) * 100)
+                        total_row["Total Age%"] = f"{current_card_percentage}%"
                     else:
-                        total_data["Total Age%"] = ["-"]
+                        total_row["Total Age%"] = "-"
                 
-                total_df = pd.DataFrame(total_data)
-                report_df = pd.concat([report_df, total_df], ignore_index=True)
-                
-                # --- FORCE RENDER IN THE BROWSER SURFACE ENGINE VIA SET_INDEX ---
+                report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
                 st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
+                
+                # --- NEW SECTION: DYNAMIC MONTHLY ATTENDANCE GRID GENERATION PANEL ---
+                db_att = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
+                
+                header_row_html = ""
+                total_days_html = ""
+                present_days_html = ""
+                percentage_html = ""
+                
+                sum_total_days = 0
+                sum_present_days = 0
+                
+                for m in AVAILABLE_MONTHS:
+                    header_row_html += f"<th>{m}</th>"
+                    m_match = db_att[db_att['month_name'] == m]
+                    
+                    if not m_match.empty:
+                        td = int(m_match['total_days'].iloc[0])
+                        pd_val = int(m_match['present_days'].iloc[0])
+                        pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
+                        
+                        sum_total_days += td
+                        sum_present_days += pd_val
+                        
+                        total_days_html += f"<td>{td}</td>"
+                        present_days_html += f"<td>{pd_val}</td>"
+                        percentage_html += f"<td>{pct}</td>"
+                    else:
+                        total_days_html += "<td>-</td>"
+                        present_days_html += "<td>-</td>"
+                        percentage_html += "<td>-</td>"
+                        
+                overall_pct = f"{int((sum_present_days / sum_total_days) * 100)}%" if sum_total_days > 0 else "-"
+                str_sum_total = str(sum_total_days) if sum_total_days > 0 else "-"
+                str_sum_present = str(sum_present_days) if sum_total_days > 0 else "-"
+                
+                st.markdown(f"""
+                <h4 style="margin-top:15px; margin-bottom:5px; font-family:sans-serif; color:#333;">📅 Attendance Report</h4>
+                <table class="attendance-print-table">
+                    <thead>
+                        <tr style="background-color:#802200; color:white;">
+                            <th style="text-align:left;">Metrics Reference</th>
+                            {header_row_html}
+                            <th style="background-color:#5c1900;">Over All Att.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align:left; font-weight:bold;">Total Days</td>
+                            {total_days_html}
+                            <td style="font-weight:bold; background-color:#f9f9f9;">{str_sum_total}</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left; font-weight:bold;">Atten. Days</td>
+                            {present_days_html}
+                            <td style="font-weight:bold; background-color:#f9f9f9;">{str_sum_present}</td>
+                        </tr>
+                        <tr style="background-color: #fcf8e3;">
+                            <td style="text-align:left; font-weight:bold;">Age%</td>
+                            {percentage_html}
+                            <td style="font-weight:bold; background-color:#f2dede; color:#a94442;">{overall_pct}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                """, unsafe_allow_html=True)
+                
+                # --- AUTOMATED DYNAMIC REMARKS GENERATION BLOCK ---
+                if current_card_percentage >= 80:
+                    remarks_text = "🌟 EXCELLENT! Exceptional academic drive and mastery. Keep maintaining this elite level of execution."
+                    remarks_color = "#155724"
+                    remarks_bg = "#d4edda"
+                elif current_card_percentage >= 60:
+                    remarks_text = "👍 GOOD JOB! Strong performance overall. With consistent effort on complex topics, you can reach top tier honors."
+                    remarks_color = "#0c5460"
+                    remarks_bg = "#d1ecf1"
+                elif current_card_percentage >= 40:
+                    remarks_text = "⚠️ SATISFACTORY. Passed, but indicates significant gaps in critical subject areas. Extra study hours are strongly recommended."
+                    remarks_color = "#856404"
+                    remarks_bg = "#fff3cd"
+                else:
+                    remarks_text = "🚨 CRITICAL ATTENTION REQUIRED. Falling short of passing parameters. Immediate remedial coaching and parental consultation required."
+                    remarks_color = "#721c24"
+                    remarks_bg = "#f8d7da"
+                
+                st.markdown(f"""
+                <div style="background-color:{remarks_bg}; color:{remarks_color}; border-left: 6px solid {remarks_color}; padding: 12px 18px; margin-top: 5px; margin-bottom: 25px; border-radius: 4px; font-family: sans-serif; font-size: 14px;">
+                    <b>💡 TEACHER REMARKS & RECOMMENDATIONS:</b><br/> {remarks_text}
+                </div>
+                """, unsafe_allow_html=True)
+                
                 st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
 
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
