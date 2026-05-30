@@ -152,7 +152,6 @@ if menu_choice == "📊 Home Dashboard":
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     import_template = pd.DataFrame([{"ID": "", "Full Name": "", "Section": "", "Class": "11th"} for _ in range(35)])
-    # FIX: Replaced use_container_width=True with width="stretch"
     pasted_data = st.data_editor(import_template, width="stretch", num_rows="dynamic", key="bulk_paste_grid")
     
     if st.button("🚀 Process and Save Bulk Profiles", type="primary"):
@@ -414,7 +413,6 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.subheader(f"📊 Section Sheet Ledger View — {sel_sec} ({sel_exam})")
-        # FIX: Replaced use_container_width=True with width="stretch"
         st.dataframe(final_report_df.set_index("ID"), width="stretch")
         
         csv_data = final_report_df.to_csv(index=False).encode('utf-8')
@@ -424,7 +422,8 @@ elif menu_choice == "📋 Section Summary Report":
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
     
-    with St.expander("🛠️ Customize Print Layout Options (Click to Change)"):
+    # FIX: Corrected St.expander to st.expander
+    with st.expander("🛠️ Customize Print Layout Options (Click to Change)"):
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
             paper_orient = st.selectbox("Paper Orientation:", ["portrait", "landscape"])
@@ -784,7 +783,6 @@ elif menu_choice == "📈 Master Performance Ledger":
             if exam not in pivot_df.columns: pivot_df[exam] = "-"
         ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
         pivot_df = pivot_df[ordered_cols].fillna("-")
-        # FIX: Replaced use_container_width=True with width="stretch"
         st.dataframe(pivot_df, width="stretch")
         csv = pivot_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
