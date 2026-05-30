@@ -257,7 +257,6 @@ elif menu_choice == "📝 Enter Marks":
 
 # ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
-    st.title("📋 Performance Section Statistics Summary")
     col_a, col_b, col_c = st.columns(3)
     with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
     with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
@@ -329,15 +328,21 @@ elif menu_choice == "🪪 Student Result Cards":
         with col_p1:
             paper_orient = st.selectbox("Paper Orientation:", ["portrait", "landscape"])
             paper_size = st.selectbox("Paper Size:", ["A4", "letter", "legal"])
-        with col_p2:
-            paper_margin = st.selectbox("Paper Margins:", ["15mm", "10mm", "5mm (Narrow)", "20mm (Wide)"])
             font_size = st.selectbox("Text Font Size:", ["13pt (Normal)", "11pt (Compact)", "15pt (Large)"])
+        with col_p2:
+            st.markdown("**Page Margin Settings (mm):**")
+            margin_top = st.slider("Top Margin", min_value=0, max_value=50, value=15, step=1)
+            margin_bottom = st.slider("Bottom Margin", min_value=0, max_value=50, value=15, step=1)
         with col_p3:
+            st.markdown("**Page Margin Settings (mm):**")
+            margin_left = st.slider("Left Margin", min_value=0, max_value=50, value=15, step=1)
+            margin_right = st.slider("Right Margin", min_value=0, max_value=50, value=15, step=1)
+            
+            st.write("") 
             border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
             page_break = st.toggle("Force 1 Card per Page", value=True)
 
     # Convert settings names into system-usable variables
-    margin_val = "5mm" if "Narrow" in paper_margin else ("20mm" if "Wide" in paper_margin else paper_margin)
     font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
     border_val = "none" if border_style == "None" else border_style
     break_val = "always" if page_break else "auto"
@@ -349,15 +354,22 @@ elif menu_choice == "🪪 Student Result Cards":
         :root {{
             --paper-orient: {paper_orient};
             --paper-size: {paper_size};
-            --paper-margin: {margin_val};
             --font-size-choice: {font_val};
             --border-choice: {border_val};
             --break-choice: {break_val};
             --max-width-choice: {max_w_val};
         }}
         
-        /* 🖨️ CRITICAL PRINT INSTRUCTION: This completely hides the setup controls on paper/PDF */
+        /* 🖨️ CRITICAL PRINT INSTRUCTION: This applies your custom four-way margins and hides setup controls */
         @media print {{
+            @page {{
+                size: {paper_size} {paper_orient};
+                margin-top: {margin_top}mm !important;
+                margin-bottom: {margin_bottom}mm !important;
+                margin-left: {margin_left}mm !important;
+                margin-right: {margin_right}mm !important;
+            }}
+            
             [data-testid="stSidebar"], 
             header, 
             footer, 
@@ -416,6 +428,7 @@ elif menu_choice == "🪪 Student Result Cards":
             st.warning("Please pick at least one test type option.")
         else:
             target_section = base_student['section'].iloc[0].upper().strip()
+            num_selected_tests = len(selected_tests)
             
             if print_scope == "👥 Print Complete Section Cards":
                 students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
@@ -459,88 +472,92 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
                 matrix_data = []
+                
+                # Global tracking for Multi-test Total Age%
+                grand_total_obtained = 0.0
+                grand_total_max = 0.0
+                
                 for subj in ordered_subjects:
                     row_entry = {"SUBJECTS": subj}
-                    sub_total_obtained = 0
-                    sub_total_max = 0
-                    for exam in selected_tests:
+                    subj_total_obt = 0.0
+                    subj_total_max = 0.0
+                    
+                    if num_selected_tests == 1:
+                        # --- SINGLE TEST MODE COLUMNS ---
+                        exam = selected_tests[0]
                         match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
                         if not match.empty:
                             obt = str(match['marks_obtained'].iloc[0]).strip().upper()
                             tot = match['total_marks'].iloc[0]
-                            row_entry[f"{exam} (OBT)"] = obt
-                            if str(obt).replace('.','',1).isdigit():
-                                row_entry[f"{exam} (%)"] = f"{int(float(obt)/tot * 100)}%"
-                                sub_total_obtained += float(obt)
-                                sub_total_max += tot
+                            row_entry["Obt. Marks"] = obt
+                            row_entry["Total Marks"] = str(tot)
+                            if str(obt).replace('.', '', 1).isdigit():
+                                row_entry["Age%"] = f"{int(float(obt)/tot * 100)}%"
                             elif obt == "A":
-                                row_entry[f"{exam} (%)"] = "A"
+                                row_entry["Age%"] = "A"
                             else:
-                                row_entry[f"{exam} (%)"] = "-"
+                                row_entry["Age%"] = "-"
                         else:
-                            row_entry[f"{exam} (OBT)"] = "-"
-                            row_entry[f"{exam} (%)"] = "-"
-                    if sub_total_max > 0:
-                        row_entry["SUMMARY (OBT)"] = f"{int(sub_total_obtained)}"
-                        row_entry["SUMMARY (%)"] = f"{int((sub_total_obtained / sub_total_max) * 100)}%"
+                            row_entry["Obt. Marks"] = "-"
+                            row_entry["Total Marks"] = "-"
+                            row_entry["Age%"] = "-"
                     else:
-                        row_entry["SUMMARY (OBT)"] = "-"
-                        row_entry["SUMMARY (%)"] = "-"
+                        # --- MULTI TEST MODE COLUMNS ---
+                        for exam in selected_tests:
+                            match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
+                            if not match.empty:
+                                obt = str(match['marks_obtained'].iloc[0]).strip().upper()
+                                tot = match['total_marks'].iloc[0]
+                                row_entry[f"{exam} (Obt)"] = obt
+                                if str(obt).replace('.', '', 1).isdigit():
+                                    row_entry[f"{exam} (%)"] = f"{int(float(obt)/tot * 100)}%"
+                                    subj_total_obt += float(obt)
+                                    subj_total_max += tot
+                                    grand_total_obtained += float(obt)
+                                    grand_total_max += tot
+                                elif obt == "A":
+                                    row_entry[f"{exam} (%)"] = "A"
+                                else:
+                                    row_entry[f"{exam} (%)"] = "-"
+                            else:
+                                row_entry[f"{exam} (Obt)"] = "-"
+                                row_entry[f"{exam} (%)"] = "-"
+                        
+                        if subj_total_max > 0:
+                            row_entry["Total Age%"] = f"{int((subj_total_obt / subj_total_max) * 100)}%"
+                        else:
+                            row_entry["Total Age%"] = "-"
+                            
                     matrix_data.append(row_entry)
                 
                 report_df = pd.DataFrame(matrix_data)
                 total_row = {"SUBJECTS": "⚡ TOTAL"}
-                for exam in selected_tests:
+                
+                if num_selected_tests == 1:
+                    # Calculate single test column totals
+                    exam = selected_tests[0]
                     exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
-                    valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                    if not valid_exam_matches.empty:
-                        t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
+                    valid_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
+                    
+                    if not valid_matches.empty:
+                        t_obt = valid_matches['marks_obtained'].astype(float).sum()
                         t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                        total_row[f"{exam} (OBT)"] = f"{int(t_obt)}"
-                        total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
+                        total_row["Obt. Marks"] = f"{int(t_obt)}"
+                        total_row["Total Marks"] = f"{int(t_max)}"
+                        total_row["Age%"] = f"{int((t_obt/t_max)*100)}%"
                     else:
-                        total_row[f"{exam} (OBT)"] = "-"
-                        total_row[f"{exam} (%)"] = "-"
-                
-                valid_all = raw_marks[raw_marks['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                if not valid_all.empty:
-                    m_obt = valid_all['marks_obtained'].astype(float).sum()
-                    m_max = sum([raw_marks[raw_marks['subject']==s.upper().strip()]['total_marks'].iloc[0] for s in ordered_subjects if not raw_marks[raw_marks['subject']==s.upper().strip()].empty])
-                    total_row["SUMMARY (OBT)"] = f"{int(m_obt)}"
-                    total_row["SUMMARY (%)"] = f"{int((m_obt/m_max)*100)}%" if m_max > 0 else "-"
+                        total_row["Obt. Marks"] = "-"
+                        total_row["Total Marks"] = "-"
+                        total_row["Age%"] = "-"
                 else:
-                    total_row["SUMMARY (OBT)"] = "-"
-                    total_row["SUMMARY (%)"] = "-"
-                
-                report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
-                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
-                st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
-
-# ----------------- 📈 PERFORMANCE LEDGER -----------------
-elif menu_choice == "📈 Master Performance Ledger":
-    st.title("📈 Subject-wise Consolidated Performance Ledger")
-    c1, c2, c3 = st.columns(3)
-    with c1: l_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="l_disc")
-    with c2: l_subj = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[l_disc], key="l_subj")
-    with c3: l_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[l_disc], key="l_sec")
-    st.markdown("---")
-    
-    raw_ledger = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", m.exam_type, m.marks_obtained
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-        ORDER BY s.id ASC
-    """, {"subject": l_subj, "section": l_sec})
-    
-    if raw_ledger.empty:
-        st.info("No student information found for this configuration.")
-    else:
-        pivot_df = raw_ledger.pivot_table(index=["ID", "Student Name"], columns="exam_type", values="marks_obtained", aggfunc="first").reset_index()
-        for exam in AVAILABLE_EXAMS:
-            if exam not in pivot_df.columns: pivot_df[exam] = "-"
-        ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
-        pivot_df = pivot_df[ordered_cols].fillna("-")
-        st.dataframe(pivot_df, use_container_width=True)
-        csv = pivot_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
+                    # Calculate multi test column totals
+                    for exam in selected_tests:
+                        exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
+                        valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
+                        if not valid_exam_matches.empty:
+                            t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
+                            t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
+                            total_row[f"{exam} (Obt)"] = f"{int(t_obt)}"
+                            total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
+                        else:
+                            total_row
