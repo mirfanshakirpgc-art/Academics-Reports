@@ -541,9 +541,11 @@ elif menu_choice == "🪪 Student Result Cards":
 
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
-                name = str(student_row['name']).upper()
+                
+                # CRITICAL SANITIZATION FIX: Stripping double spaces and inner text newlines (\n) 
+                name = " ".join(str(student_row['name']).replace('\n', ' ').replace('\r', ' ').split()).upper()
                 section = str(student_row['section']).upper().strip()
-                grade_class = str(student_row['class'])
+                grade_class = str(student_row['class']).strip()
                 
                 raw_marks = run_query("""
                     SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
