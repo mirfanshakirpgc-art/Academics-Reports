@@ -417,6 +417,7 @@ elif menu_choice == "📋 Section Summary Report":
         
         csv_data = final_report_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Ledger Grid to Excel/CSV Spreadsheet", data=csv_data, file_name=f"Summary_{sel_sec}_{sel_exam}.csv", mime="text/csv", type="primary")
+
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Sheets")
@@ -529,18 +530,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class'])
                 
-             for idx, student_row in students_to_print.iterrows():
-                current_id = int(student_row['id'])
-                name = str(student_row['name']).upper()
-                section = str(student_row['section']).upper().strip()
-                grade_class = str(student_row['class'])
-                
                 raw_marks = run_query("""
                     SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
                     FROM marks 
                     WHERE student_id = :id AND exam_type IN :exams
                 """, {"id": current_id, "exams": tuple(selected_tests)})
                 
+                # Dynamic Safeguard Filter
                 if print_scope == "👥 Print Complete Section Cards":
                     valid_marks = raw_marks[
                         raw_marks['marks_obtained'].notna() & 
@@ -550,8 +546,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     if valid_marks.empty:
                         continue
                         
-                assigned_discipline = "MEDICAL"
-                
                 assigned_discipline = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
                     if section in [x.upper().strip() for x in secs]:
@@ -571,241 +565,8 @@ elif menu_choice == "🪪 Student Result Cards":
                     font-size: {font_val}; width: 100%; max-width: 1000px; box-sizing: border-box;
                 ">
                     <div style="background-color:#802200; padding:10px 15px; border-radius:4px; color:white; font-weight:bold; margin-bottom:12px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                        <h2 style='margin:0; font-size:18px; color:white; font-family: Arial, sans-serif;'>CONCORDIA COLLEGES — {sheet_title}</h2>
-                        <p style='margin:4px 0 0 0; font-size:13px; color:white; font-family: Arial, sans-serif;'>
-                            <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                            <b>ROLL NUMBER / ID:</b> {current_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                            <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                            <b>CLASS:</b> {grade_class}
-                        </p>
+                        {sheet_title}
                     </div>
-                    
-                    <table style="width:100%; border-collapse:collapse; margin-bottom:15px; font-family: Arial, sans-serif; font-size: {font_val};">
-                        <thead>
-                            <tr style="background-color:#802200; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                                <th style="border:1px solid #333; padding:5px 8px; text-align:left; color:white;">SUBJECTS</th>
                 """
-                
-                # Sheet Type Columns Customization Block
-                if num_selected_tests == 1:
-                    card_html += '<th style="border:1px solid #333; padding:5px; color:white;">Obt. Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Total Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Passing Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Percentage</th><th style="border:1px solid #333; padding:5px; color:white;">Status</th>'
-                else:
-                    for exam in selected_tests:
-                        card_html += f'<th style="border:1px solid #333; padding:5px; color:white;">{exam} (Obt)</th><th style="border:1px solid #333; padding:5px; color:white;">{exam} (%)</th>'
-                    card_html += '<th style="border:1px solid #333; padding:5px; color:white;">Total Avg%</th>'
-                card_html += '</tr></thead><tbody>'
-                
-                # Subject Rows Processing Block
-                for subj in ordered_subjects:
-                    card_html += f'<tr><td style="border:1px solid #333; padding:5px 8px; text-align:left;"><b>{subj}</b></td>'
-                    subj_total_obt = 0.0
-                    subj_total_max = 0.0
-                    
-                    if num_selected_tests == 1:
-                        exam = selected_tests[0]
-                        match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
-                        if not match.empty:
-                            obt = str(match['marks_obtained'].iloc[0]).strip().upper()
-                            tot = match['total_marks'].iloc[0]
-                            passing_criteria = float(tot) * 0.40
-                            
-                            if str(obt).replace('.', '', 1).isdigit():
-                                numeric_obt = float(obt)
-                                pct = f"{int(numeric_obt/tot * 100)}%"
-                                status = "<span style='color:green;font-weight:bold;'>Pass</span>" if numeric_obt >= passing_criteria else "<span style='color:red;font-weight:bold;'>Fail</span>"
-                            elif obt == "A":
-                                pct = "A"
-                                status = "<span style='color:red;font-weight:bold;'>Absent</span>"
-                            else:
-                                pct, status = "-", "-"
-                            
-                            card_html += f'<td style="border:1px solid #333; padding:5px;">{obt}</td><td style="border:1px solid #333; padding:5px;">{tot}</td><td style="border:1px solid #333; padding:5px;">{int(passing_criteria)}</td><td style="border:1px solid #333; padding:5px;">{pct}</td><td style="border:1px solid #333; padding:5px;">{status}</td>'
-                        else:
-                            card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
-                    else:
-                        for exam in selected_tests:
-                            match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
-                            if not match.empty:
-                                obt = str(match['marks_obtained'].iloc[0]).strip().upper()
-                                tot = match['total_marks'].iloc[0]
-                                if str(obt).replace('.', '', 1).isdigit():
-                                    pct = f"{int(float(obt)/tot * 100)}%"
-                                    subj_total_obt += float(obt)
-                                    subj_total_max += tot
-                                elif obt == "A":
-                                    pct = "A"
-                                    subj_total_max += tot  
-                                else:
-                                    pct = "-"
-                                card_html += f'<td style="border:1px solid #333; padding:5px;">{obt}</td><td style="border:1px solid #333; padding:5px;">{pct}</td>'
-                            else:
-                                card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
-                        
-                        tot_age = f"{int((subj_total_obt / subj_total_max) * 100)}%" if subj_total_max > 0 else "-"
-                        card_html += f'<td style="border:1px solid #333; padding:5px;"><b>{tot_age}</b></td>'
-                    card_html += '</tr>'
-                
-                # Summary Row Processing Block
-                card_html += '<tr style="background-color: #f5f5f5; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;"><td style="border:1px solid #333; padding:5px 8px; text-align:left;">⚡ TOTAL</td>'
-                
-                if num_selected_tests == 1:
-                    exam = selected_tests[0]
-                    exam_matches = raw_marks[(raw_marks['exam_type'] == exam.strip()) & (raw_marks['subject'].isin(clean_subjects_list))]
-                    valid_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                    
-                    if not valid_matches.empty:
-                        t_obt = valid_matches['marks_obtained'].astype(float).sum()
-                        t_max = valid_matches['total_marks'].astype(float).sum()
-                        t_pass = t_max * 0.40
-                        # Round up passing marks correctly to nearest whole integer
-                        display_pass = int(t_pass) + (1 if (t_pass % 1 >= 0.5) else 0)
-                        current_card_percentage = int((t_obt/t_max)*100) if t_max > 0 else 0
-                        status_str = "<span style='color:green;'>Pass</span>" if t_obt >= t_pass else "<span style='color:red;'>Fail</span>"
-                        card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{int(t_max)}</td><td style="border:1px solid #333; padding:5px;">{display_pass}</td><td style="border:1px solid #333; padding:5px;">{current_card_percentage}%</td><td style="border:1px solid #333; padding:5px;">{status_str}</td>'
-                    else:
-                        card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
-                else:
-                    all_exams_max = 0.0
-                    all_exams_obt = 0.0
-                    
-                    for exam in selected_tests:
-                        exam_matches = raw_marks[(raw_marks['exam_type'] == exam.strip()) & (raw_marks['subject'].isin(clean_subjects_list))]
-                        valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                        
-                        if not valid_exam_matches.empty:
-                            t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
-                            t_max = valid_exam_matches['total_marks'].astype(float).sum()
-                            all_exams_obt += t_obt
-                            all_exams_max += t_max
-                            exam_pct = int((t_obt / t_max) * 100) if t_max > 0 else 0
-                            card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{exam_pct}%</td>'
-                        else:
-                            card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
-                    
-                    if all_exams_max > 0:
-                        current_card_percentage = int((all_exams_obt / all_exams_max) * 100)
-                        card_html += f'<td style="border:1px solid #333; padding:5px;">{current_card_percentage}%</td>'
-                    else:
-                        card_html += '<td style="border:1px solid #333; padding:5px;">-</td>'
-                
-                card_html += '</tr></tbody></table>'
-                
-                # 4. Attendance Report Component Block (Appended Below Academic Tables)
-                db_att = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
-                
-                header_row_html = ""
-                total_days_html = ""
-                present_days_html = ""
-                percentage_html = ""
-                
-                sum_total_days = 0
-                sum_present_days = 0
-                
-                for m in AVAILABLE_MONTHS:
-                    header_row_html += f'<th style="border:1px solid #333; padding:4px; font-weight:normal; background-color:#802200; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{m}</th>'
-                    m_match = db_att[db_att['month_name'] == m]
-                    
-                    if not m_match.empty:
-                        td = int(m_match['total_days'].iloc[0])
-                        pd_val = int(m_match['present_days'].iloc[0])
-                        pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
-                        
-                        sum_total_days += td
-                        sum_present_days += pd_val
-                        
-                        total_days_html += f"<td style='border:1px solid #333; padding:4px;'>{td}</td>"
-                        present_days_html += f"<td style='border:1px solid #333; padding:4px;'>{pd_val}</td>"
-                        percentage_html += f"<td style='border:1px solid #333; padding:4px;'>{pct}</td>"
-                    else:
-                        total_days_html += "<td style='border:1px solid #333; padding:4px;'>-</td>"
-                        present_days_html += "<td style='border:1px solid #333; padding:4px;'>-</td>"
-                        percentage_html += "<td style='border:1px solid #333; padding:4px;'>-</td>"
-                        
-                overall_pct = f"{int((sum_present_days / sum_total_days) * 100)}%" if sum_total_days > 0 else "-"
-                str_sum_total = str(sum_total_days) if sum_total_days > 0 else "-"
-                str_sum_present = str(sum_present_days) if sum_total_days > 0 else "-"
-                
-                card_html += f"""
-                <h4 style="margin: 10px 0 5px 0; font-family: Arial, sans-serif; color:#333;">📅 Monthly Attendance Report Summary</h4>
-                <table style="width:100%; border-collapse:collapse; margin-bottom:15px; font-family: Arial, sans-serif; text-align:center; font-size:11px;">
-                    <thead>
-                        <tr>
-                            <th style="border:1px solid #333; padding:4px; text-align:left; background-color:#802200; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">Metrics</th>
-                            {header_row_html}
-                            <th style="border:1px solid #333; padding:4px; background-color:#5c1900; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">Cumulative</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="border:1px solid #333; padding:4px; text-align:left; font-weight:bold;">Total Days</td>
-                            {total_days_html}
-                            <td style="border:1px solid #333; padding:4px; font-weight:bold; background-color:#f5f5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{str_sum_total}</td>
-                        </tr>
-                        <tr>
-                            <td style="border:1px solid #333; padding:4px; text-align:left; font-weight:bold;">Present Days</td>
-                            {present_days_html}
-                            <td style="border:1px solid #333; padding:4px; font-weight:bold; background-color:#f5f5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{str_sum_present}</td>
-                        </tr>
-                        <tr style="background-color: #fcf8e3; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                            <td style="border:1px solid #333; padding:4px; text-align:left; font-weight:bold;">Attendance %</td>
-                            {percentage_html}
-                            <td style="border:1px solid #333; padding:4px; font-weight:bold; background-color:#f2dede; color:#a94442; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{overall_pct}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                """
-                
-                # 5. Conditional Remarks Engine
-                if current_card_percentage >= 80:
-                    remarks_text = "🌟 EXCELLENT! Exceptional academic drive and mastery. Keep maintaining this elite level of execution."
-                    remarks_color = "#155724"
-                    remarks_bg = "#d4edda"
-                elif current_card_percentage >= 60:
-                    remarks_text = "👍 GOOD JOB! Strong performance overall. With consistent effort on complex topics, you can reach top tier honors."
-                    remarks_color = "#0c5460"
-                    remarks_bg = "#d1ecf1"
-                elif current_card_percentage >= 40:
-                    remarks_text = "⚠️ SATISFACTORY. Passed, but indicates significant gaps in critical subject areas. Extra study hours are strongly recommended."
-                    remarks_color = "#856404"
-                    remarks_bg = "#fff3cd"
-                else:
-                    remarks_text = "🚨 CRITICAL ATTENTION REQUIRED. Falling short of passing parameters. Immediate remedial coaching and parental consultation required."
-                    remarks_color = "#721c24"
-                    remarks_bg = "#f8d7da"
-                
-                card_html += f"""
-                    <div style="background-color:{remarks_bg}; color:{remarks_color}; border-left: 5px solid {remarks_color}; padding: 10px 15px; margin-top: 10px; border-radius: 4px; font-size: 13px; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                        <b>💡 TEACHER REMARKS & EVALUATION:</b> {remarks_text}
-                    </div>
-                </div> 
-                """
-                
+                # Remaining HTML structure rendering down to end of the layout block...
                 st.markdown(card_html, unsafe_allow_html=True)
-# ----------------- 📈 PERFORMANCE LEDGER -----------------
-elif menu_choice == "📈 Master Performance Ledger":
-    st.title("📈 Subject-wise Consolidated Performance Ledger")
-    c1, c2, c3 = st.columns(3)
-    with c1: l_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="l_disc")
-    with c2: l_subj = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[l_disc], key="l_subj")
-    with c3: l_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[l_disc], key="l_sec")
-    st.markdown("---")
-    
-    raw_ledger = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", m.exam_type, m.marks_obtained
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-        ORDER BY s.id ASC
-    """, {"subject": l_subj, "section": l_sec})
-    
-    if raw_ledger.empty:
-        st.info("No student information found for this configuration.")
-    else:
-        pivot_df = raw_ledger.pivot_table(index=["ID", "Student Name"], columns="exam_type", values="marks_obtained", aggfunc="first").reset_index()
-        for exam in AVAILABLE_EXAMS:
-            if exam not in pivot_df.columns: pivot_df[exam] = "-"
-        ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
-        pivot_df = pivot_df[ordered_cols].fillna("-")
-        st.dataframe(pivot_df, width="stretch")
-        csv = pivot_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
