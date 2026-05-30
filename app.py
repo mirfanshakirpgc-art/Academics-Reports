@@ -206,97 +206,40 @@ elif menu_choice == "📝 Enter Marks":
                         col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
                         updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
                     
-                   # ----------------- 🪪 STUDENT RESULT CARDS -----------------
-elif menu_choice == "🪪 Student Result Cards":
-    st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
-    
-    # --- DYNAMIC PRINT LAYOUT CONFIGURATION OPTIONS PANEL ---
-    with st.expander("🛠️ Customize Print Layout Options (Click to Change)"):
-        col_p1, col_p2, col_p3 = st.columns(3)
-        with col_p1:
-            paper_orient = st.selectbox("Paper Orientation:", ["portrait", "landscape"])
-            paper_size = st.selectbox("Paper Size:", ["A4", "letter", "legal"])
-        with col_p2:
-            paper_margin = st.selectbox("Paper Margins:", ["15mm", "10mm", "5mm (Narrow)", "20mm (Wide)"])
-            font_size = st.selectbox("Text Font Size:", ["13pt (Normal)", "11pt (Compact)", "15pt (Large)"])
-        with col_p3:
-            border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
-            page_break = st.toggle("Force 1 Card per Page", value=True)
+                    if st.form_submit_button("💾 Save Section Marks", type="primary"):
+                        for s_id, score in updated_scores.items():
+                            execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
+                            if score.strip() != "":
+                                execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
+                        st.success("🎉 Section marks matrix saved and updated completely!")
+                        st.rerun()
+        except Exception as e:
+            st.error(f"Database sync issue. Error: {e}")
 
-    # Convert settings names into system-usable variables
-    margin_val = "5mm" if "Narrow" in paper_margin else ("20mm" if "Wide" in paper_margin else paper_margin)
-    font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
-    border_val = "none" if border_style == "None" else border_style
-    break_val = "always" if page_break else "auto"
-    max_w_val = "800px" if border_style != "None" else "100%"
-
-    # Send choices directly to our CSS engine variables
-    st.markdown(f"""
-        <style>
-        :root {{
-            --paper-orient: {paper_orient};
-            --paper-size: {paper_size};
-            --paper-margin: {margin_val};
-            --font-size-choice: {font_val};
-            --border-choice: {border_val};
-            --break-choice: {break_val};
-            --max-width-choice: {max_w_val};
-        }}
-        
-        /* 🖨️ CRITICAL PRINT INSTRUCTION: This completely hides the setup controls on paper/PDF */
-        @media print {{
-            /* Hide Streamlit header, sidebar, and footer elements */
-            [data-testid="stSidebar"], 
-            header, 
-            footer, 
-            [data-testid="stHeader"] {{
-                display: none !important;
-            }}
-            
-            /* Hide the title, options panel, radios, inputs, and custom iframe print button */
-            h1, 
-            .stExpander, 
-            [data-testid="stRadio"], 
-            [data-testid="stTextInput"], 
-            [data-testid="stMultiSelect"], 
-            hr,
-            iframe {{
-                display: none !important;
-            }}
-            
-            /* Ensure the result tables and headers take up clean spacing */
-            .print-card-break {{
-                page-break-after: always !important;
-                break-after: page !important;
-            }}
-        }}
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # --- PRINT MODE CONTROLLER ---
-    print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
-    
-    search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
-    selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
-    
-    # 2. CORE VIEWPORT INJECTION ENGINE FOR ACTIVE BROWSER CHANNELS
-    import streamlit.components.v1 as components
-    components.html("""
-        <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
-            background-color: #f8a100; 
-            color: white; 
-            border: none;
-            font-weight: bold; 
-            padding: 10px 24px; 
-            border-radius: 4px; 
-            cursor: pointer;
-            font-family: sans-serif;
-            font-size: 16px;
-            width: 220px;
-        ">🖨️ Open Print Preview</button>
-    """, height=60)
-            
-    st.markdown("---")
+    elif entry_mode == "👤 By Single Student Roll Number":
+        target_id = st.text_input("🔍 Enter Student Roll Number / ID:")
+        if target_id and target_id.isdigit():
+            student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(target_id)})
+            if student_info.empty:
+                st.error("❌ This roll number does not exist in your registered profiles list.")
+            else:
+                s_name = student_info['name'].iloc[0].upper()
+                s_section = student_info['section'].iloc[0].upper().strip()
+                s_class = student_info['class'].iloc[0]
+                st.info(f"👤 **Student Found:** {s_name} | **Class:** {s_class} | **Section Reference:** {s_section}")
+                
+                matched_disp = "MEDICAL"
+                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
+                    if s_section in [x.upper().strip() for x in secs]:
+                        matched_disp = disp
+                        break
+                
+                st.markdown("#### Assign Grades")
+                c_sub, c_ex, c_m = st.columns(3)
+                with c_sub: 
+                    if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
+                        single_subj = st.selectbox("Choose Subject:", [st.session_state.assigned_subject.upper().strip()], key="single_sub")
+                    else:
                         single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
                 with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam")
                 with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
@@ -412,7 +355,26 @@ elif menu_choice == "🪪 Student Result Cards":
             --break-choice: {break_val};
             --max-width-choice: {max_w_val};
         }}
+        
+        /* 🖨️ CRITICAL PRINT INSTRUCTION: This completely hides the setup controls on paper/PDF */
         @media print {{
+            [data-testid="stSidebar"], 
+            header, 
+            footer, 
+            [data-testid="stHeader"] {{
+                display: none !important;
+            }}
+            
+            h1, 
+            .stExpander, 
+            [data-testid="stRadio"], 
+            [data-testid="stTextInput"], 
+            [data-testid="stMultiSelect"], 
+            hr,
+            iframe {{
+                display: none !important;
+            }}
+            
             .print-card-break {{
                 page-break-after: always !important;
                 break-after: page !important;
@@ -427,7 +389,6 @@ elif menu_choice == "🪪 Student Result Cards":
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
     
-    # 2. CORE VIEWPORT INJECTION ENGINE FOR ACTIVE BROWSER CHANNELS
     import streamlit.components.v1 as components
     components.html("""
         <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
@@ -456,7 +417,6 @@ elif menu_choice == "🪪 Student Result Cards":
         else:
             target_section = base_student['section'].iloc[0].upper().strip()
             
-            # Decide if we loop through the complete section or only look at the single student
             if print_scope == "👥 Print Complete Section Cards":
                 students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
             else:
@@ -467,14 +427,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     "class": base_student['class'].iloc[0]
                 }])
 
-            # Loop and print targeted metrics
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class'])
                 
-                # Dynamic visual divider for page breaking 
                 st.markdown(f"""
                 <div style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-top:20px; margin-bottom:10px; font-family:sans-serif;">
                     <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
@@ -556,8 +514,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
                 st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
-                
-                # This invisible div commands the physical printer hardware to slice pages cleanly here
                 st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
 
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
