@@ -342,13 +342,11 @@ elif menu_choice == "🪪 Student Result Cards":
             border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
             page_break = st.toggle("Force 1 Card per Page", value=True)
 
-    # Convert settings names into system-usable variables
     font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
     border_val = "none" if border_style == "None" else border_style
     break_val = "always" if page_break else "auto"
     max_w_val = "800px" if border_style != "None" else "100%"
 
-    # Send choices directly to our CSS engine variables
     st.markdown(f"""
         <style>
         :root {{
@@ -395,7 +393,6 @@ elif menu_choice == "🪪 Student Result Cards":
         </style>
     """, unsafe_allow_html=True)
     
-    # --- PRINT MODE CONTROLLER ---
     print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
     
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
@@ -419,7 +416,6 @@ elif menu_choice == "🪪 Student Result Cards":
             
     st.markdown("---")
 
-    # 3. CORE DATA LOADING & TABLE RENDERING LOGIC
     if search_id and search_id.isdigit():
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if base_student.empty:
@@ -475,6 +471,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 grand_total_obtained = 0.0
                 grand_total_max = 0.0
+                current_card_percentage = 0  # To track final percentage for remarks engine
                 
                 for subj in ordered_subjects:
                     row_entry = {"SUBJECTS": subj}
@@ -488,18 +485,31 @@ elif menu_choice == "🪪 Student Result Cards":
                         if not match.empty:
                             obt = str(match['marks_obtained'].iloc[0]).strip().upper()
                             tot = match['total_marks'].iloc[0]
+                            passing_criteria = float(tot) * 0.40
+                            
                             row_entry["Obt. Marks"] = obt
                             row_entry["Total Marks"] = str(tot)
+                            row_entry["Passing Marks"] = f"{int(passing_criteria)}"
+                            
                             if str(obt).replace('.', '', 1).isdigit():
-                                row_entry["Age%"] = f"{int(float(obt)/tot * 100)}%"
+                                numeric_obt = float(obt)
+                                row_entry["Age%"] = f"{int(numeric_obt/tot * 100)}%"
+                                row_entry["Status"] = "Pass" if numeric_obt >= passing_criteria else "Fail"
+                                grand_total_obtained += numeric_obt
+                                grand_total_max += tot
                             elif obt == "A":
                                 row_entry["Age%"] = "A"
+                                row_entry["Status"] = "Absent"
+                                grand_total_max += tot
                             else:
                                 row_entry["Age%"] = "-"
+                                row_entry["Status"] = "-"
                         else:
                             row_entry["Obt. Marks"] = "-"
                             row_entry["Total Marks"] = "-"
+                            row_entry["Passing Marks"] = "-"
                             row_entry["Age%"] = "-"
+                            row_entry["Status"] = "-"
                     else:
                         # --- MULTI TEST MODE COLUMNS ---
                         for exam in selected_tests:
@@ -530,8 +540,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     matrix_data.append(row_entry)
                 
                 report_df = pd.DataFrame(matrix_data)
-                
-                # --- STRUCTURE THE TOTALS DATA RECORD AS A DATAFRAME TO FORCE SYSTEM COERCION ---
                 total_data = {"SUBJECTS": ["⚡ TOTAL"]}
                 
                 if num_selected_tests == 1:
@@ -542,13 +550,20 @@ elif menu_choice == "🪪 Student Result Cards":
                     if not valid_matches.empty:
                         t_obt = valid_matches['marks_obtained'].astype(float).sum()
                         t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
+                        t_pass = t_max * 0.40
+                        current_card_percentage = int((t_obt/t_max)*100)
+                        
                         total_data["Obt. Marks"] = [f"{int(t_obt)}"]
                         total_data["Total Marks"] = [f"{int(t_max)}"]
-                        total_data["Age%"] = [f"{int((t_obt/t_max)*100)}%"]
+                        total_data["Passing Marks"] = [f"{int(t_pass)}"]
+                        total_data["Age%"] = [f"{current_card_percentage}%"]
+                        total_data["Status"] = ["Pass" if t_obt >= t_pass else "Fail"]
                     else:
                         total_data["Obt. Marks"] = ["-"]
                         total_data["Total Marks"] = ["-"]
+                        total_data["Passing Marks"] = ["-"]
                         total_data["Age%"] = ["-"]
+                        total_data["Status"] = ["-"]
                 else:
                     for exam in selected_tests:
                         exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
@@ -556,49 +571,4 @@ elif menu_choice == "🪪 Student Result Cards":
                         if not valid_exam_matches.empty:
                             t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
                             t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                            total_data[f"{exam} (Obt)"] = [f"{int(t_obt)}"]
-                            total_data[f"{exam} (%)"] = [f"{int((t_obt/t_max)*100)}%"]
-                        else:
-                            total_data[f"{exam} (Obt)"] = ["-"]
-                            total_data[f"{exam} (%)"] = ["-"]
-                    
-                    if grand_total_max > 0:
-                        total_data["Total Age%"] = [f"{int((grand_total_obtained / grand_total_max) * 100)}%"]
-                    else:
-                        total_data["Total Age%"] = ["-"]
-                
-                total_df = pd.DataFrame(total_data)
-                report_df = pd.concat([report_df, total_df], ignore_index=True)
-                
-                # --- FORCE RENDER IN THE BROWSER SURFACE ENGINE VIA SET_INDEX ---
-                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
-                st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
-
-# ----------------- 📈 PERFORMANCE LEDGER -----------------
-elif menu_choice == "📈 Master Performance Ledger":
-    st.title("📈 Subject-wise Consolidated Performance Ledger")
-    c1, c2, c3 = st.columns(3)
-    with c1: l_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="l_disc")
-    with c2: l_subj = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[l_disc], key="l_subj")
-    with c3: l_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[l_disc], key="l_sec")
-    st.markdown("---")
-    
-    raw_ledger = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", m.exam_type, m.marks_obtained
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-        ORDER BY s.id ASC
-    """, {"subject": l_subj, "section": l_sec})
-    
-    if raw_ledger.empty:
-        st.info("No student information found for this configuration.")
-    else:
-        pivot_df = raw_ledger.pivot_table(index=["ID", "Student Name"], columns="exam_type", values="marks_obtained", aggfunc="first").reset_index()
-        for exam in AVAILABLE_EXAMS:
-            if exam not in pivot_df.columns: pivot_df[exam] = "-"
-        ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
-        pivot_df = pivot_df[ordered_cols].fillna("-")
-        st.dataframe(pivot_df, use_container_width=True)
-        csv = pivot_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
+                            total_data
