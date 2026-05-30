@@ -417,12 +417,12 @@ elif menu_choice == "📋 Section Summary Report":
         
         csv_data = final_report_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Ledger Grid to Excel/CSV Spreadsheet", data=csv_data, file_name=f"Summary_{sel_sec}_{sel_exam}.csv", mime="text/csv", type="primary")
-
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
-    st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
+    st.title("🍁 Concordia Colleges, Kasur — Academic Report Sheets")
     
-    with st.expander("🛠️ Customize Print Layout Options (Click to Change)"):
+    # 1. Print Configuration Layout Options
+    with st.expander("🛠️ Customize Sheet & Layout Settings (Click to Expand)"):
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
             paper_orient = st.selectbox("Paper Orientation:", ["portrait", "landscape"])
@@ -445,6 +445,7 @@ elif menu_choice == "🪪 Student Result Cards":
     border_val = "none" if border_style == "None" else border_style
     break_val = "always" if page_break else "auto"
 
+    # Inject global print styling configurations
     st.markdown(f"""
         <style>
         @media print {{
@@ -454,7 +455,7 @@ elif menu_choice == "🪪 Student Result Cards":
             }}
             [data-testid="stSidebar"], header, footer, [data-testid="stHeader"],
             .stExpander, [data-testid="stRadio"], [data-testid="stTextInput"], 
-            [data-testid="stMultiSelect"], hr, iframe, button {{
+            [data-testid="stMultiSelect"], hr, iframe, button, .stSelectbox {{
                 display: none !important;
                 height: 0px !important;
             }}
@@ -475,35 +476,39 @@ elif menu_choice == "🪪 Student Result Cards":
         </style>
     """, unsafe_allow_html=True)
     
+    # 2. Main Sheet Selectors & Inputs
+    sheet_type = st.selectbox(
+        "📄 Select Document Sheet Type to Generate:", 
+        ["Result Card (Single Student & Single Test)", "Academics Report (Single Student & Multiple Tests)"]
+    )
+    
     print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
-    selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
     
-    st.markdown("""
+    # Contextual controls based on the chosen layout sheet type
+    if sheet_type == "Result Card (Single Student & Single Test)":
+        target_exam = st.selectbox("🎯 Select Exam Term:", options=AVAILABLE_EXAMS, index=0)
+        selected_tests = [target_exam]
+    else:
+        selected_tests = st.multiselect("🎯 Select Test Terms to Cross-Compare:", options=AVAILABLE_EXAMS, default=["MT_1", "MT_2"])
+
+    st.markdown(f"""
         <button onclick="window.print();" style="
-            background-color: #f8a100; 
-            color: white; 
-            border: none;
-            font-weight: bold; 
-            padding: 10px 24px; 
-            border-radius: 4px; 
-            cursor: pointer;
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-            width: 220px;
-            display: block;
-            margin-bottom: 20px;
-        ">🖨️ Open Print Preview</button>
+            background-color: #f8a100; color: white; border: none; font-weight: bold; 
+            padding: 10px 24px; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;
+            font-size: 16px; width: 240px; display: block; margin-bottom: 20px;
+        ">🖨️ Open Sheet Print Preview</button>
     """, unsafe_allow_html=True)
             
     st.markdown("---")
 
+    # 3. Data Computation Engine
     if search_id and search_id.isdigit():
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if base_student.empty:
             st.error("❌ No student record discovered with that Roll Number.")
         elif not selected_tests:
-            st.warning("Please pick at least one test type option.")
+            st.warning("Please select at least one exam/test parameter to display.")
         else:
             target_section = base_student['section'].iloc[0].upper().strip()
             num_selected_tests = len(selected_tests)
@@ -540,21 +545,16 @@ elif menu_choice == "🪪 Student Result Cards":
                 clean_subjects_list = [s.upper().strip() for s in ordered_subjects]
                 
                 current_card_percentage = 0 
+                sheet_title = "STUDENT RESULT CARD" if num_selected_tests == 1 else "STUDENT ACADEMICS REPORT"
                 
                 card_html = f"""
                 <div class="print-page-block" style="
-                    border: {border_val}; 
-                    padding: 15px; 
-                    margin-bottom: 25px; 
-                    background-color: #ffffff; 
-                    font-family: Arial, sans-serif; 
-                    font-size: {font_val}; 
-                    width: 100%; 
-                    max-width: 1000px; 
-                    box-sizing: border-box;
+                    border: {border_val}; padding: 15px; margin-bottom: 25px; 
+                    background-color: #ffffff; font-family: Arial, sans-serif; 
+                    font-size: {font_val}; width: 100%; max-width: 1000px; box-sizing: border-box;
                 ">
-                    <div style="background-color:#f8a100; padding:10px 15px; border-radius:4px; color:white; font-weight:bold; margin-bottom:12px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                        <h2 style='margin:0; font-size:18px; color:white; font-family: Arial, sans-serif;'>CONCORDIA COLLEGES — ACADEMIC PERFORMANCE CARD</h2>
+                    <div style="background-color:#802200; padding:10px 15px; border-radius:4px; color:white; font-weight:bold; margin-bottom:12px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                        <h2 style='margin:0; font-size:18px; color:white; font-family: Arial, sans-serif;'>CONCORDIA COLLEGES — {sheet_title}</h2>
                         <p style='margin:4px 0 0 0; font-size:13px; color:white; font-family: Arial, sans-serif;'>
                             <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
                             <b>ROLL NUMBER / ID:</b> {current_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
@@ -569,6 +569,7 @@ elif menu_choice == "🪪 Student Result Cards":
                                 <th style="border:1px solid #333; padding:5px 8px; text-align:left; color:white;">SUBJECTS</th>
                 """
                 
+                # Sheet Type Columns Customization Block
                 if num_selected_tests == 1:
                     card_html += '<th style="border:1px solid #333; padding:5px; color:white;">Obt. Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Total Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Passing Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Percentage</th><th style="border:1px solid #333; padding:5px; color:white;">Status</th>'
                 else:
@@ -577,6 +578,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     card_html += '<th style="border:1px solid #333; padding:5px; color:white;">Total Avg%</th>'
                 card_html += '</tr></thead><tbody>'
                 
+                # Subject Rows Processing Block
                 for subj in ordered_subjects:
                     card_html += f'<tr><td style="border:1px solid #333; padding:5px 8px; text-align:left;"><b>{subj}</b></td>'
                     subj_total_obt = 0.0
@@ -626,7 +628,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         card_html += f'<td style="border:1px solid #333; padding:5px;"><b>{tot_age}</b></td>'
                     card_html += '</tr>'
                 
-                # --- FIXED TOTAL ROW CALCULATION & STRUCTURAL ALIGNMENT ---
+                # Summary Row Processing Block
                 card_html += '<tr style="background-color: #f5f5f5; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;"><td style="border:1px solid #333; padding:5px 8px; text-align:left;">⚡ TOTAL</td>'
                 
                 if num_selected_tests == 1:
@@ -638,16 +640,17 @@ elif menu_choice == "🪪 Student Result Cards":
                         t_obt = valid_matches['marks_obtained'].astype(float).sum()
                         t_max = valid_matches['total_marks'].astype(float).sum()
                         t_pass = t_max * 0.40
+                        # Round up passing marks correctly to nearest whole integer
+                        display_pass = int(t_pass) + (1 if (t_pass % 1 >= 0.5) else 0)
                         current_card_percentage = int((t_obt/t_max)*100) if t_max > 0 else 0
                         status_str = "<span style='color:green;'>Pass</span>" if t_obt >= t_pass else "<span style='color:red;'>Fail</span>"
-                        card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{int(t_max)}</td><td style="border:1px solid #333; padding:5px;">{int(t_pass)}</td><td style="border:1px solid #333; padding:5px;">{current_card_percentage}%</td><td style="border:1px solid #333; padding:5px;">{status_str}</td>'
+                        card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{int(t_max)}</td><td style="border:1px solid #333; padding:5px;">{display_pass}</td><td style="border:1px solid #333; padding:5px;">{current_card_percentage}%</td><td style="border:1px solid #333; padding:5px;">{status_str}</td>'
                     else:
                         card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                 else:
                     all_exams_max = 0.0
                     all_exams_obt = 0.0
                     
-                    # Dynamically compute column groups to keep total block columns fully aligned 
                     for exam in selected_tests:
                         exam_matches = raw_marks[(raw_marks['exam_type'] == exam.strip()) & (raw_marks['subject'].isin(clean_subjects_list))]
                         valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
@@ -670,7 +673,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 card_html += '</tr></tbody></table>'
                 
-                # --- ATTENDANCE HANDLING ---
+                # 4. Attendance Report Component Block (Appended Below Academic Tables)
                 db_att = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
                 header_row_html = ""
@@ -735,6 +738,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 </table>
                 """
                 
+                # 5. Conditional Remarks Engine
                 if current_card_percentage >= 80:
                     remarks_text = "🌟 EXCELLENT! Exceptional academic drive and mastery. Keep maintaining this elite level of execution."
                     remarks_color = "#155724"
