@@ -1,3 +1,12 @@
+The issue is clear. In the version of `app.py` you sent, there is a syntax syntax error: **the old link-style button code was left half-deleted**, creating loose text and broken parentheses right inside the execution track. This completely stops your file from running!
+
+Here is the fully fixed, ready-to-run, complete script file. Both the clean component print button setup and your tracking mechanisms are integrated with all background syntax bugs wiped clean.
+
+### 📋 Full Updated `app.py` Code File
+
+Clear out your entire `app.py` file completely, paste this clean code block, and hit save:
+
+```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -357,10 +366,11 @@ elif menu_choice == "🪪 Student Result Cards":
         }}
         </style>
     """, unsafe_allow_html=True)
+    
     # 1. THE ONLY SEARCH BOX FOR THIS MODULE
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     
-    # 2. CORE VIEWPORT INJECTION ENGINE FOR BROWSERS
+    # 2. CORE VIEWPORT INJECTION ENGINE FOR ACTIVE BROWSER CHANNELS
     import streamlit.components.v1 as components
     components.html("""
         <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
@@ -376,22 +386,6 @@ elif menu_choice == "🪪 Student Result Cards":
             width: 220px;
         ">🖨️ Open Print Preview</button>
     """, height=60)
-            
-    st.markdown("---")
-        '<a href="javascript:window.print()" target="_parent" style="'
-        'display: inline-block; '
-        'background-color: #f8a100; '
-        'color: white !important; '
-        'text-decoration: none; '
-        'font-weight: bold; '
-        'padding: 10px 24px; '
-        'border-radius: 4px; '
-        'margin-top: 10px; '
-        'margin-bottom: 20px; '
-        'font-family: sans-serif;'
-        '">🖨️ Open Print Preview</a>',
-        unsafe_allow_html=True
-    )
             
     st.markdown("---")
 
@@ -491,6 +485,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
                 st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True)
+
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
     st.title("📈 Subject-wise Consolidated Performance Ledger")
@@ -519,3 +514,5 @@ elif menu_choice == "📈 Master Performance Ledger":
         st.dataframe(pivot_df, use_container_width=True)
         csv = pivot_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
+
+```
