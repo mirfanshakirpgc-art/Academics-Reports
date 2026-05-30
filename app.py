@@ -357,12 +357,27 @@ elif menu_choice == "🪪 Student Result Cards":
         }}
         </style>
     """, unsafe_allow_html=True)
-    
     # 1. THE ONLY SEARCH BOX FOR THIS MODULE
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     
-    # 2. BULLETPROOF PRINT PREVIEW LINK THAT BYPASSES BROWSER SANDBOX
-    st.markdown(
+    # 2. CORE VIEWPORT INJECTION ENGINE FOR BROWSERS
+    import streamlit.components.v1 as components
+    components.html("""
+        <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
+            background-color: #f8a100; 
+            color: white; 
+            border: none;
+            font-weight: bold; 
+            padding: 10px 24px; 
+            border-radius: 4px; 
+            cursor: pointer;
+            font-family: sans-serif;
+            font-size: 16px;
+            width: 220px;
+        ">🖨️ Open Print Preview</button>
+    """, height=60)
+            
+    st.markdown("---")
         '<a href="javascript:window.print()" target="_parent" style="'
         'display: inline-block; '
         'background-color: #f8a100; '
