@@ -70,7 +70,6 @@ def initialize_database():
                 UNIQUE(student_id, subject, exam_type)
             );
         """))
-        # --- NEW ATTENDANCE STORAGE INFRASTRUCTURE ---
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS attendance (
                 id SERIAL PRIMARY KEY,
@@ -272,62 +271,96 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.rerun()
 
     elif sub_tab_selection == "📅 Monthly Attendance Entry":
-        st.subheader("📅 Section Attendance Management Interface")
-        col_as1, col_as2, col_as3 = st.columns(3)
-        with col_as1:
-            att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
-        with col_as2:
-            att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec")
-        with col_as3:
-            att_month = st.selectbox("Select Reporting Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+        st.subheader("📅 Monthly Attendance Management Workspace")
+        att_flow_mode = st.radio("🎯 Select Attendance Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number"], horizontal=True, key="att_flow")
+        st.markdown("---")
+        
+        if att_flow_mode == "📋 By Complete Section":
+            col_as1, col_as2, col_as3 = st.columns(3)
+            with col_as1:
+                att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
+            with col_as2:
+                att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec")
+            with col_as3:
+                att_month = st.selectbox("Select Reporting Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+                
+            # Single entry for total working days assigned across the selected section layout row
+            default_days = st.number_input("📌 Set Total Working Days for this entire Section:", min_value=1, max_value=31, value=24, key="sec_global_days")
             
-        default_days = st.number_input("Set Total Working Days in Selected Month:", min_value=1, max_value=31, value=24)
-        
-        st.markdown(f"### 📋 Roster Grid: Attendance Ledger for `{att_section}` ({att_month})")
-        
-        students_att_list = run_query("""
-            SELECT s.id AS "ID", s.name AS "Student Name", a.total_days, a.present_days
-            FROM students s
-            LEFT JOIN attendance a ON s.id = a.student_id AND a.month_name = :month
-            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-            ORDER BY s.id ASC
-        """, {"month": att_month, "section": att_section})
-        
-        if students_att_list.empty:
-            st.info("💡 No student records registered in this section yet.")
-        else:
-            with st.form("bulk_attendance_form"):
-                saved_att_presents = {}
-                saved_att_totals = {}
-                
-                for idx, row in students_att_list.iterrows():
-                    c_b1, c_b2, c_b3 = st.columns([3, 1, 1])
-                    c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+            st.markdown(f"### 📋 Roster Grid: Attendance Log for `{att_section}` ({att_month})")
+            
+            students_att_list = run_query("""
+                SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
+                FROM students s
+                LEFT JOIN attendance a ON s.id = a.student_id AND a.month_name = :month
+                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                ORDER BY s.id ASC
+            """, {"month": att_month, "section": att_section})
+            
+            if students_att_list.empty:
+                st.info("💡 No student records registered in this section yet.")
+            else:
+                with st.form("bulk_attendance_form"):
+                    saved_att_presents = {}
                     
-                    init_tot = int(row['total_days']) if pd.notna(row['total_days']) else default_days
-                    init_pres = int(row['present_days']) if pd.notna(row['present_days']) else init_tot
-                    
-                    saved_att_totals[row['ID']] = c_b2.number_input("Total Days", min_value=1, max_value=31, value=init_tot, key=f"tot_{row['ID']}")
-                    saved_att_presents[row['ID']] = c_b3.number_input("Presents", min_value=0, max_value=31, value=init_pres, key=f"pres_{row['ID']}")
-                
-                if st.form_submit_button("💾 Save Section Attendance Ledger", type="primary"):
-                    for s_id in saved_att_totals.keys():
-                        t_d = int(saved_att_totals[s_id])
-                        p_d = int(saved_att_presents[s_id])
+                    for idx, row in students_att_list.iterrows():
+                        c_b1, c_b2 = st.columns([3, 1])
+                        c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
                         
-                        if p_d > t_d:
-                            st.error(f"❌ Entry Error on Student ID {s_id}: Present days ({p_d}) cannot exceed total days ({t_d}). Matrix execution aborted.")
-                            st.stop()
+                        init_pres = int(row['present_days']) if pd.notna(row['present_days']) else default_days
+                        saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"pres_{row['ID']}")
+                    
+                    if st.form_submit_button("💾 Save Section Attendance Ledger", type="primary"):
+                        for s_id in saved_att_presents.keys():
+                            p_d = int(saved_att_presents[s_id])
+                                
+                            execute_db_command("""
+                                INSERT INTO attendance (student_id, month_name, total_days, present_days)
+                                VALUES (:s_id, :month, :td, :pd)
+                                ON CONFLICT (student_id, month_name) 
+                                DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
+                            """, {"s_id": int(s_id), "month": att_month, "td": default_days, "pd": p_d})
                             
+                        st.success(f"🎉 Monthly Section Attendance ledger saved completely with total days set to {default_days}!")
+                        st.rerun()
+
+        elif att_flow_mode == "👤 By Single Student Roll Number":
+            att_target_id = st.text_input("🔍 Enter Student Roll Number for Attendance Lookup:")
+            if att_target_id and att_target_id.isdigit():
+                student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(att_target_id)})
+                if student_info.empty:
+                    st.error("❌ This roll number does not exist in your registered profiles list.")
+                else:
+                    s_name = student_info['name'].iloc[0].upper()
+                    s_section = student_info['section'].iloc[0].upper().strip()
+                    s_class = student_info['class'].iloc[0]
+                    st.info(f"👤 **Student Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section}")
+                    
+                    c_m1, c_m2, c_m3 = st.columns(3)
+                    with c_m1:
+                        single_att_month = st.selectbox("Select Month:", AVAILABLE_MONTHS, key="single_att_m")
+                    
+                    existing_att = run_query("SELECT total_days, present_days FROM attendance WHERE student_id = :id AND month_name = :month", {"id": int(att_target_id), "month": single_att_month})
+                    
+                    curr_tot = int(existing_att['total_days'].iloc[0]) if not existing_att.empty else 24
+                    curr_pres = int(existing_att['present_days'].iloc[0]) if not existing_att.empty else 24
+                    
+                    with c_m2:
+                        single_total_days = st.number_input("Total Days:", min_value=1, max_value=31, value=curr_tot)
+                    with c_m3:
+                        single_present_days = st.number_input("Present Days:", min_value=0, max_value=31, value=min(curr_pres, single_total_days))
+                    
+                    if single_present_days > single_total_days:
+                        st.error("❌ Present days cannot be greater than Total days.")
+                    elif st.button("💾 Save Individual Attendance Record", type="primary"):
                         execute_db_command("""
                             INSERT INTO attendance (student_id, month_name, total_days, present_days)
-                            VALUES (:s_id, :month, :td, :pd)
-                            ON CONFLICT (student_id, month_name) 
+                            VALUES (:id, :month, :td, :pd)
+                            ON CONFLICT (student_id, month_name)
                             DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
-                        """, {"s_id": int(s_id), "month": att_month, "td": t_d, "pd": p_d})
-                        
-                    st.success("🎉 Monthly Section Attendance ledger matrix compiled and saved successfully!")
-                    st.rerun()
+                        """, {"id": int(att_target_id), "month": single_att_month, "td": single_total_days, "pd": single_present_days})
+                        st.success(f"🎉 Attendance updated successfully for {s_name} in {single_att_month}!")
+                        st.rerun()
 
 # ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
@@ -464,7 +497,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 break-after: page !important;
             }}
             
-            /* Ensure styled HTML tables render beautifully during system print previews */
             .attendance-print-table {{
                 width: 100% !important;
                 border-collapse: collapse !important;
@@ -485,7 +517,6 @@ elif menu_choice == "🪪 Student Result Cards":
             }}
         }}
         
-        /* Dashboard view fallback styling */
         .attendance-print-table {{
             width: 100%;
             border-collapse: collapse;
@@ -699,7 +730,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
                 st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
                 
-                # --- NEW SECTION: DYNAMIC MONTHLY ATTENDANCE GRID GENERATION PANEL ---
+                # --- ATTENDANCE SUMMARY PANEL RENDERING ---
                 db_att = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
                 header_row_html = ""
