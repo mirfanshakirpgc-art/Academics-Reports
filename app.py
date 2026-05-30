@@ -597,12 +597,9 @@ elif menu_choice == "🪪 Student Result Cards":
                                 numeric_obt = float(obt)
                                 pct = f"{int(numeric_obt/tot * 100)}%"
                                 status = "<span style='color:green;font-weight:bold;'>Pass</span>" if numeric_obt >= passing_criteria else "<span style='color:red;font-weight:bold;'>Fail</span>"
-                                grand_total_obtained += numeric_obt
-                                grand_total_max += tot
                             elif obt == "A":
                                 pct = "A"
                                 status = "<span style='color:red;font-weight:bold;'>Absent</span>"
-                                grand_total_max += tot
                             else:
                                 pct, status = "-", "-"
                             
@@ -619,10 +616,9 @@ elif menu_choice == "🪪 Student Result Cards":
                                     pct = f"{int(float(obt)/tot * 100)}%"
                                     subj_total_obt += float(obt)
                                     subj_total_max += tot
-                                    grand_total_obtained += float(obt)
-                                    grand_total_max += tot
                                 elif obt == "A":
                                     pct = "A"
+                                    subj_total_max += tot  # Count toward max if absent
                                 else:
                                     pct = "-"
                                 card_html += f'<td style="border:1px solid #333; padding:5px;">{obt}</td><td style="border:1px solid #333; padding:5px;">{pct}</td>'
@@ -633,8 +629,9 @@ elif menu_choice == "🪪 Student Result Cards":
                         card_html += f'<td style="border:1px solid #333; padding:5px;"><b>{tot_age}</b></td>'
                     card_html += '</tr>'
                 
-                # --- DYNAMIC GRAND TOTAL ROW CALCULATIONS ---
+                # --- FIX: UNIFIED FILTERED ENGINE FOR THE GRAND TOTAL CALCULATIONS ROW ---
                 card_html += '<tr style="background-color: #f5f5f5; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;"><td style="border:1px solid #333; padding:5px 8px; text-align:left;">⚡ TOTAL</td>'
+                
                 if num_selected_tests == 1:
                     exam = selected_tests[0]
                     exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
@@ -650,18 +647,25 @@ elif menu_choice == "🪪 Student Result Cards":
                     else:
                         card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                 else:
+                    # FIX: Multi-column view logic now filters out non-numeric entries during totals aggregation
+                    all_exams_max = 0.0
+                    all_exams_obt = 0.0
+                    
                     for exam in selected_tests:
                         exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
                         valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
+                        
                         if not valid_exam_matches.empty:
                             t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
                             t_max = valid_exam_matches['total_marks'].astype(float).sum()
+                            all_exams_obt += t_obt
+                            all_exams_max += t_max
                             card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{int((t_obt/t_max)*100)}%</td>'
                         else:
                             card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                     
-                    if grand_total_max > 0:
-                        current_card_percentage = int((grand_total_obtained / grand_total_max) * 100)
+                    if all_exams_max > 0:
+                        current_card_percentage = int((all_exams_obt / all_exams_max) * 100)
                         card_html += f'<td style="border:1px solid #333; padding:5px;">{current_card_percentage}%</td>'
                     else:
                         card_html += '<td style="border:1px solid #333; padding:5px;">-</td>'
