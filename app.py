@@ -40,8 +40,8 @@ if not st.session_state.logged_in:
             
             if result:
                 st.session_state.logged_in = True
-                st.session_state.user_role = result[0]         # 'controller' or 'teacher'
-                st.session_state.assigned_subject = result[1]    # e.g., 'COMPUTER' or None
+                st.session_state.user_role = result[0]         
+                st.session_state.assigned_subject = result[1]    
                 st.success("Access Granted! Loading system...")
                 st.rerun()
             else:
@@ -359,7 +359,8 @@ elif menu_choice == "📝 Enter Marks & Attendance":
 elif menu_choice == "📋 Section Summary Report":
     col_a, col_b, col_c = st.columns(3)
     with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
-    with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[col_a], key="summary_sec")
+    # FIX: Swapped col_a with sel_disc to avoid the DeltaGenerator KeyError mapping issue
+    with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
     with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
     st.markdown("---")
     
@@ -448,7 +449,6 @@ elif menu_choice == "🪪 Student Result Cards":
 
     st.markdown(f"""
         <style>
-        /* Global CSS configuration override rules for application container runtime */
         @media print {{
             @page {{
                 size: {paper_size} {paper_orient};
@@ -456,7 +456,7 @@ elif menu_choice == "🪪 Student Result Cards":
             }}
             [data-testid="stSidebar"], header, footer, [data-testid="stHeader"],
             .stExpander, [data-testid="stRadio"], [data-testid="stTextInput"], 
-            [data-testid="stMultiSelect"], hr, iframe {{
+            [data-testid="stMultiSelect"], hr, iframe, button {{
                 display: none !important;
                 height: 0px !important;
             }}
@@ -481,9 +481,9 @@ elif menu_choice == "🪪 Student Result Cards":
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
     
-    import streamlit.components.v1 as components
-    components.html("""
-        <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
+    # FIX: Replaced deprecated st.components.v1.html with direct markdown HTML representation to escape browser sandboxing blocks
+    st.markdown("""
+        <button onclick="window.print();" style="
             background-color: #f8a100; 
             color: white; 
             border: none;
@@ -494,8 +494,10 @@ elif menu_choice == "🪪 Student Result Cards":
             font-family: Arial, sans-serif;
             font-size: 16px;
             width: 220px;
+            display: block;
+            margin-bottom: 20px;
         ">🖨️ Open Print Preview</button>
-    """, height=60)
+    """, unsafe_allow_html=True)
             
     st.markdown("---")
 
@@ -538,12 +540,10 @@ elif menu_choice == "🪪 Student Result Cards":
                         break
                 
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
-                # Normalize values to ensure absolute string-match execution symmetry
                 clean_subjects_list = [s.upper().strip() for s in ordered_subjects]
                 
                 current_card_percentage = 0 
                 
-                # --- START ACCUMULATING DATA AND BUILD EXPLICIT SELF-CONTAINED EMBEDDED TABLE GRID HTML ENGINE ---
                 card_html = f"""
                 <div class="print-page-block" style="
                     border: {border_val}; 
@@ -629,7 +629,6 @@ elif menu_choice == "🪪 Student Result Cards":
                         card_html += f'<td style="border:1px solid #333; padding:5px;"><b>{tot_age}</b></td>'
                     card_html += '</tr>'
                 
-                # --- ENHANCED & FIXED: UNIFIED DISCIPLINE-FILTERED GRAND TOTAL CALCULATION ROW ---
                 card_html += '<tr style="background-color: #f5f5f5; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;"><td style="border:1px solid #333; padding:5px 8px; text-align:left;">⚡ TOTAL</td>'
                 
                 if num_selected_tests == 1:
@@ -651,7 +650,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     all_exams_obt = 0.0
                     
                     for exam in selected_tests:
-                        # CRITICAL BUGFIX: Intersect exam matches against clean_subjects_list to secure multi-term view calculations
                         exam_matches = raw_marks[(raw_marks['exam_type'] == exam.strip()) & (raw_marks['subject'].isin(clean_subjects_list))]
                         valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
                         
@@ -672,7 +670,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 card_html += '</tr></tbody></table>'
                 
-                # --- ATTENDANCE REPORT LEDGER GENERATION ---
                 db_att = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
                 header_row_html = ""
@@ -737,7 +734,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 </table>
                 """
                 
-                # --- AUTOMATED DYNAMIC REMARKS GENERATION BLOCK ---
                 if current_card_percentage >= 80:
                     remarks_text = "🌟 EXCELLENT! Exceptional academic drive and mastery. Keep maintaining this elite level of execution."
                     remarks_color = "#155724"
@@ -759,7 +755,8 @@ elif menu_choice == "🪪 Student Result Cards":
                     <div style="background-color:{remarks_bg}; color:{remarks_color}; border-left: 5px solid {remarks_color}; padding: 10px 15px; margin-top: 10px; border-radius: 4px; font-size: 13px; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
                         <b>💡 TEACHER REMARKS & EVALUATION:</b> {remarks_text}
                     </div>
-                </div> """
+                </div> 
+                """
                 
                 st.markdown(card_html, unsafe_allow_html=True)
 
