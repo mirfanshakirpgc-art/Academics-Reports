@@ -473,29 +473,16 @@ elif menu_choice == "🪪 Student Result Cards":
                 margin: 0px !important;
                 padding: 0px !important;
             }}
-            .report-card-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }}
-            .report-card-table th, .report-card-table td {{
-                border: 1px solid #ddd;
-                padding: 8px;
-                text-align: center;
-            }}
-            .report-card-table th {{
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }}
         }}
         .report-card-table {{
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
+            font-family: Arial, sans-serif;
         }}
         .report-card-table th, .report-card-table td {{
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: center;
         }}
         .report-card-table th {{
@@ -581,10 +568,9 @@ elif menu_choice == "🪪 Student Result Cards":
                         break
                 
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
-                
                 sheet_title = "STUDENT RESULT CARD" if num_selected_tests == 1 else "STUDENT ACADEMICS REPORT"
                 
-                # Build HTML Card Container
+                # Build HTML Card Container Header
                 card_html = f"""
                 <div class="print-page-block" style="
                     border: {border_val}; padding: 20px; margin-bottom: 25px; 
@@ -605,7 +591,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="report-card-table">
                         <thead>
                             <tr>
-                                <th>Subject</th>
+                                <th style="text-align: left;">Subject</th>
                 """
                 
                 # Dynamic Table Headings based on Single vs Multi Exam configurations
@@ -617,12 +603,15 @@ elif menu_choice == "🪪 Student Result Cards":
                 grand_total = 0.0
                 has_numeric_data = False
                 
-                # Populating Subject Rows
+                # Populating Subject Rows with cross-boundary sanitization
                 for sub in ordered_subjects:
+                    clean_sub_target = sub.upper().strip()
                     card_html += f"<tr><td style='text-align: left; font-weight: bold;'>{sub}</td>"
                     
                     for t in selected_tests:
-                        match = raw_marks[(raw_marks['subject'] == sub.upper().strip()) & (raw_marks['exam_type'] == t)]
+                        # Fixed matching syntax to compare fully stripped strings on both ends
+                        match = raw_marks[(raw_marks['subject'] == clean_sub_target) & (raw_marks['exam_type'] == t.strip())]
+                        
                         if not match.empty:
                             score_str = str(match['marks_obtained'].iloc[0]).strip().upper()
                             tot_val = float(match['total_marks'].iloc[0]) if pd.notna(match['total_marks'].iloc[0]) else 100.0
@@ -646,7 +635,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     card_html += f"""
                         <tr style="background-color: #f2f2f2; font-weight: bold;">
                             <td style="text-align: left;">GRAND TOTAL</td>
-                            <td colspan="{len(selected_tests)*2 - 1}">{int(grand_obtained)} / {int(grand_total)}</td>
+                            <td colspan="{len(selected_tests) * 2 - 1}">{int(grand_obtained)} / {int(grand_total)}</td>
                             <td>{final_pct}</td>
                         </tr>
                     """
