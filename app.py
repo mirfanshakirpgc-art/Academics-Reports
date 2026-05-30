@@ -473,6 +473,34 @@ elif menu_choice == "🪪 Student Result Cards":
                 margin: 0px !important;
                 padding: 0px !important;
             }}
+            .report-card-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+            }}
+            .report-card-table th, .report-card-table td {{
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: center;
+            }}
+            .report-card-table th {{
+                background-color: #f2f2f2;
+                font-weight: bold;
+            }}
+        }}
+        .report-card-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }}
+        .report-card-table th, .report-card-table td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }}
+        .report-card-table th {{
+            background-color: #f2f2f2;
+            font-weight: bold;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -536,7 +564,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id AND exam_type IN :exams
                 """, {"id": current_id, "exams": tuple(selected_tests)})
                 
-                # Dynamic Safeguard Filter
+                # Dynamic Safeguard Filter: Skip profiles with no grades on section-wide operations
                 if print_scope == "👥 Print Complete Section Cards":
                     valid_marks = raw_marks[
                         raw_marks['marks_obtained'].notna() & 
@@ -553,20 +581,80 @@ elif menu_choice == "🪪 Student Result Cards":
                         break
                 
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
-                clean_subjects_list = [s.upper().strip() for s in ordered_subjects]
                 
-                current_card_percentage = 0 
                 sheet_title = "STUDENT RESULT CARD" if num_selected_tests == 1 else "STUDENT ACADEMICS REPORT"
                 
+                # Build HTML Card Container
                 card_html = f"""
                 <div class="print-page-block" style="
-                    border: {border_val}; padding: 15px; margin-bottom: 25px; 
+                    border: {border_val}; padding: 20px; margin-bottom: 25px; 
                     background-color: #ffffff; font-family: Arial, sans-serif; 
                     font-size: {font_val}; width: 100%; max-width: 1000px; box-sizing: border-box;
                 ">
-                    <div style="background-color:#802200; padding:10px 15px; border-radius:4px; color:white; font-weight:bold; margin-bottom:12px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                        {sheet_title}
+                    <div style="background-color:#802200; padding:12px 15px; border-radius:4px; color:white; font-weight:bold; font-size: 16px; margin-bottom:15px; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                        {sheet_title} — CONCORDIA COLLEGES, KASUR
                     </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 4px;">
+                        <div><strong>Roll Number:</strong> {current_id}</div>
+                        <div><strong>Student Name:</strong> {name}</div>
+                        <div><strong>Class:</strong> {grade_class}</div>
+                        <div><strong>Section Reference:</strong> {section} ({assigned_discipline})</div>
+                    </div>
+                    
+                    <table class="report-card-table">
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
                 """
-                # Remaining HTML structure rendering down to end of the layout block...
+                
+                # Dynamic Table Headings based on Single vs Multi Exam configurations
+                for t in selected_tests:
+                    card_html += f"<th>{t} (Obt)</th><th>{t} (%)</th>"
+                card_html += "</tr></thead><tbody>"
+                
+                grand_obtained = 0.0
+                grand_total = 0.0
+                has_numeric_data = False
+                
+                # Populating Subject Rows
+                for sub in ordered_subjects:
+                    card_html += f"<tr><td style='text-align: left; font-weight: bold;'>{sub}</td>"
+                    
+                    for t in selected_tests:
+                        match = raw_marks[(raw_marks['subject'] == sub.upper().strip()) & (raw_marks['exam_type'] == t)]
+                        if not match.empty:
+                            score_str = str(match['marks_obtained'].iloc[0]).strip().upper()
+                            tot_val = float(match['total_marks'].iloc[0]) if pd.notna(match['total_marks'].iloc[0]) else 100.0
+                            
+                            if score_str.replace('.', '', 1).isdigit():
+                                score_num = float(score_str)
+                                pct = f"{int((score_num / tot_val) * 100)}%"
+                                card_html += f"<td>{score_str} / {int(tot_val)}</td><td>{pct}</td>"
+                                grand_obtained += score_num
+                                grand_total += tot_val
+                                has_numeric_data = True
+                            else:
+                                card_html += f"<td>{score_str}</td><td>-</td>"
+                        else:
+                            card_html += "<td>-</td><td>-</td>"
+                    card_html += "</tr>"
+                
+                # Appending Total Aggregates Summary Row
+                if has_numeric_data and grand_total > 0:
+                    final_pct = f"{int((grand_obtained / grand_total) * 100)}%"
+                    card_html += f"""
+                        <tr style="background-color: #f2f2f2; font-weight: bold;">
+                            <td style="text-align: left;">GRAND TOTAL</td>
+                            <td colspan="{len(selected_tests)*2 - 1}">{int(grand_obtained)} / {int(grand_total)}</td>
+                            <td>{final_pct}</td>
+                        </tr>
+                    """
+                
+                card_html += "</tbody></table></div>"
                 st.markdown(card_html, unsafe_allow_html=True)
+
+# ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
+elif menu_choice == "📈 Master Performance Ledger":
+    st.title("📈 Master Performance Ledger")
+    st.info("Performance analysis ledger module running.")
