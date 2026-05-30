@@ -434,6 +434,11 @@ Let's fix this permanently by completely cleaning up the raw SQL query generatio
 Here is the fully corrected code block for **`🪪 Student Result Cards`**:
 
 ```python
+Ah, that's my bad! I accidentally left a bit of my conversational text inside the code block when copying it over, which threw that nasty `SyntaxError: invalid character '—'` right around line 430. Python saw the em-dash (`—`) and completely choked.
+
+Here is the clean, fixed, **pure python code** for the `🪪 Student Result Cards` section. Swap this directly into your file to clear that syntax error and get the tables rendering perfectly:
+
+```python
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Sheets")
@@ -517,7 +522,6 @@ elif menu_choice == "🪪 Student Result Cards":
     print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     
-    # Contextual controls based on the chosen layout sheet type
     if sheet_type == "Result Card (Single Student & Single Test)":
         target_exam = st.selectbox("🎯 Select Exam Term:", options=AVAILABLE_EXAMS, index=0)
         selected_tests = [target_exam]
@@ -563,7 +567,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).strip()
                 
-                # Bulletproof handling for dynamic SQL tuple passing
                 if len(selected_tests) == 1:
                     raw_marks = run_query("""
                         SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
@@ -577,7 +580,6 @@ elif menu_choice == "🪪 Student Result Cards":
                         WHERE student_id = :id AND exam_type IN :exams
                     """, {"id": current_id, "exams": tuple(selected_tests)})
                 
-                # Dynamic Safeguard Filter: Skip empty profiles on bulk section print operations
                 if print_scope == "👥 Print Complete Section Cards":
                     valid_marks = raw_marks[
                         raw_marks['marks_obtained'].notna() & 
@@ -596,7 +598,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
                 sheet_title = "STUDENT RESULT CARD" if num_selected_tests == 1 else "STUDENT ACADEMICS REPORT"
                 
-                # Generate Structural HTML elements
                 card_html = f"""
                 <div class="print-page-block" style="
                     border: {border_val}; padding: 20px; margin-bottom: 25px; 
@@ -665,6 +666,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 card_html += "</tbody></table></div>"
                 st.markdown(card_html, unsafe_allow_html=True)
 
+```
 ```
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
