@@ -355,7 +355,26 @@ elif menu_choice == "🪪 Student Result Cards":
             --break-choice: {break_val};
             --max-width-choice: {max_w_val};
         }}
+        
+        /* 🖨️ CRITICAL PRINT INSTRUCTION: This completely hides the setup controls on paper/PDF */
         @media print {{
+            [data-testid="stSidebar"], 
+            header, 
+            footer, 
+            [data-testid="stHeader"] {{
+                display: none !important;
+            }}
+            
+            h1, 
+            .stExpander, 
+            [data-testid="stRadio"], 
+            [data-testid="stTextInput"], 
+            [data-testid="stMultiSelect"], 
+            hr,
+            iframe {{
+                display: none !important;
+            }}
+            
             .print-card-break {{
                 page-break-after: always !important;
                 break-after: page !important;
@@ -370,7 +389,6 @@ elif menu_choice == "🪪 Student Result Cards":
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
     
-    # 2. CORE VIEWPORT INJECTION ENGINE FOR ACTIVE BROWSER CHANNELS
     import streamlit.components.v1 as components
     components.html("""
         <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
@@ -399,7 +417,6 @@ elif menu_choice == "🪪 Student Result Cards":
         else:
             target_section = base_student['section'].iloc[0].upper().strip()
             
-            # Decide if we loop through the complete section or only look at the single student
             if print_scope == "👥 Print Complete Section Cards":
                 students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
             else:
@@ -410,14 +427,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     "class": base_student['class'].iloc[0]
                 }])
 
-            # Loop and print targeted metrics
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class'])
                 
-                # Dynamic visual divider for page breaking 
                 st.markdown(f"""
                 <div style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-top:20px; margin-bottom:10px; font-family:sans-serif;">
                     <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
@@ -499,8 +514,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
                 st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
-                
-                # This invisible div commands the physical printer hardware to slice pages cleanly here
                 st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
 
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
