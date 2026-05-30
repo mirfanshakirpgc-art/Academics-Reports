@@ -334,7 +334,7 @@ elif menu_choice == "🪪 Student Result Cards":
             font_size = st.selectbox("Text Font Size:", ["13pt (Normal)", "11pt (Compact)", "15pt (Large)"])
         with col_p3:
             border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
-            page_break = st.toggle("Force 1 Card per Page", value=False)
+            page_break = st.toggle("Force 1 Card per Page", value=True)
 
     # Convert settings names into system-usable variables
     margin_val = "5mm" if "Narrow" in paper_margin else ("20mm" if "Wide" in paper_margin else paper_margin)
@@ -355,11 +355,20 @@ elif menu_choice == "🪪 Student Result Cards":
             --break-choice: {break_val};
             --max-width-choice: {max_w_val};
         }}
+        @media print {{
+            .print-card-break {{
+                page-break-after: always !important;
+                break-after: page !important;
+            }}
+        }}
         </style>
     """, unsafe_allow_html=True)
     
-    # 1. THE ONLY SEARCH BOX FOR THIS MODULE
+    # --- PRINT MODE CONTROLLER ---
+    print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
+    
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
+    selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
     
     # 2. CORE VIEWPORT INJECTION ENGINE FOR ACTIVE BROWSER CHANNELS
     import streamlit.components.v1 as components
@@ -382,36 +391,50 @@ elif menu_choice == "🪪 Student Result Cards":
 
     # 3. CORE DATA LOADING & TABLE RENDERING LOGIC
     if search_id and search_id.isdigit():
-        student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
-        if student_info.empty:
+        base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
+        if base_student.empty:
             st.error("❌ No student record discovered with that Roll Number.")
+        elif not selected_tests:
+            st.warning("Please pick at least one test type option.")
         else:
-            name = student_info['name'].iloc[0].upper()
-            section = student_info['section'].iloc[0].upper().strip()
-            grade_class = student_info['class'].iloc[0]
+            target_section = base_student['section'].iloc[0].upper().strip()
             
-            # Formatted under the dynamic page breaking element
-            st.markdown(f"""
-            <div class="print-card-break" style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-bottom:20px; font-family:sans-serif;">
-                <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
-                <p style='margin:5px 0 0 0; font-size:16px; color:white;'>
-                    <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                    <b>ID:</b> {search_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                    <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                    <b>CLASS:</b> {grade_class}
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
-            if not selected_tests:
-                st.warning("Please pick at least one test type option.")
+            # Decide if we loop through the complete section or only look at the single student
+            if print_scope == "👥 Print Complete Section Cards":
+                students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
             else:
+                students_to_print = pd.DataFrame([{
+                    "id": int(search_id),
+                    "name": base_student['name'].iloc[0],
+                    "section": target_section,
+                    "class": base_student['class'].iloc[0]
+                }])
+
+            # Loop and print targeted metrics
+            for idx, student_row in students_to_print.iterrows():
+                current_id = int(student_row['id'])
+                name = str(student_row['name']).upper()
+                section = str(student_row['section']).upper().strip()
+                grade_class = str(student_row['class'])
+                
+                # Dynamic visual divider for page breaking 
+                st.markdown(f"""
+                <div style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-top:20px; margin-bottom:10px; font-family:sans-serif;">
+                    <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
+                    <p style='margin:5px 0 0 0; font-size:16px; color:white;'>
+                        <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                        <b>ID:</b> {current_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                        <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                        <b>CLASS:</b> {grade_class}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
                 raw_marks = run_query("""
                     SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
                     FROM marks 
                     WHERE student_id = :id AND exam_type IN :exams
-                """, {"id": int(search_id), "exams": tuple(selected_tests)})
+                """, {"id": current_id, "exams": tuple(selected_tests)})
                 
                 assigned_discipline = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
@@ -475,7 +498,10 @@ elif menu_choice == "🪪 Student Result Cards":
                     total_row["SUMMARY (%)"] = "-"
                 
                 report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
-                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True)
+                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
+                
+                # This invisible div commands the physical printer hardware to slice pages cleanly here
+                st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
 
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
