@@ -418,6 +418,22 @@ elif menu_choice == "📋 Section Summary Report":
         csv_data = final_report_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Ledger Grid to Excel/CSV Spreadsheet", data=csv_data, file_name=f"Summary_{sel_sec}_{sel_exam}.csv", mime="text/csv", type="primary")
 
+The reason the table is breaking is now visible in the raw text output you just shared.
+
+Look at your headers and columns under `<thead>` and `<tbody>`. They are printing out **without any matching HTML `<th>`, `<tr>`, or `<td>` table tags wrappers** around them!
+
+```html
+MATRIC (Obt)MATRIC (%)COMPUTER--MATHEMATICS--
+
+```
+
+Instead of looping row-by-row and adding explicit HTML tags (`<tr><td>...</td></tr>`), your script is missing those inner tags entirely or skipping them due to an data type mismatch when evaluating `selected_tests`. Since `selected_tests` is a list, passing it straight into a SQL string using `IN :exams` requires strict handling, or the query returns an empty set—resulting in no loop execution except text dumps.
+
+Let's fix this permanently by completely cleaning up the raw SQL query generation and explicitly constructing structural HTML table elements.
+
+Here is the fully corrected code block for **`🪪 Student Result Cards`**:
+
+```python
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Sheets")
@@ -542,18 +558,26 @@ elif menu_choice == "🪪 Student Result Cards":
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
                 
-                # CRITICAL SANITIZATION FIX: Stripping double spaces and inner text newlines (\n) 
+                # Sanitize inner text newlines (\n)
                 name = " ".join(str(student_row['name']).replace('\n', ' ').replace('\r', ' ').split()).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).strip()
                 
-                raw_marks = run_query("""
-                    SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
-                    FROM marks 
-                    WHERE student_id = :id AND exam_type IN :exams
-                """, {"id": current_id, "exams": tuple(selected_tests)})
+                # Bulletproof handling for dynamic SQL tuple passing
+                if len(selected_tests) == 1:
+                    raw_marks = run_query("""
+                        SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
+                        FROM marks 
+                        WHERE student_id = :id AND exam_type = :exams
+                    """, {"id": current_id, "exams": selected_tests[0]})
+                else:
+                    raw_marks = run_query("""
+                        SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
+                        FROM marks 
+                        WHERE student_id = :id AND exam_type IN :exams
+                    """, {"id": current_id, "exams": tuple(selected_tests)})
                 
-                # Dynamic Safeguard Filter: Skip profiles with no grades on section-wide operations
+                # Dynamic Safeguard Filter: Skip empty profiles on bulk section print operations
                 if print_scope == "👥 Print Complete Section Cards":
                     valid_marks = raw_marks[
                         raw_marks['marks_obtained'].notna() & 
@@ -572,7 +596,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
                 sheet_title = "STUDENT RESULT CARD" if num_selected_tests == 1 else "STUDENT ACADEMICS REPORT"
                 
-                # Build HTML Card Container Header
+                # Generate Structural HTML elements
                 card_html = f"""
                 <div class="print-page-block" style="
                     border: {border_val}; padding: 20px; margin-bottom: 25px; 
@@ -596,7 +620,6 @@ elif menu_choice == "🪪 Student Result Cards":
                                 <th style="text-align: left;">Subject</th>
                 """
                 
-                # Dynamic Table Headings based on Single vs Multi Exam configurations
                 for t in selected_tests:
                     card_html += f"<th>{t} (Obt)</th><th>{t} (%)</th>"
                 card_html += "</tr></thead><tbody>"
@@ -605,13 +628,11 @@ elif menu_choice == "🪪 Student Result Cards":
                 grand_total = 0.0
                 has_numeric_data = False
                 
-                # Populating Subject Rows with cross-boundary sanitization
                 for sub in ordered_subjects:
                     clean_sub_target = sub.upper().strip()
                     card_html += f"<tr><td style='text-align: left; font-weight: bold;'>{sub}</td>"
                     
                     for t in selected_tests:
-                        # Compare fully stripped strings on both ends
                         match = raw_marks[(raw_marks['subject'] == clean_sub_target) & (raw_marks['exam_type'] == t.strip())]
                         
                         if not match.empty:
@@ -631,7 +652,6 @@ elif menu_choice == "🪪 Student Result Cards":
                             card_html += "<td>-</td><td>-</td>"
                     card_html += "</tr>"
                 
-                # Appending Total Aggregates Summary Row
                 if has_numeric_data and grand_total > 0:
                     final_pct = f"{int((grand_obtained / grand_total) * 100)}%"
                     card_html += f"""
@@ -645,6 +665,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 card_html += "</tbody></table></div>"
                 st.markdown(card_html, unsafe_allow_html=True)
 
+```
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
     st.title("📈 Master Performance Ledger")
