@@ -484,7 +484,152 @@ elif menu_choice == "🪪 Student Result Cards":
     
     search_id = st.text_input("🔍 Search Student Roll Number / ID:")
     # ... (The rest of your student card search logic continues here) ...
+# ----------------- 🪪 STUDENT RESULT CARDS -----------------
+elif menu_choice == "🪪 Student Result Cards":
+    st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
+    
+    # --- DYNAMIC PRINT LAYOUT CONFIGURATION OPTIONS PANEL ---
+    with st.expander("🛠️ Customize Print Layout Options (Click to Change)"):
+        col_p1, col_p2, col_p3 = st.columns(3)
+        with col_p1:
+            paper_orient = st.selectbox("Paper Orientation:", ["portrait", "landscape"])
+            paper_size = st.selectbox("Paper Size:", ["A4", "letter", "legal"])
+        with col_p2:
+            paper_margin = st.selectbox("Paper Margins:", ["15mm", "10mm", "5mm (Narrow)", "20mm (Wide)"])
+            font_size = st.selectbox("Text Font Size:", ["13pt (Normal)", "11pt (Compact)", "15pt (Large)"])
+        with col_p3:
+            border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
+            page_break = st.toggle("Force 1 Card per Page", value=False)
 
+    # Convert settings names into system-usable variables
+    margin_val = "5mm" if "Narrow" in paper_margin else ("20mm" if "Wide" in paper_margin else paper_margin)
+    font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
+    border_val = "none" if border_style == "None" else border_style
+    break_val = "always" if page_break else "auto"
+    max_w_val = "800px" if border_style != "None" else "100%"
+
+    # Send choices directly to our CSS engine variables
+    st.markdown(f"""
+        <style>
+        :root {{
+            --paper-orient: {paper_orient};
+            --paper-size: {paper_size};
+            --paper-margin: {margin_val};
+            --font-size-choice: {font_val};
+            --border-choice: {border_val};
+            --break-choice: {break_val};
+            --max-width-choice: {max_w_val};
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # SINGLE CLEAN SEARCH BOX
+    search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
+    
+    # PRINT PREVIEW BUTTON NEATLY PLACED HERE
+    col_btn1, _ = st.columns([1, 3])
+    with col_btn1:
+        if st.button("🖨️ Open Print Preview", type="primary", use_container_width=True):
+            st.markdown("<script>window.print();</script>", unsafe_allow_html=True)
+            
+    st.markdown("---")
+
+    # CORE DATA LOADING & TABLE RENDERING LOGIC
+    if search_id and search_id.isdigit():
+        student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
+        if student_info.empty:
+            st.error("❌ No student record discovered with that Roll Number.")
+        else:
+            name = student_info['name'].iloc[0].upper()
+            section = student_info['section'].iloc[0].upper().strip()
+            grade_class = student_info['class'].iloc[0]
+            
+            # Formatted under the dynamic page breaking element
+            st.markdown(f"""
+            <div class="print-card-break" style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-bottom:20px; font-family:sans-serif;">
+                <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
+                <p style='margin:5px 0 0 0; font-size:16px; color:white;'>
+                    <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                    <b>ID:</b> {search_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                    <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                    <b>CLASS:</b> {grade_class}
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
+            if not selected_tests:
+                st.warning("Please pick at least one test type option.")
+            else:
+                raw_marks = run_query("""
+                    SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
+                    FROM marks 
+                    WHERE student_id = :id AND exam_type IN :exams
+                """, {"id": int(search_id), "exams": tuple(selected_tests)})
+                
+                assigned_discipline = "MEDICAL"
+                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
+                    if section in [x.upper().strip() for x in secs]:
+                        assigned_discipline = disp
+                        break
+                
+                ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
+                matrix_data = []
+                for subj in ordered_subjects:
+                    row_entry = {"SUBJECTS": subj}
+                    sub_total_obtained = 0
+                    sub_total_max = 0
+                    for exam in selected_tests:
+                        match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
+                        if not match.empty:
+                            obt = str(match['marks_obtained'].iloc[0]).strip().upper()
+                            tot = match['total_marks'].iloc[0]
+                            row_entry[f"{exam} (OBT)"] = obt
+                            if str(obt).replace('.','',1).isdigit():
+                                row_entry[f"{exam} (%)"] = f"{int(float(obt)/tot * 100)}%"
+                                sub_total_obtained += float(obt)
+                                sub_total_max += tot
+                            elif obt == "A":
+                                row_entry[f"{exam} (%)"] = "A"
+                            else:
+                                row_entry[f"{exam} (%)"] = "-"
+                        else:
+                            row_entry[f"{exam} (OBT)"] = "-"
+                            row_entry[f"{exam} (%)"] = "-"
+                    if sub_total_max > 0:
+                        row_entry["SUMMARY (OBT)"] = f"{int(sub_total_obtained)}"
+                        row_entry["SUMMARY (%)"] = f"{int((sub_total_obtained / sub_total_max) * 100)}%"
+                    else:
+                        row_entry["SUMMARY (OBT)"] = "-"
+                        row_entry["SUMMARY (%)"] = "-"
+                    matrix_data.append(row_entry)
+                
+                report_df = pd.DataFrame(matrix_data)
+                total_row = {"SUBJECTS": "⚡ TOTAL"}
+                for exam in selected_tests:
+                    exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
+                    valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
+                    if not valid_exam_matches.empty:
+                        t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
+                        t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
+                        total_row[f"{exam} (OBT)"] = f"{int(t_obt)}"
+                        total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
+                    else:
+                        total_row[f"{exam} (OBT)"] = "-"
+                        total_row[f"{exam} (%)"] = "-"
+                
+                valid_all = raw_marks[raw_marks['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
+                if not valid_all.empty:
+                    m_obt = valid_all['marks_obtained'].astype(float).sum()
+                    m_max = sum([raw_marks[raw_marks['subject']==s.upper().strip()]['total_marks'].iloc[0] for s in ordered_subjects if not raw_marks[raw_marks['subject']==s.upper().strip()].empty])
+                    total_row["SUMMARY (OBT)"] = f"{int(m_obt)}"
+                    total_row["SUMMARY (%)"] = f"{int((m_obt/m_max)*100)}%" if m_max > 0 else "-"
+                else:
+                    total_row["SUMMARY (OBT)"] = "-"
+                    total_row["SUMMARY (%)"] = "-"
+                
+                report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
+                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True)
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
     st.title("📈 Subject-wise Consolidated Performance Ledger")
