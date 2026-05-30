@@ -323,6 +323,41 @@ elif menu_choice == "📋 Section Summary Report":
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
     
+    # --- DYNAMIC PRINT LAYOUT CONFIGURATION OPTIONS PANEL ---
+    with st.expander("🛠️ Customize Print Layout Options (Click to Change)"):
+        col_p1, col_p2, col_p3 = st.columns(3)
+        with col_p1:
+            paper_orient = st.selectbox("Paper Orientation:", ["portrait", "landscape"])
+            paper_size = st.selectbox("Paper Size:", ["A4", "letter", "legal"])
+        with col_p2:
+            paper_margin = st.selectbox("Paper Margins:", ["15mm", "10mm", "5mm (Narrow)", "20mm (Wide)"])
+            font_size = st.selectbox("Text Font Size:", ["13pt (Normal)", "11pt (Compact)", "15pt (Large)"])
+        with col_p3:
+            border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
+            page_break = st.toggle("Force 1 Card per Page", value=False)
+
+    # Convert settings names into system-usable variables
+    margin_val = "5mm" if "Narrow" in paper_margin else ("20mm" if "Wide" in paper_margin else paper_margin)
+    font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
+    border_val = "none" if border_style == "None" else border_style
+    break_val = "always" if page_break else "auto"
+    max_w_val = "800px" if border_style != "None" else "100%"
+
+    # Send choices directly to our CSS engine variables
+    st.markdown(f"""
+        <style>
+        :root {{
+            --paper-orient: {paper_orient};
+            --paper-size: {paper_size};
+            --paper-margin: {margin_val};
+            --font-size-choice: {font_val};
+            --border-choice: {border_val};
+            --break-choice: {break_val};
+            --max-width-choice: {max_w_val};
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+    
     search_id = st.text_input("🔍 Search Student Roll Number / ID:")
     if search_id and search_id.isdigit():
         student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
@@ -333,8 +368,9 @@ elif menu_choice == "🪪 Student Result Cards":
             section = student_info['section'].iloc[0].upper().strip()
             grade_class = student_info['class'].iloc[0]
             
+            # Formatted under the dynamic page breaking element
             st.markdown(f"""
-            <div style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-bottom:20px; font-family:sans-serif;">
+            <div class="print-card-break" style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-bottom:20px; font-family:sans-serif;">
                 <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
                 <p style='margin:5px 0 0 0; font-size:16px; color:white;'>
                     <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
