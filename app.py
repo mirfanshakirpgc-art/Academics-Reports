@@ -5,6 +5,10 @@ from sqlalchemy import create_engine, text
 
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
+# --- LINK TO SEPARATE STYLE FILE ---
+with open("style.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
 # --- DATABASE CONNECTION CONFIGURATION ---
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
@@ -318,30 +322,6 @@ elif menu_choice == "📋 Section Summary Report":
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
-    
-    # Professional CSS injection to strip website clutter during paper prints
-    st.markdown("""
-        <style>
-        @media print {
-            [data-testid="stSidebar"], 
-            header, 
-            footer, 
-            .stButton,
-            [data-testid="stHeader"] {
-                display: none !important;
-            }
-            [data-testid="stAppViewBlockContainer"] {
-                padding: 0px !important;
-                margin: 0px !important;
-                width: 100% !important;
-            }
-            div, h2, p {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-        }
-        </style>
-    """, unsafe_allow_html=True)
     
     search_id = st.text_input("🔍 Search Student Roll Number / ID:")
     if search_id and search_id.isdigit():
