@@ -1,12 +1,3 @@
-The issue is clear. In the version of `app.py` you sent, there is a syntax syntax error: **the old link-style button code was left half-deleted**, creating loose text and broken parentheses right inside the execution track. This completely stops your file from running!
-
-Here is the fully fixed, ready-to-run, complete script file. Both the clean component print button setup and your tracking mechanisms are integrated with all background syntax bugs wiped clean.
-
-### 📋 Full Updated `app.py` Code File
-
-Clear out your entire `app.py` file completely, paste this clean code block, and hit save:
-
-```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -514,5 +505,3 @@ elif menu_choice == "📈 Master Performance Ledger":
         st.dataframe(pivot_df, use_container_width=True)
         csv = pivot_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
-
-```
