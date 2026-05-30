@@ -471,7 +471,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 grand_total_obtained = 0.0
                 grand_total_max = 0.0
-                current_card_percentage = 0  # To track final percentage for remarks engine
+                current_card_percentage = 0 
                 
                 for subj in ordered_subjects:
                     row_entry = {"SUBJECTS": subj}
@@ -540,7 +540,9 @@ elif menu_choice == "🪪 Student Result Cards":
                     matrix_data.append(row_entry)
                 
                 report_df = pd.DataFrame(matrix_data)
-                total_data = {"SUBJECTS": ["⚡ TOTAL"]}
+                
+                # --- FIX: DEFINE TOTAL ROW AS FLAT SCALAR VALUES (PREVENTS DICTIONARY ARRAYS / JSON RAW VIEW) ---
+                total_row = {"SUBJECTS": "⚡ TOTAL"}
                 
                 if num_selected_tests == 1:
                     exam = selected_tests[0]
@@ -553,17 +555,17 @@ elif menu_choice == "🪪 Student Result Cards":
                         t_pass = t_max * 0.40
                         current_card_percentage = int((t_obt/t_max)*100)
                         
-                        total_data["Obt. Marks"] = [f"{int(t_obt)}"]
-                        total_data["Total Marks"] = [f"{int(t_max)}"]
-                        total_data["Passing Marks"] = [f"{int(t_pass)}"]
-                        total_data["Age%"] = [f"{current_card_percentage}%"]
-                        total_data["Status"] = ["Pass" if t_obt >= t_pass else "Fail"]
+                        total_row["Obt. Marks"] = f"{int(t_obt)}"
+                        total_row["Total Marks"] = f"{int(t_max)}"
+                        total_row["Passing Marks"] = f"{int(t_pass)}"
+                        total_row["Age%"] = f"{current_card_percentage}%"
+                        total_row["Status"] = "Pass" if t_obt >= t_pass else "Fail"
                     else:
-                        total_data["Obt. Marks"] = ["-"]
-                        total_data["Total Marks"] = ["-"]
-                        total_data["Passing Marks"] = ["-"]
-                        total_data["Age%"] = ["-"]
-                        total_data["Status"] = ["-"]
+                        total_row["Obt. Marks"] = "-"
+                        total_row["Total Marks"] = "-"
+                        total_row["Passing Marks"] = "-"
+                        total_row["Age%"] = "-"
+                        total_row["Status"] = "-"
                 else:
                     for exam in selected_tests:
                         exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
@@ -571,4 +573,75 @@ elif menu_choice == "🪪 Student Result Cards":
                         if not valid_exam_matches.empty:
                             t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
                             t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                            total_data
+                            total_row[f"{exam} (Obt)"] = f"{int(t_obt)}"
+                            total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
+                        else:
+                            total_row[f"{exam} (Obt)"] = "-"
+                            total_row[f"{exam} (%)"] = "-"
+                    
+                    if grand_total_max > 0:
+                        current_card_percentage = int((grand_total_obtained / grand_total_max) * 100)
+                        total_row["Total Age%"] = f"{current_card_percentage}%"
+                    else:
+                        total_row["Total Age%"] = "-"
+                
+                # Append row cleanly into DataFrame row hierarchy
+                report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
+                
+                # Render UI Grid layout
+                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
+                
+                # --- AUTOMATED DYNAMIC REMARKS GENERATION BLOCK ---
+                if current_card_percentage >= 80:
+                    remarks_text = "🌟 EXCELLENT! Exceptional academic drive and mastery. Keep maintaining this elite level of execution."
+                    remarks_color = "#155724"
+                    remarks_bg = "#d4edda"
+                elif current_card_percentage >= 60:
+                    remarks_text = "👍 GOOD JOB! Strong performance overall. With consistent effort on complex topics, you can reach top tier honors."
+                    remarks_color = "#0c5460"
+                    remarks_bg = "#d1ecf1"
+                elif current_card_percentage >= 40:
+                    remarks_text = "⚠️ SATISFACTORY. Passed, but indicates significant gaps in critical subject areas. Extra study hours are strongly recommended."
+                    remarks_color = "#856404"
+                    remarks_bg = "#fff3cd"
+                else:
+                    remarks_text = "🚨 CRITICAL ATTENTION REQUIRED. Falling short of passing parameters. Immediate remedial coaching and parental consultation required."
+                    remarks_color = "#721c24"
+                    remarks_bg = "#f8d7da"
+                
+                st.markdown(f"""
+                <div style="background-color:{remarks_bg}; color:{remarks_color}; border-left: 6px solid {remarks_color}; padding: 12px 18px; margin-top: 5px; margin-bottom: 25px; border-radius: 4px; font-family: sans-serif; font-size: 14px;">
+                    <b>💡 TEACHER REMARKS & RECOMMENDATIONS:</b><br/> {remarks_text}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
+
+# ----------------- 📈 PERFORMANCE LEDGER -----------------
+elif menu_choice == "📈 Master Performance Ledger":
+    st.title("📈 Subject-wise Consolidated Performance Ledger")
+    c1, c2, c3 = st.columns(3)
+    with c1: l_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="l_disc")
+    with c2: l_subj = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[l_disc], key="l_subj")
+    with c3: l_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[l_disc], key="l_sec")
+    st.markdown("---")
+    
+    raw_ledger = run_query("""
+        SELECT s.id AS "ID", s.name AS "Student Name", m.exam_type, m.marks_obtained
+        FROM students s
+        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
+        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+        ORDER BY s.id ASC
+    """, {"subject": l_subj, "section": l_sec})
+    
+    if raw_ledger.empty:
+        st.info("No student information found for this configuration.")
+    else:
+        pivot_df = raw_ledger.pivot_table(index=["ID", "Student Name"], columns="exam_type", values="marks_obtained", aggfunc="first").reset_index()
+        for exam in AVAILABLE_EXAMS:
+            if exam not in pivot_df.columns: pivot_df[exam] = "-"
+        ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
+        pivot_df = pivot_df[ordered_cols].fillna("-")
+        st.dataframe(pivot_df, use_container_width=True)
+        csv = pivot_df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
