@@ -431,15 +431,15 @@ elif menu_choice == "🪪 Student Result Cards":
             font_size = st.selectbox("Text Font Size:", ["13pt (Normal)", "11pt (Compact)", "15pt (Large)"])
         with col_p2:
             st.markdown("**Page Margin Settings (mm):**")
-            margin_top = st.slider("Top Margin", min_value=0, max_value=50, value=12, step=1)
-            margin_bottom = st.slider("Bottom Margin", min_value=0, max_value=50, value=12, step=1)
+            margin_top = st.slider("Top Margin", min_value=0, max_value=50, value=10, step=1)
+            margin_bottom = st.slider("Bottom Margin", min_value=0, max_value=50, value=10, step=1)
         with col_p3:
             st.markdown("**Page Margin Settings (mm):**")
-            margin_left = st.slider("Left Margin", min_value=0, max_value=50, value=12, step=1)
-            margin_right = st.slider("Right Margin", min_value=0, max_value=50, value=12, step=1)
+            margin_left = st.slider("Left Margin", min_value=0, max_value=50, value=10, step=1)
+            margin_right = st.slider("Right Margin", min_value=0, max_value=50, value=10, step=1)
             
             st.write("") 
-            border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
+            border_style = st.selectbox("Card Border Style:", ["4px double #f8a100 (Official)", "2px solid #000000 (Minimal)", "None"])
             page_break = st.toggle("Force 1 Card per Page", value=True)
 
     font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
@@ -448,82 +448,31 @@ elif menu_choice == "🪪 Student Result Cards":
 
     st.markdown(f"""
         <style>
-        /* 🖨️ CLEAN PRINT INSTRUCTION ENGINE STYLING */
+        /* Global CSS configuration override rules for application container runtime */
         @media print {{
             @page {{
                 size: {paper_size} {paper_orient};
                 margin: {margin_top}mm {margin_right}mm {margin_bottom}mm {margin_left}mm !important;
             }}
-            
-            [data-testid="stSidebar"], 
-            header, 
-            footer, 
-            [data-testid="stHeader"],
-            .stExpander, 
-            [data-testid="stRadio"], 
-            [data-testid="stTextInput"], 
-            [data-testid="stMultiSelect"], 
-            hr,
-            iframe {{
+            [data-testid="stSidebar"], header, footer, [data-testid="stHeader"],
+            .stExpander, [data-testid="stRadio"], [data-testid="stTextInput"], 
+            [data-testid="stMultiSelect"], hr, iframe {{
                 display: none !important;
                 height: 0px !important;
             }}
-            
             .stMainBlockContainer {{
                 padding: 0px !important;
                 margin: 0px !important;
+                width: 100% !important;
             }}
-
-            .report-card-wrapper {{
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
+            .print-page-block {{
                 page-break-after: {break_val} !important;
                 break-after: page !important;
-                margin: 0px 0px 30px 0px !important;
-                padding: 10px !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                margin: 0px !important;
+                padding: 0px !important;
             }}
-        }}
-        
-        /* Unified Wrapper Style for UI View */
-        .report-card-wrapper {{
-            border: {border_val};
-            padding: 20px;
-            margin-bottom: 40px;
-            background-color: #ffffff;
-            font-family: Arial, sans-serif;
-            font-size: {font_val};
-            width: 100%;
-            max-width: 950px;
-            box-sizing: border-box;
-        }}
-        
-        /* Native Academic and Attendance Structural Table Styling */
-        .academic-print-table, .attendance-print-table {{
-            width: 100% !important;
-            border-collapse: collapse !important;
-            margin-top: 12px !important;
-            margin-bottom: 15px !important;
-        }}
-        .academic-print-table th, .academic-print-table td,
-        .attendance-print-table th, .attendance-print-table td {{
-            border: 1px solid #333333 !important;
-            padding: 6px 8px !important;
-            text-align: center !important;
-        }}
-        .academic-print-table th, .attendance-print-table th {{
-            background-color: #802200 !important;
-            color: white !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }}
-        .academic-print-table td:first-child, .attendance-print-table td:first-child {{
-            text-align: left !important;
-        }}
-        .total-highlight-row {{
-            font-weight: bold !important;
-            background-color: #f5f5f5 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -590,38 +539,49 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
                 
-                # --- START ACCUMULATING DATA AND GENERATING UNIFIED HTML ENVELOPE ---
-                card_html = f"""
-                <div class="report-card-wrapper">
-                    <div style="background-color:#f8a100; padding:12px 15px; border-radius:4px; color:white; font-weight:bold; margin-bottom:15px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                        <h2 style='margin:0; font-size:20px; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
-                        <p style='margin:5px 0 0 0; font-size:14px; color:white;'>
-                            <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                            <b>ID:</b> {current_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                            <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                            <b>CLASS:</b> {grade_class}
-                        </p>
-                    </div>
-                """
-                
-                # --- ACADEMIC MARKS TABLE BUILD ENGINE ---
-                card_html += '<table class="academic-print-table"><thead><tr>'
-                card_html += '<th>SUBJECTS</th>'
-                
-                if num_selected_tests == 1:
-                    card_html += '<th>Obt. Marks</th><th>Total Marks</th><th>Passing Marks</th><th>Age%</th><th>Status</th>'
-                else:
-                    for exam in selected_tests:
-                        card_html += f'<th>{exam} (Obt)</th><th>{exam} (%)</th>'
-                    card_html += '<th>Total Age%</th>'
-                card_html += '</tr></thead><tbody>'
-                
                 grand_total_obtained = 0.0
                 grand_total_max = 0.0
                 current_card_percentage = 0 
                 
+                # --- START ACCUMULATING DATA AND BUILD EXPLICIT SELF-CONTAINED EMBEDDED TABLE GRID HTML ENGINE ---
+                card_html = f"""
+                <div class="print-page-block" style="
+                    border: {border_val}; 
+                    padding: 15px; 
+                    margin-bottom: 25px; 
+                    background-color: #ffffff; 
+                    font-family: Arial, sans-serif; 
+                    font-size: {font_val}; 
+                    width: 100%; 
+                    max-width: 1000px; 
+                    box-sizing: border-box;
+                ">
+                    <div style="background-color:#f8a100; padding:10px 15px; border-radius:4px; color:white; font-weight:bold; margin-bottom:12px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                        <h2 style='margin:0; font-size:18px; color:white; font-family: Arial, sans-serif;'>CONCORDIA COLLEGES — ACADEMIC PERFORMANCE CARD</h2>
+                        <p style='margin:4px 0 0 0; font-size:13px; color:white; font-family: Arial, sans-serif;'>
+                            <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                            <b>ROLL NUMBER / ID:</b> {current_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                            <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                            <b>CLASS:</b> {grade_class}
+                        </p>
+                    </div>
+                    
+                    <table style="width:100%; border-collapse:collapse; margin-bottom:15px; font-family: Arial, sans-serif; font-size: {font_val};">
+                        <thead>
+                            <tr style="background-color:#802200; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                                <th style="border:1px solid #333; padding:5px 8px; text-align:left; color:white;">SUBJECTS</th>
+                """
+                
+                if num_selected_tests == 1:
+                    card_html += '<th style="border:1px solid #333; padding:5px; color:white;">Obt. Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Total Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Passing Marks</th><th style="border:1px solid #333; padding:5px; color:white;">Percentage</th><th style="border:1px solid #333; padding:5px; color:white;">Status</th>'
+                else:
+                    for exam in selected_tests:
+                        card_html += f'<th style="border:1px solid #333; padding:5px; color:white;">{exam} (Obt)</th><th style="border:1px solid #333; padding:5px; color:white;">{exam} (%)</th>'
+                    card_html += '<th style="border:1px solid #333; padding:5px; color:white;">Total Avg%</th>'
+                card_html += '</tr></thead><tbody>'
+                
                 for subj in ordered_subjects:
-                    card_html += f'<tr><td><b>{subj}</b></td>'
+                    card_html += f'<tr><td style="border:1px solid #333; padding:5px 8px; text-align:left;"><b>{subj}</b></td>'
                     subj_total_obt = 0.0
                     subj_total_max = 0.0
                     
@@ -636,7 +596,7 @@ elif menu_choice == "🪪 Student Result Cards":
                             if str(obt).replace('.', '', 1).isdigit():
                                 numeric_obt = float(obt)
                                 pct = f"{int(numeric_obt/tot * 100)}%"
-                                status = "Pass" if numeric_obt >= passing_criteria else "<span style='color:red;font-weight:bold;'>Fail</span>"
+                                status = "<span style='color:green;font-weight:bold;'>Pass</span>" if numeric_obt >= passing_criteria else "<span style='color:red;font-weight:bold;'>Fail</span>"
                                 grand_total_obtained += numeric_obt
                                 grand_total_max += tot
                             elif obt == "A":
@@ -646,9 +606,9 @@ elif menu_choice == "🪪 Student Result Cards":
                             else:
                                 pct, status = "-", "-"
                             
-                            card_html += f'<td>{obt}</td><td>{tot}</td><td>{int(passing_criteria)}</td><td>{pct}</td><td>{status}</td>'
+                            card_html += f'<td style="border:1px solid #333; padding:5px;">{obt}</td><td style="border:1px solid #333; padding:5px;">{tot}</td><td style="border:1px solid #333; padding:5px;">{int(passing_criteria)}</td><td style="border:1px solid #333; padding:5px;">{pct}</td><td style="border:1px solid #333; padding:5px;">{status}</td>'
                         else:
-                            card_html += '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>'
+                            card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                     else:
                         for exam in selected_tests:
                             match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
@@ -665,16 +625,16 @@ elif menu_choice == "🪪 Student Result Cards":
                                     pct = "A"
                                 else:
                                     pct = "-"
-                                card_html += f'<td>{obt}</td><td>{pct}</td>'
+                                card_html += f'<td style="border:1px solid #333; padding:5px;">{obt}</td><td style="border:1px solid #333; padding:5px;">{pct}</td>'
                             else:
-                                card_html += '<td>-</td><td>-</td>'
+                                card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                         
                         tot_age = f"{int((subj_total_obt / subj_total_max) * 100)}%" if subj_total_max > 0 else "-"
-                        card_html += f'<td><b>{tot_age}</b></td>'
+                        card_html += f'<td style="border:1px solid #333; padding:5px;"><b>{tot_age}</b></td>'
                     card_html += '</tr>'
                 
                 # Grand Total Calculations Row Execution
-                card_html += '<tr class="total-highlight-row"><td>⚡ TOTAL</td>'
+                card_html += '<tr style="background-color: #f5f5f5; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;"><td style="border:1px solid #333; padding:5px 8px; text-align:left;">⚡ TOTAL</td>'
                 if num_selected_tests == 1:
                     exam = selected_tests[0]
                     exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
@@ -685,10 +645,10 @@ elif menu_choice == "🪪 Student Result Cards":
                         t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
                         t_pass = t_max * 0.40
                         current_card_percentage = int((t_obt/t_max)*100)
-                        status_str = "Pass" if t_obt >= t_pass else "Fail"
-                        card_html += f'<td>{int(t_obt)}</td><td>{int(t_max)}</td><td>{int(t_pass)}</td><td>{current_card_percentage}%</td><td>{status_str}</td>'
+                        status_str = "<span style='color:green;'>Pass</span>" if t_obt >= t_pass else "<span style='color:red;'>Fail</span>"
+                        card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{int(t_max)}</td><td style="border:1px solid #333; padding:5px;">{int(t_pass)}</td><td style="border:1px solid #333; padding:5px;">{current_card_percentage}%</td><td style="border:1px solid #333; padding:5px;">{status_str}</td>'
                     else:
-                        card_html += '<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>'
+                        card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                 else:
                     for exam in selected_tests:
                         exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
@@ -696,15 +656,15 @@ elif menu_choice == "🪪 Student Result Cards":
                         if not valid_exam_matches.empty:
                             t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
                             t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                            card_html += f'<td>{int(t_obt)}</td><td>{int((t_obt/t_max)*100)}%</td>'
+                            card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{int((t_obt/t_max)*100)}%</td>'
                         else:
-                            card_html += '<td>-</td><td>-</td>'
+                            card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                     
                     if grand_total_max > 0:
                         current_card_percentage = int((grand_total_obtained / grand_total_max) * 100)
-                        card_html += f'<td>{current_card_percentage}%</td>'
+                        card_html += f'<td style="border:1px solid #333; padding:5px;">{current_card_percentage}%</td>'
                     else:
-                        card_html += '<td>-</td>'
+                        card_html += '<td style="border:1px solid #333; padding:5px;">-</td>'
                 
                 card_html += '</tr></tbody></table>'
                 
@@ -720,7 +680,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 sum_present_days = 0
                 
                 for m in AVAILABLE_MONTHS:
-                    header_row_html += f'<th>{m}</th>'
+                    header_row_html += f'<th style="border:1px solid #333; padding:4px; font-weight:normal; background-color:#802200; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{m}</th>'
                     m_match = db_att[db_att['month_name'] == m]
                     
                     if not m_match.empty:
@@ -731,43 +691,43 @@ elif menu_choice == "🪪 Student Result Cards":
                         sum_total_days += td
                         sum_present_days += pd_val
                         
-                        total_days_html += f"<td>{td}</td>"
-                        present_days_html += f"<td>{pd_val}</td>"
-                        percentage_html += f"<td>{pct}</td>"
+                        total_days_html += f"<td style='border:1px solid #333; padding:4px;'>{td}</td>"
+                        present_days_html += f"<td style='border:1px solid #333; padding:4px;'>{pd_val}</td>"
+                        percentage_html += f"<td style='border:1px solid #333; padding:4px;'>{pct}</td>"
                     else:
-                        total_days_html += "<td>-</td>"
-                        present_days_html += "<td>-</td>"
-                        percentage_html += "<td>-</td>"
+                        total_days_html += "<td style='border:1px solid #333; padding:4px;'>-</td>"
+                        present_days_html += "<td style='border:1px solid #333; padding:4px;'>-</td>"
+                        percentage_html += "<td style='border:1px solid #333; padding:4px;'>-</td>"
                         
                 overall_pct = f"{int((sum_present_days / sum_total_days) * 100)}%" if sum_total_days > 0 else "-"
                 str_sum_total = str(sum_total_days) if sum_total_days > 0 else "-"
                 str_sum_present = str(sum_present_days) if sum_total_days > 0 else "-"
                 
                 card_html += f"""
-                <h4 style="margin-top:15px; margin-bottom:5px; color:#333;">📅 Attendance Report</h4>
-                <table class="attendance-print-table">
+                <h4 style="margin: 10px 0 5px 0; font-family: Arial, sans-serif; color:#333;">📅 Monthly Attendance Report Summary</h4>
+                <table style="width:100%; border-collapse:collapse; margin-bottom:15px; font-family: Arial, sans-serif; text-align:center; font-size:11px;">
                     <thead>
                         <tr>
-                            <th style="text-align:left;">Metrics Reference</th>
+                            <th style="border:1px solid #333; padding:4px; text-align:left; background-color:#802200; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">Metrics</th>
                             {header_row_html}
-                            <th style="background-color:#5c1900 !important;">Over All Att.</th>
+                            <th style="border:1px solid #333; padding:4px; background-color:#5c1900; color:white; -webkit-print-color-adjust: exact; print-color-adjust: exact;">Cumulative</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td><b>Total Days</b></td>
+                            <td style="border:1px solid #333; padding:4px; text-align:left; font-weight:bold;">Total Days</td>
                             {total_days_html}
-                            <td class="total-highlight-row">{str_sum_total}</td>
+                            <td style="border:1px solid #333; padding:4px; font-weight:bold; background-color:#f5f5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{str_sum_total}</td>
                         </tr>
                         <tr>
-                            <td><b>Atten. Days</b></td>
+                            <td style="border:1px solid #333; padding:4px; text-align:left; font-weight:bold;">Present Days</td>
                             {present_days_html}
-                            <td class="total-highlight-row">{str_sum_present}</td>
+                            <td style="border:1px solid #333; padding:4px; font-weight:bold; background-color:#f5f5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{str_sum_present}</td>
                         </tr>
                         <tr style="background-color: #fcf8e3; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                            <td><b>Age%</b></td>
+                            <td style="border:1px solid #333; padding:4px; text-align:left; font-weight:bold;">Attendance %</td>
                             {percentage_html}
-                            <td style="font-weight:bold; background-color:#f2dede; color:#a94442; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{overall_pct}</td>
+                            <td style="border:1px solid #333; padding:4px; font-weight:bold; background-color:#f2dede; color:#a94442; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{overall_pct}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -792,8 +752,8 @@ elif menu_choice == "🪪 Student Result Cards":
                     remarks_bg = "#f8d7da"
                 
                 card_html += f"""
-                    <div style="background-color:{remarks_bg}; color:{remarks_color}; border-left: 6px solid {remarks_color}; padding: 12px 18px; margin-top: 15px; border-radius: 4px; font-size: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                        <b>💡 TEACHER REMARKS & RECOMMENDATIONS:</b><br/> {remarks_text}
+                    <div style="background-color:{remarks_bg}; color:{remarks_color}; border-left: 5px solid {remarks_color}; padding: 10px 15px; margin-top: 10px; border-radius: 4px; font-size: 13px; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                        <b>💡 TEACHER REMARKS & EVALUATION:</b> {remarks_text}
                     </div>
                 </div> """
                 
