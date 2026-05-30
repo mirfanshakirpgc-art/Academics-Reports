@@ -358,7 +358,7 @@ elif menu_choice == "🪪 Student Result Cards":
         </style>
     """, unsafe_allow_html=True)
     
-    search_id = st.text_input("🔍 Search Student Roll Number / ID:")
+    search_id = st.text_input("🔍 Search Student Roll Number / ID:",key="print_card_search")
     if search_id and search_id.isdigit():
         student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if student_info.empty:
