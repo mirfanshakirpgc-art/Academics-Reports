@@ -358,14 +358,37 @@ elif menu_choice == "🪪 Student Result Cards":
         </style>
     """, unsafe_allow_html=True)
     
-    # THE ONLY SEARCH BOX THAT SHOULD EXIST HERE
+   # 1. THE ONLY SEARCH BOX THAT SHOULD EXIST HERE
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     
-    # THE BUTTON PLACED NEATLY BENEATH IT
-    col_btn1, _ = st.columns([1, 3])
-    with col_btn1:
-        if st.button("🖨️ Open Print Preview", type="primary", use_container_width=True):
-            st.markdown("<script>window.print();</script>", unsafe_allow_html=True)
+    # 2. FIXED PRINT PREVIEW BUTTON THAT BYPASSES BROWSER SANDBOX
+    st.markdown("""
+        <style>
+        .print-btn-container {
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .custom-print-button {
+            background-color: #f8a100;
+            color: white !important;
+            border: none;
+            padding: 10px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+        .custom-print-button:hover {
+            background-color: #d48a00;
+        }
+        </style>
+        <div class="print-btn-container">
+            <button class="custom-print-button" onclick="window.parent.focus(); window.parent.print();">🖨️ Open Print Preview</button>
+        </div>
+    """, unsafe_allow_html=True)
             
     st.markdown("---")
 
