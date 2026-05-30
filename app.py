@@ -538,9 +538,9 @@ elif menu_choice == "🪪 Student Result Cards":
                         break
                 
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
+                # Normalize values to ensure absolute string-match execution symmetry
+                clean_subjects_list = [s.upper().strip() for s in ordered_subjects]
                 
-                grand_total_obtained = 0.0
-                grand_total_max = 0.0
                 current_card_percentage = 0 
                 
                 # --- START ACCUMULATING DATA AND BUILD EXPLICIT SELF-CONTAINED EMBEDDED TABLE GRID HTML ENGINE ---
@@ -618,7 +618,7 @@ elif menu_choice == "🪪 Student Result Cards":
                                     subj_total_max += tot
                                 elif obt == "A":
                                     pct = "A"
-                                    subj_total_max += tot  # Count toward max if absent
+                                    subj_total_max += tot  
                                 else:
                                     pct = "-"
                                 card_html += f'<td style="border:1px solid #333; padding:5px;">{obt}</td><td style="border:1px solid #333; padding:5px;">{pct}</td>'
@@ -629,12 +629,12 @@ elif menu_choice == "🪪 Student Result Cards":
                         card_html += f'<td style="border:1px solid #333; padding:5px;"><b>{tot_age}</b></td>'
                     card_html += '</tr>'
                 
-                # --- FIX: UNIFIED FILTERED ENGINE FOR THE GRAND TOTAL CALCULATIONS ROW ---
+                # --- ENHANCED & FIXED: UNIFIED DISCIPLINE-FILTERED GRAND TOTAL CALCULATION ROW ---
                 card_html += '<tr style="background-color: #f5f5f5; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;"><td style="border:1px solid #333; padding:5px 8px; text-align:left;">⚡ TOTAL</td>'
                 
                 if num_selected_tests == 1:
                     exam = selected_tests[0]
-                    exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
+                    exam_matches = raw_marks[(raw_marks['exam_type'] == exam.strip()) & (raw_marks['subject'].isin(clean_subjects_list))]
                     valid_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
                     
                     if not valid_matches.empty:
@@ -647,12 +647,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     else:
                         card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                 else:
-                    # FIX: Multi-column view logic now filters out non-numeric entries during totals aggregation
                     all_exams_max = 0.0
                     all_exams_obt = 0.0
                     
                     for exam in selected_tests:
-                        exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
+                        # CRITICAL BUGFIX: Intersect exam matches against clean_subjects_list to secure multi-term view calculations
+                        exam_matches = raw_marks[(raw_marks['exam_type'] == exam.strip()) & (raw_marks['subject'].isin(clean_subjects_list))]
                         valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
                         
                         if not valid_exam_matches.empty:
