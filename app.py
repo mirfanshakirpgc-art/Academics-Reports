@@ -360,7 +360,7 @@ elif menu_choice == "🪪 Student Result Cards":
             --max-width-choice: {max_w_val};
         }}
         
-        /* 🖨️ CRITICAL PRINT INSTRUCTION: This applies your custom four-way margins and hides setup controls */
+        /* 🖨️ CRITICAL PRINT INSTRUCTION */
         @media print {{
             @page {{
                 size: {paper_size} {paper_orient};
@@ -473,7 +473,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
                 matrix_data = []
                 
-                # Global tracking for Multi-test Total Age%
                 grand_total_obtained = 0.0
                 grand_total_max = 0.0
                 
@@ -531,10 +530,11 @@ elif menu_choice == "🪪 Student Result Cards":
                     matrix_data.append(row_entry)
                 
                 report_df = pd.DataFrame(matrix_data)
-                total_row = {"SUBJECTS": "⚡ TOTAL"}
+                
+                # --- STRUCTURE THE TOTALS DATA RECORD AS A DATAFRAME TO FORCE SYSTEM COERCION ---
+                total_data = {"SUBJECTS": ["⚡ TOTAL"]}
                 
                 if num_selected_tests == 1:
-                    # Calculate single test column totals
                     exam = selected_tests[0]
                     exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
                     valid_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
@@ -542,22 +542,63 @@ elif menu_choice == "🪪 Student Result Cards":
                     if not valid_matches.empty:
                         t_obt = valid_matches['marks_obtained'].astype(float).sum()
                         t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                        total_row["Obt. Marks"] = f"{int(t_obt)}"
-                        total_row["Total Marks"] = f"{int(t_max)}"
-                        total_row["Age%"] = f"{int((t_obt/t_max)*100)}%"
+                        total_data["Obt. Marks"] = [f"{int(t_obt)}"]
+                        total_data["Total Marks"] = [f"{int(t_max)}"]
+                        total_data["Age%"] = [f"{int((t_obt/t_max)*100)}%"]
                     else:
-                        total_row["Obt. Marks"] = "-"
-                        total_row["Total Marks"] = "-"
-                        total_row["Age%"] = "-"
+                        total_data["Obt. Marks"] = ["-"]
+                        total_data["Total Marks"] = ["-"]
+                        total_data["Age%"] = ["-"]
                 else:
-                    # Calculate multi test column totals
                     for exam in selected_tests:
                         exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
                         valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
                         if not valid_exam_matches.empty:
                             t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
                             t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                            total_row[f"{exam} (Obt)"] = f"{int(t_obt)}"
-                            total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
+                            total_data[f"{exam} (Obt)"] = [f"{int(t_obt)}"]
+                            total_data[f"{exam} (%)"] = [f"{int((t_obt/t_max)*100)}%"]
                         else:
-                            total_row
+                            total_data[f"{exam} (Obt)"] = ["-"]
+                            total_data[f"{exam} (%)"] = ["-"]
+                    
+                    if grand_total_max > 0:
+                        total_data["Total Age%"] = [f"{int((grand_total_obtained / grand_total_max) * 100)}%"]
+                    else:
+                        total_data["Total Age%"] = ["-"]
+                
+                total_df = pd.DataFrame(total_data)
+                report_df = pd.concat([report_df, total_df], ignore_index=True)
+                
+                # --- FORCE RENDER IN THE BROWSER SURFACE ENGINE VIA SET_INDEX ---
+                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
+                st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
+
+# ----------------- 📈 PERFORMANCE LEDGER -----------------
+elif menu_choice == "📈 Master Performance Ledger":
+    st.title("📈 Subject-wise Consolidated Performance Ledger")
+    c1, c2, c3 = st.columns(3)
+    with c1: l_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="l_disc")
+    with c2: l_subj = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[l_disc], key="l_subj")
+    with c3: l_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[l_disc], key="l_sec")
+    st.markdown("---")
+    
+    raw_ledger = run_query("""
+        SELECT s.id AS "ID", s.name AS "Student Name", m.exam_type, m.marks_obtained
+        FROM students s
+        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
+        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+        ORDER BY s.id ASC
+    """, {"subject": l_subj, "section": l_sec})
+    
+    if raw_ledger.empty:
+        st.info("No student information found for this configuration.")
+    else:
+        pivot_df = raw_ledger.pivot_table(index=["ID", "Student Name"], columns="exam_type", values="marks_obtained", aggfunc="first").reset_index()
+        for exam in AVAILABLE_EXAMS:
+            if exam not in pivot_df.columns: pivot_df[exam] = "-"
+        ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
+        pivot_df = pivot_df[ordered_cols].fillna("-")
+        st.dataframe(pivot_df, use_container_width=True)
+        csv = pivot_df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
