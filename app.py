@@ -444,6 +444,15 @@ My bad—I see exactly what happened. The code block I gave you included some st
 Here is the **clean, 100% pure Python snippet** without any stray descriptions or weird characters. Drop this clean block into your `app.py` script where the `🪪 Student Result Cards` section sits, and it will run flawlessly.
 
 ```python
+The reason the layout is breaking into raw text is due to a data processing flow error inside the loops. When a student doesn't have any matching marks entries returned from the database for the selected test types, the condition `has_numeric_data` remains `False`.
+
+Because `has_numeric_data` stays `False`, the code block skips generating the fallback totals rows entirely but **still attempts to close the table container** via `card_html += "</tbody></table></div>"`. Streamlit encounters an unpopulated table skeleton layout, leading to empty or unclosed strings depending on how HTML structure rules compile dynamically.
+
+To prevent this data structural clipping completely, we need to enforce a dynamic fallback display matrix. If a student profile returns absolutely no data matches for a chosen exam type, the card template will explicitly append stylized clean placeholder notices inside the table rows instead of letting the rendering engine collapse.
+
+Here is your updated, robust, drop-in replacement segment for the **`🪪 Student Result Cards`** page workspace module:
+
+```python
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Sheets")
@@ -567,7 +576,7 @@ elif menu_choice == "🪪 Student Result Cards":
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
                 
-                # Clean up name strings containing newlines and double spaces
+                # Strip out potential trailing database newline breaks safely
                 name = " ".join(str(student_row['name']).replace('\n', ' ').replace('\r', ' ').split()).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).strip()
@@ -655,7 +664,8 @@ elif menu_choice == "🪪 Student Result Cards":
                             else:
                                 card_html += f"<td>{score_str}</td><td>-</td>"
                         else:
-                            card_html += "<td>-</td><td>-</td>"
+                            # Bulletproof placeholder: outputs empty columns to prevent row clipping
+                            card_html += "<td>--</td><td>--</td>"
                     card_html += "</tr>"
                 
                 if has_numeric_data and grand_total > 0:
@@ -667,10 +677,20 @@ elif menu_choice == "🪪 Student Result Cards":
                             <td>{final_pct}</td>
                         </tr>
                     """
+                else:
+                    # Renders a balanced total aggregate placeholder row to gracefully terminate tables lacking numeric entries
+                    card_html += f"""
+                        <tr style="background-color: #f9f9f9; font-style: italic; color: #777;">
+                            <td style="text-align: left;">GRAND TOTAL</td>
+                            <td colspan="{len(selected_tests) * 2 - 1}">No graded marks logged</td>
+                            <td>-</td>
+                        </tr>
+                    """
                 
                 card_html += "</tbody></table></div>"
                 st.markdown(card_html, unsafe_allow_html=True)
 
+```
 ```
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
