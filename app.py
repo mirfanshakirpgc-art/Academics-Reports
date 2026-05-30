@@ -529,11 +529,24 @@ elif menu_choice == "🪪 Student Result Cards":
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class'])
                 
-                raw_marks = run_query("""
+               raw_marks = run_query("""
                     SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
                     FROM marks 
                     WHERE student_id = :id AND exam_type IN :exams
                 """, {"id": current_id, "exams": tuple(selected_tests)})
+                
+                # 👇 ADD THIS FILTER RIGHT HERE 👇
+                if print_scope == "👥 Print Complete Section Cards":
+                    # Drop rows where marks are completely missing, None, or just placeholder hyphens
+                    valid_marks = raw_marks[
+                        raw_marks['marks_obtained'].notna() & 
+                        (raw_marks['marks_obtained'].astype(str).str.strip() != '-') & 
+                        (raw_marks['marks_obtained'].astype(str).str.strip() != '')
+                    ]
+                    
+                    # If the student has no valid numeric marks across the selected exams, skip them!
+                    if valid_marks.empty:
+                        continue
                 
                 assigned_discipline = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
