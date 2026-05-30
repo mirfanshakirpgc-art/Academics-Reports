@@ -422,7 +422,6 @@ elif menu_choice == "📋 Section Summary Report":
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
     
-    # FIX: Corrected St.expander to st.expander
     with st.expander("🛠️ Customize Print Layout Options (Click to Change)"):
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
@@ -627,6 +626,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         card_html += f'<td style="border:1px solid #333; padding:5px;"><b>{tot_age}</b></td>'
                     card_html += '</tr>'
                 
+                # --- FIXED TOTAL ROW CALCULATION & STRUCTURAL ALIGNMENT ---
                 card_html += '<tr style="background-color: #f5f5f5; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;"><td style="border:1px solid #333; padding:5px 8px; text-align:left;">⚡ TOTAL</td>'
                 
                 if num_selected_tests == 1:
@@ -647,6 +647,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     all_exams_max = 0.0
                     all_exams_obt = 0.0
                     
+                    # Dynamically compute column groups to keep total block columns fully aligned 
                     for exam in selected_tests:
                         exam_matches = raw_marks[(raw_marks['exam_type'] == exam.strip()) & (raw_marks['subject'].isin(clean_subjects_list))]
                         valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
@@ -656,7 +657,8 @@ elif menu_choice == "🪪 Student Result Cards":
                             t_max = valid_exam_matches['total_marks'].astype(float).sum()
                             all_exams_obt += t_obt
                             all_exams_max += t_max
-                            card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{int((t_obt/t_max)*100)}%</td>'
+                            exam_pct = int((t_obt / t_max) * 100) if t_max > 0 else 0
+                            card_html += f'<td style="border:1px solid #333; padding:5px;">{int(t_obt)}</td><td style="border:1px solid #333; padding:5px;">{exam_pct}%</td>'
                         else:
                             card_html += '<td style="border:1px solid #333; padding:5px;">-</td><td style="border:1px solid #333; padding:5px;">-</td>'
                     
@@ -668,6 +670,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 card_html += '</tr></tbody></table>'
                 
+                # --- ATTENDANCE HANDLING ---
                 db_att = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
                 header_row_html = ""
@@ -757,7 +760,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 """
                 
                 st.markdown(card_html, unsafe_allow_html=True)
-
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
     st.title("📈 Subject-wise Consolidated Performance Ledger")
