@@ -609,7 +609,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     card_html += f"<tr><td style='text-align: left; font-weight: bold;'>{sub}</td>"
                     
                     for t in selected_tests:
-                        # Fixed matching syntax to compare fully stripped strings on both ends
+                        # Compare fully stripped strings on both ends
                         match = raw_marks[(raw_marks['subject'] == clean_sub_target) & (raw_marks['exam_type'] == t.strip())]
                         
                         if not match.empty:
