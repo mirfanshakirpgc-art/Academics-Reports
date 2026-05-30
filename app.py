@@ -358,41 +358,29 @@ elif menu_choice == "🪪 Student Result Cards":
         </style>
     """, unsafe_allow_html=True)
     
-   # 1. THE ONLY SEARCH BOX THAT SHOULD EXIST HERE
+    # 1. THE ONLY SEARCH BOX FOR THIS MODULE
     search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
     
-    # 2. FIXED PRINT PREVIEW BUTTON THAT BYPASSES BROWSER SANDBOX
-    st.markdown("""
-        <style>
-        .print-btn-container {
-            margin-top: 10px;
-            margin-bottom: 20px;
-        }
-        .custom-print-button {
-            background-color: #f8a100;
-            color: white !important;
-            border: none;
-            padding: 10px 24px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 4px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            transition: background-color 0.3s;
-        }
-        .custom-print-button:hover {
-            background-color: #d48a00;
-        }
-        </style>
-        <div class="print-btn-container">
-            <button class="custom-print-button" onclick="window.parent.focus(); window.parent.print();">🖨️ Open Print Preview</button>
-        </div>
-    """, unsafe_allow_html=True)
+    # 2. BULLETPROOF PRINT PREVIEW LINK THAT BYPASSES BROWSER SANDBOX
+    st.markdown(
+        '<a href="javascript:window.print()" target="_parent" style="'
+        'display: inline-block; '
+        'background-color: #f8a100; '
+        'color: white !important; '
+        'text-decoration: none; '
+        'font-weight: bold; '
+        'padding: 10px 24px; '
+        'border-radius: 4px; '
+        'margin-top: 10px; '
+        'margin-bottom: 20px; '
+        'font-family: sans-serif;'
+        '">🖨️ Open Print Preview</a>',
+        unsafe_allow_html=True
+    )
             
     st.markdown("---")
 
-    # DATABASE DATA QUERY RUNS AFTER THE INPUT
+    # 3. CORE DATA LOADING & TABLE RENDERING LOGIC
     if search_id and search_id.isdigit():
         student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if student_info.empty:
@@ -402,6 +390,7 @@ elif menu_choice == "🪪 Student Result Cards":
             section = student_info['section'].iloc[0].upper().strip()
             grade_class = student_info['class'].iloc[0]
             
+            # Formatted under the dynamic page breaking element
             st.markdown(f"""
             <div class="print-card-break" style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-bottom:20px; font-family:sans-serif;">
                 <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
