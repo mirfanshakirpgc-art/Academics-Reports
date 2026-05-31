@@ -476,7 +476,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="doc-data-table">
                         <thead>
                             <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
+                                <th style="text-align: left; width: 35%; padding-left: 12px;">Subjects</th>
                                 <th style="width: 13%;">Obt. Marks</th>
                                 <th style="width: 13%;">Total Marks</th>
                                 <th style="width: 13%;">Pass Marks</th>
