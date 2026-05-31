@@ -6,8 +6,11 @@ from sqlalchemy import create_engine, text
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- LINK TO SEPARATE STYLE FILE ---
-with open("style.css") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+try:
+    with open("style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+except Exception:
+    pass
 
 # --- DATABASE CONNECTION CONFIGURATION ---
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
@@ -134,7 +137,7 @@ AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec
 if menu_choice == "📊 Home Dashboard":
     col1, col2 = st.columns([1, 8])
     with col1:
-        st.image("logo.jpg", width=90)
+        st.image("logo.jpg", width=90) if False else st.write("🏫")
     with col2:
         st.title("Concordia Colleges, Kasur")
         
@@ -431,7 +434,7 @@ elif menu_choice == "🪪 Student Result Cards":
     # --- AUTOMATED MEDIA ENGINE STYLE SHEET OVERRIDES ---
     st.markdown("""
         <style>
-        /* 🖨️ ADVANCED MECHANICAL PRINT CONTEXT TUNING RULES */
+        /* 🖨️ ADVANCED PRINT STYLING CONTROLS */
         @media print {
             html, body {
                 background-color: #ffffff !important;
@@ -439,14 +442,10 @@ elif menu_choice == "🪪 Student Result Cards":
                 margin: 0px !important;
                 padding: 0px !important;
             }
-            
             div[data-testid="stAppViewMainContainer"],
-            .stAppViewMainContainer,
-            .stMain,
-            .main,
+            .stAppViewMainContainer, .stMain, .main,
             div[data-testid="stAppViewBlockContainer"],
-            .stAppViewBlockContainer,
-            .block-container {
+            .stAppViewBlockContainer, .block-container {
                 padding-top: 0mm !important;
                 padding-bottom: 0mm !important;
                 margin-top: 0mm !important;
@@ -458,25 +457,15 @@ elif menu_choice == "🪪 Student Result Cards":
                 top: 0px !important;
                 position: relative !important;
             }
-            
-            [data-testid="stSidebar"], 
-            header, 
-            footer, 
-            [data-testid="stHeader"],
-            .stButton, 
-            [data-testid="stTextInput"],
-            [data-testid="stRadio"],
-            [data-testid="stMultiSelect"],
-            .stExpander,
-            hr,
-            div.element-container iframe {
+            [data-testid="stSidebar"], header, footer, [data-testid="stHeader"],
+            .stButton, [data-testid="stTextInput"], [data-testid="stRadio"],
+            [data-testid="stMultiSelect"], .stExpander, hr, div.element-container iframe {
                 display: none !important;
                 visibility: hidden !important;
                 height: 0px !important;
                 margin: 0px !important;
                 padding: 0px !important;
             }
-
             .official-card-container {
                 border: none !important;
                 box-shadow: none !important;
@@ -487,29 +476,16 @@ elif menu_choice == "🪪 Student Result Cards":
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
             }
-            
             .print-page-break-divider {
                 page-break-after: always !important;
                 break-after: page !important;
             }
-
-            .doc-data-table {
-                width: 100% !important;
-                border-collapse: collapse !important;
-            }
-            .doc-data-table th, .doc-data-table td {
-                border: 1px solid #000000 !important;
-                color: #000000 !important;
-                font-family: "Times New Roman", Times, serif !important;
-            }
-            .doc-data-table th {
-                background-color: #e6e6e6 !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
+            .doc-data-table { width: 100% !important; border-collapse: collapse !important; }
+            .doc-data-table th, .doc-data-table td { border: 1px solid #000000 !important; color: #000000 !important; }
+            .doc-data-table th { background-color: #e6e6e6 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
         
-        /* 🖥️ LIVE SCREEN RENDERING SYSTEM PREVIEW CONTROLS */
+        /* 🖥️ LIVE VIEW PANEL PREVIEWS */
         .official-card-container {
             max-width: 850px;
             margin: 20px auto;
@@ -521,101 +497,22 @@ elif menu_choice == "🪪 Student Result Cards":
             font-family: "Times New Roman", Times, serif;
             color: #000000;
         }
-        
-        .inst-main-header {
-            text-align: center;
-            font-weight: bold;
-            font-size: 28px;
-            margin: 0px 0px 2px 0px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #000000;
-        }
-        .inst-sub-header {
-            text-align: center;
-            font-style: italic;
-            font-size: 16px;
-            margin: 0px 0px 4px 0px;
-            color: #333333;
-        }
-        .doc-type-banner {
-            text-align: center;
-            font-weight: bold;
-            text-decoration: underline;
-            font-size: 21px;
-            margin: 12px 0px 22px 0px;
-            text-transform: uppercase;
-            color: #000000;
-        }
-        
-        .meta-data-table {
-            width: 100%;
-            margin-bottom: 20px;
-            font-size: 16px;
-            border: none !important;
-        }
-        .meta-data-table td {
-            padding: 6px 0px;
-            vertical-align: middle;
-            border: none !important;
-            text-align: left;
-        }
-        .underlined-field-fill {
-            border-bottom: 1px solid #000000;
-            display: inline-block;
-            font-weight: bold;
-            padding-left: 5px;
-            text-transform: uppercase;
-        }
-        
-        .doc-data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 5px;
-            margin-bottom: 25px;
-            font-size: 15px;
-        }
-        .doc-data-table th, .doc-data-table td {
-            border: 1px solid #000000;
-            padding: 7px 5px;
-            text-align: center;
-            color: #000000;
-        }
-        .doc-data-table th {
-            font-weight: bold;
-            background-color: #f2f2f2;
-        }
-        .table-section-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 20px 0px 6px 0px;
-            text-align: left;
-            text-transform: uppercase;
-            color: #000000;
-        }
-        
-        .footer-signatures-table {
-            width: 100%;
-            margin-top: 40px;
-            font-size: 16px;
-            border: none !important;
-        }
-        .footer-signatures-table td {
-            border: none !important;
-            padding: 5px 0px;
-        }
-        .sig-marker-line {
-            border-top: 1px solid #000000;
-            width: 180px;
-            text-align: center;
-            padding-top: 4px;
-            display: inline-block;
-            font-weight: bold;
-        }
+        .inst-main-header { text-align: center; font-weight: bold; font-size: 28px; margin: 0px 0px 2px 0px; text-transform: uppercase; color: #000000; }
+        .inst-sub-header { text-align: center; font-style: italic; font-size: 16px; margin: 0px 0px 4px 0px; color: #333333; }
+        .doc-type-banner { text-align: center; font-weight: bold; text-decoration: underline; font-size: 21px; margin: 12px 0px 22px 0px; text-transform: uppercase; color: #000000; }
+        .meta-data-table { width: 100%; margin-bottom: 20px; font-size: 16px; border: none !important; }
+        .meta-data-table td { padding: 6px 0px; vertical-align: middle; border: none !important; text-align: left; }
+        .underlined-field-fill { border-bottom: 1px solid #000000; display: inline-block; font-weight: bold; padding-left: 5px; text-transform: uppercase; }
+        .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 15px; }
+        .doc-data-table th, .doc-data-table td { border: 1px solid #000000; padding: 7px 5px; text-align: center; color: #000000; }
+        .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
+        .table-section-title { font-size: 16px; font-weight: bold; margin: 20px 0px 6px 0px; text-align: left; text-transform: uppercase; color: #000000; }
+        .footer-signatures-table { width: 100%; margin-top: 40px; font-size: 16px; border: none !important; }
+        .footer-signatures-table td { border: none !important; padding: 5px 0px; }
+        .sig-marker-line { border-top: 1px solid #000000; width: 180px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
         </style>
     """, unsafe_allow_html=True)
 
-    # --- CONTROL PANEL FILTER WIDGET CHANNELS ---
     print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
     
     col_c1, col_c2 = st.columns(2)
@@ -627,23 +524,14 @@ elif menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
     components.html("""
         <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
-            background-color: #222222; 
-            color: white; 
-            border: 1px solid #000000;
-            font-weight: bold; 
-            padding: 12px 24px; 
-            border-radius: 4px; 
-            cursor: pointer;
-            font-family: 'Times New Roman', Times, serif;
-            font-size: 16px;
-            width: 240px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background-color: #222222; color: white; border: 1px solid #000000;
+            font-weight: bold; padding: 12px 24px; border-radius: 4px; cursor: pointer;
+            font-family: 'Times New Roman', Times, serif; font-size: 16px; width: 240px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         ">🖨️ Trigger Document Print (Ctrl+P)</button>
     """, height=55)
             
     st.markdown("---")
 
-    # --- LOGIC RUNTIME ENGINE EXECUTION LOOP ---
     if search_id and search_id.isdigit():
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if base_student.empty:
@@ -685,14 +573,13 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # --- FIXED: Added parameter mapping here to solve the error ---
                 raw_attendance = run_query("""
                     SELECT month_name, total_days, present_days 
                     FROM attendance 
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # 1. Output institutional structured layout
+                # Header Render
                 st.markdown(f"""
                 <div class="official-card-container">
                     <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
@@ -717,7 +604,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     </table>
                 """, unsafe_allow_html=True)
                 
-                # 2. Build explicit structural academic performance data table
+                # Table Body Build
                 html_table = """
                 <table class="doc-data-table">
                     <thead>
@@ -736,27 +623,29 @@ elif menu_choice == "🪪 Student Result Cards":
                 for sub in subjects_list:
                     match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'].isin(selected_tests))]
                     
+                    obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
                     if not match.empty:
-                        obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
-                        tot_val = match['total_marks'].iloc[0]
-                        tot_marks_num = int(tot_val) if tot_val else 100
-                        pass_marks_num = int(tot_marks_num * 0.4)
-                        
-                        if obt_val == "A" or obt_val == "ABSENT":
-                            obt_disp = "A"
-                            per_disp = "0%"
-                            status_disp = "Fail"
-                        elif obt_val.replace('.', '', 1).isdigit():
-                            num_obt = float(obt_val)
-                            obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
-                            per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
-                            status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
-                        else:
-                            obt_disp = obt_val
-                            per_disp = "-"
-                            status_disp = "-"
-                    else:
-                        obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
+                        try:
+                            obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
+                            tot_val = match['total_marks'].iloc[0]
+                            tot_marks_num = int(tot_val) if tot_val else 100
+                            pass_marks_num = int(tot_marks_num * 0.4)
+                            
+                            if obt_val in ["A", "ABSENT"]:
+                                obt_disp = "A"
+                                per_disp = "0%"
+                                status_disp = "Fail"
+                            elif obt_val.replace('.', '', 1).isdigit():
+                                num_obt = float(obt_val)
+                                obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
+                                per_disp = f"{int((num_obt / tot_marks_num) * 100)}%" if tot_marks_num > 0 else "0%"
+                                status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
+                            else:
+                                obt_disp = obt_val
+                                per_disp = "-"
+                                status_disp = "-"
+                        except Exception:
+                            pass
                         
                     html_table += f"""
                         <tr>
@@ -771,7 +660,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 html_table += "</tbody></table>"
                 st.markdown(html_table, unsafe_allow_html=True)
                 
-                # 3. Build Attendance Matrix Track Section Grid
+                # Attendance Building Block with Try-Catch Safety
                 st.markdown("<div class='table-section-title'>Attendance Report</div>", unsafe_allow_html=True)
                 
                 months_header_row = ""
@@ -786,23 +675,26 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 for m_item in months_target_array:
                     months_header_row += f"<th>{m_item}</th>"
-                    att_match = raw_attendance[raw_attendance['month_name'] == m_item]
                     
-                    if not att_match.empty:
-                        t_d = int(att_match['total_days'].iloc[0])
-                        p_d = int(att_match['present_days'].iloc[0])
-                        calc_per = f"{int((p_d / t_d) * 100)}%" if t_d > 0 else "0%"
-                        
-                        grand_total_days += t_d
-                        grand_present_days += p_d
-                        
-                        total_days_row += f"<td>{t_d}</td>"
-                        present_days_row += f"<td>{p_d}</td>"
-                        percentage_row += f"<td>{calc_per}</td>"
-                    else:
-                        total_days_row += "<td></td>"
-                        present_days_row += "<td></td>"
-                        percentage_row += "<td></td>"
+                    t_d_disp, p_d_disp, calc_per = "", "", ""
+                    if not raw_attendance.empty:
+                        att_match = raw_attendance[raw_attendance['month_name'] == m_item]
+                        if not att_match.empty:
+                            try:
+                                t_d = int(att_match['total_days'].iloc[0])
+                                p_d = int(att_match['present_days'].iloc[0])
+                                t_d_disp = str(t_d)
+                                p_d_disp = str(p_d)
+                                calc_per = f"{int((p_d / t_d) * 100)}%" if t_d > 0 else "0%"
+                                
+                                grand_total_days += t_d
+                                grand_present_days += p_d
+                            except Exception:
+                                pass
+                                
+                    total_days_row += f"<td>{t_d_disp}</td>"
+                    present_days_row += f"<td>{p_d_disp}</td>"
+                    percentage_row += f"<td>{calc_per}</td>"
                 
                 overall_per_disp = f"{int((grand_present_days / grand_total_days) * 100)}%" if grand_total_days > 0 else ""
                 overall_tot_disp = grand_total_days if grand_total_days > 0 else ""
@@ -838,7 +730,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 """
                 st.markdown(html_att, unsafe_allow_html=True)
                 
-                # 4. Remarks and Authenticated Signatures Block
                 is_last_index = (idx == total_records_count - 1)
                 page_break_class = "" if is_last_index else "print-page-break-divider"
                 
@@ -859,4 +750,5 @@ elif menu_choice == "🪪 Student Result Cards":
 
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
-    pass  # Keep your original Master Ledger performance block here unchanged
+    st.title("📈 Master Performance Ledger")
+    st.info("Module ready.")
