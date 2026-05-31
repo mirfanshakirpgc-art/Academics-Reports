@@ -43,8 +43,8 @@ if not st.session_state.logged_in:
             
             if result:
                 st.session_state.logged_in = True
-                st.session_state.user_role = result[0]         # 'controller' or 'teacher'
-                st.session_state.assigned_subject = result[1]    # e.g., 'COMPUTER' or None
+                st.session_state.user_role = result[0]         
+                st.session_state.assigned_subject = result[1]    
                 st.success("Access Granted! Loading system...")
                 st.rerun()
             else:
@@ -501,9 +501,35 @@ elif menu_choice == "🪪 Student Result Cards":
         .inst-sub-header { text-align: center; font-size: 15px; margin: 2px 0px 0px 0px; color: #000000; }
         .doc-type-banner { text-align: center; font-weight: bold; font-size: 20px; margin: 15px 0px 20px 0px; color: #000000; }
         
-        /* EXACT HORIZONTAL META STREAM - REMOVED GRAY CONTAINER BOX */
-        .horizontal-meta-line { width: 100%; margin-bottom: 25px; font-size: 16px; color: #000000; line-height: 1.6; text-align: left; }
-        .fill-blank-text { border-bottom: 1px solid #000000; font-weight: bold; padding: 0px 4px; text-transform: uppercase; display: inline-block; }
+        /* FLEXBOX TO SECURE AN UNBREAKABLE SINGLE HORIZONTAL LINE CONTAINER */
+        .horizontal-meta-line { 
+            display: flex;
+            flex-direction: row;
+            justify-content: flex-start;
+            align-items: flex-end;
+            width: 100%; 
+            margin-bottom: 25px; 
+            font-size: 16px; 
+            color: #000000; 
+            white-space: nowrap;
+        }
+        .meta-field-item {
+            display: flex;
+            align-items: flex-end;
+            margin-right: 25px;
+        }
+        .meta-label {
+            font-weight: normal;
+            margin-right: 5px;
+        }
+        .fill-blank-text { 
+            border-bottom: 1px solid #000000; 
+            font-weight: bold; 
+            padding: 0px 4px; 
+            text-transform: uppercase; 
+            text-align: left;
+            display: inline-block;
+        }
         
         .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 15px; }
         .doc-data-table th, .doc-data-table td { border: 1px solid #000000; padding: 7px 5px; text-align: center; color: #000000; }
@@ -582,23 +608,23 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # --- FIXED: EXACT SPECIFIED HORIZONTAL FLOW FORMAT & BANNER TEXT ---
+                # --- FLEXBOX EMBED FOR ENFORCED SINGLE LINE LAYOUT OVERRIDE ---
                 st.markdown(f"""
                 <div class="official-card-container">
-                    <div class="inst-main-header">[cite: 1] CONCORDIA COLLEGE KASUR</div>
-                    <div class="inst-sub-header">[cite: 2] A Project of Beaconhouse</div>
-                    <div class="doc-type-banner">[cite: 3] Result Card</div>
+                    <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
+                    <div class="inst-sub-header">A Project of Beaconhouse</div>
+                    <div class="doc-type-banner">Result Card</div>
                     
                     <div class="horizontal-meta-line">
-                        [cite: 4] Name: <span class="fill-blank-text" style="width: 250px;">{name}</span> &nbsp;&nbsp;
-                        ID: <span class="fill-blank-text" style="width: 70px;">{current_id}</span> &nbsp;&nbsp;
-                        Section: <span class="fill-blank-text" style="width: 100px;">{section}</span> &nbsp;&nbsp;
-                        Class: <span class="fill-blank-text" style="width: 60px;">{grade_class}</span> &nbsp;&nbsp;
-                        Test: <span class="fill-blank-text" style="width: 80px;">{test_names}</span>
+                        <div class="meta-field-item"><span class="meta-label">Name:</span><span class="fill-blank-text" style="width: 240px;">{name}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">ID:</span><span class="fill-blank-text" style="width: 65px;">{current_id}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">Section:</span><span class="fill-blank-text" style="width: 110px;">{section}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">Class:</span><span class="fill-blank-text" style="width: 60px;">{grade_class}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">Test:</span><span class="fill-blank-text" style="width: 90px;">{test_names}</span></div>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # [cite: 5] Table Body Build
+                # Table Body Build
                 html_table = """
                 <table class="doc-data-table">
                     <thead>
@@ -654,7 +680,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 html_table += "</tbody></table>"
                 st.markdown(html_table, unsafe_allow_html=True)
                 
-                # [cite: 6] Attendance Building Block
+                # Attendance Building Block
                 st.markdown("<div class='table-section-title'>Attendance Report</div>", unsafe_allow_html=True)
                 
                 months_header_row = ""
@@ -694,7 +720,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 overall_tot_disp = grand_total_days if grand_total_days > 0 else ""
                 overall_pres_disp = grand_present_days if grand_total_days > 0 else ""
                 
-                # [cite: 7] Attendance Matrix Rendering
+                # Attendance Matrix Rendering
                 html_att = f"""
                 <table class="doc-data-table" style="font-size: 13px; margin-bottom: 25px;">
                     <thead>
@@ -728,7 +754,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 is_last_index = (idx == total_records_count - 1)
                 page_break_class = "" if is_last_index else "print-page-break-divider"
                 
-                # [cite: 8, 9] Remarks & Signatures Row Block
+                # Remarks & Signatures Row Block
                 st.markdown(f"""
                     <table class="footer-signatures-table">
                         <tr>
