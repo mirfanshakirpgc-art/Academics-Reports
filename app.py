@@ -482,7 +482,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
     rendered_discipline = "N/A"
     rendered_section = "N/A"
 
-    # CONDITIONAL SCOPE FORM RENDERERS
     if scope_choice == "👤 Single Student Card":
         with st.form("single_student_secure_form"):
             st.markdown("##### 👤 Single Profile Verification Panel")
@@ -614,7 +613,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         for s_meta in students_to_process:
             s_id = str(s_meta["id"]).strip()
             
-            # CRITICAL LAYOUT FIX: Sanitize name inputs by removing internal newlines and clean double spaces
+            # Clean string data to prevent breaking the generated HTML
             raw_name = str(s_meta["name"])
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
@@ -622,7 +621,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             s_section = " ".join(raw_section.replace("\n", " ").split())
             
             s_class = rendered_discipline 
-            
             match_id = int(s_id) if s_id.isdigit() else s_id
             
             # --- MARKS CARD MATRIX PROCESSING ---
@@ -680,7 +678,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html += row_html
 
             # Bottom Summary Totals Row Matrix
-            total_row_html = "<tr><td><strong>Total</strong></td>"
+            total_row_html = "<tr><td>export<strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in selected_exams_list:
                 if exam_has_any_data[exam] and exam_totals_max[exam] > 0:
@@ -751,7 +749,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
 
-            # --- EMBED GRAPHIC CARD COMPONENT LAYOUT ---
+            # --- FIXED AND BULLETPROOF EMBED COMPONENT RENDERING ---
             html_output = f"""
             <div class="cck-container">
                 <div class="cck-header-wrapper">
@@ -822,7 +820,8 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 </div>
             </div>
             """
-            st.write(html_output, unsafe_allow_html=True)
+            # Explicit markdown wrapping ensures Streamlit passes custom nested HTML blocks seamlessly
+            st.markdown(html_output, unsafe_allow_html=True)
         
         st.markdown('<div class="no-print">', unsafe_allow_html=True)
         st.button("🖨️ Print Dossiers", help="Press Ctrl+P on your keyboard to save your output cards as a unified clean PDF layout.")
