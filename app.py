@@ -338,9 +338,9 @@ elif menu_choice == "🪪 Student Result Cards":
     print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     col_c1, col_c2 = st.columns(2)
     with col_c1: search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-    with col_c2: selected_tests = st.multiselect("🎯 Select Specific Test Term:", options=AVAILABLE_EXAMS, default=["MT_1"])
+    with col_c2: selected_test = st.selectbox("🎯 Select Test Term:", options=AVAILABLE_EXAMS)
 
-    if search_id and search_id.isdigit() and selected_tests:
+    if search_id and search_id.isdigit() and selected_test:
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if not base_student.empty:
             target_section = base_student['section'].iloc[0].upper().strip()
@@ -406,7 +406,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).upper()
-                test_names = ", ".join(selected_tests).upper()
+                test_name = selected_test.upper()
                 
                 matched_disp = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
@@ -458,31 +458,31 @@ elif menu_choice == "🪪 Student Result Cards":
                         <div class="logo-row">
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
                         </div>
-                        <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                        <div class="inst-sub-header">A Project of Beaconhouse</div>
+                        <div class="inst-main-header">[cite: 1] CONCORDIA COLLEGE KASUR</div>
+                        <div class="inst-sub-header">[cite: 2] A Project of Beaconhouse</div>
                     </div>
                     
-                    <div class="doc-type-banner">Result Card</div>
+                    <div class="doc-type-banner">[cite: 3] Result Card</div>
                     
                     <table class="meta-layout-table">
                         <tr>
-                            <td style="width: 40%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                            <td style="width: 14%;">ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
-                            <td style="width: 16%;">Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
-                            <td style="width: 14%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 16%;">Test: <span class="underlined-value-span" style="width: 65%;">{test_names}</span></td>
+                            <td style="width: 40%;">[cite: 4] Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
+                            <td style="width: 14%;">[cite: 4] ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
+                            <td style="width: 16%;">[cite: 4] Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
+                            <td style="width: 14%;">[cite: 4] Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
+                            <td style="width: 16%;">[cite: 4] Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td>
                         </tr>
                     </table>
                     
                     <table class="doc-data-table">
                         <thead>
                             <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
-                                <th style="width: 13%;">Obt. Marks</th>
-                                <th style="width: 13%;">Total Marks</th>
-                                <th style="width: 13%;">Pass Marks</th>
-                                <th style="width: 13%;">Age%</th>
-                                <th style="width: 13%;">Status</th>
+                                <th style="text-align: left; width: 35%; padding-left: 10px;">[cite: 5] Subjects</th>
+                                <th style="width: 13%;">[cite: 5] Obt. Marks</th>
+                                <th style="width: 13%;">[cite: 5] Total Marks</th>
+                                <th style="width: 13%;">[cite: 5] Pass Marks</th>
+                                <th style="width: 13%;">[cite: 5] Age%</th>
+                                <th style="width: 13%;">[cite: 5] Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -492,7 +492,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 has_valid_marks_data = False
 
                 for sub in subjects_list:
-                    match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'].isin(selected_tests))]
+                    match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'] == selected_test)]
                     obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
                     if not match.empty:
                         try:
@@ -544,17 +544,14 @@ elif menu_choice == "🪪 Student Result Cards":
                 # --- ALGORITHMIC AUTOMATED REMARKS ENGINE ---
                 remarks_text = "No records found."
                 if has_valid_marks_data:
-                    # Case 1: Academically failed any exam subject
                     if student_failed_any_subject:
                         if tot_sum > 0 and attendance_percentage < 85.0:
                             remarks_text = "Unsatisfactory academic status with critical attendance below acceptable 85% benchmark. Immediate improvement required."
                         else:
                             remarks_text = "Academic failure detected in one or more subjects. Needs focused remedial attention and harder work."
-                    # Case 2: Passed all academic subjects
                     else:
                         grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
                         
-                        # Sub-check if attendance falls short
                         if tot_sum > 0 and attendance_percentage < 85.0:
                             remarks_text = f"Good academic performance ({grand_percentage:.0f}%), but attendance is short ({attendance_percentage:.0f}%). Needs to maintain minimum 85% attendance."
                         else:
@@ -577,29 +574,29 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <div class="section-header-title">Attendance Report</div>
+                    <div class="section-header-title">[cite: 6] Attendance Report</div>
                     
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
-                                <th style="width: 12%;">Metric</th>
+                                <th style="width: 12%;">[cite: 7] Metric</th>
                                 {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
-                                <th style="width: 11%;">Over All Att.</th>
+                                <th style="width: 11%;">[cite: 7] Over All Att.</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="row-title-cell">Total Days</td>
+                                <td class="row-title-cell">[cite: 7] Total Days</td>
                                 {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
                             </tr>
                             <tr>
-                                <td class="row-title-cell">Att. Days</td>
+                                <td class="row-title-cell">[cite: 7] Att. Days</td>
                                 {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
                             </tr>
                             <tr>
-                                <td class="row-title-cell">Age%</td>
+                                <td class="row-title-cell">[cite: 7] Age%</td>
                                 {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
                             </tr>
@@ -607,13 +604,13 @@ elif menu_choice == "🪪 Student Result Cards":
                     </table>
                     
                     <div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">
-                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
+                        [cite: 8] Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
                     </div>
                     
                     <table class="footer-signatures-table">
                         <tr>
                             <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
-                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
+                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">[cite: 9] Principal Sign</span></td>
                         </tr>
                     </table>
                 </div>
