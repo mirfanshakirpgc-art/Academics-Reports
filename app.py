@@ -458,9 +458,10 @@ elif menu_choice == "🪪 Student Result Cards":
                             <td class="logo-cell">
                                 <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
                             </td>
+
+                            
                             <td class="text-content-cell">
                                 <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                                <div class="inst-sub-header">A Project of Beaconhouse</div>
                             </td>
                         </tr>
                     </table>
