@@ -137,7 +137,7 @@ AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec
 if menu_choice == "📊 Home Dashboard":
     col1, col2 = st.columns([1, 8])
     with col1:
-        st.image("logo.jpg", width=90) if False else st.write("🏫")
+        st.write("🏫")
     with col2:
         st.title("Concordia Colleges, Kasur")
         
@@ -500,8 +500,8 @@ elif menu_choice == "🪪 Student Result Cards":
         .inst-main-header { text-align: center; font-weight: bold; font-size: 28px; margin: 0px 0px 2px 0px; text-transform: uppercase; color: #000000; }
         .inst-sub-header { text-align: center; font-style: italic; font-size: 16px; margin: 0px 0px 4px 0px; color: #333333; }
         .doc-type-banner { text-align: center; font-weight: bold; text-decoration: underline; font-size: 21px; margin: 12px 0px 22px 0px; text-transform: uppercase; color: #000000; }
-        .meta-data-table { width: 100%; margin-bottom: 20px; font-size: 16px; border: none !important; }
-        .meta-data-table td { padding: 6px 0px; vertical-align: middle; border: none !important; text-align: left; }
+        .meta-data-table { width: 100%; margin-bottom: 20px; font-size: 16px; border: none !important; border-collapse: collapse; }
+        .meta-data-table td { padding: 6px 4px; vertical-align: middle; border: none !important; text-align: left; }
         .underlined-field-fill { border-bottom: 1px solid #000000; display: inline-block; font-weight: bold; padding-left: 5px; text-transform: uppercase; }
         .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 15px; }
         .doc-data-table th, .doc-data-table td { border: 1px solid #000000; padding: 7px 5px; text-align: center; color: #000000; }
@@ -579,7 +579,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # Header Render
+                # --- FIXED: RE-STRUCTURED AND CLEANED UP METADATA STRINGS AND WRAPPERS ---
                 st.markdown(f"""
                 <div class="official-card-container">
                     <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
@@ -589,17 +589,19 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="meta-data-table">
                         <tr>
                             <td style="width: 10%;">Name:</td>
-                            <td style="width: 50%;"><span class="underlined-field-fill" style="width: 95%;">{name}</span></td>
+                            <td style="width: 45%;"><span class="underlined-field-fill" style="width: 95%;">{name}</span></td>
                             <td style="width: 10%;">ID:</td>
-                            <td style="width: 30%;"><span class="underlined-field-fill" style="width: 100%;">{current_id}</span></td>
+                            <td style="width: 35%;"><span class="underlined-field-fill" style="width: 95%;">{current_id}</span></td>
                         </tr>
                         <tr>
                             <td style="width: 10%;">Section:</td>
-                            <td style="width: 25%;"><span class="underlined-field-fill" style="width: 90%;">{section}</span></td>
+                            <td style="width: 45%;"><span class="underlined-field-fill" style="width: 95%;">{section}</span></td>
                             <td style="width: 10%;">Class:</td>
-                            <td style="width: 25%;"><span class="underlined-field-fill" style="width: 90%;">{grade_class}</span></td>
+                            <td style="width: 35%;"><span class="underlined-field-fill" style="width: 95%;">{grade_class}</span></td>
+                        </tr>
+                        <tr>
                             <td style="width: 10%;">Test:</td>
-                            <td style="width: 20%;"><span class="underlined-field-fill" style="width: 100%;">{", ".join(selected_tests)}</span></td>
+                            <td colspan="3"><span class="underlined-field-fill" style="width: 98%;">{", ".join(selected_tests)}</span></td>
                         </tr>
                     </table>
                 """, unsafe_allow_html=True)
