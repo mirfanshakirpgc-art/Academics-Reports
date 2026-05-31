@@ -327,7 +327,7 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
 
-# ----------------- 🪪 STUDENT RESULT CARDS (ISOLATED VIEW ENGINE WITH TOTALS) -----------------
+# ----------------- 🪪 STUDENT RESULT CARDS (ISOLATED VIEW ENGINE WITH TOTALS AND LOGO) -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
@@ -354,9 +354,16 @@ elif menu_choice == "🪪 Student Result Cards":
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 800px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-                .inst-main-header { text-align: center; font-weight: bold; font-size: 24px; text-transform: uppercase; margin: 0; }
-                .inst-sub-header { text-align: center; font-size: 14px; margin: 2px 0 15px 0; }
-                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin-bottom: 20px; }
+                
+                /* THE HEADER LAYOUT WITH EMBEDDED LOGO GRID */
+                .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 5px; }
+                .header-wrapper-table td { border: none; padding: 0; vertical-align: middle; }
+                .logo-cell { width: 75px; text-align: left; }
+                .logo-img { max-height: 65px; width: auto; display: block; }
+                
+                .inst-main-header { font-weight: bold; font-size: 24px; text-transform: uppercase; margin: 0; line-height: 1.2; }
+                .inst-sub-header { font-size: 14px; margin: 2px 0 0 0; }
+                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 15px 0 20px 0; }
                 
                 /* THE HORIZONTAL STRUCTURAL GRID */
                 .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 15px; }
@@ -399,11 +406,22 @@ elif menu_choice == "🪪 Student Result Cards":
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 raw_attendance = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # Dynamic generation of Metadata Row
+                # Dynamic generation of Card Layout with Left Logo Configuration
                 compiled_html += f"""
                 <div class="official-card-container">
-                    <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                    <div class="inst-sub-header">A Project of Beaconhouse</div>
+                    <table class="header-wrapper-table">
+                        <tr>
+                            <td class="logo-cell">
+                                <img class="logo-img" src="https://via.placeholder.com/150x150?text=LOGO" alt="College Logo">
+                            </td>
+                            <td style="text-align: center;">
+                                <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
+                                <div class="inst-sub-header">A Project of Beaconhouse</div>
+                            </td>
+                            <td class="logo-cell" style="visibility: hidden; width: 75px;"></td>
+                        </tr>
+                    </table>
+                    
                     <div class="doc-type-banner">Result Card</div>
                     
                     <table class="meta-layout-table">
