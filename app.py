@@ -268,7 +268,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             students_att_list = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
                 FROM students s
-                LEFT JOIN attendance a ON s.id = a.student_id AND a.month_name = :month
+                LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
                 WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
                 ORDER BY s.id ASC
             """, {"month": att_month, "section": att_section})
@@ -288,7 +288,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                                 INSERT INTO attendance (student_id, month_name, total_days, present_days)
                                 VALUES (:s_id, :month, :td, :pd)
                                 ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
-                            """, {"s_id": int(s_id), "month": att_month, "td": default_days, "pd": int(p_d)})
+                            """, {"s_id": int(s_id), "month": att_month.strip(), "td": default_days, "pd": int(p_d)})
                         st.success("🎉 Section Attendance saved successfully!")
                         st.rerun()
 
@@ -415,8 +415,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
-                # Retrieve individual attendance ledger data
-                att_record = run_query("SELECT total_days, present_days FROM attendance WHERE student_id = :id AND month_name = :month", {"id": current_id, "month": report_month})
+                # Enhanced clean case-insensitive lookup for specific student monthly attendance
+                att_record = run_query("""
+                    SELECT total_days, present_days 
+                    FROM attendance 
+                    WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))
+                """, {"id": current_id, "month": report_month})
+                
                 if not att_record.empty:
                     tot_days = int(att_record['total_days'].iloc[0])
                     pres_days = int(att_record['present_days'].iloc[0])
