@@ -457,7 +457,6 @@ elif menu_choice == "🪪 Student Result Cards":
                             </td>
                             <td>
                                 <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                                <div class="inst-sub-header">A Project of Beaconhouse</div>
                             </td>
                             <td class="logo-cell" style="visibility: hidden; width: 75px;"></td>
                         </tr>
