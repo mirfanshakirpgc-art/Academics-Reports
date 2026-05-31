@@ -136,7 +136,7 @@ AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec
 
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
-    st.title("Concordia Colleges Kasur")
+    st.title("Concordia College Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
