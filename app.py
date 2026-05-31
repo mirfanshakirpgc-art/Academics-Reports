@@ -494,40 +494,54 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
 
         st.write("---")
-        
-        # Determine button text contextually based on selection scope
-        btn_label = "🖨️ Print Single Student Card" if scope_choice == "👤 Single Student Card" else "🖨️ Print Complete Section Cards"
 
         composite_html_payload = f"""
         <html>
         <head>
+        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
         <style>
         body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
         
-        /* Interactive Print Button Style Group */
-        .print-btn-container {{
-            text-align: center;
-            margin: 10px auto 25px auto;
+        /* Unified Action Controls Dashboard Grid Layout */
+        .action-dashboard-panel {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
             max-width: 850px;
+            margin: 10px auto 25px auto;
+            font-family: 'Arial', sans-serif;
         }}
-        .custom-print-btn {{
-            background-color: #ff4b4b;
+        .action-control-btn {{
             color: white;
             border: none;
-            padding: 12px 30px;
-            font-size: 16px;
+            padding: 12px 18px;
+            font-size: 14px;
             font-weight: bold;
             border-radius: 6px;
             cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
-            transition: background 0.2s, transform 0.1s;
-            font-family: 'Arial', sans-serif;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: background 0.2s, transform 0.1s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }}
-        .custom-print-btn:hover {{
-            background-color: #e03e3e;
+        .action-control-btn:active {{
+            transform: scale(0.97);
         }}
-        .custom-print-btn:active {{
-            transform: scale(0.98);
+        .btn-print-single {{ background-color: #2e7d32; }}
+        .btn-print-single:hover {{ background-color: #1b5e20; }}
+        .btn-print-bulk {{ background-color: #1565c0; }}
+        .btn-print-bulk:hover {{ background-color: #0d47a1; }}
+        .btn-img-single {{ background-color: #e65100; }}
+        .btn-img-single:hover {{ background-color: #b33900; }}
+        .btn-img-bulk {{ background-color: #6a1b9a; }}
+        .btn-img-bulk:hover {{ background-color: #4a148c; }}
+        
+        .action-control-btn:disabled {{
+            background-color: #9e9e9e !important;
+            cursor: not-allowed;
+            opacity: 0.6;
         }}
 
         .cck-container {{
@@ -539,6 +553,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             color: #000000;
             font-family: 'Arial', sans-serif;
             page-break-after: always;
+            box-sizing: border-box;
         }}
         .cck-header-wrapper {{
             display: flex;
@@ -645,9 +660,11 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             padding-right: 20px;
         }}
         
-        /* Hides the print button engine during execution to clean the PDF output layout */
+        /* Hides dashboards and isolates structural element frames cleanly during print executions */
         @media print {{
-            .print-btn-container {{ display: none !important; }}
+            .action-dashboard-panel {{ display: none !important; }}
+            .cck-single-print-isolation {{ display: block !important; }}
+            .cck-single-print-hide {{ display: none !important; }}
             .cck-container {{
                 border: none !important;
                 padding: 0 !important;
@@ -657,12 +674,17 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         </style>
         </head>
         <body>
-            <div class="print-btn-container">
-                <button class="custom-print-btn" onclick="window.print();">{btn_label}</button>
+            <div class="action-dashboard-panel">
+                <button class="action-control-btn btn-print-single" onclick="executeTargetPrint(true)">👤 Print Single Student</button>
+                <button class="action-control-btn btn-print-bulk" onclick="executeTargetPrint(false)">👥 Print Complete Section</button>
+                <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Single as Picture</button>
+                <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Section as Pictures</button>
             </div>
+            
+            <div id="dossiers-master-wrapper">
         """
         
-        for s_meta in students_to_process:
+        for index, s_meta in enumerate(students_to_process):
             s_id = str(s_meta["id"]).strip()
             
             raw_name = str(s_meta["name"])
@@ -802,8 +824,9 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
 
             # --- APPORTION SINGLE RECORD COMPONENT ---
+            # Explicit identifier flags added via data attributes for targeting within the DOM scope
             composite_html_payload += f"""
-            <div class="cck-container">
+            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
                 <div class="cck-header-wrapper">
                     <div class="cck-logo-placeholder">CC</div>
                     <div class="cck-title-block">
@@ -873,11 +896,94 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             </div>
             """
         
-        composite_html_payload += "</body></html>"
+        # Adding Core JavaScript Routing Engines inside the HTML template payload 
+        composite_html_payload += """
+            </div> <script>
+            // --- PRINT EXECUTION ROUTER ENGINE ---
+            function executeTargetPrint(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) return;
+                
+                if (isSingleTarget) {
+                    // Isolate index 0 profile, add layout hide target class to all subsequent nodes
+                    cards.forEach(function(card, idx) {
+                        if (idx === 0) {
+                            card.classList.add('cck-single-print-isolation');
+                            card.classList.remove('cck-single-print-hide');
+                        } else {
+                            card.classList.add('cck-single-print-hide');
+                            card.classList.remove('cck-single-print-isolation');
+                        }
+                    });
+                } else {
+                    // Remove all isolated printing configurations to show the full section stack
+                    cards.forEach(function(card) {
+                        card.classList.remove('cck-single-print-hide');
+                        card.classList.remove('cck-single-print-isolation');
+                    });
+                }
+                
+                // Trigger native rendering window interface channel
+                setTimeout(function() { window.print(); }, 200);
+            }
+
+            // --- IMAGE EXPORT PROCESSING ENGINE ---
+            function exportDossierToImage(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) {
+                    alert("No valid student cards rendered to capture.");
+                    return;
+                }
+
+                // Internal recursive execution routine to manage dynamic asynchronous downloads safely
+                function triggerImageCaptureSequence(targetList, currentIndex) {
+                    if (currentIndex >= targetList.length) return;
+                    
+                    var currentElement = targetList[currentIndex];
+                    var studentName = currentElement.getAttribute('data-name') || 'Student';
+                    var studentID = currentElement.getAttribute('data-id') || 'Unknown';
+                    
+                    // Call the rasterizer module engine instance
+                    html2canvas(currentElement, {
+                        scale: 2, // Scales layout to high-definition 200% resolution crisp rendering
+                        useCORS: true,
+                        backgroundColor: '#ffffff'
+                    }).then(function(canvas) {
+                        var dataUrl = canvas.toDataURL('image/png');
+                        var downloadAnchor = document.createElement('a');
+                        
+                        // Dynamically sets filenames to: Result_Card_StudentName_StudentID.png
+                        downloadAnchor.download = 'Result_Card_' + studentName + '_' + studentID + '.png';
+                        downloadAnchor.href = dataUrl;
+                        document.body.appendChild(downloadAnchor);
+                        downloadAnchor.click();
+                        document.body.removeChild(downloadAnchor);
+                        
+                        // Proceed to process the next student profile in sequence context
+                        triggerImageCaptureSequence(targetList, currentIndex + 1);
+                    }).catch(function(err) {
+                        console.error("Canvas raster generation exception caught:", err);
+                        triggerImageCaptureSequence(targetList, currentIndex + 1);
+                    });
+                }
+
+                if (isSingleTarget) {
+                    // Snapshot the first index row profile element
+                    triggerImageCaptureSequence([cards[0]], 0);
+                } else {
+                    // Iteratively snapshot every record row sequentially
+                    if (confirm("Generate and download separate PNG image snapshots for all (" + cards.length + ") compiled records in this section?")) {
+                        triggerImageCaptureSequence(Array.from(cards), 0);
+                    }
+                }
+            }
+            </script>
+        </body>
+        </html>
+        """
         
-        # Dynamically scales container depth limits smoothly
         import streamlit.components.v1 as components
-        dynamic_height = 1200 if len(students_to_process) == 1 else min(1100 * len(students_to_process), 8000)
+        dynamic_height = 1250 if len(students_to_process) == 1 else min(1150 * len(students_to_process), 9500)
         components.html(composite_html_payload, height=dynamic_height, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
