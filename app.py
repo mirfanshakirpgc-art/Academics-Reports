@@ -476,7 +476,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="doc-data-table">
                         <thead>
                             <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 10px;">[cite: 5] Subjects</th>
+                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
                                 <th style="width: 13%;">Obt. Marks</th>
                                 <th style="width: 13%;">Total Marks</th>
                                 <th style="width: 13%;">Pass Marks</th>
@@ -573,29 +573,29 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <div class="section-header-title">[cite: 6] Attendance Report</div>
+                    <div class="section-header-title">Attendance Report</div>
                     
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
-                                <th style="width: 12%;">[cite: 7] Metric</th>
+                                <th style="width: 12%;">Metric</th>
                                 {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
-                                <th style="width: 11%;">[cite: 7] Over All Att.</th>
+                                <th style="width: 11%;">Over All Att.</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="row-title-cell">[cite: 7] Total Days</td>
+                                <td class="row-title-cell">Total Days</td>
                                 {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
                             </tr>
                             <tr>
-                                <td class="row-title-cell">[cite: 7] Att. Days</td>
+                                <td class="row-title-cell">Att. Days</td>
                                 {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
                             </tr>
                             <tr>
-                                <td class="row-title-cell">[cite: 7] Age%</td>
+                                <td class="row-title-cell">Age%</td>
                                 {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
                             </tr>
@@ -603,13 +603,13 @@ elif menu_choice == "🪪 Student Result Cards":
                     </table>
                     
                     <div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">
-                        [cite: 8] Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
+                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
                     </div>
                     
                     <table class="footer-signatures-table">
                         <tr>
                             <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
-                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">[cite: 9] Principal Sign</span></td>
+                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
                         </tr>
                     </table>
                 </div>
