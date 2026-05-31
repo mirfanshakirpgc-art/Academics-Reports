@@ -359,17 +359,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
-                /* EXACT HEADER STRUCTURE WITH TEXT DROPPED 2 LINES DOWN USING PADDING-TOP */
-                .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 5px; table-layout: fixed; }
-                .header-wrapper-table td { border: none; padding: 0; vertical-align: top; }
-                .logo-cell { width: 15%; text-align: left; }
+                /* VERTICAL BLOCK HEADER LAYOUT */
+                .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
+                .logo-row { display: block; width: 100%; margin-bottom: 12px; }
+                .logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
                 
-                /* padding-top: 24px simulates moving the 2 lines of header text roughly 2 lines down */
-                .text-content-cell { width: 85%; text-align: center; padding-right: 15%; padding-top: 24px; }
-                .logo-img { max-height: 48px; width: auto; display: block; }
-                
-                .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; }
-                .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; }
+                .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
+                .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
                 .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
                 
                 /* THE HORIZONTAL STRUCTURAL GRID */
@@ -453,18 +449,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 compiled_html += f"""
                 <div class="official-card-container">
-                    <table class="header-wrapper-table">
-                        <tr>
-                            <td class="logo-cell">
-                                <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
-                            </td>
-
-                            
-                            <td class="text-content-cell">
-                                <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                            </td>
-                        </tr>
-                    </table>
+                    <div class="header-block">
+                        <div class="logo-row">
+                            <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
+                        </div>
+                        <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
+                        <div class="inst-sub-header">A Project of Beaconhouse</div>
+                    </div>
                     
                     <div class="doc-type-banner">Result Card</div>
                     
