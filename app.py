@@ -96,7 +96,7 @@ def execute_db_command(command, params=None):
         conn.execute(text(command), params)
 
 # --- NAVIGATION SIDEBAR ---
-st.sidebar.image("https://concordia.edu.pk/assets/images/logo.png", use_container_width=True)
+st.sidebar.image("logo.png", use_container_width=True)
 st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
