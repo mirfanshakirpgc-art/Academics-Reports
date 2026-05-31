@@ -1027,37 +1027,15 @@ elif menu_choice == "🪪 Student Result Cards":
             else:
                 students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": base_student['class'].iloc[0]}])
 
-            # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND LAYOUT
+            # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND IMAGE EXPORT CAPABILITIES
             compiled_html = """
             <!DOCTYPE html>
             <html>
             <head>
-            <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-                
-                /* DASHBOARD CONTROLS CONTAINER PANEL */
-                .action-dashboard-panel {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 12px;
-                    max-width: 850px;
-                    margin: 10px auto 25px auto;
-                    font-family: 'Arial', sans-serif;
-                }
-                .action-control-btn {
-                    color: white; border: none; padding: 10px 18px; font-size: 14px;
-                    font-weight: bold; border-radius: 4px; cursor: pointer;
-                    box-shadow: 0 3px 5px rgba(0,0,0,0.15);
-                    transition: background 0.2s, transform 0.1s;
-                    display: flex; align-items: center; justify-content: center; gap: 8px;
-                }
-                .action-control-btn:active { transform: scale(0.97); }
-                .btn-print { background-color: #222222; }
-                .btn-img-single { background-color: #e65100; }
-                .btn-img-bulk { background-color: #6a1b9a; }
-
-                .official-card-container { max-width: 850px; margin: 10px auto 30px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; box-sizing: border-box; page-break-after: always; }
+                .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
                 /* VERTICAL BLOCK HEADER LAYOUT */
                 .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
@@ -1089,22 +1067,43 @@ elif menu_choice == "🪪 Student Result Cards":
                 .footer-signatures-table td { border: none; }
                 .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
                 
+                /* ACTION BUTTONS */
+                .print-btn, .export-btn { 
+                    background: #222; color: #fff; padding: 10px 20px; font-weight: bold; 
+                    border-radius: 4px; border: none; cursor: pointer; margin-bottom: 20px; 
+                    font-size: 14px; margin-right: 10px; transition: background 0.2s;
+                }
+                .export-btn { background: #007bff; }
+                .export-btn:hover { background: #0056b3; }
+                .print-btn:hover { background: #444; }
+
                 @media print {
-                    .action-dashboard-panel { display: none !important; }
-                    .cck-single-print-isolation { display: block !important; }
-                    .cck-single-print-hide { display: none !important; }
+                    .print-btn, .export-btn { display: none !important; }
                     .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
                     .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
                 }
             </style>
+            <script>
+                // JavaScript routine to target a specific card canvas and capture it as an image download
+                function downloadCardImage(cardId, rollNum) {
+                    var targetElement = document.getElementById(cardId);
+                    if (targetElement) {
+                        html2canvas(targetElement, {
+                            useCORS: true,
+                            scale: 2, // Enhances output image resolution clarity
+                            logging: false
+                        }).then(function(canvas) {
+                            var downloadLink = document.createElement('a');
+                            downloadLink.download = 'Result_Card_' + rollNum + '.png';
+                            downloadLink.href = canvas.toDataURL('image/png');
+                            downloadLink.click();
+                        });
+                    }
+                }
+            </script>
             </head>
             <body>
-                <div class="action-dashboard-panel">
-                    <button class="action-control-btn btn-print" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
-                    <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Result Card as Picture</button>
-                    <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Complete Section Result Cards as Pictures</button>
-                </div>
-                <div id="dossiers-master-wrapper">
+                <button class="print-btn" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
             """
 
             for idx, student_row in students_to_print.iterrows():
@@ -1158,8 +1157,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 
+                # Assign unique ID strings to dynamically handle specific cards during loop rendering iterations
+                unique_card_id = f"student-card-{current_id}"
+
                 compiled_html += f"""
-                <div class="official-card-container student-card-record" data-id="{current_id}" data-name="{name.replace(' ', '_')}">
+                <button class="export-btn" onclick="downloadCardImage('{unique_card_id}', '{current_id}')">🖼️ Export Card ({current_id}) as PNG</button>
+                
+                <div class="official-card-container" id="{unique_card_id}">
                     <div class="header-block">
                         <div class="logo-row">
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
@@ -1323,61 +1327,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 """
                 
             compiled_html += """
-                </div>
-                <script>
-                function triggerImageCaptureSequence(targetList, currentIndex) {
-                    if (currentIndex >= targetList.length) return;
-                    
-                    var currentElement = targetList[currentIndex];
-                    var studentName = currentElement.getAttribute('data-name') || 'Student';
-                    var studentID = currentElement.getAttribute('data-id') || 'Unknown';
-                    
-                    html2canvas(currentElement, {
-                        scale: 2, 
-                        useCORS: true,
-                        backgroundColor: '#ffffff'
-                    }).then(function(canvas) {
-                        var dataUrl = canvas.toDataURL('image/png');
-                        var downloadAnchor = document.createElement('a');
-                        
-                        downloadAnchor.download = 'Result_Card_' + studentID + '_' + studentName + '.png';
-                        downloadAnchor.href = dataUrl;
-                        document.body.appendChild(downloadAnchor);
-                        downloadAnchor.click();
-                        document.body.removeChild(downloadAnchor);
-                        
-                        // Recursive callback logic to handle consecutive snapshot streams safely
-                        setTimeout(function() {
-                            triggerImageCaptureSequence(targetList, currentIndex + 1);
-                        }, 150);
-                    }).catch(function(err) {
-                        console.error("Canvas export snapshot error logic details:", err);
-                        triggerImageCaptureSequence(targetList, currentIndex + 1);
-                    });
-                }
-
-                function exportDossierToImage(isSingleTarget) {
-                    var cards = document.querySelectorAll('.student-card-record');
-                    if (cards.length === 0) {
-                        alert("No card containers rendered on screen to convert.");
-                        return;
-                    }
-
-                    if (isSingleTarget) {
-                        triggerImageCaptureSequence([cards[0]], 0);
-                    } else {
-                        if (confirm("Download snapshots for all (" + cards.length + ") rendered student data cards?")) {
-                            triggerImageCaptureSequence(Array.from(cards), 0);
-                        }
-                    }
-                }
-                </script>
             </body>
             </html>
             """
             
-            # Dynamic display frame scale sizing configuration engine mapping 
-            dynamic_height = 800 if len(students_to_print) == 1 else min(780 * len(students_to_print), 9500)
-            components.html(compiled_html, height=dynamic_height, scrolling=True)
-
-```
+            # Render layout view frame container component
+            components.html(compiled_html, height=800, scrolling=True)
