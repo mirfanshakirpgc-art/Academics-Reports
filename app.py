@@ -330,6 +330,9 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
+import base64
+import os
+
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
@@ -343,6 +346,22 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         }
         </style>
     """, unsafe_allow_html=True)
+
+    # --- NEW: LOGO BASE64 ENCODER ENGINE ---
+    logo_base64 = ""
+    # Change "logo.png" to match your exact logo filename and extension (e.g., "college_logo.jpg")
+    logo_filename = "logo.png" 
+    
+    if os.path.exists(logo_filename):
+        with open(logo_filename, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+            # Automatically detect extension type for the data header
+            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
+            if ext == "jpg": ext = "jpeg"
+            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
+    else:
+        # Fallback text style if the image file is missing on disk
+        st.warning(f"⚠️ Logo file '{logo_filename}' not found on disk. Falling back to text logo header.")
 
     # --- 0. EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
     all_frameworks = [
@@ -556,7 +575,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             position: relative;
         }}
         
-        /* NEW IMAGE LOGO CONFIGURATION STANDARDS */
         .cck-logo-image-container {{
             width: 65px;
             height: 65px;
@@ -570,6 +588,20 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+        }}
+        
+        /* Fallback text block style if logo is not loaded */
+        .cck-logo-fallback-text {{
+            background-color: #e67e22;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 22px;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
         }}
         
         .cck-title-block {{
@@ -818,12 +850,17 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
 
-            # Swap your actual logo URL into the 'src' value below
+            # Condition target display element dynamically based on whether base64 logo image parsed successfully
+            if logo_base64:
+                logo_element_markup = f'<img class="cck-logo-image" src="{logo_base64}" alt="College Logo" />'
+            else:
+                logo_element_markup = '<div class="cck-logo-fallback-text">CC</div>'
+
             composite_html_payload += f"""
             <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
                 <div class="cck-header-wrapper">
                     <div class="cck-logo-image-container">
-                        <img class="cck-logo-image" src="https://via.placeholder.com/55" alt="College Logo" />
+                        {logo_element_markup}
                     </div>
                     <div class="cck-title-block">
                         <div class="cck-main-title">CONCORDIA COLLEGE KASUR</div>
