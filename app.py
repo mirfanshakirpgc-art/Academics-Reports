@@ -437,9 +437,14 @@ elif menu_choice == "🪪 Student Result Cards":
                         att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
                     else:
                         att_cells[m] = {"td": "", "pd": "", "pct": ""}
+                
+                # Determine overall attendance percentage figure
+                attendance_percentage = 0.0
+                if tot_sum > 0:
+                    attendance_percentage = (pres_sum / tot_sum) * 100
                         
-                overall_pct = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else ""
-                att_cells["Over All Att."] = {"td": str(tot_sum) if tot_sum > 0 else "", "pd": str(pres_sum) if tot_sum > 0 else "", "pct": overall_pct}
+                overall_pct_str = f"{int(attendance_percentage)}%" if tot_sum > 0 else ""
+                att_cells["Over All Att."] = {"td": str(tot_sum) if tot_sum > 0 else "", "pd": str(pres_sum) if tot_sum > 0 else "", "pct": overall_pct_str}
 
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
                 
@@ -536,6 +541,30 @@ elif menu_choice == "🪪 Student Result Cards":
                     grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
                     grand_status_disp = "Fail" if student_failed_any_subject else "Pass"
 
+                # --- ALGORITHMIC AUTOMATED REMARKS ENGINE ---
+                remarks_text = "No records found."
+                if has_valid_marks_data:
+                    # Case 1: Academically failed any exam subject
+                    if student_failed_any_subject:
+                        if tot_sum > 0 and attendance_percentage < 85.0:
+                            remarks_text = "Unsatisfactory academic status with critical attendance below acceptable 85% benchmark. Immediate improvement required."
+                        else:
+                            remarks_text = "Academic failure detected in one or more subjects. Needs focused remedial attention and harder work."
+                    # Case 2: Passed all academic subjects
+                    else:
+                        grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
+                        
+                        # Sub-check if attendance falls short
+                        if tot_sum > 0 and attendance_percentage < 85.0:
+                            remarks_text = f"Good academic performance ({grand_percentage:.0f}%), but attendance is short ({attendance_percentage:.0f}%). Needs to maintain minimum 85% attendance."
+                        else:
+                            if grand_percentage >= 80:
+                                remarks_text = "Excellent work! Exceptional academic progress and highly commendable attendance performance."
+                            elif grand_percentage >= 60:
+                                remarks_text = "Good overall performance. Capable of achieving higher results with consistent effort."
+                            else:
+                                remarks_text = "Fair performance. Has passed all subjects but possesses significant potential to increase scores."
+
                 compiled_html += f"""
                             <tr style="background-color: #fff; font-weight: bold;">
                                 <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
@@ -577,7 +606,9 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px;">Remarks: __________________________________________________</div>
+                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">
+                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
+                    </div>
                     
                     <table class="footer-signatures-table">
                         <tr>
