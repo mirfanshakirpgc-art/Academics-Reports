@@ -344,6 +344,13 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         </style>
     """, unsafe_allow_html=True)
 
+    # --- 0. EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
+    all_frameworks = [
+        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
+    ]
+
     # --- 1. DYNAMIC CONTROLS INTERFACE PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
@@ -355,7 +362,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         key="mt_reporting_scope"
     )
 
-    all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_Up"]
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
     students_to_process = []
     selected_exams_list = []
@@ -370,7 +376,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             with col_s1:
                 search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
             with col_s2:
-                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=all_frameworks, key="form_exams_single")
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_single")
             
             submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
             
@@ -383,7 +389,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
                     
                     student_df = run_query("""
-                        SELECT id, name, section 
+                        SELECT id, name, section, class 
                         FROM students 
                         WHERE id = :sid
                     """, {"sid": query_id})
@@ -406,7 +412,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             with col_c2:
                 sel_sec = st.selectbox("Select Target Class Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="form_sel_sec_bulk")
             with col_c3:
-                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=all_frameworks, key="form_exams_bulk")
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_bulk")
                 
             submit_bulk = st.form_submit_button("🚀 Compile All Section Cards", use_container_width=True)
             
@@ -415,7 +421,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             rendered_section = sel_sec
             
             section_students_df = run_query("""
-                SELECT id, name, section 
+                SELECT id, name, section, class 
                 FROM students 
                 WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
                 ORDER BY id ASC
@@ -449,7 +455,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-        # Dynamic Schema Adaptation Layer for 'marks'
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns]
@@ -467,7 +472,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # Dynamic Schema Adaptation Layer for 'attendance'
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns]
@@ -491,13 +495,42 @@ elif menu_choice == "📈 Multi-Test Progress Report":
 
         st.write("---")
         
-        # Accumulator for final high-fidelity nested HTML payload
-        composite_html_payload = """
+        # Determine button text contextually based on selection scope
+        btn_label = "🖨️ Print Single Student Card" if scope_choice == "👤 Single Student Card" else "🖨️ Print Complete Section Cards"
+
+        composite_html_payload = f"""
         <html>
         <head>
         <style>
-        body { background-color: #ffffff; margin: 0; padding: 10px; }
-        .cck-container {
+        body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
+        
+        /* Interactive Print Button Style Group */
+        .print-btn-container {{
+            text-align: center;
+            margin: 10px auto 25px auto;
+            max-width: 850px;
+        }}
+        .custom-print-btn {{
+            background-color: #ff4b4b;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+            transition: background 0.2s, transform 0.1s;
+            font-family: 'Arial', sans-serif;
+        }}
+        .custom-print-btn:hover {{
+            background-color: #e03e3e;
+        }}
+        .custom-print-btn:active {{
+            transform: scale(0.98);
+        }}
+
+        .cck-container {{
             background-color: #ffffff;
             border: 1px solid #000000;
             padding: 30px;
@@ -506,15 +539,15 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             color: #000000;
             font-family: 'Arial', sans-serif;
             page-break-after: always;
-        }
-        .cck-header-wrapper {
+        }}
+        .cck-header-wrapper {{
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 5px;
             position: relative;
-        }
-        .cck-logo-placeholder {
+        }}
+        .cck-logo-placeholder {{
             background-color: #e67e22;
             color: #ffffff;
             font-weight: bold;
@@ -527,26 +560,26 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             border-radius: 4px;
             position: absolute;
             left: 20px;
-        }
-        .cck-title-block {
+        }}
+        .cck-title-block {{
             text-align: center;
-        }
-        .cck-main-title {
+        }}
+        .cck-main-title {{
             font-size: 24px;
             font-weight: bold;
             margin: 0;
             letter-spacing: 0.5px;
-        }
-        .cck-sub-title {
+        }}
+        .cck-sub-title {{
             font-size: 13px;
             color: #444444;
             margin: 2px 0 0 0;
-        }
-        .cck-badge-wrapper {
+        }}
+        .cck-badge-wrapper {{
             text-align: center;
             margin: 15px 0;
-        }
-        .cck-doc-badge {
+        }}
+        .cck-doc-badge {{
             display: inline-block;
             background-color: #d1d5db;
             color: #000000;
@@ -554,73 +587,79 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             font-size: 16px;
             padding: 4px 20px;
             border-radius: 2px;
-        }
-        .cck-meta-row {
+        }}
+        .cck-meta-row {{
             display: flex;
             flex-wrap: wrap;
             justify-content: space-between;
             margin-bottom: 20px;
             font-size: 14px;
-        }
-        .cck-meta-field {
+        }}
+        .cck-meta-field {{
             margin-right: 15px;
             margin-bottom: 8px;
-        }
-        .cck-line-fill {
+        }}
+        .cck-line-fill {{
             border-bottom: 1px solid #000000;
             display: inline-block;
             min-width: 120px;
             padding-left: 5px;
             font-weight: bold;
-        }
-        .cck-report-table {
+        }}
+        .cck-report-table {{
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 25px;
             font-size: 13px;
-        }
-        .cck-report-table th, .cck-report-table td {
+        }}
+        .cck-report-table th, .cck-report-table td {{
             border: 1px solid #000000;
             padding: 6px 4px;
             text-align: center;
-        }
-        .cck-report-table th {
+        }}
+        .cck-report-table th {{
             background-color: #ffffff;
             font-weight: normal;
-        }
-        .cck-report-table td:first-child {
+        }}
+        .cck-report-table td:first-child {{
             text-align: left;
             padding-left: 8px;
-        }
-        .cck-remarks-area {
+        }}
+        .cck-remarks-area {{
             margin-top: 25px;
             font-size: 14px;
             display: flex;
             align-items: flex-end;
-        }
-        .cck-remarks-line {
+        }}
+        .cck-remarks-line {{
             flex-grow: 1;
             border-bottom: 1px solid #000000;
             margin-left: 8px;
             padding-left: 5px;
             font-style: italic;
-        }
-        .cck-footer-sign {
+        }}
+        .cck-footer-sign {{
             margin-top: 50px;
             text-align: right;
             font-size: 14px;
             padding-right: 20px;
-        }
-        @media print {
-            .cck-container {
+        }}
+        
+        /* Hides the print button engine during execution to clean the PDF output layout */
+        @media print {{
+            .print-btn-container {{ display: none !important; }}
+            .cck-container {{
                 border: none !important;
                 padding: 0 !important;
                 margin-bottom: 0 !important;
-            }
-        }
+            }}
+        }}
         </style>
         </head>
         <body>
+            <div class="print-btn-container">
+                <button class="custom-print-btn" onclick="window.print();">{btn_label}</button>
+            </div>
         """
         
         for s_meta in students_to_process:
@@ -632,7 +671,9 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
             s_section = " ".join(raw_section.replace("\n", " ").split())
             
-            s_class = rendered_discipline 
+            raw_class = str(s_meta["class"]) if s_meta.get("class") else "11th"
+            s_class = " ".join(raw_class.replace("\n", " ").split())
+            
             match_id = int(s_id) if s_id.isdigit() else s_id
             
             # --- MARKS CARD MATRIX PROCESSING ---
@@ -689,7 +730,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                     
                 table_rows_html += row_html
 
-            # TYPO FIXED HERE: 'exportTotal' replaced completely with 'Total'
             total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in selected_exams_list:
@@ -835,13 +875,10 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         
         composite_html_payload += "</body></html>"
         
-        # FIXED: Using st.components.v1.html dynamically calculates heights and avoids markdown processing limits
+        # Dynamically scales container depth limits smoothly
         import streamlit.components.v1 as components
-        components.html(composite_html_payload, height=1100, scrolling=True)
-        
-        st.markdown('<div class="no-print">', unsafe_allow_html=True)
-        st.button("🖨️ Print Dossiers", help="Press Ctrl+P on your keyboard to save your output cards as a unified clean PDF layout.")
-        st.markdown('</div>', unsafe_allow_html=True)
+        dynamic_height = 1200 if len(students_to_process) == 1 else min(1100 * len(students_to_process), 8000)
+        components.html(composite_html_payload, height=dynamic_height, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
