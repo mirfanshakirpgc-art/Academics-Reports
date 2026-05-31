@@ -502,7 +502,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         <style>
         body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
         
-        /* Unified Action Controls Dashboard Grid Layout */
         .action-dashboard-panel {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -537,12 +536,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         .btn-img-single:hover {{ background-color: #b33900; }}
         .btn-img-bulk {{ background-color: #6a1b9a; }}
         .btn-img-bulk:hover {{ background-color: #4a148c; }}
-        
-        .action-control-btn:disabled {{
-            background-color: #9e9e9e !important;
-            cursor: not-allowed;
-            opacity: 0.6;
-        }}
 
         .cck-container {{
             background-color: #ffffff;
@@ -562,20 +555,23 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             margin-bottom: 5px;
             position: relative;
         }}
-        .cck-logo-placeholder {{
-            background-color: #e67e22;
-            color: #ffffff;
-            font-weight: bold;
-            font-size: 24px;
-            width: 55px;
-            height: 55px;
+        
+        /* NEW IMAGE LOGO CONFIGURATION STANDARDS */
+        .cck-logo-image-container {{
+            width: 65px;
+            height: 65px;
+            position: absolute;
+            left: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 4px;
-            position: absolute;
-            left: 20px;
         }}
+        .cck-logo-image {{
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }}
+        
         .cck-title-block {{
             text-align: center;
         }}
@@ -660,7 +656,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             padding-right: 20px;
         }}
         
-        /* Hides dashboards and isolates structural element frames cleanly during print executions */
         @media print {{
             .action-dashboard-panel {{ display: none !important; }}
             .cck-single-print-isolation {{ display: block !important; }}
@@ -823,12 +818,13 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
 
-            # --- APPORTION SINGLE RECORD COMPONENT ---
-            # Explicit identifier flags added via data attributes for targeting within the DOM scope
+            # Swap your actual logo URL into the 'src' value below
             composite_html_payload += f"""
             <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
                 <div class="cck-header-wrapper">
-                    <div class="cck-logo-placeholder">CC</div>
+                    <div class="cck-logo-image-container">
+                        <img class="cck-logo-image" src="https://via.placeholder.com/55" alt="College Logo" />
+                    </div>
                     <div class="cck-title-block">
                         <div class="cck-main-title">CONCORDIA COLLEGE KASUR</div>
                         <div class="cck-sub-title">A Project of Beaconhouse</div>
@@ -896,16 +892,15 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             </div>
             """
         
-        # Adding Core JavaScript Routing Engines inside the HTML template payload 
         composite_html_payload += """
-            </div> <script>
-            // --- PRINT EXECUTION ROUTER ENGINE ---
+            </div> 
+            
+            <script>
             function executeTargetPrint(isSingleTarget) {
                 var cards = document.querySelectorAll('.student-card-record');
                 if (cards.length === 0) return;
                 
                 if (isSingleTarget) {
-                    // Isolate index 0 profile, add layout hide target class to all subsequent nodes
                     cards.forEach(function(card, idx) {
                         if (idx === 0) {
                             card.classList.add('cck-single-print-isolation');
@@ -916,18 +911,43 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                         }
                     });
                 } else {
-                    // Remove all isolated printing configurations to show the full section stack
                     cards.forEach(function(card) {
                         card.classList.remove('cck-single-print-hide');
                         card.classList.remove('cck-single-print-isolation');
                     });
                 }
                 
-                // Trigger native rendering window interface channel
                 setTimeout(function() { window.print(); }, 200);
             }
 
-            // --- IMAGE EXPORT PROCESSING ENGINE ---
+            function triggerImageCaptureSequence(targetList, currentIndex) {
+                if (currentIndex >= targetList.length) return;
+                
+                var currentElement = targetList[currentIndex];
+                var studentName = currentElement.getAttribute('data-name') || 'Student';
+                var studentID = currentElement.getAttribute('data-id') || 'Unknown';
+                
+                html2canvas(currentElement, {
+                    scale: 2, 
+                    useCORS: true,
+                    backgroundColor: '#ffffff'
+                }).then(function(canvas) {
+                    var dataUrl = canvas.toDataURL('image/png');
+                    var downloadAnchor = document.createElement('a');
+                    
+                    downloadAnchor.download = 'Result_Card_' + studentName + '_' + studentID + '.png';
+                    downloadAnchor.href = dataUrl;
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    document.body.removeChild(downloadAnchor);
+                    
+                    triggerImageCaptureSequence(targetList, currentIndex + 1);
+                }).catch(function(err) {
+                    console.error("Canvas image export failure configuration:", err);
+                    triggerImageCaptureSequence(targetList, currentIndex + 1);
+                });
+            }
+
             function exportDossierToImage(isSingleTarget) {
                 var cards = document.querySelectorAll('.student-card-record');
                 if (cards.length === 0) {
@@ -935,44 +955,10 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                     return;
                 }
 
-                // Internal recursive execution routine to manage dynamic asynchronous downloads safely
-                function triggerImageCaptureSequence(targetList, currentIndex) {
-                    if (currentIndex >= targetList.length) return;
-                    
-                    var currentElement = targetList[currentIndex];
-                    var studentName = currentElement.getAttribute('data-name') || 'Student';
-                    var studentID = currentElement.getAttribute('data-id') || 'Unknown';
-                    
-                    // Call the rasterizer module engine instance
-                    html2canvas(currentElement, {
-                        scale: 2, // Scales layout to high-definition 200% resolution crisp rendering
-                        useCORS: true,
-                        backgroundColor: '#ffffff'
-                    }).then(function(canvas) {
-                        var dataUrl = canvas.toDataURL('image/png');
-                        var downloadAnchor = document.createElement('a');
-                        
-                        // Dynamically sets filenames to: Result_Card_StudentName_StudentID.png
-                        downloadAnchor.download = 'Result_Card_' + studentName + '_' + studentID + '.png';
-                        downloadAnchor.href = dataUrl;
-                        document.body.appendChild(downloadAnchor);
-                        downloadAnchor.click();
-                        document.body.removeChild(downloadAnchor);
-                        
-                        // Proceed to process the next student profile in sequence context
-                        triggerImageCaptureSequence(targetList, currentIndex + 1);
-                    }).catch(function(err) {
-                        console.error("Canvas raster generation exception caught:", err);
-                        triggerImageCaptureSequence(targetList, currentIndex + 1);
-                    });
-                }
-
                 if (isSingleTarget) {
-                    // Snapshot the first index row profile element
                     triggerImageCaptureSequence([cards[0]], 0);
                 } else {
-                    // Iteratively snapshot every record row sequentially
-                    if (confirm("Generate and download separate PNG image snapshots for all (" + cards.length + ") compiled records in this section?")) {
+                    if (confirm("Generate and download separate PNG snapshots for all (" + cards.length + ") compiled records?")) {
                         triggerImageCaptureSequence(Array.from(cards), 0);
                     }
                 }
