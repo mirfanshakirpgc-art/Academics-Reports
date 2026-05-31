@@ -27,7 +27,7 @@ if "assigned_subject" not in st.session_state:
 if not st.session_state.logged_in:
     # Display the official logo centered or cleanly sized on the login page
     st.image("logo.png", width=120) 
-    st.title("Concordia Colleges, Kasur")
+    st.title("Concordia College Kasur")
     
     username_input = st.text_input("Username")
     password_input = st.text_input("Password", type="password")
@@ -136,7 +136,7 @@ AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec
 
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
-    st.title("Concordia Colleges, Kasur")
+    st.title("Concordia Colleges Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
