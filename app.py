@@ -99,7 +99,7 @@ def execute_db_command(command, params=None):
 st.sidebar.title("🏫 Menu Navigation")
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
-    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
+    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "👨‍🏫 Teacher Management"]
 )
 
 # --- MAP CONFIGURATIONS ---
@@ -1365,26 +1365,15 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-          # --- AUTOMATIC INTEGRATION OF TEACHER MANAGEMENT (OMNIPRESENT) ---
-# This bypasses session state bugs and forces the action header to stay visible
-st.sidebar.markdown("---")
-st.sidebar.subheader("🏫 Faculty Actions")
-
-# Create a toggle state in the application memory
-if 'show_teacher_module' not in st.session_state:
-    st.session_state['show_teacher_module'] = False
-
-if st.sidebar.button("👨‍🏫 Open Teacher Management", key="force_teacher_btn"):
-    st.session_state['show_teacher_module'] = True
-    st.rerun()
-
-# If clicked, completely override the interface rendering
-if st.session_state['show_teacher_module']:
+        # ---------------------------------------------------------
+# ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
+# ---------------------------------------------------------
+if menu_choice == "👨‍🏫 Teacher Management":
     st.title("👨‍🏫 Teacher Allocation & Performance Engine")
     
-    # Safely get user info or fall back to defaults if session is empty
+    # Safely acquire access credentials
     current_user = st.session_state.get('username', 'admin')
-    current_role = st.session_state.get('role', 'controller')  # Defaulting to controller to guarantee access
+    current_role = st.session_state.get('role', 'controller') 
     
     if current_role == 'controller':
         menu_options = ["Subject Allocations", "Teacher Marks Portal", "Teacher Analysis", "Discipline Analysis"]
