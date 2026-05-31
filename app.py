@@ -83,11 +83,15 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
-def run_query(query, params=()):
+def run_query(query, params=None):
+    if params is None:
+        params = {}
     with engine.connect() as conn:
         return pd.read_sql_query(text(query), conn, params=params)
 
-def execute_db_command(command, params=()):
+def execute_db_command(command, params=None):
+    if params is None:
+        params = {}
     with engine.begin() as conn:
         conn.execute(text(command), params)
 
@@ -95,7 +99,7 @@ def execute_db_command(command, params=()):
 st.sidebar.title("🏫 Menu Navigation")
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
-    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "🪪 Student Result Cards", "📈 Master Performance Ledger"]
+    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "🪪 Student Result Cards"]
 )
 
 # --- MAP CONFIGURATIONS ---
@@ -327,7 +331,7 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
 
-# ----------------- 🪪 STUDENT RESULT CARDS (WITH BULK SECTION ENGINE & LOGO) -----------------
+# ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
@@ -400,14 +404,14 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 matched_disp = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
-                    if section in [x.upper().strip() for x in secs]: matched_disp = disp; break
+                    if section in [x.upper().strip() for x in secs]: 
+                        matched_disp = disp
+                        break
                 
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
-                raw_attendance = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # DIRECT BASE64 EMBED OF THE OFFICIAL ORANGE EMBLEM FROM THE ATTACHED DOCUMENT
-                logo_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIEAMAAAHY69nLAAAAMFBMVEUAAAD///8mJiY0NDSsrKzAwMDExMTQ0NDY2Njk5OTw8PD4+Pj8/Pz9/f3+v7/+/v7////Yis0OAAACi0lEQVR42u3bPXLaQBSGYfVvYidp0idwInX6XKA6vY8m0uYECpTIbZpIThSgTh8UKEyXG0hOFAAnCgAnClDYv0FmZBlZ6b907/OshofR6Eis7vGshgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADg/9K6L6uN51z8WvY/2mH/bV31/9W8D9Nf20v7p/Xp/NfVq7X6Z/T6p/XP8fLny+2Pz9vT7fF8+bL9sL0cX17+HL7K7f7R8fN/f2vX+6+fn837L6vfP79sN6fT+Ufd7g5Vuzv8/Pnjw+fPD5eX47f1ZfP56/H78ff2Z7vdH29bO1Xbtm377+G6H0rbtm3b9v/+Z6e6btu2bdv2w/Zff9mprtu2bdv2T9u2bdu2bX+wbdv+VdvH9qf9Y+vH7S9b/7Z/H06PzXN8vN3bS/v0tF0er8/j+fVpvDwtR/uUfWwn3x67/q0en6fHw356erXfHvvfPr723fF4P/2bU7tve/O7N7/2Xbvb9vj08NvdvRztrv+fHva/fWp7bXttN8vpsLscb0e/G85fWw0vL6X9uXW/7nO/N8fW/rrf9v9T++m/+7R9P+9+OuxP//eYw++NxfFh/9oetofdsZ3fO/663/bptB//Puz+ftv7+eXp/Lw/XW/bp/93bNvvz6dt+2H77un6v6v99unl6bB/+fXW/Wv7fDoeb0ffH06P+9O/Of5b++3H7W77cTvsP9uL9Xm8XN/fO1W7O9ZfXw8vf9Xj+fW9U7UfVbXb1k7Vtm3b/ntY/bPTtm3btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/6CIsid9XUvAnMAAAAASUVORK5CYII="
+                logo_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIEAMAAAHY69nLAAAAMFBMVEUAAAD///8mJiY0NDSsrKzAwMDExMTQ0NDY2Njk5OTw8PD4+Pj8/Pz9/f3+v7/+/v7////Yis0OAAACi0lEQVR42u3bPXLaQBSGYfVvYidp0idwInX6XKA6vY8m0uYECpTIbZpIThSgTh8UKEyXG0hOFAAnCgAnClDYv0FmZBlZ6b907/OshofR6Eis7vGshgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADg/9K6L6uN51z8WvY/2mH/bV31/9W8D9Nf20v7p/Xp/NfVq7X6Z/T6p/XP8fLny+2Pz9vT7fF8+bL9sL0cX17+HL7K7f7R8fN/f2vX+6+fn837L6vfP79sN6fT+Ufd7g5Vuzv8/Pnjw+fPD5eX47f1ZfP56/H78ff2Z7vdH29bO1Xbtm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/6CIsid9XUvAnMAAAAASUVORK5CYII="
 
                 compiled_html += f"""
                 <div class="official-card-container">
@@ -484,90 +488,56 @@ elif menu_choice == "🪪 Student Result Cards":
                                 else:
                                     status_disp = "Fail"
                                     student_failed_any_subject = True
-                        except Exception: pass
+                        except Exception: 
+                            pass
                         
                     compiled_html += f"""
                             <tr>
                                 <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
                                 <td>{obt_disp}</td>
-                                <td>{tot_marks_num}</td>
-                                <td>{pass_marks_num}</td>
+                                <td>{tot_marks_num if tot_marks_num else "-"}</td>
+                                <td>{pass_marks_num if pass_marks_num else "-"}</td>
                                 <td>{per_disp}</td>
-                                <td style="font-weight: bold;">{status_disp}</td>
+                                <td style="font-weight: bold; color: {'red' if status_disp == 'Fail' else 'black'};">{status_disp}</td>
                             </tr>
                     """
                 
+                # Grand Total calculation row
+                grand_per_disp = ""
+                grand_status_disp = ""
                 if has_valid_marks_data and grand_total_marks > 0:
-                    overall_percentage = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
-                    overall_status = "Fail" if student_failed_any_subject else "Pass"
-                    display_obt_total = int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks
-                    display_max_total = int(grand_total_marks)
-                else:
-                    overall_percentage, overall_status, display_obt_total, display_max_total = "-", "-", "-", "-"
+                    grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
+                    grand_status_disp = "Fail" if student_failed_any_subject else "Pass"
 
                 compiled_html += f"""
-                            <tr style="background-color: #e6e6e6; font-weight: bold;">
-                                <td style="text-align: left; padding-left: 10px;">TOTAL</td>
-                                <td>{display_obt_total}</td>
-                                <td>{display_max_total}</td>
+                            <tr style="background-color: #f9f9f9; font-weight: bold;">
+                                <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
+                                <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
+                                <td>{int(grand_total_marks)}</td>
                                 <td>-</td>
-                                <td>{overall_percentage}</td>
-                                <td>{overall_status}</td>
+                                <td>{grand_per_disp}</td>
+                                <td style="color: {'red' if grand_status_disp == 'Fail' else 'black'};">{grand_status_disp}</td>
                             </tr>
-                """
-
-                compiled_html += f"</tbody></table><div class='table-section-title'>Attendance Report</div>"
-                
-                months_header, total_days_row, present_days_row, percentage_row = "", "", "", ""
-                grand_total, grand_present = 0, 0
-                months_target = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
-                
-                for m_item in months_target:
-                    months_header += f"<th>{m_item}</th>"
-                    t_disp, p_disp, pct_disp = "", "", ""
-                    att_match = raw_attendance[raw_attendance['month_name'] == m_item] if not raw_attendance.empty else pd.DataFrame()
-                    if not att_match.empty:
-                        try:
-                            t_d = int(att_match['total_days'].iloc[0])
-                            p_d = int(att_match['present_days'].iloc[0])
-                            t_disp, p_disp = str(t_d), str(p_d)
-                            pct_disp = f"{int((p_d / t_d) * 100)}%" if t_d > 0 else "0%"
-                            grand_total += t_d
-                            grand_present += p_d
-                        except Exception: pass
-                    total_days_row += f"<td>{t_disp}</td>"
-                    present_days_row += f"<td>{p_disp}</td>"
-                    percentage_row += f"<td>{pct_disp}</td>"
-                
-                overall_per = f"{int((grand_present / grand_total) * 100)}%" if grand_total > 0 else ""
-                
-                compiled_html += f"""
-                <table class="doc-data-table" style="font-size: 12px;">
-                    <thead>
-                        <tr><th style="width: 12%;">Metric</th>{months_header}<th style="background-color: #d9d9d9; width: 10%;">Over All Att.</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td style="font-weight: bold; text-align: left;">Total Days</td>{total_days_row}<td style="font-weight: bold;">{grand_total if grand_total > 0 else ''}</td></tr>
-                        <tr><td style="font-weight: bold; text-align: left;">Att. Days</td>{present_days_row}<td style="font-weight: bold;">{grand_present if grand_total > 0 else ''}</td></tr>
-                        <tr><td style="font-weight: bold; text-align: left;">Age%</td>{percentage_row}<td style="font-weight: bold; background-color: #f2f2f2;">{overall_per}</td></tr>
-                    </tbody>
-                </table>
-                
-                <table class="footer-signatures-table">
-                    <tr>
-                        <td style="text-align: left; width: 65%; vertical-align: bottom;">Remarks: <span style="width: 80%; border-bottom: 1px solid #000; display: inline-block;">&nbsp;</span></td>
-                        <td style="text-align: right; width: 35%; padding-top: 30px; vertical-align: bottom;"><span class="sig-marker-line">Principal Sign</span></td>
-                    </tr>
-                </table>
+                        </tbody>
+                    </table>
+                    
+                    <table class="footer-signatures-table">
+                        <tr>
+                            <td style="text-align: left; width: 33%;"><span class="sig-marker-line">Class Incharge</span></td>
+                            <td style="text-align: center; width: 34%;"><span class="sig-marker-line">Examination Controller</span></td>
+                            <td style="text-align: right; width: 33%;"><span class="sig-marker-line">Principal</span></td>
+                        </tr>
+                    </table>
                 </div>
+                <div class="print-page-break-divider"></div>
                 """
-                if idx < len(students_to_print) - 1:
-                    compiled_html += '<div class="print-page-break-divider"></div>'
-
-            compiled_html += "</body></html>"
-            components.html(compiled_html, height=900, scrolling=True)
-
-# ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
-elif menu_choice == "📈 Master Performance Ledger":
-    st.title("📈 Master Performance Ledger")
-    st.info("Module ready.")
+                
+            compiled_html += """
+            </body>
+            </html>
+            """
+            
+            # Render the beautifully formatted document layout safely via safe iframe component
+            components.html(compiled_html, height=650, scrolling=True)
+        else:
+            st.error("❌ Rollnumber details not fetched successfully.")
