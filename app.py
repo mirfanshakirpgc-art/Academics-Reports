@@ -459,18 +459,17 @@ elif menu_choice == "🪪 Student Result Cards":
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
                         </div>
                         <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                        <div class="inst-sub-header">[cite: 2] A Project of Beaconhouse</div>
                     </div>
                     
-                    <div class="doc-type-banner">[cite: 3] Result Card</div>
+                    <div class="doc-type-banner"> Result Card</div>
                     
                     <table class="meta-layout-table">
                         <tr>
-                            <td style="width: 40%;">[cite: 4] Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                            <td style="width: 14%;">[cite: 4] ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
-                            <td style="width: 16%;">[cite: 4] Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
-                            <td style="width: 14%;">[cite: 4] Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 16%;">[cite: 4] Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td>
+                            <td style="width: 40%;"> Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
+                            <td style="width: 14%;"> ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
+                            <td style="width: 16%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
+                            <td style="width: 14%;"> Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
+                            <td style="width: 16%;"> Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td>
                         </tr>
                     </table>
                     
@@ -478,11 +477,11 @@ elif menu_choice == "🪪 Student Result Cards":
                         <thead>
                             <tr>
                                 <th style="text-align: left; width: 35%; padding-left: 10px;">[cite: 5] Subjects</th>
-                                <th style="width: 13%;">[cite: 5] Obt. Marks</th>
-                                <th style="width: 13%;">[cite: 5] Total Marks</th>
-                                <th style="width: 13%;">[cite: 5] Pass Marks</th>
-                                <th style="width: 13%;">[cite: 5] Age%</th>
-                                <th style="width: 13%;">[cite: 5] Status</th>
+                                <th style="width: 13%;">Obt. Marks</th>
+                                <th style="width: 13%;">Total Marks</th>
+                                <th style="width: 13%;">Pass Marks</th>
+                                <th style="width: 13%;">Age%</th>
+                                <th style="width: 13%;">Status</th>
                             </tr>
                         </thead>
                         <tbody>
