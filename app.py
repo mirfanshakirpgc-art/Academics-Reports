@@ -330,7 +330,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
-  # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+ # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
@@ -466,7 +466,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
     # --- 1. DYNAMIC CONTROLS INTERFACE PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
-    # Selection Scope Toggles
     scope_choice = st.radio(
         "𖨾 Select Scope:",
         options=["👤 Single Student Card", "👥 Complete Section Cards"],
@@ -475,13 +474,11 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         key="mt_reporting_scope"
     )
 
-    # Reusable constants
     all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_Up"]
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
     students_to_process = []
     selected_exams_list = []
     
-    # Global contextual parameters derived inside processing blocks
     rendered_discipline = ""
     rendered_section = ""
 
@@ -498,31 +495,36 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
             
         if submit_single:
-            if not search_id.strip():
+            clean_id = search_id.strip()
+            if not clean_id:
                 st.error("⚠️ Please input a valid Student Roll Number / ID.")
             else:
-                student_df = run_query("""
-                    SELECT id, name, section, class_name 
-                    FROM students 
-                    WHERE id = :sid
-                """, {"sid": search_id.strip()})
-                
-                if not student_df.empty:
-                    students_to_process = [student_df.iloc[0].to_dict()]
-                    rendered_discipline = student_df.iloc[0]["class_name"] if student_df.iloc[0]["class_name"] else "N/A"
-                    rendered_section = student_df.iloc[0]["section"]
-                else:
-                    st.error(f"❌ Student ID #{search_id} was not found in the records database.")
+                # Handle database identification type safely
+                try:
+                    query_id = int(clean_id) if clean_id.isdigit() else clean_id
+                    
+                    student_df = run_query("""
+                        SELECT id, name, section, class_name 
+                        FROM students 
+                        WHERE id = :sid
+                    """, {"sid": query_id})
+                    
+                    if not student_df.empty:
+                        students_to_process = [student_df.iloc[0].to_dict()]
+                        rendered_discipline = student_df.iloc[0]["class_name"] if student_df.iloc[0]["class_name"] else "N/A"
+                        rendered_section = student_df.iloc[0]["section"]
+                    else:
+                        st.error(f"❌ Student ID #{clean_id} was not found in the records database.")
+                except Exception as e:
+                    st.error(f"⚠️ Query parsing error: {str(e)}. Check your database tracking settings.")
 
     else:
-        # User requested complete class list selection profiles
         with st.form("complete_section_secure_form"):
             st.markdown("##### 👥 Complete Section Processing Panel")
             col_c1, col_c2, col_c3 = st.columns(3)
             with col_c1:
                 sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="form_sel_disc_bulk")
             with col_c2:
-                # Connected map safely isolated from runtime interrupt cycles inside the form closure
                 sel_sec = st.selectbox("Select Target Class Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="form_sel_sec_bulk")
             with col_c3:
                 selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=all_frameworks, key="form_exams_bulk")
@@ -552,9 +554,14 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
         
     elif students_to_process:
-        student_ids_tuple = tuple([s['id'] for s in students_to_process])
-        
-        # Protected database routing logic using efficient bulk tuples lookup batches
+        # Construct parameters matching exact ID column data types
+        sample_id = students_to_process[0]['id']
+        if isinstance(sample_id, int):
+            student_ids_tuple = tuple(int(s['id']) for s in students_to_process)
+        else:
+            student_ids_tuple = tuple(str(s['id']).strip() for s in students_to_process)
+            
+        # Protect database from running separate individual student queries inside a massive loop
         marks_df = run_query("""
             SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
             FROM marks
@@ -569,7 +576,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
 
         st.write("---")
         
-        # Generate Cards for every resolved structural row dictionary item
         for s_meta in students_to_process:
             s_id = s_meta["id"]
             s_name = s_meta["name"]
