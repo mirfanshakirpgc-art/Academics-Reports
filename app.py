@@ -1001,6 +1001,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
         
         dynamic_height = 1250 if len(students_to_process) == 1 else min(1150 * len(students_to_process), 9500)
         components.html(composite_html_payload, height=dynamic_height, scrolling=True)
+To add the picture export functionality to your **Student Result Cards** engine, we will integrate `html2canvas` directly into your HTML/CSS layout structure and inject the required action buttons.
+
+The image capture loops through each card element using its `data-id` and `data-name` parameters to dynamically save files precisely named after each student.
+
+Here is your updated, fully integrated code segment:
+
+```python
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
@@ -1025,9 +1032,32 @@ elif menu_choice == "🪪 Student Result Cards":
             <!DOCTYPE html>
             <html>
             <head>
+            <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-                .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
+                
+                /* DASHBOARD CONTROLS CONTAINER PANEL */
+                .action-dashboard-panel {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 12px;
+                    max-width: 850px;
+                    margin: 10px auto 25px auto;
+                    font-family: 'Arial', sans-serif;
+                }
+                .action-control-btn {
+                    color: white; border: none; padding: 10px 18px; font-size: 14px;
+                    font-weight: bold; border-radius: 4px; cursor: pointer;
+                    box-shadow: 0 3px 5px rgba(0,0,0,0.15);
+                    transition: background 0.2s, transform 0.1s;
+                    display: flex; align-items: center; justify-content: center; gap: 8px;
+                }
+                .action-control-btn:active { transform: scale(0.97); }
+                .btn-print { background-color: #222222; }
+                .btn-img-single { background-color: #e65100; }
+                .btn-img-bulk { background-color: #6a1b9a; }
+
+                .official-card-container { max-width: 850px; margin: 10px auto 30px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; box-sizing: border-box; page-break-after: always; }
                 
                 /* VERTICAL BLOCK HEADER LAYOUT */
                 .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
@@ -1059,16 +1089,22 @@ elif menu_choice == "🪪 Student Result Cards":
                 .footer-signatures-table td { border: none; }
                 .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
                 
-                .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; margin-bottom: 20px; font-size: 14px; }
                 @media print {
-                    .print-btn { display: none !important; }
+                    .action-dashboard-panel { display: none !important; }
+                    .cck-single-print-isolation { display: block !important; }
+                    .cck-single-print-hide { display: none !important; }
                     .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
                     .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
                 }
             </style>
             </head>
             <body>
-                <button class="print-btn" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
+                <div class="action-dashboard-panel">
+                    <button class="action-control-btn btn-print" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
+                    <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Result Card as Picture</button>
+                    <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Complete Section Result Cards as Pictures</button>
+                </div>
+                <div id="dossiers-master-wrapper">
             """
 
             for idx, student_row in students_to_print.iterrows():
@@ -1123,7 +1159,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 grand_obtained_marks = 0.0
                 
                 compiled_html += f"""
-                <div class="official-card-container">
+                <div class="official-card-container student-card-record" data-id="{current_id}" data-name="{name.replace(' ', '_')}">
                     <div class="header-block">
                         <div class="logo-row">
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
@@ -1287,9 +1323,61 @@ elif menu_choice == "🪪 Student Result Cards":
                 """
                 
             compiled_html += """
+                </div>
+                <script>
+                function triggerImageCaptureSequence(targetList, currentIndex) {
+                    if (currentIndex >= targetList.length) return;
+                    
+                    var currentElement = targetList[currentIndex];
+                    var studentName = currentElement.getAttribute('data-name') || 'Student';
+                    var studentID = currentElement.getAttribute('data-id') || 'Unknown';
+                    
+                    html2canvas(currentElement, {
+                        scale: 2, 
+                        useCORS: true,
+                        backgroundColor: '#ffffff'
+                    }).then(function(canvas) {
+                        var dataUrl = canvas.toDataURL('image/png');
+                        var downloadAnchor = document.createElement('a');
+                        
+                        downloadAnchor.download = 'Result_Card_' + studentID + '_' + studentName + '.png';
+                        downloadAnchor.href = dataUrl;
+                        document.body.appendChild(downloadAnchor);
+                        downloadAnchor.click();
+                        document.body.removeChild(downloadAnchor);
+                        
+                        // Recursive callback logic to handle consecutive snapshot streams safely
+                        setTimeout(function() {
+                            triggerImageCaptureSequence(targetList, currentIndex + 1);
+                        }, 150);
+                    }).catch(function(err) {
+                        console.error("Canvas export snapshot error logic details:", err);
+                        triggerImageCaptureSequence(targetList, currentIndex + 1);
+                    });
+                }
+
+                function exportDossierToImage(isSingleTarget) {
+                    var cards = document.querySelectorAll('.student-card-record');
+                    if (cards.length === 0) {
+                        alert("No card containers rendered on screen to convert.");
+                        return;
+                    }
+
+                    if (isSingleTarget) {
+                        triggerImageCaptureSequence([cards[0]], 0);
+                    } else {
+                        if (confirm("Download snapshots for all (" + cards.length + ") rendered student data cards?")) {
+                            triggerImageCaptureSequence(Array.from(cards), 0);
+                        }
+                    }
+                }
+                </script>
             </body>
             </html>
             """
             
-            # Render layout view frame container component
-            components.html(compiled_html, height=800, scrolling=True)
+            # Dynamic display frame scale sizing configuration engine mapping 
+            dynamic_height = 800 if len(students_to_print) == 1 else min(780 * len(students_to_print), 9500)
+            components.html(compiled_html, height=dynamic_height, scrolling=True)
+
+```
