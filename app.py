@@ -393,6 +393,7 @@ elif menu_choice == "🪪 Student Result Cards":
             </head>
             <body>
                 <button class="print-btn" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
+             stream
             """
 
             for idx, student_row in students_to_print.iterrows():
@@ -408,21 +409,17 @@ elif menu_choice == "🪪 Student Result Cards":
                         matched_disp = disp
                         break
                 
-              # DELETE THIS BROKEN BLOCK:
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
-for idx, student_row in students_to_print.iterrows():
-            logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-for idx, student_row in students_to_print.iterrows():
-            logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-            
-            # Reset grand totals for this student card
-            grand_total_marks = 0.0
-            grand_obtained_marks = 0.0
-            
-            compiled_html += f"""
-            <div class="official-card-container">
+                logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+                
+                # Reset grand totals for this student card
+                grand_total_marks = 0.0
+                grand_obtained_marks = 0.0
+                
+                compiled_html += f"""
+                <div class="official-card-container">
                     <table class="header-wrapper-table">
                         <tr>
                             <td class="logo-cell">
@@ -462,8 +459,6 @@ for idx, student_row in students_to_print.iterrows():
                         <tbody>
                 """
                 
-                grand_obtained_marks = 0.0
-                grand_total_marks = 0.0
                 student_failed_any_subject = False
                 has_valid_marks_data = False
 
@@ -547,5 +542,3 @@ for idx, student_row in students_to_print.iterrows():
             
             # Render the beautifully formatted document layout safely via safe iframe component
             components.html(compiled_html, height=650, scrolling=True)
-        else:
-            st.error("❌ Rollnumber details not fetched successfully.")
