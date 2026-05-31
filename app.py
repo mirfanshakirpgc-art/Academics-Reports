@@ -330,246 +330,351 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
-       # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+      # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
-    st.markdown("Comprehensive cross-examination performance tracking and trajectory analysis.")
+    st.markdown("Generates full-scale term reports including subject matrices and month-by-month attendance tracking.")
 
-    # Shared CSS styling matching the result card design principles
+    # High-fidelity Print Styling matching the formal document format
     st.markdown("""
         <style>
-        .report-card-container {
+        .cck-report-card {
             background-color: #ffffff;
-            border: 2px solid #1e293b;
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            color: #0f172a;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            border: 3px solid #e67e22; /* Institutional Accent Color */
+            border-radius: 0px;
+            padding: 40px;
+            margin-bottom: 40px;
+            color: #000000;
+            font-family: 'Arial', sans-serif;
+            position: relative;
         }
-        .report-header {
-            border-bottom: 3px double #1e293b;
-            padding-bottom: 12px;
+        .cck-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
             margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
-        .student-meta {
+        .cck-title {
+            font-size: 26px;
+            font-weight: bold;
+            color: #d35400;
+            letter-spacing: 1px;
+            margin: 0;
+        }
+        .cck-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            color: #555;
+            margin: 2px 0 0 0;
+        }
+        .cck-doc-type {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+            text-transform: uppercase;
+            text-decoration: underline;
+        }
+        .cck-meta-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 25px;
             font-size: 15px;
-            line-height: 1.6;
         }
-        .metric-table {
+        .cck-meta-item {
+            border-bottom: 1px dashed #000;
+            padding-bottom: 3px;
+        }
+        .cck-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
-            margin-bottom: 15px;
-        }
-        .metric-table th {
-            background-color: #f1f5f9;
-            color: #1e293b;
-            text-align: left;
-            padding: 10px;
-            font-weight: 600;
-            border-bottom: 2px solid #cbd5e1;
-            text-transform: uppercase;
-            font-size: 12px;
-            letter-spacing: 0.5px;
-        }
-        .metric-table td {
-            padding: 12px 10px;
-            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 25px;
             font-size: 14px;
         }
-        .progress-bar-bg {
-            background-color: #e2e8f0;
-            border-radius: 4px;
-            width: 100%;
-            height: 10px;
-            display: inline-block;
-            position: relative;
-            overflow: hidden;
+        .cck-table th, .cck-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
         }
-        .progress-bar-fill {
-            height: 100%;
-            border-radius: 4px;
+        .cck-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
         }
-        .status-badge {
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 12px;
-            display: inline-block;
+        .cck-table td:first-child {
+            text-align: left;
+            font-weight: bold;
         }
-        .insights-box {
-            background-color: #f8fafc;
-            border-left: 4px solid #3b82f6;
-            padding: 12px;
-            margin-top: 15px;
-            border-radius: 0 6px 6px 0;
-            font-size: 13.5px;
-            font-style: italic;
+        .attendance-section-title {
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            border-left: 4px solid #e67e22;
+            padding-left: 8px;
+        }
+        .cck-footer-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 40px;
+            font-size: 14px;
+        }
+        .cck-remarks-line {
+            width: 70%;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 5px;
+        }
+        .cck-sign-line {
+            width: 25%;
+            border-top: 1px solid #000;
+            text-align: center;
+            padding-top: 5px;
         }
         @media print {
-            .report-card-container {
+            .cck-report-card {
                 page-break-after: always !important;
+                border: 3px solid #000 !important;
                 box-shadow: none !important;
-                border: 2px solid #000000 !important;
-                margin-bottom: 0px !important;
+                padding: 20px !important;
             }
             .no-print { display: none !important; }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # Filtering Controls Layout
+    # Filter Controls
     col_x, col_y = st.columns(2)
     with col_x:
-        sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="mt_disc")
-        sel_sec = st.selectbox("Select Target Section Roll:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="mt_sec")
+        sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="mt_format_disc")
+        sel_sec = st.selectbox("Select Target Section Roll:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="mt_format_sec")
     with col_y:
-        selected_exams_list = st.multiselect(
-            "Select Test Frameworks to Map:", 
-            options=AVAILABLE_EXAMS,
-            default=["MT_1", "MT_2", "SEND_UP"] if all(x in AVAILABLE_EXAMS for x in ["MT_1", "MT_2", "SEND_UP"]) else [AVAILABLE_EXAMS[0]]
-        )
+        st.info("ℹ️ This module maps standard evaluation trackers (MT_1, MT_2, MT_3, MT_4, Send_Up) instantly as structured in your layout scheme.")
 
-    if not selected_exams_list:
-        st.warning("⚠️ Please select at least one evaluation framework to compile report cards.")
+    # Target standard tracking frameworks matching your file exactly
+    target_exams = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_Up"]
+    months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+
+    # Fetch targeted section student core records
+    students_df = run_query("""
+        SELECT id, name, class_name 
+        FROM students 
+        WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+        ORDER BY id ASC
+    """, {"section": sel_sec})
+
+    if students_df.empty:
+        st.info(f"💡 No active student records found for Section: '{sel_sec}'")
     else:
-        # Fetch base students matching section criteria
-        students_df = run_query("""
-            SELECT id AS "ID", name AS "Student Name" 
-            FROM students 
-            WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-            ORDER BY id ASC
+        # Fetch processing data parameters
+        marks_df = run_query("""
+            SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
+            FROM marks
+            WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
         """, {"section": sel_sec})
 
-        if students_df.empty:
-            st.info(f"💡 No active student records mapped to section: '{sel_sec}'")
-        else:
-            # Fetch analytical test marks dataset
-            marks_df = run_query("""
-                SELECT student_id, TRIM(exam_type) as exam_type, marks_obtained, total_marks
-                FROM marks
-                WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
-                and TRIM(exam_type) IN :exams
-            """, {"section": sel_sec, "exams": tuple(selected_exams_list)})
+        # Fetch structural attendance data parameters
+        # (Assumes your raw database features a month label or strings mapping columns safely)
+        attendance_df = run_query("""
+            SELECT student_id, month_name, total_days, attended_days 
+            FROM attendance
+            WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
+        """, {"section": sel_sec})
 
-            st.write("---")
-            st.subheader(f"🖨️ Multi-Term Progress Dossier — Section {sel_sec}")
+        st.write("---")
+        st.subheader("🖨️ Generated Custom Multi-Test Dossiers")
 
-            # Loop over every student to render their dedicated Progress Profile
-            for _, s_row in students_df.iterrows():
-                s_id = s_row["ID"]
-                s_name = s_row["Student Name"]
-                
-                student_marks = marks_df[marks_df["student_id"] == s_id]
-                
-                # HTML Architecture Generation for current student loop profile
-                html_buffer = f"""
-                <div class="report-card-container">
-                    <div class="report-header">
-                        <div class="student-meta">
-                            <strong style="font-size: 18px; color: #1e293b;">{s_name}</strong><br>
-                            <span style="color: #64748b;">Roll Number:</span> <strong>#{s_id}</strong>
-                        </div>
-                        <div style="text-align: right; font-size: 14px;">
-                            <span style="color: #64748b;">Program Context:</span> <strong>{sel_disc}</strong><br>
-                            <span style="color: #64748b;">Class Section:</span> <strong>{sel_sec}</strong>
-                        </div>
-                    </div>
+        # Process and generate cards per individual student row
+        for _, s_row in students_df.iterrows():
+            s_id = s_row["id"]
+            s_name = s_row["name"]
+            s_class = s_row["class_name"] if s_row["class_name"] else sel_disc
+            
+            # --- 1. PROCESS MARKS MATRIX FOR STUDENT ---
+            s_marks = marks_df[marks_df["student_id"] == s_id]
+            unique_subjects = sorted(list(s_marks["subject_name"].unique())) if not s_marks.empty else ["English", "Urdu", "Maths", "Physics", "Chemistry"]
+            
+            table_rows_html = ""
+            exam_totals_obtained = {exam: 0.0 for exam in target_exams}
+            exam_totals_max = {exam: 0.0 for exam in target_exams}
+            exam_has_any_data = {exam: False for exam in target_exams}
+
+            for sub in unique_subjects:
+                sub_marks = s_marks[s_marks["subject_name"] == sub]
+                row_html = f"<tr><td>{sub}</td>"
+                sub_percentages = []
+
+                for exam in target_exams:
+                    exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()]
                     
-                    <table class="metric-table">
-                        <thead>
-                            <tr>
-                                <th>Evaluation Framework</th>
-                                <th>Obtained Percentage</th>
-                                <th style="width: 50%;">Performance Visual Mapping</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                """
-                
-                valid_percentages = []
-                
-                for exam in selected_exams_list:
-                    exam_subset = student_marks[student_marks["exam_type"] == exam]
-                    
-                    obt_accumulated = 0.0
-                    tot_accumulated = 0.0
-                    has_data = False
-                    
-                    for _, m_row in exam_subset.iterrows():
-                        val = str(m_row["marks_obtained"]).strip().upper()
-                        if val.replace('.', '', 1).isdigit():
-                            obt_accumulated += float(val)
-                            tot_accumulated += float(m_row["total_marks"] if m_row["total_marks"] else 100)
-                            has_data = True
-                        elif val in ["A", "ABSENT"]:
-                            tot_accumulated += float(m_row["total_marks"] if m_row["total_marks"] else 100)
-                            has_data = True
-                    
-                    if has_data and tot_accumulated > 0:
-                        agg_percentage = int((obt_accumulated / tot_accumulated) * 100)
-                        valid_percentages.append((exam, agg_percentage))
-                        pct_str = f"{agg_percentage}%"
+                    if not exam_subset.empty:
+                        m_obt = exam_subset.iloc[0]["marks_obtained"]
+                        m_tot = exam_subset.iloc[0]["total_marks"]
                         
-                        # Determine accent color profiles dynamically based on grade safety markers
-                        if agg_percentage >= 80:
-                            bar_color, text_color, bg_color = "#10b981", "#065f46", "#ecfdf5" # Green
-                        elif agg_percentage >= 50:
-                            bar_color, text_color, bg_color = "#3b82f6", "#1e40af", "#eff6ff" # Blue
-                        else:
-                            bar_color, text_color, bg_color = "#ef4444", "#991b1b", "#fef2f2" # Red
+                        # Handle numeric translations safely
+                        try:
+                            val_obt = float(m_obt)
+                            val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
+                            pct = (val_obt / val_tot) * 100
+                            row_html += f"<td>{int(pct)}%</td>"
+                            sub_percentages.append(pct)
                             
-                        bar_html = f"""
-                            <div class="progress-bar-bg">
-                                <div class="progress-bar-fill" style="width: {agg_percentage}%; background-color: {bar_color};"></div>
-                            </div>
-                        """
+                            # Accumulate for row summary footers
+                            exam_totals_obtained[exam] += val_obt
+                            exam_totals_max[exam] += val_tot
+                            exam_has_any_data[exam] = true
+                        except:
+                            if str(m_obt).strip().upper() in ["A", "ABSENT"]:
+                                row_html += "<td>A</td>"
+                                exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
+                                exam_has_any_data[exam] = true
+                                sub_percentages.append(0.0)
+                            else:
+                                row_html += "<td>-</td>"
                     else:
-                        pct_str = "&mdash;"
-                        bar_html = f"""<span style="color: #94a3b8; font-size: 13px;">No parameters logged</span>"""
-                    
-                    html_buffer += f"""
-                        <tr>
-                            <td><strong>{exam}</strong></td>
-                            <td><span class="status-badge" style="background-color: {bg_color if 'has_data' in locals() and has_data else '#f1f5f9'}; color: {text_color if 'has_data' in locals() and has_data else '#64748b'}; font-size: 14px;">{pct_str}</span></td>
-                            <td>{bar_html}</td>
-                        </tr>
-                    """
+                        row_html += "<td>-</td>"
                 
-                html_buffer += "</tbody></table>"
-                
-                # --- AUTOMATED REMARKS TRAJECTORY ENGINE ---
-                if len(valid_percentages) >= 2:
-                    first_exam, first_val = valid_percentages[0]
-                    last_exam, last_val = valid_percentages[-1]
-                    variance = last_val - first_val
-                    
-                    if variance > 5:
-                        remark = f"📈 Positive Trajectory Verified: Student exhibits a measurable growth of {variance}% from {first_exam} towards {last_exam}. Maintain instructional engagement strategies."
-                    elif variance < -5:
-                        remark = f"📉 Performance Dip Warning: Tracked metrics reveal a regression of {abs(variance)}% across successive terms. Targeted conceptual remediation is advised."
-                    else:
-                        remark = f"⚖️ Stable Equilibrium: Performance benchmarks remain consistent at an average metric of {last_val}% within safe operating limits."
-                elif len(valid_percentages) == 1:
-                    remark = f"📝 Baseline Registered: Initial performance benchmark evaluated at {valid_percentages[0][1]}%. Additional comparative cycles required to track progress velocity."
+                # Calculate Horizontal Subject Avg Percentage row tracking
+                if sub_percentages:
+                    avg_pct = int(sum(sub_percentages) / len(sub_percentages))
+                    row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
                 else:
-                    remark = "⚠️ Analytical Exception: Insufficient evaluation metrics found for this tracking phase."
+                    row_html += "<td>-</td></tr>"
                     
-                html_buffer += f"""
-                    <div class="insights-box">
-                        <strong>Progress Analytics Note:</strong> {remark}
+                table_rows_html += row_html
+
+            # Compute Absolute Total Column Footer values
+            total_row_html = "<tr><td><strong>Total</strong></td>"
+            grand_total_percentages = []
+            for exam in target_exams:
+                if exam_has_any_data[exam] and exam_totals_max[exam] > 0:
+                    tot_pct = int((exam_totals_obtained[exam] / exam_totals_max[exam]) * 100)
+                    total_row_html += f"<td><strong>{tot_pct}%</strong></td>"
+                    grand_total_percentages.append(tot_pct)
+                else:
+                    total_row_html += "<td>-</td>"
+            
+            # Overall Class Total percentage parameter entry
+            if grand_total_percentages:
+                overall_avg = int(sum(grand_total_percentages) / len(grand_total_percentages))
+                total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
+            else:
+                total_row_html += "<td>-</td></tr>"
+
+
+            # --- 2. PROCESS ATTENDANCE MATRIX FOR STUDENT ---
+            s_att = attendance_df[attendance_df["student_id"] == s_id]
+            
+            tot_days_row = ""
+            att_days_row = ""
+            pct_days_row = ""
+            
+            overall_tot_days = 0
+            overall_att_days = 0
+
+            for m in months_list:
+                # Filter dynamic records matching text targets safely
+                m_subset = s_att[s_att["month_name"].str.startswith(m[:3], na=False)]
+                if not m_subset.empty:
+                    t_d = int(m_subset.iloc[0]["total_days"])
+                    a_d = int(m_subset.iloc[0]["attended_days"])
+                    p_d = int((a_d / t_d) * 100) if t_d > 0 else 0
+                    
+                    overall_tot_days += t_d
+                    overall_att_days += a_d
+                    
+                    tot_days_row += f"<td>{t_d}</td>"
+                    att_days_row += f"<td>{a_d}</td>"
+                    pct_days_row += f"<td>{p_d}%</td>"
+                else:
+                    tot_days_row += "<td>-</td>"
+                    att_days_row += "<td>-</td>"
+                    pct_days_row += "<td>-</td>"
+            
+            # Overall Accumulative Attendance Metrics Calculation
+            if overall_tot_days > 0:
+                overall_att_pct = f"{int((overall_att_days / overall_tot_days) * 100)}%"
+                tot_days_row += f"<td>{overall_tot_days}</td>"
+                att_days_row += f"<td>{overall_att_days}</td>"
+                pct_days_row += f"<td><strong>{overall_att_pct}</strong></td>"
+            else:
+                tot_days_row += "<td>-</td>"
+                att_days_row += "<td>-</td>"
+                pct_days_row += "<td>-</td>"
+
+
+            # --- 3. DYNAMIC REMARKS GENERATOR ENGINE ---
+            if grand_total_percentages:
+                final_perf = grand_total_percentages[-1]
+                if final_perf >= 80: remarks_text = "Excellent analytical aptitude demonstrated consistently across terms."
+                elif final_perf >= 60: remarks_text = "Good performance profile. Steady core competencies maintained."
+                elif final_perf >= 40: remarks_text = "Satisfactory execution. Needs deliberate attention to weak subject variables."
+                else: remarks_text = "Critical academic gap observed. Immediate conceptual monitoring recommended."
+            else:
+                remarks_text = "Evaluation data pipeline pending assessment confirmation."
+
+
+            # --- 4. RENDER INTEGRATED HTML COMPONENT SHEET ---
+            html_document = f"""
+            <div class="cck-report-card">
+                <div class="cck-header">
+                    <div class="cck-title">CONCORDIA COLLEGE KASUR</div>
+                    <div class="cck-subtitle">A Project of Beaconhouse</div>
+                    <div class="cck-doc-type">Result Card</div>
+                </div>
+                
+                <div class="cck-meta-grid">
+                    <div class="cck-meta-item"><strong>Name:</strong> {s_name}</div>
+                    <div class="cck-meta-item"><strong>ID:</strong> {s_id}</div>
+                    <div class="cck-meta-item"><strong>Section:</strong> {sel_sec}</div>
+                    <div class="cck-meta-item"><strong>Class:</strong> {s_class}</div>
+                </div>
+                
+                <table class="cck-table">
+                    <thead>
+                        <tr>
+                            <th>Subjects</th>
+                            <th>MT_1<br><span style='font-size:10px; font-weight:normal;'>Obt. Age%</span></th>
+                            <th>MT_2<br><span style='font-size:10px; font-weight:normal;'>Obt. Age%</span></th>
+                            <th>MT_3<br><span style='font-size:10px; font-weight:normal;'>Obt. Age%</span></th>
+                            <th>MT_4<br><span style='font-size:10px; font-weight:normal;'>Obt. Age%</span></th>
+                            <th>Send_Up<br><span style='font-size:10px; font-weight:normal;'>Obt. Age%</span></th>
+                            <th>Avg.%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {table_rows_html}
+                        {total_row_html}
+                    </tbody>
+                </table>
+                
+                <div class="attendance-section-title">Attendance Report</div>
+                <table class="cck-table" style="font-size: 12px;">
+                    <thead>
+                        <tr>
+                            <th>Metric Frame</th>
+                            <th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th>
+                            <th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th>
+                            <th>Over All Att.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Total Days</strong></td>{tot_days_row}</tr>
+                        <tr><td><strong>Att. Days</strong></td>{att_days_row}</tr>
+                        <tr><td><strong>Age%</strong></td>{pct_days_row}</tr>
+                    </tbody>
+                </table>
+                
+                <div class="cck-footer-row">
+                    <div class="cck-remarks-line">
+                        <strong>Remarks:</strong> <span>{remarks_text}</span>
+                    </div>
+                    <div class="cck-sign-line">
+                        <strong>Principal Sign</strong>
                     </div>
                 </div>
-                """
-                
-                # Render to UI Layout Interface
-                st.write(html_buffer, unsafe_allow_html=True)
-
+            </div>
+            """
+            st.write(html_document, unsafe_allow_html=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
