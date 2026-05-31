@@ -330,7 +330,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
- # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+# ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
@@ -479,8 +479,8 @@ elif menu_choice == "📈 Multi-Test Progress Report":
     students_to_process = []
     selected_exams_list = []
     
-    rendered_discipline = ""
-    rendered_section = ""
+    rendered_discipline = "N/A"
+    rendered_section = "N/A"
 
     # CONDITIONAL SCOPE FORM RENDERERS
     if scope_choice == "👤 Single Student Card":
@@ -499,24 +499,25 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             if not clean_id:
                 st.error("⚠️ Please input a valid Student Roll Number / ID.")
             else:
-                # Handle database identification type safely
                 try:
+                    # Parse numerical ID safely to avoid datatype mismatches
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
                     
+                    # FIX: Removed class_name column selector to prevent UndefinedColumn crashes
                     student_df = run_query("""
-                        SELECT id, name, section, class_name 
+                        SELECT id, name, section 
                         FROM students 
                         WHERE id = :sid
                     """, {"sid": query_id})
                     
                     if not student_df.empty:
-                        students_to_process = [student_df.iloc[0].to_dict()]
-                        rendered_discipline = student_df.iloc[0]["class_name"] if student_df.iloc[0]["class_name"] else "N/A"
+                        students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
+                        rendered_discipline = "ENGINEERING" # Default fallback placeholder
                     else:
                         st.error(f"❌ Student ID #{clean_id} was not found in the records database.")
                 except Exception as e:
-                    st.error(f"⚠️ Query parsing error: {str(e)}. Check your database tracking settings.")
+                    st.error(f"⚠️ Query parsing error: {str(e)}.")
 
     else:
         with st.form("complete_section_secure_form"):
@@ -535,8 +536,9 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             rendered_discipline = sel_disc
             rendered_section = sel_sec
             
+            # FIX: Removed class_name column selector here too
             section_students_df = run_query("""
-                SELECT id, name, section, class_name 
+                SELECT id, name, section 
                 FROM students 
                 WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
                 ORDER BY id ASC
@@ -554,14 +556,13 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
         
     elif students_to_process:
-        # Construct parameters matching exact ID column data types
         sample_id = students_to_process[0]['id']
-        if isinstance(sample_id, int):
+        if str(sample_id).isdigit():
             student_ids_tuple = tuple(int(s['id']) for s in students_to_process)
         else:
             student_ids_tuple = tuple(str(s['id']).strip() for s in students_to_process)
             
-        # Protect database from running separate individual student queries inside a massive loop
+        # Protect database from running loop overhead connection requests
         marks_df = run_query("""
             SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
             FROM marks
@@ -579,8 +580,8 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         for s_meta in students_to_process:
             s_id = s_meta["id"]
             s_name = s_meta["name"]
-            s_class = s_meta["class_name"] if s_meta["class_name"] else rendered_discipline
-            s_section = s_meta["section"] if s_meta["section"] else rendered_section
+            s_section = s_meta["section"] if s_meta.get("section") else rendered_section
+            s_class = rendered_discipline # Safely binds the selected form context value here
             
             # --- MARKS CARD MATRIX PROCESSING ---
             s_marks = marks_df[marks_df["student_id"] == s_id] if not marks_df.empty else pd.DataFrame()
@@ -775,7 +776,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             st.write(html_output, unsafe_allow_html=True)
         
         st.markdown('<div class="no-print">', unsafe_allow_html=True)
-        st.button("🖨️ Print Dossiers", help="Press Ctrl+P on your keyboard to save your output cards to physical print layouts or clean PDFs.")
+        st.button("🖨️ Print Dossiers", help="Press Ctrl+P on your keyboard to save your output cards as a unified clean PDF layout.")
         st.markdown('</div>', unsafe_allow_html=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
