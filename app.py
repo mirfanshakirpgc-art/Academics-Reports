@@ -359,11 +359,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
-                /* EXACT HEADER STRUCTURE MATCHING USER ATTACHMENT */
+                /* EXACT HEADER STRUCTURE WITH TEXT DROPPED 2 LINES DOWN USING PADDING-TOP */
                 .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 5px; table-layout: fixed; }
-                .header-wrapper-table td { border: none; padding: 0; vertical-align: middle; }
+                .header-wrapper-table td { border: none; padding: 0; vertical-align: top; }
                 .logo-cell { width: 15%; text-align: left; }
-                .text-content-cell { width: 85%; text-align: center; padding-right: 15%; }
+                
+                /* padding-top: 24px simulates moving the 2 lines of header text roughly 2 lines down */
+                .text-content-cell { width: 85%; text-align: center; padding-right: 15%; padding-top: 24px; }
                 .logo-img { max-height: 48px; width: auto; display: block; }
                 
                 .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; }
