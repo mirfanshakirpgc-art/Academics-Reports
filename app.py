@@ -359,37 +359,37 @@ elif menu_choice == "🪪 Student Result Cards":
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
-                /* HEADER 2-COLUMN SIDE-BY-SIDE FIXED LAYOUT GRID */
-                .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 15px; table-layout: fixed; }
+                /* EXACT HEADER STRUCTURE MATCHING USER ATTACHMENT */
+                .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 5px; table-layout: fixed; }
                 .header-wrapper-table td { border: none; padding: 0; vertical-align: middle; }
                 .logo-cell { width: 15%; text-align: left; }
-                .text-content-cell { width: 85%; text-align: center; padding-right: 15%; } /* Offset logo width to keep header text perfectly centered */
-                .logo-img { max-height: 50px; width: auto; display: block; }
+                .text-content-cell { width: 85%; text-align: center; padding-right: 15%; }
+                .logo-img { max-height: 48px; width: auto; display: block; }
                 
-                .inst-main-header { font-weight: bold; font-size: 24px; text-transform: uppercase; margin: 0; line-height: 1.2; }
-                .inst-sub-header { font-size: 14px; margin: 2px 0 0 0; }
-                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 15px 0 20px 0; }
+                .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; }
+                .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; }
+                .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
                 
                 /* THE HORIZONTAL STRUCTURAL GRID */
-                .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 15px; }
+                .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
                 .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
                 .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
                 
                 .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
                 .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-                .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
+                .doc-data-table th { font-weight: bold; background-color: #fff; }
                 
-                .section-header-title { font-size: 16px; font-weight: bold; margin: 20px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
+                .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
                 
                 /* HORIZONTAL ATTENDANCE LAYOUT */
                 .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
                 .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
-                .attendance-matrix-table th { font-weight: bold; background-color: #f2f2f2; }
-                .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fafafa; text-align: left; padding-left: 5px; font-size: 13px; }
+                .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
+                .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
                 
-                .footer-signatures-table { width: 100%; margin-top: 35px; font-size: 15px; border: none; }
+                .footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
                 .footer-signatures-table td { border: none; }
-                .sig-marker-line { border-top: 1px solid #000; width: 160px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
+                .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
                 
                 .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; margin-bottom: 20px; font-size: 14px; }
                 @media print {
@@ -467,11 +467,11 @@ elif menu_choice == "🪪 Student Result Cards":
                     
                     <table class="meta-layout-table">
                         <tr>
-                            <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 80%;">{name}</span></td>
-                            <td style="width: 14%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id}</span></td>
-                            <td style="width: 18%;">Section: <span class="underlined-value-span" style="width: 60%;">{section}</span></td>
-                            <td style="width: 15%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 15%;">Test: <span class="underlined-value-span" style="width: 65%;">{test_names}</span></td>
+                            <td style="width: 40%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
+                            <td style="width: 14%;">ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
+                            <td style="width: 16%;">Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
+                            <td style="width: 14%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
+                            <td style="width: 16%;">Test: <span class="underlined-value-span" style="width: 65%;">{test_names}</span></td>
                         </tr>
                     </table>
                     
@@ -531,7 +531,7 @@ elif menu_choice == "🪪 Student Result Cards":
                                 <td>{tot_marks_num if tot_marks_num else "-"}</td>
                                 <td>{pass_marks_num if pass_marks_num else "-"}</td>
                                 <td>{per_disp}</td>
-                                <td style="font-weight: bold; color: {'red' if status_disp == 'Fail' else 'black'};">{status_disp}</td>
+                                <td style="font-weight: bold;">{status_disp}</td>
                             </tr>
                     """
                 
@@ -543,13 +543,13 @@ elif menu_choice == "🪪 Student Result Cards":
                     grand_status_disp = "Fail" if student_failed_any_subject else "Pass"
 
                 compiled_html += f"""
-                            <tr style="background-color: #f9f9f9; font-weight: bold;">
+                            <tr style="background-color: #fff; font-weight: bold;">
                                 <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
                                 <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
                                 <td>{int(grand_total_marks)}</td>
                                 <td>-</td>
                                 <td>{grand_per_disp}</td>
-                                <td style="color: {'red' if grand_status_disp == 'Fail' else 'black'};">{grand_status_disp}</td>
+                                <td>{grand_status_disp}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -561,24 +561,24 @@ elif menu_choice == "🪪 Student Result Cards":
                             <tr>
                                 <th style="width: 12%;">Metric</th>
                                 {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
-                                <th style="width: 11%; background-color: #e6e6e6;">Over All Att.</th>
+                                <th style="width: 11%;">Over All Att.</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td class="row-title-cell">Total Days</td>
                                 {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold; background-color: #fafafa;">{att_cells["Over All Att."]["td"]}</td>
+                                <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
                             </tr>
                             <tr>
                                 <td class="row-title-cell">Att. Days</td>
                                 {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold; background-color: #fafafa;">{att_cells["Over All Att."]["pd"]}</td>
+                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
                             </tr>
                             <tr>
                                 <td class="row-title-cell">Age%</td>
                                 {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold; background-color: #f0f0f0;">{att_cells["Over All Att."]["pct"]}</td>
+                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
                             </tr>
                         </tbody>
                     </table>
