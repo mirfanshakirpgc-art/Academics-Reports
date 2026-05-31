@@ -472,28 +472,36 @@ elif menu_choice == "🪪 Student Result Cards":
                 margin: {margin_top}mm {margin_right}mm {margin_bottom}mm {margin_left}mm !important;
             }}
             
-            /* 1. AGGRESSIVE LAYOUT COLLAPSE: Lift app out of hidden parent container spacing blocks */
+            /* 1. Eliminate Streamlit application header bar gaps completely */
+            header, [data-testid="stHeader"] {{
+                display: none !important;
+                height: 0px !important;
+            }}
+            
+            /* 2. RESTRUCTURE APPLICATIONCONTAINERS NATURALLY FOR PRINT EXECUTION */
             div[data-testid="stAppViewMainContainer"],
             .stAppViewMainContainer,
+            .stMain,
+            .main {{
+                background: none !important;
+                background-color: transparent !important;
+            }}
+            
+            div[data-testid="stAppViewBlockContainer"],
             .stAppViewBlockContainer,
             .stMainBlockContainer,
-            .stMain,
-            .main,
             .block-container {{
                 padding-top: 0px !important;
                 padding-bottom: 0px !important;
                 margin-top: 0px !important;
                 margin-bottom: 0px !important;
-                top: 0px !important;
-                position: absolute !important;
+                max-width: 100% !important;
                 width: 100% !important;
             }}
             
-            /* 2. Absolute eradication of all interactive Web UI application frames */
+            /* 3. Hide filtering widgets using visibility settings to collapse space structural tracks */
             [data-testid="stSidebar"], 
-            header, 
             footer, 
-            [data-testid="stHeader"],
             h1, 
             .stExpander, 
             [data-testid="stRadio"], 
@@ -504,13 +512,13 @@ elif menu_choice == "🪪 Student Result Cards":
             .stButton,
             div[style*="height"] {{
                 display: none !important;
+                visibility: hidden !important;
                 height: 0px !important;
                 margin: 0px !important;
                 padding: 0px !important;
-                visibility: hidden !important;
             }}
             
-            /* 3. Force card structure to snap directly flush to top edge settings */
+            /* 4. Snap layout boundaries directly flush to print grid channels */
             .result-card-container {{
                 border: {border_val} !important;
                 box-shadow: none !important;
@@ -726,7 +734,6 @@ elif menu_choice == "🪪 Student Result Cards":
                         
                 html_att += "</tr></tbody></table></div>"
                 st.markdown(html_att, unsafe_allow_html=True)
-
 # ----------------- 📈 PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
     st.title("📈 Subject-wise Consolidated Performance Ledger")
