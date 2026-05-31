@@ -665,7 +665,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             padding-left: 8px;
         }}
         .cck-remarks-area {{
-            margin-top: 50px;
+            margin-top: 100px;
             font-size: 14px;
             display: flex;
             align-items: flex-end;
@@ -678,7 +678,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             font-style: italic;
         }}
         .cck-footer-sign {{
-            margin-top: 50px;
+            margin-top: 25px;
             text-align: right;
             font-size: 14px;
             padding-right: 20px;
