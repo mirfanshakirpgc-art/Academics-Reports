@@ -335,7 +335,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
 
-    # High-Fidelity Print Styling Mirroring the Uploaded Layout Exactly
+    # High-Fidelity Print Styling Mirroring the Layout Exactly
     st.markdown("""
         <style>
         .cck-container {
@@ -500,10 +500,9 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 st.error("⚠️ Please input a valid Student Roll Number / ID.")
             else:
                 try:
-                    # Parse numerical ID safely to avoid datatype mismatches
+                    # Safely convert to integer if applicable
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
                     
-                    # FIX: Removed class_name column selector to prevent UndefinedColumn crashes
                     student_df = run_query("""
                         SELECT id, name, section 
                         FROM students 
@@ -513,9 +512,9 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                     if not student_df.empty:
                         students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
-                        rendered_discipline = "ENGINEERING" # Default fallback placeholder
+                        rendered_discipline = "N/A"
                     else:
-                        st.error(f"❌ Student ID #{clean_id} was not found in the records database.")
+                        st.error(f"❌ Student ID #{clean_id} was not found in the database.")
                 except Exception as e:
                     st.error(f"⚠️ Query parsing error: {str(e)}.")
 
@@ -536,7 +535,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             rendered_discipline = sel_disc
             rendered_section = sel_sec
             
-            # FIX: Removed class_name column selector here too
             section_students_df = run_query("""
                 SELECT id, name, section 
                 FROM students 
@@ -556,24 +554,33 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
         
     elif students_to_process:
-        sample_id = students_to_process[0]['id']
-        if str(sample_id).isdigit():
-            student_ids_tuple = tuple(int(s['id']) for s in students_to_process)
-        else:
-            student_ids_tuple = tuple(str(s['id']).strip() for s in students_to_process)
+        # Step A: Construct an explicit dictionary map for the IN clause placeholder entries
+        params_dict = {}
+        placeholder_list = []
+        
+        for idx, s in enumerate(students_to_process):
+            s_id = s['id']
+            # Preserve strict database datatypes
+            clean_s_id = int(s_id) if str(s_id).isdigit() else str(s_id).strip()
             
-        # Protect database from running loop overhead connection requests
-        marks_df = run_query("""
+            key = f"sid_{idx}"
+            placeholder_list.append(f":{key}")
+            params_dict[key] = clean_s_id
+            
+        placeholders_str = ", ".join(placeholder_list)
+            
+        # Step B: Secure execution with dynamically flattened list strings
+        marks_df = run_query(f"""
             SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
             FROM marks
-            WHERE student_id IN :sids
-        """, {"sids": student_ids_tuple})
+            WHERE student_id IN ({placeholders_str})
+        """, params_dict)
 
-        attendance_df = run_query("""
+        attendance_df = run_query(f"""
             SELECT student_id, month_name, total_days, attended_days 
             FROM attendance
-            WHERE student_id IN :sids
-        """, {"sids": student_ids_tuple})
+            WHERE student_id IN ({placeholders_str})
+        """, params_dict)
 
         st.write("---")
         
@@ -581,10 +588,17 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             s_id = s_meta["id"]
             s_name = s_meta["name"]
             s_section = s_meta["section"] if s_meta.get("section") else rendered_section
-            s_class = rendered_discipline # Safely binds the selected form context value here
+            s_class = rendered_discipline 
+            
+            # Match types explicitly when parsing subsets out of dataframes
+            match_id = int(s_id) if str(s_id).isdigit() else s_id
             
             # --- MARKS CARD MATRIX PROCESSING ---
-            s_marks = marks_df[marks_df["student_id"] == s_id] if not marks_df.empty else pd.DataFrame()
+            if not marks_df.empty:
+                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
+            else:
+                s_marks = pd.DataFrame()
+                
             unique_subjects = sorted(list(s_marks["subject_name"].unique())) if not s_marks.empty else ["English", "Urdu", "Mathematics", "Physics", "Chemistry"]
             
             table_rows_html = ""
@@ -651,7 +665,10 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 total_row_html += "<td></td></tr>"
 
             # --- ATTENDANCE TRACKER PROCESSING ---
-            s_att = attendance_df[attendance_df["student_id"] == s_id] if not attendance_df.empty else pd.DataFrame()
+            if not attendance_df.empty:
+                s_att = attendance_df[attendance_df["student_id"].astype(str) == str(match_id)]
+            else:
+                s_att = pd.DataFrame()
             
             tot_days_row = ""
             att_days_row = ""
