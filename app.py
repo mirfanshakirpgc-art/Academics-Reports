@@ -500,7 +500,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 st.error("⚠️ Please input a valid Student Roll Number / ID.")
             else:
                 try:
-                    # Safely convert to integer if applicable
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
                     
                     student_df = run_query("""
@@ -516,7 +515,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                     else:
                         st.error(f"❌ Student ID #{clean_id} was not found in the database.")
                 except Exception as e:
-                    st.error(f"⚠️ Query parsing error: {str(e)}.")
+                    st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
     else:
         with st.form("complete_section_secure_form"):
@@ -554,13 +553,12 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
         
     elif students_to_process:
-        # Step A: Construct an explicit dictionary map for the IN clause placeholder entries
+        # SAFE PARAMETER GENERATION: Avoids building corrupt queries like IN ()
         params_dict = {}
         placeholder_list = []
         
         for idx, s in enumerate(students_to_process):
             s_id = s['id']
-            # Preserve strict database datatypes
             clean_s_id = int(s_id) if str(s_id).isdigit() else str(s_id).strip()
             
             key = f"sid_{idx}"
@@ -568,19 +566,28 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             params_dict[key] = clean_s_id
             
         placeholders_str = ", ".join(placeholder_list)
-            
-        # Step B: Secure execution with dynamically flattened list strings
-        marks_df = run_query(f"""
-            SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
-            FROM marks
-            WHERE student_id IN ({placeholders_str})
-        """, params_dict)
+        
+        marks_df = pd.DataFrame()
+        attendance_df = pd.DataFrame()
 
-        attendance_df = run_query(f"""
-            SELECT student_id, month_name, total_days, attended_days 
-            FROM attendance
-            WHERE student_id IN ({placeholders_str})
-        """, params_dict)
+        # Execute queries safely using your exact run_query function setup
+        try:
+            marks_df = run_query(f"""
+                SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
+                FROM marks
+                WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching performance records. The table structural schema might be missing columns. Details: {str(e)}")
+
+        try:
+            attendance_df = run_query(f"""
+                SELECT student_id, month_name, total_days, attended_days 
+                FROM attendance
+                WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
 
         st.write("---")
         
@@ -590,7 +597,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             s_section = s_meta["section"] if s_meta.get("section") else rendered_section
             s_class = rendered_discipline 
             
-            # Match types explicitly when parsing subsets out of dataframes
             match_id = int(s_id) if str(s_id).isdigit() else s_id
             
             # --- MARKS CARD MATRIX PROCESSING ---
