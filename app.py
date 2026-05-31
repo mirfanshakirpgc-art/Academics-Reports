@@ -1025,6 +1025,8 @@ elif menu_choice == "🪪 Student Result Cards":
             <!DOCTYPE html>
             <html>
             <head>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
@@ -1059,16 +1061,27 @@ elif menu_choice == "🪪 Student Result Cards":
                 .footer-signatures-table td { border: none; }
                 .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
                 
-                .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; margin-bottom: 20px; font-size: 14px; }
+                /* CONTROL ACTIONS BUTTONS BAR styling wrapper element */
+                .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
+                .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+                .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+                .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+                
+                button:disabled { background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }
+                
                 @media print {
-                    .print-btn { display: none !important; }
+                    .action-controls-bar { display: none !important; }
                     .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
                     .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
                 }
             </style>
             </head>
             <body>
-                <button class="print-btn" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
+                <div class="action-controls-bar">
+                    <button class="print-btn" onclick="window.print();">🖨️ Print Document (Ctrl+P)</button>
+                    <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
+                    <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
+                </div>
             """
 
             for idx, student_row in students_to_print.iterrows():
@@ -1122,8 +1135,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 
+                # Assigned explicit distinct container target ID hook tag for DOM processing pipeline execution
                 compiled_html += f"""
-                <div class="official-card-container">
+                <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
                     <div class="header-block">
                         <div class="logo-row">
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
@@ -1286,7 +1300,65 @@ elif menu_choice == "🪪 Student Result Cards":
                 <div class="print-page-break-divider"></div>
                 """
                 
+            # INJECT JAVASCRIPT ASYNC IMAGE CAPTURE INTERFACE LOGIC
             compiled_html += """
+            <script>
+                // 1. Save Current / First visible student card layout asset configuration
+                document.getElementById('save-single-card-trigger').addEventListener('click', function() {
+                    const targetCard = document.querySelector('.official-card-container');
+                    if (!targetCard) return alert("No active result card engine target detected.");
+                    
+                    const sName = targetCard.getAttribute('data-student-name') || "student";
+                    const sId = targetCard.id || "result";
+                    
+                    html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
+                        const dlLink = document.createElement('a');
+                        dlLink.download = `${sId}_${sName}.png`;
+                        dlLink.href = canvas.toDataURL('image/png');
+                        dlLink.click();
+                    });
+                });
+
+                // 2. Iterative loop rendering pipeline logic to build and downloard a compressed ZIP package file mapping
+                document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
+                    const allCards = document.querySelectorAll('.official-card-container');
+                    if (allCards.length === 0) return alert("Empty stack context scope configuration payload mapping.");
+                    
+                    const actionBtn = this;
+                    const primaryLabel = actionBtn.innerText;
+                    actionBtn.innerText = "⏳ Generating Archive Images...";
+                    actionBtn.disabled = true;
+                    
+                    const archiveBundle = new JSZip();
+                    
+                    try {
+                        for(let index = 0; index < allCards.length; index++) {
+                            const currentCard = allCards[index];
+                            const cardIdStr = currentCard.id || `card_${index}`;
+                            const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
+                            
+                            // High DPI scale conversion setup to ensure text rendering elements stay perfectly crisp
+                            const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
+                            const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
+                            
+                            archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
+                        }
+                        
+                        const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
+                        const dlLink = document.createElement('a');
+                        dlLink.download = "Section_Result_Cards_Archive.zip";
+                        dlLink.href = URL.createObjectURL(compiledZipBlob);
+                        dlLink.click();
+                        
+                    } catch (error) {
+                        console.error(error);
+                        alert("An engine configuration runtime execution interruption occurred.");
+                    } finally {
+                        actionBtn.innerText = primaryLabel;
+                        actionBtn.disabled = false;
+                    }
+                });
+            </script>
             </body>
             </html>
             """
