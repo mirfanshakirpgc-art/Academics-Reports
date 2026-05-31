@@ -327,7 +327,7 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
 
-# ----------------- 🪪 STUDENT RESULT CARDS (ISOLATED VIEW ENGINE) -----------------
+# ----------------- 🪪 STUDENT RESULT CARDS (ISOLATED VIEW ENGINE WITH TOTALS) -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
@@ -430,6 +430,12 @@ elif menu_choice == "🪪 Student Result Cards":
                         <tbody>
                 """
                 
+                # VARIABLES TO CARRY HORIZONTAL SUM TOTAL CALCULATIONS
+                grand_obtained_marks = 0.0
+                grand_total_marks = 0.0
+                student_failed_any_subject = False
+                has_valid_marks_data = False
+
                 for sub in subjects_list:
                     match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'].isin(selected_tests))]
                     obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
@@ -442,11 +448,24 @@ elif menu_choice == "🪪 Student Result Cards":
                             
                             if obt_val in ["A", "ABSENT"]:
                                 obt_disp, per_disp, status_disp = "A", "0%", "Fail"
+                                grand_total_marks += tot_marks_num
+                                student_failed_any_subject = True
+                                has_valid_marks_data = True
                             elif obt_val.replace('.', '', 1).isdigit():
                                 num_obt = float(obt_val)
                                 obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
                                 per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
-                                status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
+                                
+                                # Add to structural totals
+                                grand_obtained_marks += num_obt
+                                grand_total_marks += tot_marks_num
+                                has_valid_marks_data = True
+                                
+                                if num_obt >= pass_marks_num:
+                                    status_disp = "Pass"
+                                else:
+                                    status_disp = "Fail"
+                                    student_failed_any_subject = True
                         except Exception: pass
                         
                     compiled_html += f"""
@@ -460,6 +479,26 @@ elif menu_choice == "🪪 Student Result Cards":
                             </tr>
                     """
                 
+                # --- CALCULATION AND INJECTION OF THE TOTAL ROW GRID ---
+                if has_valid_marks_data and grand_total_marks > 0:
+                    overall_percentage = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
+                    overall_status = "Fail" if student_failed_any_subject else "Pass"
+                    display_obt_total = int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks
+                    display_max_total = int(grand_total_marks)
+                else:
+                    overall_percentage, overall_status, display_obt_total, display_max_total = "-", "-", "-", "-"
+
+                compiled_html += f"""
+                            <tr style="background-color: #e6e6e6; font-weight: bold;">
+                                <td style="text-align: left; padding-left: 10px;">TOTAL</td>
+                                <td>{display_obt_total}</td>
+                                <td>{display_max_total}</td>
+                                <td>-</td>
+                                <td>{overall_percentage}</td>
+                                <td>{overall_status}</td>
+                            </tr>
+                """
+
                 compiled_html += "</tbody></table><div class='table-section-title'>Attendance Report</div>"
                 
                 # Dynamic loops for continuous grid layout
