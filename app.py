@@ -335,130 +335,11 @@ elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
 
-    # High-Fidelity Print Styling Mirroring the Layout Exactly
+    # CSS Injection (Kept for print control classes remaining in parent app context)
     st.markdown("""
         <style>
-        .cck-container {
-            background-color: #ffffff;
-            border: 1px solid #000000;
-            padding: 30px;
-            margin: 0 auto 30px auto;
-            max-width: 850px;
-            color: #000000;
-            font-family: 'Arial', sans-serif;
-            page-break-after: always;
-        }
-        .cck-header-wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 5px;
-            position: relative;
-        }
-        .cck-logo-placeholder {
-            background-color: #e67e22;
-            color: #ffffff;
-            font-weight: bold;
-            font-size: 24px;
-            width: 55px;
-            height: 55px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            position: absolute;
-            left: 20px;
-        }
-        .cck-title-block {
-            text-align: center;
-        }
-        .cck-main-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin: 0;
-            letter-spacing: 0.5px;
-        }
-        .cck-sub-title {
-            font-size: 13px;
-            color: #444444;
-            margin: 2px 0 0 0;
-        }
-        .cck-badge-wrapper {
-            text-align: center;
-            margin: 15px 0;
-        }
-        .cck-doc-badge {
-            display: inline-block;
-            background-color: #d1d5db;
-            color: #000000;
-            font-weight: bold;
-            font-size: 16px;
-            padding: 4px 20px;
-            border-radius: 2px;
-        }
-        .cck-meta-row {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        .cck-meta-field {
-            margin-right: 15px;
-            margin-bottom: 8px;
-        }
-        .cck-line-fill {
-            border-bottom: 1px solid #000000;
-            display: inline-block;
-            min-width: 120px;
-            padding-left: 5px;
-            font-weight: bold;
-        }
-        .cck-report-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 25px;
-            font-size: 13px;
-        }
-        .cck-report-table th, .cck-report-table td {
-            border: 1px solid #000000;
-            padding: 6px 4px;
-            text-align: center;
-        }
-        .cck-report-table th {
-            background-color: #ffffff;
-            font-weight: normal;
-        }
-        .cck-report-table td:first-child {
-            text-align: left;
-            padding-left: 8px;
-        }
-        .cck-remarks-area {
-            margin-top: 25px;
-            font-size: 14px;
-            display: flex;
-            align-items: flex-end;
-        }
-        .cck-remarks-line {
-            flex-grow: 1;
-            border-bottom: 1px solid #000000;
-            margin-left: 8px;
-            padding-left: 5px;
-            font-style: italic;
-        }
-        .cck-footer-sign {
-            margin-top: 50px;
-            text-align: right;
-            font-size: 14px;
-            padding-right: 20px;
-        }
         @media print {
             .no-print { display: none !important; }
-            .cck-container {
-                border: none !important;
-                padding: 0 !important;
-                margin-bottom: 0 !important;
-            }
         }
         </style>
     """, unsafe_allow_html=True)
@@ -610,10 +491,141 @@ elif menu_choice == "📈 Multi-Test Progress Report":
 
         st.write("---")
         
+        # Accumulator for final high-fidelity nested HTML payload
+        composite_html_payload = """
+        <html>
+        <head>
+        <style>
+        body { background-color: #ffffff; margin: 0; padding: 10px; }
+        .cck-container {
+            background-color: #ffffff;
+            border: 1px solid #000000;
+            padding: 30px;
+            margin: 0 auto 30px auto;
+            max-width: 850px;
+            color: #000000;
+            font-family: 'Arial', sans-serif;
+            page-break-after: always;
+        }
+        .cck-header-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            position: relative;
+        }
+        .cck-logo-placeholder {
+            background-color: #e67e22;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 24px;
+            width: 55px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            position: absolute;
+            left: 20px;
+        }
+        .cck-title-block {
+            text-align: center;
+        }
+        .cck-main-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+        .cck-sub-title {
+            font-size: 13px;
+            color: #444444;
+            margin: 2px 0 0 0;
+        }
+        .cck-badge-wrapper {
+            text-align: center;
+            margin: 15px 0;
+        }
+        .cck-doc-badge {
+            display: inline-block;
+            background-color: #d1d5db;
+            color: #000000;
+            font-weight: bold;
+            font-size: 16px;
+            padding: 4px 20px;
+            border-radius: 2px;
+        }
+        .cck-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .cck-meta-field {
+            margin-right: 15px;
+            margin-bottom: 8px;
+        }
+        .cck-line-fill {
+            border-bottom: 1px solid #000000;
+            display: inline-block;
+            min-width: 120px;
+            padding-left: 5px;
+            font-weight: bold;
+        }
+        .cck-report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 13px;
+        }
+        .cck-report-table th, .cck-report-table td {
+            border: 1px solid #000000;
+            padding: 6px 4px;
+            text-align: center;
+        }
+        .cck-report-table th {
+            background-color: #ffffff;
+            font-weight: normal;
+        }
+        .cck-report-table td:first-child {
+            text-align: left;
+            padding-left: 8px;
+        }
+        .cck-remarks-area {
+            margin-top: 25px;
+            font-size: 14px;
+            display: flex;
+            align-items: flex-end;
+        }
+        .cck-remarks-line {
+            flex-grow: 1;
+            border-bottom: 1px solid #000000;
+            margin-left: 8px;
+            padding-left: 5px;
+            font-style: italic;
+        }
+        .cck-footer-sign {
+            margin-top: 50px;
+            text-align: right;
+            font-size: 14px;
+            padding-right: 20px;
+        }
+        @media print {
+            .cck-container {
+                border: none !important;
+                padding: 0 !important;
+                margin-bottom: 0 !important;
+            }
+        }
+        </style>
+        </head>
+        <body>
+        """
+        
         for s_meta in students_to_process:
             s_id = str(s_meta["id"]).strip()
             
-            # Clean string data to prevent breaking the generated HTML
             raw_name = str(s_meta["name"])
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
@@ -677,8 +689,8 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                     
                 table_rows_html += row_html
 
-            # Bottom Summary Totals Row Matrix
-            total_row_html = "<tr><td>export<strong>Total</strong></td>"
+            # TYPO FIXED HERE: 'exportTotal' replaced completely with 'Total'
+            total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in selected_exams_list:
                 if exam_has_any_data[exam] and exam_totals_max[exam] > 0:
@@ -749,8 +761,8 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
 
-            # --- FIXED AND BULLETPROOF EMBED COMPONENT RENDERING ---
-            html_output = f"""
+            # --- APPORTION SINGLE RECORD COMPONENT ---
+            composite_html_payload += f"""
             <div class="cck-container">
                 <div class="cck-header-wrapper">
                     <div class="cck-logo-placeholder">CC</div>
@@ -820,8 +832,12 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 </div>
             </div>
             """
-            # Explicit markdown wrapping ensures Streamlit passes custom nested HTML blocks seamlessly
-            st.markdown(html_output, unsafe_allow_html=True)
+        
+        composite_html_payload += "</body></html>"
+        
+        # FIXED: Using st.components.v1.html dynamically calculates heights and avoids markdown processing limits
+        import streamlit.components.v1 as components
+        components.html(composite_html_payload, height=1100, scrolling=True)
         
         st.markdown('<div class="no-print">', unsafe_allow_html=True)
         st.button("🖨️ Print Dossiers", help="Press Ctrl+P on your keyboard to save your output cards as a unified clean PDF layout.")
