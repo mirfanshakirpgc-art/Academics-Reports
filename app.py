@@ -578,6 +578,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
+                                <th style="width: 12%;">Metric</th>
                                 {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
                                 <th style="width: 11%;">Over All Att.</th>
                             </tr>
