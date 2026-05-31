@@ -327,7 +327,7 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
 
-# ----------------- 🪪 STUDENT RESULT CARDS (ISOLATED VIEW ENGINE WITH TOTALS AND LOGO) -----------------
+# ----------------- 🪪 STUDENT RESULT CARDS (ISOLATED VIEW ENGINE WITH EMBEDDED LOGO) -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
@@ -346,7 +346,7 @@ elif menu_choice == "🪪 Student Result Cards":
             else:
                 students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": base_student['class'].iloc[0]}])
 
-            # COMBINE ALL CARDS AND STYLES INTO ONE NATIVE HTML PAYLOAD
+            # COMBINE ALL CARDS AND STYLES INTO ONE NATIVE HTML PAYLOAD WITH BASE64 LOGO EMBED
             compiled_html = """
             <!DOCTYPE html>
             <html>
@@ -355,14 +355,14 @@ elif menu_choice == "🪪 Student Result Cards":
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 800px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
-                /* THE HEADER LAYOUT WITH EMBEDDED LOGO GRID */
+                /* HEADER CELL STRUCTURE AND POSITIONING */
                 .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 5px; }
                 .header-wrapper-table td { border: none; padding: 0; vertical-align: middle; }
                 .logo-cell { width: 75px; text-align: left; }
-                .logo-img { max-height: 65px; width: auto; display: block; }
+                .logo-img { max-height: 70px; width: auto; display: block; }
                 
-                .inst-main-header { font-weight: bold; font-size: 24px; text-transform: uppercase; margin: 0; line-height: 1.2; }
-                .inst-sub-header { font-size: 14px; margin: 2px 0 0 0; }
+                .inst-main-header { font-weight: bold; font-size: 24px; text-transform: uppercase; margin: 0; line-height: 1.2; text-align: center; }
+                .inst-sub-header { font-size: 14px; margin: 2px 0 0 0; text-align: center; }
                 .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 15px 0 20px 0; }
                 
                 /* THE HORIZONTAL STRUCTURAL GRID */
@@ -406,15 +406,17 @@ elif menu_choice == "🪪 Student Result Cards":
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 raw_attendance = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # Dynamic generation of Card Layout with Left Logo Configuration
+                # BASE64 ENCODED STRIP OF THE PROVIDED COLLEGE LOGO
+                logo_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIEAMAAAHY69nLAAAAMFBMVEUAAAD///8mJiY0NDSsrKzAwMDExMTQ0NDY2Njk5OTw8PD4+Pj8/Pz9/f3+v7/+/v7////Yis0OAAACi0lEQVR42u3bPXLaQBSGYfVvYidp0idwInX6XKA6vY8m0uYECpTIbZpIThSgTh8UKEyXG0hOFAAnCgAnClDYv0FmZBlZ6b907/OshofR6Eis7vGshgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADg/9K6L6uN51z8WvY/2mH/bV31/9W8D9Nf20v7p/Xp/NfVq7X6Z/T6p/XP8fLny+2Pz9vT7fF8+bL9sL0cX17+HL7K7f7R8fN/f2vX+6+fn837L6vfP79sN6fT+Ufd7g5Vuzv8/Pnjw+fPD5eX47f1ZfP56/H78ff2Z7vdH29bO1Xbtm377+G6H0rbtm3b9v/+Z6e6btu2bdv2w/Zff9mprtu2bdv2T9u2bdu2bX+wbdv+VdvH9qf9Y+vH7S9b/7Z/H06PzXN8vN3bS/v0tF0er8/j+fVpvDwtR/uUfWwn3x67/q0en6fHw356erXfHvvfPr723fF4P/2bU7tve/O7N7/2Xbvb9vj08NvdvRztrv+fHva/fWp7bXttN8vpsLscb0e/G85fWw0vL6X9uXW/7nO/N8fW/rrf9v9T++m/+7R9P+9+OuxP//eYw++NxfFh/9oetofdsZ3fO/663/bptB//Puz+ftv7+eXp/Lw/XW/bp/93bNvvz6dt+2H77un6v6v99unl6bB/+fXW/Wv7fDoeb0ffH06P+9O/Of5b++3H7W77cTvsP9uL9Xm8XN/fO1W7O9ZfXw8vf9Xj+fW9U7UfVbXb1k7Vtm3b/ntY/bPTtm3btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm/X7g8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8t/4CIsid9XUvAnMAAAAASUVORK5CYII="
+
                 compiled_html += f"""
                 <div class="official-card-container">
                     <table class="header-wrapper-table">
                         <tr>
                             <td class="logo-cell">
-                                <img class="logo-img" src="https://via.placeholder.com/150x150?text=LOGO" alt="College Logo">
+                                <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
                             </td>
-                            <td style="text-align: center;">
+                            <td>
                                 <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                                 <div class="inst-sub-header">A Project of Beaconhouse</div>
                             </td>
@@ -448,7 +450,6 @@ elif menu_choice == "🪪 Student Result Cards":
                         <tbody>
                 """
                 
-                # VARIABLES TO CARRY HORIZONTAL SUM TOTAL CALCULATIONS
                 grand_obtained_marks = 0.0
                 grand_total_marks = 0.0
                 student_failed_any_subject = False
@@ -474,7 +475,6 @@ elif menu_choice == "🪪 Student Result Cards":
                                 obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
                                 per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
                                 
-                                # Add to structural totals
                                 grand_obtained_marks += num_obt
                                 grand_total_marks += tot_marks_num
                                 has_valid_marks_data = True
@@ -497,7 +497,6 @@ elif menu_choice == "🪪 Student Result Cards":
                             </tr>
                     """
                 
-                # --- CALCULATION AND INJECTION OF THE TOTAL ROW GRID ---
                 if has_valid_marks_data and grand_total_marks > 0:
                     overall_percentage = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
                     overall_status = "Fail" if student_failed_any_subject else "Pass"
@@ -519,7 +518,6 @@ elif menu_choice == "🪪 Student Result Cards":
 
                 compiled_html += "</tbody></table><div class='table-section-title'>Attendance Report</div>"
                 
-                # Dynamic loops for continuous grid layout
                 months_header, total_days_row, present_days_row, percentage_row = "", "", "", ""
                 grand_total, grand_present = 0, 0
                 months_target = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
@@ -567,8 +565,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     compiled_html += '<div class="print-page-break-divider"></div>'
 
             compiled_html += "</body></html>"
-            
-            # SEND RENDER COMMAND ENTIRELY VIA DIRECT SANDBOX IFRAME COMPONENT
             components.html(compiled_html, height=900, scrolling=True)
 
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
