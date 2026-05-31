@@ -335,11 +335,10 @@ elif menu_choice == "📋 Section Summary Report":
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
-    print_scope = st.radio("🖨️ Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
-    col_c1, col_c2, col_c3 = st.columns(3)
+    print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
+    col_c1, col_c2 = st.columns(2)
     with col_c1: search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
     with col_c2: selected_tests = st.multiselect("🎯 Select Specific Test Term:", options=AVAILABLE_EXAMS, default=["MT_1"])
-    with col_c3: report_month = st.selectbox("📅 Select Attendance Month context:", options=AVAILABLE_MONTHS, index=3)
 
     if search_id and search_id.isdigit() and selected_tests:
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
@@ -358,7 +357,7 @@ elif menu_choice == "🪪 Student Result Cards":
             <head>
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-                .official-card-container { max-width: 800px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
+                .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
                 /* HEADER LAYOUT & PROPORTIONS */
                 .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 5px; }
@@ -379,9 +378,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
                 .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
                 
-                .attendance-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; font-size: 14px; }
-                .attendance-table td { border: 1px solid #000; padding: 6px; text-align: center; }
-                .attendance-title { font-weight: bold; background-color: #f2f2f2; text-align: left; padding-left: 10px; width: 35%; }
+                .section-header-title { font-size: 16px; font-weight: bold; margin: 20px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
+                
+                /* HORIZONTAL ATTENDANCE LAYOUT */
+                .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+                .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
+                .attendance-matrix-table th { font-weight: bold; background-color: #f2f2f2; }
+                .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fafafa; text-align: left; padding-left: 5px; font-size: 13px; }
                 
                 .footer-signatures-table { width: 100%; margin-top: 35px; font-size: 15px; border: none; }
                 .footer-signatures-table td { border: none; }
@@ -415,20 +418,29 @@ elif menu_choice == "🪪 Student Result Cards":
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
-                # Enhanced clean case-insensitive lookup for specific student monthly attendance
-                att_record = run_query("""
-                    SELECT total_days, present_days 
-                    FROM attendance 
-                    WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))
-                """, {"id": current_id, "month": report_month})
+                # Fetch full complete sequence ledger dataset for horizontal formatting table matrix reconstruction
+                db_att = run_query("""
+                    SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
+                    FROM attendance WHERE student_id = :id
+                """, {"id": current_id})
                 
-                if not att_record.empty:
-                    tot_days = int(att_record['total_days'].iloc[0])
-                    pres_days = int(att_record['present_days'].iloc[0])
-                    abs_days = max(0, tot_days - pres_days)
-                    att_per = f"{int((pres_days / tot_days) * 100)}%" if tot_days > 0 else "0%"
-                else:
-                    tot_days, pres_days, abs_days, att_per = "-", "-", "-", "-"
+                att_cells = {}
+                tot_sum, pres_sum = 0, 0
+                for m in AVAILABLE_MONTHS:
+                    m_upper = m.upper().strip()
+                    match_att = db_att[db_att['m_name'] == m_upper]
+                    if not match_att.empty:
+                        td = int(match_att['total_days'].iloc[0])
+                        pd_val = int(match_att['present_days'].iloc[0])
+                        tot_sum += td
+                        pres_sum += pd_val
+                        pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
+                        att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
+                    else:
+                        att_cells[m] = {"td": "", "pd": "", "pct": ""}
+                        
+                overall_pct = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else ""
+                att_cells["Over All Att."] = {"td": str(tot_sum) if tot_sum > 0 else "", "pd": str(pres_sum) if tot_sum > 0 else "", "pct": overall_pct}
 
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
                 
@@ -542,21 +554,41 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <table class="attendance-table">
-                        <tr>
-                            <td class="attendance-title">ATTENDANCE ({report_month.upper()})</td>
-                            <td style="width: 16%;">Total Days: <strong>{tot_days}</strong></td>
-                            <td style="width: 16%;">Present: <strong>{pres_days}</strong></td>
-                            <td style="width: 16%;">Absent: <strong>{abs_days}</strong></td>
-                            <td style="width: 17%;">Percentage: <strong>{att_per}</strong></td>
-                        </tr>
+                    <div class="section-header-title">Attendance Report</div>
+                    
+                    <table class="attendance-matrix-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 12%;">Metric</th>
+                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
+                                <th style="width: 11%; background-color: #e6e6e6;">Over All Att.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="row-title-cell">Total Days</td>
+                                {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
+                                <td style="font-weight: bold; background-color: #fafafa;">{att_cells["Over All Att."]["td"]}</td>
+                            </tr>
+                            <tr>
+                                <td class="row-title-cell">Att. Days</td>
+                                {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
+                                <td style="font-weight: bold; background-color: #fafafa;">{att_cells["Over All Att."]["pd"]}</td>
+                            </tr>
+                            <tr>
+                                <td class="row-title-cell">Age%</td>
+                                {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
+                                <td style="font-weight: bold; background-color: #f0f0f0;">{att_cells["Over All Att."]["pct"]}</td>
+                            </tr>
+                        </tbody>
                     </table>
+                    
+                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px;">Remarks: __________________________________________________</div>
                     
                     <table class="footer-signatures-table">
                         <tr>
-                            <td style="text-align: left; width: 33%;"><span class="sig-marker-line">Class Incharge</span></td>
-                            <td style="text-align: center; width: 34%;"><span class="sig-marker-line">Examination Controller</span></td>
-                            <td style="text-align: right; width: 33%;"><span class="sig-marker-line">Principal</span></td>
+                            <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
+                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
                         </tr>
                     </table>
                 </div>
@@ -568,5 +600,5 @@ elif menu_choice == "🪪 Student Result Cards":
             </html>
             """
             
-            # Render the beautifully formatted document layout safely via safe iframe component
-            components.html(compiled_html, height=730, scrolling=True)
+            # Render layout view frame container component
+            components.html(compiled_html, height=800, scrolling=True)
