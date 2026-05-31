@@ -553,7 +553,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
         
     elif students_to_process:
-        # SAFE PARAMETER GENERATION: Avoids building corrupt queries like IN ()
         params_dict = {}
         placeholder_list = []
         
@@ -570,19 +569,43 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-        # Execute queries safely using your exact run_query function setup
+        # Dynamic Schema Adaptation Layer for 'marks'
         try:
+            # Step A: Find out exactly what columns exist in the 'marks' table
+            sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
+            cols_marks = [c.lower() for c in sample_marks.columns]
+            
+            # Pick whichever structural name variant exists
+            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else cols_marks[min(1, len(cols_marks)-1)])
+            exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
+            obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
+            tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
+
             marks_df = run_query(f"""
-                SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
+                SELECT student_id, {sub_col} as subject_name, TRIM({exam_col}) as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
                 FROM marks
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
         except Exception as e:
-            st.error(f"⚠️ Failed fetching performance records. The table structural schema might be missing columns. Details: {str(e)}")
+            st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
+        # Dynamic Schema Adaptation Layer for 'attendance'
         try:
+            # Find out exactly what columns exist in the 'attendance' table
+            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
+            cols_att = [c.lower() for c in sample_att.columns]
+            
+            month_col = "month_name" if "month_name" in cols_att else ("month" if "month" in cols_att else "month_name")
+            tot_days_col = "total_days" if "total_days" in cols_att else "total_days"
+            # Fallbacks: checks attended_days, present_days, present, or attended count variants
+            att_days_col = "attended_days"
+            for variant in ["attended_days", "present_days", "present", "attended"]:
+                if variant in cols_att:
+                    att_days_col = variant
+                    break
+
             attendance_df = run_query(f"""
-                SELECT student_id, month_name, total_days, attended_days 
+                SELECT student_id, {month_col} as month_name, {tot_days_col} as total_days, {att_days_col} as attended_days 
                 FROM attendance
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
