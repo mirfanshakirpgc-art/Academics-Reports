@@ -330,7 +330,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
-      # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+     # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Generates full-scale term reports including subject matrices and month-by-month attendance tracking.")
@@ -454,31 +454,44 @@ elif menu_choice == "📈 Multi-Test Progress Report":
     target_exams = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_Up"]
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 
+    # Safely wrap queries explicitly with text() execution instead of dropping raw params dictionaries directly into pandas
+    from sqlalchemy import text
+
     # Fetch targeted section student core records
-    students_df = run_query("""
+    students_query = """
         SELECT id, name, class_name 
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
         ORDER BY id ASC
-    """, {"section": sel_sec})
+    """
+    
+    # Executing directly through your custom hook pattern without letting read_sql_query crash on driver dialects
+    with conn_pool.connect() as conn:
+        res_students = conn.execute(text(students_query), {"section": sel_sec})
+        students_df = pd.DataFrame(res_students.fetchall(), columns=res_students.keys())
 
     if students_df.empty:
         st.info(f"💡 No active student records found for Section: '{sel_sec}'")
     else:
         # Fetch processing data parameters
-        marks_df = run_query("""
+        marks_query = """
             SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
             FROM marks
             WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
-        """, {"section": sel_sec})
-
-        # Fetch structural attendance data parameters
-        # (Assumes your raw database features a month label or strings mapping columns safely)
-        attendance_df = run_query("""
+        """
+        
+        attendance_query = """
             SELECT student_id, month_name, total_days, attended_days 
             FROM attendance
             WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
-        """, {"section": sel_sec})
+        """
+        
+        with conn_pool.connect() as conn:
+            res_marks = conn.execute(text(marks_query), {"section": sel_sec})
+            marks_df = pd.DataFrame(res_marks.fetchall(), columns=res_marks.keys())
+            
+            res_attendance = conn.execute(text(attendance_query), {"section": sel_sec})
+            attendance_df = pd.DataFrame(res_attendance.fetchall(), columns=res_attendance.keys())
 
         st.write("---")
         st.subheader("🖨️ Generated Custom Multi-Test Dossiers")
@@ -521,12 +534,12 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                             # Accumulate for row summary footers
                             exam_totals_obtained[exam] += val_obt
                             exam_totals_max[exam] += val_tot
-                            exam_has_any_data[exam] = true
+                            exam_has_any_data[exam] = True
                         except:
                             if str(m_obt).strip().upper() in ["A", "ABSENT"]:
                                 row_html += "<td>A</td>"
                                 exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
-                                exam_has_any_data[exam] = true
+                                exam_has_any_data[exam] = True
                                 sub_percentages.append(0.0)
                             else:
                                 row_html += "<td>-</td>"
@@ -543,7 +556,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html += row_html
 
             # Compute Absolute Total Column Footer values
-            total_row_html = "<tr><td><strong>Total</strong></td>"
+            total_row_html = "<tr><td>#️⃣ <strong>Total Avg %</strong></td>"
             grand_total_percentages = []
             for exam in target_exams:
                 if exam_has_any_data[exam] and exam_totals_max[exam] > 0:
