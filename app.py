@@ -1001,13 +1001,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         
         dynamic_height = 1250 if len(students_to_process) == 1 else min(1150 * len(students_to_process), 9500)
         components.html(composite_html_payload, height=dynamic_height, scrolling=True)
-To add the picture export functionality to your **Student Result Cards** engine, we will integrate `html2canvas` directly into your HTML/CSS layout structure and inject the required action buttons.
-
-The image capture loops through each card element using its `data-id` and `data-name` parameters to dynamically save files precisely named after each student.
-
-Here is your updated, fully integrated code segment:
-
-```python
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
@@ -1027,12 +1020,11 @@ elif menu_choice == "🪪 Student Result Cards":
             else:
                 students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": base_student['class'].iloc[0]}])
 
-            # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND IMAGE EXPORT CAPABILITIES
+            # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND LAYOUT
             compiled_html = """
             <!DOCTYPE html>
             <html>
             <head>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
@@ -1067,40 +1059,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 .footer-signatures-table td { border: none; }
                 .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
                 
-                /* ACTION BUTTONS */
-                .print-btn, .export-btn { 
-                    background: #222; color: #fff; padding: 10px 20px; font-weight: bold; 
-                    border-radius: 4px; border: none; cursor: pointer; margin-bottom: 20px; 
-                    font-size: 14px; margin-right: 10px; transition: background 0.2s;
-                }
-                .export-btn { background: #007bff; }
-                .export-btn:hover { background: #0056b3; }
-                .print-btn:hover { background: #444; }
-
+                .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; margin-bottom: 20px; font-size: 14px; }
                 @media print {
-                    .print-btn, .export-btn { display: none !important; }
+                    .print-btn { display: none !important; }
                     .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
                     .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
                 }
             </style>
-            <script>
-                // JavaScript routine to target a specific card canvas and capture it as an image download
-                function downloadCardImage(cardId, rollNum) {
-                    var targetElement = document.getElementById(cardId);
-                    if (targetElement) {
-                        html2canvas(targetElement, {
-                            useCORS: true,
-                            scale: 2, // Enhances output image resolution clarity
-                            logging: false
-                        }).then(function(canvas) {
-                            var downloadLink = document.createElement('a');
-                            downloadLink.download = 'Result_Card_' + rollNum + '.png';
-                            downloadLink.href = canvas.toDataURL('image/png');
-                            downloadLink.click();
-                        });
-                    }
-                }
-            </script>
             </head>
             <body>
                 <button class="print-btn" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
@@ -1157,13 +1122,8 @@ elif menu_choice == "🪪 Student Result Cards":
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 
-                # Assign unique ID strings to dynamically handle specific cards during loop rendering iterations
-                unique_card_id = f"student-card-{current_id}"
-
                 compiled_html += f"""
-                <button class="export-btn" onclick="downloadCardImage('{unique_card_id}', '{current_id}')">🖼️ Export Card ({current_id}) as PNG</button>
-                
-                <div class="official-card-container" id="{unique_card_id}">
+                <div class="official-card-container">
                     <div class="header-block">
                         <div class="logo-row">
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
