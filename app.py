@@ -330,28 +330,115 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
-        # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+       # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 elif menu_choice == "📈 Multi-Test Progress Report":
-    st.title("📈 Multi-Test Progress Analytics Dashboard")
-    st.markdown("Compare student performance dynamics across multiple selected examination cycles side-by-side.")
+    st.title("📈 Multi-Test Progress Analytics")
+    st.markdown("Comprehensive cross-examination performance tracking and trajectory analysis.")
 
-    # Layout filter controls
+    # Shared CSS styling matching the result card design principles
+    st.markdown("""
+        <style>
+        .report-card-container {
+            background-color: #ffffff;
+            border: 2px solid #1e293b;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            color: #0f172a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .report-header {
+            border-bottom: 3px double #1e293b;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .student-meta {
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        .metric-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        .metric-table th {
+            background-color: #f1f5f9;
+            color: #1e293b;
+            text-align: left;
+            padding: 10px;
+            font-weight: 600;
+            border-bottom: 2px solid #cbd5e1;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+        .metric-table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+        .progress-bar-bg {
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            width: 100%;
+            height: 10px;
+            display: inline-block;
+            position: relative;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+        }
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            display: inline-block;
+        }
+        .insights-box {
+            background-color: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 12px;
+            margin-top: 15px;
+            border-radius: 0 6px 6px 0;
+            font-size: 13.5px;
+            font-style: italic;
+        }
+        @media print {
+            .report-card-container {
+                page-break-after: always !important;
+                box-shadow: none !important;
+                border: 2px solid #000000 !important;
+                margin-bottom: 0px !important;
+            }
+            .no-print { display: none !important; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Filtering Controls Layout
     col_x, col_y = st.columns(2)
     with col_x:
-        sel_disc = st.selectbox("Filter by Discipline Context:", AVAILABLE_DISCIPLINE, key="mt_disc")
+        sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="mt_disc")
         sel_sec = st.selectbox("Select Target Section Roll:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="mt_sec")
     with col_y:
-        # Allow multi-selecting test frameworks
         selected_exams_list = st.multiselect(
-            "Select Test Frameworks to Compare Side-by-Side:", 
+            "Select Test Frameworks to Map:", 
             options=AVAILABLE_EXAMS,
             default=["MT_1", "MT_2", "SEND_UP"] if all(x in AVAILABLE_EXAMS for x in ["MT_1", "MT_2", "SEND_UP"]) else [AVAILABLE_EXAMS[0]]
         )
 
     if not selected_exams_list:
-        st.warning("⚠️ Please choose at least one test cycle from the selector framework above.")
+        st.warning("⚠️ Please select at least one evaluation framework to compile report cards.")
     else:
-        # Fetch base students belonging to the chosen section partition
+        # Fetch base students matching section criteria
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name" 
             FROM students 
@@ -360,28 +447,52 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         """, {"section": sel_sec})
 
         if students_df.empty:
-            st.info(f"💡 No registered student profiles found in section '{sel_sec}'.")
+            st.info(f"💡 No active student records mapped to section: '{sel_sec}'")
         else:
-            # Fetch relational marks corresponding across all selected tracking metrics
+            # Fetch analytical test marks dataset
             marks_df = run_query("""
                 SELECT student_id, TRIM(exam_type) as exam_type, marks_obtained, total_marks
                 FROM marks
                 WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
-                AND TRIM(exam_type) IN :exams
+                and TRIM(exam_type) IN :exams
             """, {"section": sel_sec, "exams": tuple(selected_exams_list)})
 
-            # Algorithmic Pivot Restructuring Process
-            compiled_report_data = []
-            
+            st.write("---")
+            st.subheader(f"🖨️ Multi-Term Progress Dossier — Section {sel_sec}")
+
+            # Loop over every student to render their dedicated Progress Profile
             for _, s_row in students_df.iterrows():
                 s_id = s_row["ID"]
-                row_entry = {
-                    "Roll No": s_id,
-                    "Student Name": s_row["Student Name"]
-                }
+                s_name = s_row["Student Name"]
                 
-                # Filter marks record for current student pointer
                 student_marks = marks_df[marks_df["student_id"] == s_id]
+                
+                # HTML Architecture Generation for current student loop profile
+                html_buffer = f"""
+                <div class="report-card-container">
+                    <div class="report-header">
+                        <div class="student-meta">
+                            <strong style="font-size: 18px; color: #1e293b;">{s_name}</strong><br>
+                            <span style="color: #64748b;">Roll Number:</span> <strong>#{s_id}</strong>
+                        </div>
+                        <div style="text-align: right; font-size: 14px;">
+                            <span style="color: #64748b;">Program Context:</span> <strong>{sel_disc}</strong><br>
+                            <span style="color: #64748b;">Class Section:</span> <strong>{sel_sec}</strong>
+                        </div>
+                    </div>
+                    
+                    <table class="metric-table">
+                        <thead>
+                            <tr>
+                                <th>Evaluation Framework</th>
+                                <th>Obtained Percentage</th>
+                                <th style="width: 50%;">Performance Visual Mapping</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                """
+                
+                valid_percentages = []
                 
                 for exam in selected_exams_list:
                     exam_subset = student_marks[student_marks["exam_type"] == exam]
@@ -400,53 +511,64 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                             tot_accumulated += float(m_row["total_marks"] if m_row["total_marks"] else 100)
                             has_data = True
                     
-                    # Calculate aggregate percentage for this exam frame
                     if has_data and tot_accumulated > 0:
-                        agg_percentage = (obt_accumulated / tot_accumulated) * 100
-                        row_entry[f"{exam} Agg %"] = f"{int(agg_percentage)}%"
-                        row_entry[f"{exam} Score"] = f"{int(obt_accumulated)}/{int(tot_accumulated)}"
+                        agg_percentage = int((obt_accumulated / tot_accumulated) * 100)
+                        valid_percentages.append((exam, agg_percentage))
+                        pct_str = f"{agg_percentage}%"
+                        
+                        # Determine accent color profiles dynamically based on grade safety markers
+                        if agg_percentage >= 80:
+                            bar_color, text_color, bg_color = "#10b981", "#065f46", "#ecfdf5" # Green
+                        elif agg_percentage >= 50:
+                            bar_color, text_color, bg_color = "#3b82f6", "#1e40af", "#eff6ff" # Blue
+                        else:
+                            bar_color, text_color, bg_color = "#ef4444", "#991b1b", "#fef2f2" # Red
+                            
+                        bar_html = f"""
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width: {agg_percentage}%; background-color: {bar_color};"></div>
+                            </div>
+                        """
                     else:
-                        row_entry[f"{exam} Agg %"] = "-"
-                        row_entry[f"{exam} Score"] = "-"
-                
-                compiled_report_data.append(row_entry)
-
-            # Generate Unified Reporting Output Matrix DataFrame
-            final_mt_df = pd.DataFrame(compiled_report_data).set_index("Roll No")
-            
-            # Divide into Tabbed Viewframes for Clean Presentation UI
-            tab_grid, tab_chart = st.tabs(["📊 Tabular Matrix View", "📈 Section Trend Visualization"])
-            
-            with tab_grid:
-                st.subheader(f"Cross-Examination Comparative Ledger — Section: {sel_sec}")
-                st.dataframe(final_mt_df, use_container_width=True)
-                
-            with tab_chart:
-                st.subheader("Performance Volatility Line Tracking")
-                
-                # Transform data structuring compatible with native Streamlit charts
-                chart_records = []
-                for entry in compiled_report_data:
-                    for exam in selected_exams_list:
-                        pct_val = entry[f"{exam} Agg %"]
-                        if pct_val != "-":
-                            chart_records.append({
-                                "Student": f"{entry['Roll No']} - {entry['Student Name']}",
-                                "Exam Cycle": exam,
-                                "Percentage Marks": float(pct_val.replace("%", ""))
-                            })
-                
-                if chart_records:
-                    chart_df = pd.DataFrame(chart_records)
+                        pct_str = "&mdash;"
+                        bar_html = f"""<span style="color: #94a3b8; font-size: 13px;">No parameters logged</span>"""
                     
-                    # Pivot out data frame tailored explicitly for visual plotting execution
-                    pivot_chart_df = chart_df.pivot(index="Exam Cycle", columns="Student", values="Percentage Marks")
-                    # Enforce original array sort index consistency
-                    pivot_chart_df = pivot_chart_df.reindex(selected_exams_list)
+                    html_buffer += f"""
+                        <tr>
+                            <td><strong>{exam}</strong></td>
+                            <td><span class="status-badge" style="background-color: {bg_color if 'has_data' in locals() and has_data else '#f1f5f9'}; color: {text_color if 'has_data' in locals() and has_data else '#64748b'}; font-size: 14px;">{pct_str}</span></td>
+                            <td>{bar_html}</td>
+                        </tr>
+                    """
+                
+                html_buffer += "</tbody></table>"
+                
+                # --- AUTOMATED REMARKS TRAJECTORY ENGINE ---
+                if len(valid_percentages) >= 2:
+                    first_exam, first_val = valid_percentages[0]
+                    last_exam, last_val = valid_percentages[-1]
+                    variance = last_val - first_val
                     
-                    st.line_chart(pivot_chart_df, use_container_width=True)
+                    if variance > 5:
+                        remark = f"📈 Positive Trajectory Verified: Student exhibits a measurable growth of {variance}% from {first_exam} towards {last_exam}. Maintain instructional engagement strategies."
+                    elif variance < -5:
+                        remark = f"📉 Performance Dip Warning: Tracked metrics reveal a regression of {abs(variance)}% across successive terms. Targeted conceptual remediation is advised."
+                    else:
+                        remark = f"⚖️ Stable Equilibrium: Performance benchmarks remain consistent at an average metric of {last_val}% within safe operating limits."
+                elif len(valid_percentages) == 1:
+                    remark = f"📝 Baseline Registered: Initial performance benchmark evaluated at {valid_percentages[0][1]}%. Additional comparative cycles required to track progress velocity."
                 else:
-                    st.info("💡 Insufficient numeric score mappings discovered to generate a trajectory line plot.")
+                    remark = "⚠️ Analytical Exception: Insufficient evaluation metrics found for this tracking phase."
+                    
+                html_buffer += f"""
+                    <div class="insights-box">
+                        <strong>Progress Analytics Note:</strong> {remark}
+                    </div>
+                </div>
+                """
+                
+                # Render to UI Layout Interface
+                st.write(html_buffer, unsafe_allow_html=True)
 
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
