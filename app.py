@@ -99,7 +99,7 @@ def execute_db_command(command, params=None):
 st.sidebar.title("🏫 Menu Navigation")
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
-    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "🪪 Student Result Cards"]
+    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
 )
 
 # --- MAP CONFIGURATIONS ---
