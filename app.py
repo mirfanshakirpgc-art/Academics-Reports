@@ -104,19 +104,19 @@ menu_choice = st.sidebar.radio(
 
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
-    "MEDICAL": ["Chemistry", "Biology", "Physics", "Urdu", "English", "ISL_ETH", "T_QURAN"],
-    "ENGINEERING": ["Chemistry", "Mathematics", "Physics", "Urdu", "English", "ISL_ETH", "T_QURAN"],
-    "ICS_Physics": ["Computer", "Mathematics", "Physics", "Urdu", "English", "ISL_ETH", "T_QURAN"],
-    "ICS_STATS": ["Mathematics", "STATISTICS", "Computer", "Urdu", "English", "ISL_ETH", "T_QURAN"],
-    "COMMERCE": ["POA", "POC", "B_MATH", "POE", "Urdu", "English", "ISL_ETH", "T_QURAN"],
-    "HUMANITIES": ["Education ", "ISL_ELC", "Computer", "Urdu", "English", "ISL_ETH", "T_QURAN"],
-    "INFORMATION_TECHNOLOGY": ["Computer_1", "Computer_2", "Computer_3", "Computer_4", "Computer_5"]
+    "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
+    "ENGINEERING": ["CHEMISTRY", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
+    "ICS_PHYSICS": ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
+    "ICS_STATS": ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
+    "COMMERCE": ["POA", "POC", "B_MATH", "POE", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
+    "HUMANITIES": ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
+    "INFORMATION_TECHNOLOGY": ["COMPUTER_1", "COMPUTER_2", "COMPUTER_3", "COMPUTER_4", "COMPUTER_5"]
 }
 
 DISCIPLINE_SECTIONS_MAP = {
     "MEDICAL": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
     "ENGINEERING": ["EG_BLUE", "EB_BLUE"],
-    "ICS_Physics": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
+    "ICS_PHYSICS": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
     "ICS_STATS": ["CG_STATS", "CB_STATS"],
     "COMMERCE": ["IG", "IB"],
     "HUMANITIES": ["FB", "FG"],
@@ -476,7 +476,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="doc-data-table">
                         <thead>
                             <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 12px;">Subjects</th>
+                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
                                 <th style="width: 13%;">Obt. Marks</th>
                                 <th style="width: 13%;">Total Marks</th>
                                 <th style="width: 13%;">Pass Marks</th>
@@ -578,7 +578,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
-                                <th style="width: 12%;"</th>
+                                <th style="width: 12%;">Metric</th>
                                 {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
                                 <th style="width: 11%;">Over All Att.</th>
                             </tr>
