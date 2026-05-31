@@ -499,17 +499,17 @@ elif menu_choice == "🪪 Student Result Cards":
         }
         .inst-main-header { text-align: center; font-weight: bold; font-size: 26px; margin: 0px; text-transform: uppercase; color: #000000; letter-spacing: 0.5px; }
         .inst-sub-header { text-align: center; font-size: 15px; margin: 2px 0px 0px 0px; color: #000000; }
-        .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; margin: 10px 0px 15px 0px; text-transform: uppercase; color: #000000; }
+        .doc-type-banner { text-align: center; font-weight: bold; font-size: 20px; margin: 15px 0px 20px 0px; color: #000000; }
         
-        /* SINGLE HORIZONTAL ROW INLINE CONTAINER WITH DOTTED UNDERLINES */
-        .horizontal-meta-line { width: 100%; margin-bottom: 20px; font-size: 15px; color: #000000; line-height: 1.6; text-align: left; word-spacing: 2px; }
-        .fill-blank-text { border-bottom: 1px dotted #000000; font-weight: bold; padding: 0px 8px; text-transform: uppercase; display: inline-block; }
+        /* EXACT HORIZONTAL META STREAM - REMOVED GRAY CONTAINER BOX */
+        .horizontal-meta-line { width: 100%; margin-bottom: 25px; font-size: 16px; color: #000000; line-height: 1.6; text-align: left; }
+        .fill-blank-text { border-bottom: 1px solid #000000; font-weight: bold; padding: 0px 4px; text-transform: uppercase; display: inline-block; }
         
-        .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 20px; font-size: 15px; }
-        .doc-data-table th, .doc-data-table td { border: 1px solid #000000; padding: 6px 5px; text-align: center; color: #000000; }
+        .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 15px; }
+        .doc-data-table th, .doc-data-table td { border: 1px solid #000000; padding: 7px 5px; text-align: center; color: #000000; }
         .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
-        .table-section-title { font-size: 15px; font-weight: bold; margin: 15px 0px 6px 0px; text-align: left; text-transform: uppercase; color: #000000; }
-        .footer-signatures-table { width: 100%; margin-top: 35px; font-size: 15px; border: none !important; }
+        .table-section-title { font-size: 16px; font-weight: bold; margin: 20px 0px 8px 0px; text-align: left; color: #000000; }
+        .footer-signatures-table { width: 100%; margin-top: 40px; font-size: 16px; border: none !important; }
         .footer-signatures-table td { border: none !important; padding: 5px 0px; }
         .sig-marker-line { border-top: 1px solid #000000; width: 180px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
         </style>
@@ -582,23 +582,23 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # --- FIXED: MATCHES THE EXACT SPECIFIED WORD LAYOUT LOGIC WITH INLINE horizontal STREAM ---
+                # --- FIXED: EXACT SPECIFIED HORIZONTAL FLOW FORMAT & BANNER TEXT ---
                 st.markdown(f"""
                 <div class="official-card-container">
-                    <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                    <div class="inst-sub-header">A Project of Beaconhouse</div>
-                    <div class="doc-type-banner">Result Card</div>
+                    <div class="inst-main-header">[cite: 1] CONCORDIA COLLEGE KASUR</div>
+                    <div class="inst-sub-header">[cite: 2] A Project of Beaconhouse</div>
+                    <div class="doc-type-banner">[cite: 3] Result Card</div>
                     
                     <div class="horizontal-meta-line">
-                        Name: <span class="fill-blank-text" style="min-width: 180px;">{name}</span> &nbsp;&nbsp;&nbsp;&nbsp;
-                        ID: <span class="fill-blank-text" style="min-width: 60px;">{current_id}</span> &nbsp;&nbsp;&nbsp;&nbsp;
-                        Section: <span class="fill-blank-text" style="min-width: 80px;">{section}</span> &nbsp;&nbsp;&nbsp;&nbsp;
-                        Class: <span class="fill-blank-text" style="min-width: 50px;">{grade_class}</span> &nbsp;&nbsp;&nbsp;&nbsp;
-                        Test: <span class="fill-blank-text" style="min-width: 70px;">{test_names}</span>
+                        [cite: 4] Name: <span class="fill-blank-text" style="width: 250px;">{name}</span> &nbsp;&nbsp;
+                        ID: <span class="fill-blank-text" style="width: 70px;">{current_id}</span> &nbsp;&nbsp;
+                        Section: <span class="fill-blank-text" style="width: 100px;">{section}</span> &nbsp;&nbsp;
+                        Class: <span class="fill-blank-text" style="width: 60px;">{grade_class}</span> &nbsp;&nbsp;
+                        Test: <span class="fill-blank-text" style="width: 80px;">{test_names}</span>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # Table Body Build
+                # [cite: 5] Table Body Build
                 html_table = """
                 <table class="doc-data-table">
                     <thead>
@@ -654,7 +654,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 html_table += "</tbody></table>"
                 st.markdown(html_table, unsafe_allow_html=True)
                 
-                # Attendance Building Block with Try-Catch Safety
+                # [cite: 6] Attendance Building Block
                 st.markdown("<div class='table-section-title'>Attendance Report</div>", unsafe_allow_html=True)
                 
                 months_header_row = ""
@@ -694,8 +694,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 overall_tot_disp = grand_total_days if grand_total_days > 0 else ""
                 overall_pres_disp = grand_present_days if grand_total_days > 0 else ""
                 
+                # [cite: 7] Attendance Matrix Rendering
                 html_att = f"""
-                <table class="doc-data-table" style="font-size: 13px; margin-bottom: 20px;">
+                <table class="doc-data-table" style="font-size: 13px; margin-bottom: 25px;">
                     <thead>
                         <tr>
                             <th style="width: 12%;">Metric</th>
@@ -727,11 +728,12 @@ elif menu_choice == "🪪 Student Result Cards":
                 is_last_index = (idx == total_records_count - 1)
                 page_break_class = "" if is_last_index else "print-page-break-divider"
                 
+                # [cite: 8, 9] Remarks & Signatures Row Block
                 st.markdown(f"""
                     <table class="footer-signatures-table">
                         <tr>
-                            <td style="text-align: left; width: 65%; font-size: 15px; vertical-align: bottom;">
-                                Remarks: <span class="underlined-field-fill" style="width: 80%; border-bottom: 1px dotted #000; display: inline-block;">&nbsp;</span>
+                            <td style="text-align: left; width: 65%; font-size: 16px; vertical-align: bottom;">
+                                Remarks: <span class="underlined-field-fill" style="width: 80%; border-bottom: 1px solid #000; display: inline-block;">&nbsp;</span>
                             </td>
                             <td style="text-align: right; width: 35%; padding-top: 40px; vertical-align: bottom;">
                                 <span class="sig-marker-line">Principal Sign</span>
