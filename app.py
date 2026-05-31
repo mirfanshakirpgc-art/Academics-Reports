@@ -450,48 +450,34 @@ elif menu_choice == "📈 Multi-Test Progress Report":
     with col_y:
         st.info("ℹ️ This module maps standard evaluation trackers (MT_1, MT_2, MT_3, MT_4, Send_Up) instantly as structured in your layout scheme.")
 
-    # Target standard tracking frameworks matching your file exactly
+    # Target standard tracking frameworks matching your file layout exactly
     target_exams = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_Up"]
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 
-    # Safely wrap queries explicitly with text() execution instead of dropping raw params dictionaries directly into pandas
-    from sqlalchemy import text
-
-    # Fetch targeted section student core records
-    students_query = """
+    # Fetch targeted section student core records using your pre-defined safe run_query function
+    students_df = run_query("""
         SELECT id, name, class_name 
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
         ORDER BY id ASC
-    """
-    
-    # Executing directly through your custom hook pattern without letting read_sql_query crash on driver dialects
-    with conn_pool.connect() as conn:
-        res_students = conn.execute(text(students_query), {"section": sel_sec})
-        students_df = pd.DataFrame(res_students.fetchall(), columns=res_students.keys())
+    """, {"section": sel_sec})
 
     if students_df.empty:
         st.info(f"💡 No active student records found for Section: '{sel_sec}'")
     else:
-        # Fetch processing data parameters
-        marks_query = """
+        # Fetch marks data via the global query function
+        marks_df = run_query("""
             SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
             FROM marks
             WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
-        """
-        
-        attendance_query = """
+        """, {"section": sel_sec})
+
+        # Fetch attendance data via the global query function
+        attendance_df = run_query("""
             SELECT student_id, month_name, total_days, attended_days 
             FROM attendance
             WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
-        """
-        
-        with conn_pool.connect() as conn:
-            res_marks = conn.execute(text(marks_query), {"section": sel_sec})
-            marks_df = pd.DataFrame(res_marks.fetchall(), columns=res_marks.keys())
-            
-            res_attendance = conn.execute(text(attendance_query), {"section": sel_sec})
-            attendance_df = pd.DataFrame(res_attendance.fetchall(), columns=res_attendance.keys())
+        """, {"section": sel_sec})
 
         st.write("---")
         st.subheader("🖨️ Generated Custom Multi-Test Dossiers")
@@ -523,7 +509,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                         m_obt = exam_subset.iloc[0]["marks_obtained"]
                         m_tot = exam_subset.iloc[0]["total_marks"]
                         
-                        # Handle numeric translations safely
                         try:
                             val_obt = float(m_obt)
                             val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
@@ -531,7 +516,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                             row_html += f"<td>{int(pct)}%</td>"
                             sub_percentages.append(pct)
                             
-                            # Accumulate for row summary footers
                             exam_totals_obtained[exam] += val_obt
                             exam_totals_max[exam] += val_tot
                             exam_has_any_data[exam] = True
@@ -556,7 +540,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html += row_html
 
             # Compute Absolute Total Column Footer values
-            total_row_html = "<tr><td>#️⃣ <strong>Total Avg %</strong></td>"
+            total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in target_exams:
                 if exam_has_any_data[exam] and exam_totals_max[exam] > 0:
@@ -585,7 +569,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             overall_att_days = 0
 
             for m in months_list:
-                # Filter dynamic records matching text targets safely
                 m_subset = s_att[s_att["month_name"].str.startswith(m[:3], na=False)]
                 if not m_subset.empty:
                     t_d = int(m_subset.iloc[0]["total_days"])
@@ -618,10 +601,10 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             # --- 3. DYNAMIC REMARKS GENERATOR ENGINE ---
             if grand_total_percentages:
                 final_perf = grand_total_percentages[-1]
-                if final_perf >= 80: remarks_text = "Excellent analytical aptitude demonstrated consistently across terms."
+                if final_perf >= 80: remarks_text = "Excellent academic development demonstrated consistently across terms."
                 elif final_perf >= 60: remarks_text = "Good performance profile. Steady core competencies maintained."
-                elif final_perf >= 40: remarks_text = "Satisfactory execution. Needs deliberate attention to weak subject variables."
-                else: remarks_text = "Critical academic gap observed. Immediate conceptual monitoring recommended."
+                elif final_perf >= 40: remarks_text = "Satisfactory progress. Needs deliberate attention to weak topics."
+                else: remarks_text = "Critical academic gap observed. Close monitoring recommended."
             else:
                 remarks_text = "Evaluation data pipeline pending assessment confirmation."
 
