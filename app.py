@@ -458,7 +458,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         <div class="logo-row">
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
                         </div>
-                        <div class="inst-main-header">[cite: 1] CONCORDIA COLLEGE KASUR</div>
+                        <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                         <div class="inst-sub-header">[cite: 2] A Project of Beaconhouse</div>
                     </div>
                     
