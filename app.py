@@ -501,34 +501,34 @@ elif menu_choice == "🪪 Student Result Cards":
         .inst-sub-header { text-align: center; font-size: 15px; margin: 2px 0px 0px 0px; color: #000000; }
         .doc-type-banner { text-align: center; font-weight: bold; font-size: 20px; margin: 15px 0px 20px 0px; color: #000000; }
         
-        /* FLEXBOX TO SECURE AN UNBREAKABLE SINGLE HORIZONTAL LINE CONTAINER */
+        /* STRICT INLINE-FLEX MATRIX FOR METADATA LINE WITHOUT WRAPPING DISRUPTION */
         .horizontal-meta-line { 
-            display: flex;
-            flex-direction: row;
-            justify-content: flex-start;
-            align-items: flex-end;
-            width: 100%; 
-            margin-bottom: 25px; 
-            font-size: 16px; 
-            color: #000000; 
-            white-space: nowrap;
+            display: flex !important;
+            flex-flow: row wrap !important;
+            justify-content: flex-start !important;
+            align-items: flex-end !important;
+            width: 100% !important; 
+            margin-bottom: 25px !important; 
+            font-size: 16px !important; 
+            color: #000000 !important; 
         }
         .meta-field-item {
-            display: flex;
-            align-items: flex-end;
-            margin-right: 25px;
+            display: inline-flex !important;
+            align-items: flex-end !important;
+            margin-right: 18px !important;
+            white-space: nowrap !important;
         }
         .meta-label {
-            font-weight: normal;
-            margin-right: 5px;
+            font-weight: normal !important;
+            margin-right: 4px !important;
         }
         .fill-blank-text { 
-            border-bottom: 1px solid #000000; 
-            font-weight: bold; 
-            padding: 0px 4px; 
-            text-transform: uppercase; 
-            text-align: left;
-            display: inline-block;
+            border-bottom: 1px solid #000000 !important; 
+            font-weight: bold !important; 
+            padding: 0px 2px !important; 
+            text-transform: uppercase !important; 
+            text-align: left !important;
+            display: inline-block !important;
         }
         
         .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 15px; }
@@ -585,8 +585,8 @@ elif menu_choice == "🪪 Student Result Cards":
                 current_id = int(student_row['id'])
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
-                grade_class = str(student_row['class'])
-                test_names = ", ".join(selected_tests)
+                grade_class = str(student_row['class']).upper()
+                test_names = ", ".join(selected_tests).upper()
                 
                 matched_disp = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
@@ -608,24 +608,24 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # --- FLEXBOX EMBED FOR ENFORCED SINGLE LINE LAYOUT OVERRIDE ---
-                st.markdown(f"""
+                # --- ALL HEADER METADATA RENDERED TOGETHER INSIDE ONE SINGLE TEMPLATE ---
+                card_html_payload = f"""
                 <div class="official-card-container">
                     <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                     <div class="inst-sub-header">A Project of Beaconhouse</div>
                     <div class="doc-type-banner">Result Card</div>
                     
                     <div class="horizontal-meta-line">
-                        <div class="meta-field-item"><span class="meta-label">Name:</span><span class="fill-blank-text" style="width: 240px;">{name}</span></div>
-                        <div class="meta-field-item"><span class="meta-label">ID:</span><span class="fill-blank-text" style="width: 65px;">{current_id}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">Name:</span><span class="fill-blank-text" style="width: 250px;">{name}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">ID:</span><span class="fill-blank-text" style="width: 70px;">{current_id}</span></div>
                         <div class="meta-field-item"><span class="meta-label">Section:</span><span class="fill-blank-text" style="width: 110px;">{section}</span></div>
-                        <div class="meta-field-item"><span class="meta-label">Class:</span><span class="fill-blank-text" style="width: 60px;">{grade_class}</span></div>
-                        <div class="meta-field-item"><span class="meta-label">Test:</span><span class="fill-blank-text" style="width: 90px;">{test_names}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">Class:</span><span class="fill-blank-text" style="width: 65px;">{grade_class}</span></div>
+                        <div class="meta-field-item"><span class="meta-label">Test:</span><span class="fill-blank-text" style="width: 95px;">{test_names}</span></div>
                     </div>
-                """, unsafe_allow_html=True)
+                """
                 
-                # Table Body Build
-                html_table = """
+                # Table Body Build append
+                card_html_payload += """
                 <table class="doc-data-table">
                     <thead>
                         <tr>
@@ -667,7 +667,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         except Exception:
                             pass
                         
-                    html_table += f"""
+                    card_html_payload += f"""
                         <tr>
                             <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
                             <td>{obt_disp}</td>
@@ -677,11 +677,10 @@ elif menu_choice == "🪪 Student Result Cards":
                             <td style="font-weight: bold;">{status_disp}</td>
                         </tr>
                     """
-                html_table += "</tbody></table>"
-                st.markdown(html_table, unsafe_allow_html=True)
+                card_html_payload += "</tbody></table>"
                 
-                # Attendance Building Block
-                st.markdown("<div class='table-section-title'>Attendance Report</div>", unsafe_allow_html=True)
+                # Attendance Building Block append
+                card_html_payload += "<div class='table-section-title'>Attendance Report</div>"
                 
                 months_header_row = ""
                 total_days_row = ""
@@ -720,8 +719,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 overall_tot_disp = grand_total_days if grand_total_days > 0 else ""
                 overall_pres_disp = grand_present_days if grand_total_days > 0 else ""
                 
-                # Attendance Matrix Rendering
-                html_att = f"""
+                card_html_payload += f"""
                 <table class="doc-data-table" style="font-size: 13px; margin-bottom: 25px;">
                     <thead>
                         <tr>
@@ -749,13 +747,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     </tbody>
                 </table>
                 """
-                st.markdown(html_att, unsafe_allow_html=True)
                 
                 is_last_index = (idx == total_records_count - 1)
                 page_break_class = "" if is_last_index else "print-page-break-divider"
                 
-                # Remarks & Signatures Row Block
-                st.markdown(f"""
+                # Remarks & Signatures Row Block append
+                card_html_payload += f"""
                     <table class="footer-signatures-table">
                         <tr>
                             <td style="text-align: left; width: 65%; font-size: 16px; vertical-align: bottom;">
@@ -768,7 +765,10 @@ elif menu_choice == "🪪 Student Result Cards":
                     </table>
                 </div>
                 <div class="{page_break_class}"></div>
-                """, unsafe_allow_html=True)
+                """
+                
+                # RENDER FULL CARD CONTENT VIA SINGLE INTAKE CALL
+                st.markdown(card_html_payload, unsafe_allow_html=True)
 
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
