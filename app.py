@@ -1365,3 +1365,269 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
+            # --- AUTOMATIC INTEGRATION OF TEACHER MANAGEMENT ---
+# This safely forces the new option into your existing menu choices layout
+if 'menu_choice' in locals() or 'menu_choice' in globals():
+    pass 
+
+# Check if the user is a controller or teacher to show this feature
+if st.session_state.get('logged_in', False):
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🏫 Faculty Actions")
+    if st.sidebar.button("👨‍🏫 Open Teacher Management"):
+        st.session_state['menu_choice'] = "👨‍🏫 Teacher Management"
+        st.rerun()
+
+if st.session_state.get('menu_choice') == "👨‍🏫 Teacher Management":
+    st.title("👨‍🏫 Teacher Allocation & Performance Engine")
+    
+    current_user = st.session_state.username
+    current_role = st.session_state.get('role', 'teacher')
+    
+    if current_role == 'controller':
+        menu_options = ["Subject Allocations", "Teacher Marks Portal", "Teacher Analysis", "Discipline Analysis"]
+    else:
+        menu_options = ["Teacher Marks Portal", "Teacher Analysis"]
+        
+    sub_menu = st.sidebar.radio("Navigate Module:", menu_options)
+
+    # ---------------------------------------------------------
+    # SUB-MODULE A: SUBJECT ALLOCATIONS (CONTROLLER ONLY)
+    # ---------------------------------------------------------
+    if sub_menu == "Subject Allocations" and current_role == 'controller':
+        st.subheader("🔗 Allocate Subjects & Sections to Registered Faculty")
+        
+        teachers_df = run_query("SELECT id, username FROM app_users WHERE role = 'teacher' ORDER BY username ASC")
+        
+        if not teachers_df.empty:
+            t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
+            
+            col_a1, col_a2, col_a3 = st.columns(3)
+            with col_a1: selected_t = st.selectbox("Select Teacher Account:", options=list(t_options.keys()))
+            with col_a2: 
+                all_subs = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
+                selected_sub = st.selectbox("Select Subject:", options=all_subs)
+            with col_a3:
+                all_secs = sorted(list(set([sec for secs in DISCIPLINE_SECTIONS_MAP.values() for sec in secs])))
+                selected_sec = st.selectbox("Assign Section:", options=all_secs)
+                
+            if st.button("🔒 Authorize Data Entry Rights"):
+                target_user_id = int(t_options[selected_t])
+                
+                check_dup = run_query("""
+                    SELECT id FROM allocations 
+                    WHERE user_id = :uid AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
+                """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
+                
+                if check_dup.empty:
+                    execute_db_command("""
+                        INSERT INTO allocations (user_id, subject, section) 
+                        VALUES (:uid, :sub, :sec)
+                    """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
+                    st.success(f"Access granted! {selected_t} can now manage {selected_sub} in Section {selected_sec}.")
+                    st.rerun()
+                else:
+                    st.warning("This allocation already exists.")
+                    
+            st.markdown("---")
+            st.write("#### Active Institutional Rights Log")
+            alloc_log = run_query("""
+                SELECT a.id, u.username as teacher, a.subject, a.section 
+                FROM allocations a
+                JOIN app_users u ON a.user_id = u.id
+                ORDER BY u.username ASC
+            """)
+            if not alloc_log.empty:
+                st.dataframe(alloc_log, use_container_width=True)
+        else:
+            st.info("No users with the role 'teacher' found in app_users.")
+
+    # ---------------------------------------------------------
+    # SUB-MODULE B: SECURED MARKS PORTAL
+    # ---------------------------------------------------------
+    elif sub_menu == "Teacher Marks Portal":
+        st.subheader("🔑 Secure Faculty Data Input Gateway")
+        
+        if current_role == 'controller':
+            teachers_df = run_query("SELECT id, username FROM app_users WHERE role = 'teacher' ORDER BY username ASC")
+            if not teachers_df.empty:
+                t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
+                active_teacher = st.selectbox("View Portal As Teacher:", options=list(t_options.keys()))
+                uid = int(t_options[active_teacher])
+            else:
+                st.info("No teachers available.")
+                st.stop()
+        else:
+            active_teacher = current_user
+            user_res = run_query("SELECT id FROM app_users WHERE username = :uname", {"uname": active_teacher})
+            uid = int(user_res['id'].iloc[0])
+            st.info(f"Logged in securely as: **{active_teacher}**")
+            
+        my_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": uid})
+        
+        if not my_rights.empty:
+            col_m1, col_m2 = st.columns(2)
+            with col_m1: 
+                allocated_subs = my_rights['subject'].unique()
+                sel_sub = st.selectbox("Your Assigned Subjects:", options=allocated_subs)
+            with col_m2:
+                allocated_secs = my_rights[my_rights['subject'] == sel_sub]['section'].unique()
+                sel_sec = st.selectbox("Your Assigned Sections:", options=allocated_secs)
+            
+            sel_exam = st.selectbox("Target Assessment Term Type:", options=AVAILABLE_EXAMS)
+            
+            students = run_query("SELECT id, name FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec)) ORDER BY id ASC", {"sec": sel_sec})
+            
+            if not students.empty:
+                st.info(f"Displaying Roster Table for {sel_sub} — Section: {sel_sec}")
+                
+                marks_data = []
+                for _, s_row in students.iterrows():
+                    sid = s_row['id']
+                    sname = s_row['name']
+                    
+                    existing = run_query("""
+                        SELECT marks_obtained, total_marks FROM marks 
+                        WHERE student_id = :sid AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND exam_type = :exam
+                    """, {"sid": sid, "sub": sel_sub, "exam": sel_exam})
+                    
+                    val_fill = "0"
+                    tot_fill = 100
+                    if not existing.empty:
+                        val_fill = str(existing['marks_obtained'].iloc[0])
+                        tot_fill = int(existing['total_marks'].iloc[0])
+                        
+                    c_left, c_right = st.columns([3, 1])
+                    with c_left: m_val = st.text_input(f"ID {sid} — {sname}:", value=val_fill, key=f"m_{sid}_{sel_sub}")
+                    with c_right: t_val = st.number_input("Total Max:", min_value=10, max_value=200, value=tot_fill, key=f"t_{sid}_{sel_sub}")
+                    
+                    marks_data.append({"sid": sid, "obtained": m_val, "total": t_val})
+                    
+                if st.button("🎯 Finalize & Commit Marks Values"):
+                    for record in marks_data:
+                        execute_db_command("""
+                            DELETE FROM marks WHERE student_id = :sid 
+                            AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND exam_type = :exam
+                        """, {"sid": record['sid'], "sub": sel_sub, "exam": sel_exam})
+                        
+                        execute_db_command("""
+                            INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
+                            VALUES (:sid, :sub, :exam, :obt, :tot)
+                        """, {"sid": record['sid'], "sub": sel_sub, "exam": sel_exam, "obt": record['obtained'].strip().upper(), "tot": record['total']})
+                    st.success("Assessment marks record updated securely!")
+            else:
+                st.error("No students found in this section.")
+        else:
+            st.warning("🚨 No subject assignments have been allocated to this account yet.")
+
+    # ---------------------------------------------------------
+    # SUB-MODULE C: TEACHER ANALYSIS
+    # ---------------------------------------------------------
+    elif sub_menu == "Teacher Analysis":
+        st.subheader("📊 Performance Evaluation by Instructor")
+        
+        if current_role == 'controller':
+            teachers_df = run_query("SELECT id, username FROM app_users WHERE role = 'teacher' ORDER BY username ASC")
+            if not teachers_df.empty:
+                t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
+                selected_t = st.selectbox("Select Teacher Account to Analyze:", options=list(t_options.keys()))
+                uid = int(t_options[selected_t])
+            else:
+                st.stop()
+        else:
+            selected_t = current_user
+            user_res = run_query("SELECT id FROM app_users WHERE username = :uname", {"uname": selected_t })
+            uid = int(user_res['id'].iloc[0])
+            
+        allocations = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": uid})
+        
+        if not allocations.empty:
+            summary_metrics = []
+            for _, a_row in allocations.iterrows():
+                sub = a_row['subject']
+                sec = a_row['section']
+                
+                performance_data = run_query("""
+                    SELECT m.marks_obtained, m.total_marks FROM marks m
+                    JOIN students s ON m.student_id = s.id
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                    AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:sub))
+                """, {"sec": sec, "sub": sub})
+                
+                if not performance_data.empty:
+                    performance_data['num_obt'] = pd.to_numeric(performance_data['marks_obtained'], errors='coerce')
+                    valid_scores = performance_data.dropna(subset=['num_obt'])
+                    
+                    if not valid_scores.empty:
+                        avg_pct = (valid_scores['num_obt'].sum() / valid_scores['total_marks'].sum()) * 100
+                        pass_count = sum(valid_scores['num_obt'] >= (valid_scores['total_marks'] * 0.40))
+                        pass_ratio = (pass_count / len(valid_scores)) * 100
+                        
+                        summary_metrics.append({
+                            "Subject Class": sub,
+                            "Section Group": sec,
+                            "Evaluated Count": len(valid_scores),
+                            "Average Score": f"{avg_pct:.1f}%",
+                            "Passing KPI Rate": f"{pass_ratio:.1f}%"
+                        })
+                        
+            if summary_metrics:
+                st.write(f"#### Class Metrics Managed by {selected_t}")
+                st.table(pd.DataFrame(summary_metrics))
+            else:
+                st.info("No marks records found for this instructor's classes.")
+        else:
+            st.warning("This profile holds no active class assignments.")
+
+    # ---------------------------------------------------------
+    # SUB-MODULE D: DISCIPLINE ANALYSIS
+    # ---------------------------------------------------------
+    elif sub_menu == "Discipline Analysis" and current_role == 'controller':
+        st.subheader("🏢 High-Level Discipline Stream Overview")
+        
+        exam_term = st.selectbox("Select Academic Term Focus:", options=AVAILABLE_EXAMS)
+        
+        discipline_summary = []
+        for disc_name, subjects in DISCIPLINE_SUBJECTS_MAP.items():
+            sections = DISCIPLINE_SECTIONS_MAP.get(disc_name, [])
+            
+            if sections:
+                sec_placeholders = ",".join([f"'{s.upper().strip()}'" for s in sections])
+                sub_placeholders = ",".join([f"'{sub.upper().strip()}'" for sub in subjects])
+                
+                query_str = f"""
+                    SELECT m.marks_obtained, m.total_marks FROM marks m
+                    JOIN students s ON m.student_id = s.id
+                    WHERE UPPER(TRIM(s.section)) IN ({sec_placeholders})
+                    AND UPPER(TRIM(m.subject)) IN ({sub_placeholders})
+                    AND m.exam_type = :exam
+                """
+                
+                disc_data = run_query(query_str, {"exam": exam_term})
+                
+                if not disc_data.empty:
+                    disc_data['num_obt'] = pd.to_numeric(disc_data['marks_obtained'], errors='coerce')
+                    valid_disc_scores = disc_data.dropna(subset=['num_obt'])
+                    
+                    if not valid_disc_scores.empty:
+                        avg_disc_pct = (valid_disc_scores['num_obt'].sum() / valid_disc_scores['total_marks'].sum()) * 100
+                        disc_pass = sum(valid_disc_scores['num_obt'] >= (valid_disc_scores['total_marks'] * 0.40))
+                        disc_pass_ratio = (disc_pass / len(valid_disc_scores)) * 100
+                        
+                        discipline_summary.append({
+                            "Academic Stream": disc_name,
+                            "Total Checked Scripts": len(valid_disc_scores),
+                            "Mean Score": f"{avg_disc_pct:.1f}%",
+                            "Overall Pass Percentage": f"{disc_pass_ratio:.1f}%"
+                        })
+                        
+        if discipline_summary:
+            st.write(f"### Comparative Stream Standings — {exam_term}")
+            st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
+            
+            for item in discipline_summary:
+                val_raw = float(item['Mean Score'].replace('%',''))
+                st.write(f"**{item['Academic Stream']}** ({item['Mean Score']})")
+                st.progress(val_raw / 100.0)
+        else:
+            st.info("No data points recorded for this term.")
