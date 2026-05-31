@@ -413,7 +413,14 @@ elif menu_choice == "🪪 Student Result Cards":
                 
 for idx, student_row in students_to_print.iterrows():
             logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+for idx, student_row in students_to_print.iterrows():
+            logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
             
+            # Reset grand totals for this student card
+            grand_total_marks = 0.0
+            grand_obtained_marks = 0.0
+            
+            compiled_html += f"""            
             # Reset grand totals for this student card
             grand_total_marks = 0.0
             grand_obtained_marks = 0.0
