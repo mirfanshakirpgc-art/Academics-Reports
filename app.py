@@ -571,11 +571,9 @@ elif menu_choice == "📈 Multi-Test Progress Report":
 
         # Dynamic Schema Adaptation Layer for 'marks'
         try:
-            # Step A: Find out exactly what columns exist in the 'marks' table
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns]
             
-            # Pick whichever structural name variant exists
             sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else cols_marks[min(1, len(cols_marks)-1)])
             exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
             obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
@@ -591,13 +589,12 @@ elif menu_choice == "📈 Multi-Test Progress Report":
 
         # Dynamic Schema Adaptation Layer for 'attendance'
         try:
-            # Find out exactly what columns exist in the 'attendance' table
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns]
             
             month_col = "month_name" if "month_name" in cols_att else ("month" if "month" in cols_att else "month_name")
             tot_days_col = "total_days" if "total_days" in cols_att else "total_days"
-            # Fallbacks: checks attended_days, present_days, present, or attended count variants
+            
             att_days_col = "attended_days"
             for variant in ["attended_days", "present_days", "present", "attended"]:
                 if variant in cols_att:
@@ -615,12 +612,18 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         st.write("---")
         
         for s_meta in students_to_process:
-            s_id = s_meta["id"]
-            s_name = s_meta["name"]
-            s_section = s_meta["section"] if s_meta.get("section") else rendered_section
+            s_id = str(s_meta["id"]).strip()
+            
+            # CRITICAL LAYOUT FIX: Sanitize name inputs by removing internal newlines and clean double spaces
+            raw_name = str(s_meta["name"])
+            s_name = " ".join(raw_name.replace("\n", " ").split())
+            
+            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
+            s_section = " ".join(raw_section.replace("\n", " ").split())
+            
             s_class = rendered_discipline 
             
-            match_id = int(s_id) if str(s_id).isdigit() else s_id
+            match_id = int(s_id) if s_id.isdigit() else s_id
             
             # --- MARKS CARD MATRIX PROCESSING ---
             if not marks_df.empty:
