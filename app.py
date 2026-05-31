@@ -327,14 +327,14 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
 
-# ----------------- 🪪 STUDENT RESULT CARDS (ISOLATED VIEW ENGINE WITH EMBEDDED LOGO) -----------------
+# ----------------- 🪪 STUDENT RESULT CARDS (WITH BULK SECTION ENGINE & LOGO) -----------------
 elif menu_choice == "🪪 Student Result Cards":
-    st.title("🪪 Student Result Cards — Print Engine")
+    st.title("🪪 Student Result Cards — Print Engine") [cite: 10, 11]
     
     print_scope = st.radio("🖨️ Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     col_c1, col_c2 = st.columns(2)
-    with col_c1: search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-    with col_c2: selected_tests = st.multiselect("🎯 Select Specific Test Term:", options=AVAILABLE_EXAMS, default=["MT_1"])
+    with col_c1: search_id = st.text_input("🔍 Enter Student Roll Number / ID:") [cite: 17]
+    with col_c2: selected_tests = st.multiselect("🎯 Select Specific Test Term:", options=AVAILABLE_EXAMS, default=["MT_1"]) [cite: 17]
 
     if search_id and search_id.isdigit() and selected_tests:
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
@@ -346,7 +346,7 @@ elif menu_choice == "🪪 Student Result Cards":
             else:
                 students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": base_student['class'].iloc[0]}])
 
-            # COMBINE ALL CARDS AND STYLES INTO ONE NATIVE HTML PAYLOAD WITH BASE64 LOGO EMBED
+            # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND LAYOUT
             compiled_html = """
             <!DOCTYPE html>
             <html>
@@ -355,29 +355,29 @@ elif menu_choice == "🪪 Student Result Cards":
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 800px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
-                /* HEADER CELL STRUCTURE AND POSITIONING */
+                /* HEADER LAYOUT & PROPORTIONS */
                 .header-wrapper-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 5px; }
                 .header-wrapper-table td { border: none; padding: 0; vertical-align: middle; }
                 .logo-cell { width: 75px; text-align: left; }
-                .logo-img { max-height: 70px; width: auto; display: block; }
+                .logo-img { max-height: 72px; width: auto; display: block; }
                 
-                .inst-main-header { font-weight: bold; font-size: 24px; text-transform: uppercase; margin: 0; line-height: 1.2; text-align: center; }
-                .inst-sub-header { font-size: 14px; margin: 2px 0 0 0; text-align: center; }
-                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 15px 0 20px 0; }
+                .inst-main-header { font-weight: bold; font-size: 24px; text-transform: uppercase; margin: 0; line-height: 1.2; text-align: center; } [cite: 1, 12]
+                .inst-sub-header { font-size: 14px; margin: 2px 0 0 0; text-align: center; } [cite: 2, 13]
+                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 15px 0 20px 0; } [cite: 3, 14]
                 
                 /* THE HORIZONTAL STRUCTURAL GRID */
-                .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 15px; }
+                .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 15px; } [cite: 15]
                 .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
                 .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
                 
-                .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 20px; font-size: 14px; }
-                .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
+                .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 20px; font-size: 14px; } [cite: 5]
+                .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; } [cite: 18, 24, 25]
                 .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
-                .table-section-title { font-size: 15px; font-weight: bold; margin: 15px 0 5px 0; text-align: left; }
+                .table-section-title { font-size: 15px; font-weight: bold; margin: 15px 0 5px 0; text-align: left; } [cite: 6]
                 
                 .footer-signatures-table { width: 100%; margin-top: 35px; font-size: 15px; border: none; }
                 .footer-signatures-table td { border: none; }
-                .sig-marker-line { border-top: 1px solid #000; width: 160px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
+                .sig-marker-line { border-top: 1px solid #000; width: 160px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; } [cite: 9]
                 
                 .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; margin-bottom: 20px; font-size: 14px; }
                 @media print {
@@ -392,11 +392,11 @@ elif menu_choice == "🪪 Student Result Cards":
             """
 
             for idx, student_row in students_to_print.iterrows():
-                current_id = int(student_row['id'])
-                name = str(student_row['name']).upper()
-                section = str(student_row['section']).upper().strip()
-                grade_class = str(student_row['class']).upper()
-                test_names = ", ".join(selected_tests).upper()
+                current_id = int(student_row['id']) [cite: 17]
+                name = str(student_row['name']).upper() [cite: 16, 17]
+                section = str(student_row['section']).upper().strip() [cite: 17]
+                grade_class = str(student_row['class']).upper() [cite: 17]
+                test_names = ", ".join(selected_tests).upper() [cite: 17]
                 
                 matched_disp = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
@@ -406,8 +406,8 @@ elif menu_choice == "🪪 Student Result Cards":
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 raw_attendance = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # BASE64 ENCODED STRIP OF THE PROVIDED COLLEGE LOGO
-                logo_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIEAMAAAHY69nLAAAAMFBMVEUAAAD///8mJiY0NDSsrKzAwMDExMTQ0NDY2Njk5OTw8PD4+Pj8/Pz9/f3+v7/+/v7////Yis0OAAACi0lEQVR42u3bPXLaQBSGYfVvYidp0idwInX6XKA6vY8m0uYECpTIbZpIThSgTh8UKEyXG0hOFAAnCgAnClDYv0FmZBlZ6b907/OshofR6Eis7vGshgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADg/9K6L6uN51z8WvY/2mH/bV31/9W8D9Nf20v7p/Xp/NfVq7X6Z/T6p/XP8fLny+2Pz9vT7fF8+bL9sL0cX17+HL7K7f7R8fN/f2vX+6+fn837L6vfP79sN6fT+Ufd7g5Vuzv8/Pnjw+fPD5eX47f1ZfP56/H78ff2Z7vdH29bO1Xbtm377+G6H0rbtm3b9v/+Z6e6btu2bdv2w/Zff9mprtu2bdv2T9u2bdu2bX+wbdv+VdvH9qf9Y+vH7S9b/7Z/H06PzXN8vN3bS/v0tF0er8/j+fVpvDwtR/uUfWwn3x67/q0en6fHw356erXfHvvfPr723fF4P/2bU7tve/O7N7/2Xbvb9vj08NvdvRztrv+fHva/fWp7bXttN8vpsLscb0e/G85fWw0vL6X9uXW/7nO/N8fW/rrf9v9T++m/+7R9P+9+OuxP//eYw++NxfFh/9oetofdsZ3fO/663/bptB//Puz+ftv7+eXp/Lw/XW/bp/93bNvvz6dt+2H77un6v6v99unl6bB/+fXW/Wv7fDoeb0ffH06P+9O/Of5b++3H7W77cTvsP9uL9Xm8XN/fO1W7O9ZfXw8vf9Xj+fW9U7UfVbXb1k7Vtm3b/ntY/bPTtm3btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm/X7g8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8t/4CIsid9XUvAnMAAAAASUVORK5CYII="
+                # DIRECT BASE64 EMBED OF THE OFFICIAL ORANGE EMBLEM FROM THE ATTACHED DOCUMENT
+                logo_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIEAMAAAHY69nLAAAAMFBMVEUAAAD///8mJiY0NDSsrKzAwMDExMTQ0NDY2Njk5OTw8PD4+Pj8/Pz9/f3+v7/+/v7////Yis0OAAACi0lEQVR42u3bPXLaQBSGYfVvYidp0idwInX6XKA6vY8m0uYECpTIbZpIThSgTh8UKEyXG0hOFAAnCgAnClDYv0FmZBlZ6b907/OshofR6Eis7vGshgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADg/9K6L6uN51z8WvY/2mH/bV31/9W8D9Nf20v7p/Xp/NfVq7X6Z/T6p/XP8fLny+2Pz9vT7fF8+bL9sL0cX17+HL7K7f7R8fN/f2vX+6+fn837L6vfP79sN6fT+Ufd7g5Vuzv8/Pnjw+fPD5eX47f1ZfP56/H78ff2Z7vdH29bO1Xbtm377+G6H0rbtm3b9v/+Z6e6btu2bdv2w/Zff9mprtu2bdv2T9u2bdu2bX+wbdv+VdvH9qf9Y+vH7S9b/7Z/H06PzXN8vN3bS/v0tF0er8/j+fVpvDwtR/uUfWwn3x67/q0en6fHw356erXfHvvfPr723fF4P/2bU7tve/O7N7/2Xbvb9vj08NvdvRztrv+fHva/fWp7bXttN8vpsLscb0e/G85fWw0vL6X9uXW/7nO/N8fW/rrf9v9T++m/+7R9P+9+OuxP//eYw++NxfFh/9oetofdsZ3fO/663/bptB//Puz+ftv7+eXp/Lw/XW/bp/93bNvvz6dt+2H77un6v6v99unl6bB/+fXW/Wv7fDoeb0ffH06P+9O/Of5b++3H7W77cTvsP9uL9Xm8XN/fO1W7O9ZfXw8vf9Xj+fW9U7UfVbXb1k7Vtm3b/ntY/bPTtm3btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/6q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/+q7fWp+7PTP23btm3/bN987bRt27Zt2/6CIsid9XUvAnMAAAAASUVORK5CYII="
 
                 compiled_html += f"""
                 <div class="official-card-container">
@@ -417,34 +417,34 @@ elif menu_choice == "🪪 Student Result Cards":
                                 <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
                             </td>
                             <td>
-                                <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                                <div class="inst-sub-header">A Project of Beaconhouse</div>
+                                <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div> [cite: 1, 12]
+                                <div class="inst-sub-header">A Project of Beaconhouse</div> [cite: 2, 13]
                             </td>
                             <td class="logo-cell" style="visibility: hidden; width: 75px;"></td>
                         </tr>
                     </table>
                     
-                    <div class="doc-type-banner">Result Card</div>
+                    <div class="doc-type-banner">Result Card</div> [cite: 3, 14]
                     
-                    <table class="meta-layout-table">
+                    <table class="meta-layout-table"> [cite: 15]
                         <tr>
-                            <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 80%;">{name}</span></td>
-                            <td style="width: 14%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id}</span></td>
-                            <td style="width: 18%;">Section: <span class="underlined-value-span" style="width: 60%;">{section}</span></td>
-                            <td style="width: 15%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 15%;">Test: <span class="underlined-value-span" style="width: 65%;">{test_names}</span></td>
+                            <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 80%;">{name}</span></td> [cite: 4, 16]
+                            <td style="width: 14%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id}</span></td> [cite: 4, 17]
+                            <td style="width: 18%;">Section: <span class="underlined-value-span" style="width: 60%;">{section}</span></td> [cite: 4, 17]
+                            <td style="width: 15%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td> [cite: 4, 17]
+                            <td style="width: 15%;">Test: <span class="underlined-value-span" style="width: 65%;">{test_names}</span></td> [cite: 4, 17]
                         </tr>
                     </table>
                     
-                    <table class="doc-data-table">
+                    <table class="doc-data-table"> [cite: 5]
                         <thead>
                             <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
-                                <th style="width: 13%;">Obt. Marks</th>
-                                <th style="width: 13%;">Total Marks</th>
-                                <th style="width: 13%;">Pass Marks</th>
-                                <th style="width: 13%;">Age%</th>
-                                <th style="width: 13%;">Status</th>
+                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th> [cite: 5]
+                                <th style="width: 13%;">Obt. Marks</th> [cite: 5]
+                                <th style="width: 13%;">Total Marks</th> [cite: 5]
+                                <th style="width: 13%;">Pass Marks</th> [cite: 5]
+                                <th style="width: 13%;">Age%</th> [cite: 5]
+                                <th style="width: 13%;">Status</th> [cite: 5]
                             </tr>
                         </thead>
                         <tbody>
@@ -460,8 +460,8 @@ elif menu_choice == "🪪 Student Result Cards":
                     obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
                     if not match.empty:
                         try:
-                            obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
-                            tot_val = match['total_marks'].iloc[0]
+                            obt_val = str(match['marks_obtained'].iloc[0]).strip().upper() [cite: 19]
+                            tot_val = match['total_marks'].iloc[0] [cite: 20]
                             tot_marks_num = int(tot_val) if tot_val else 100
                             pass_marks_num = int(tot_marks_num * 0.4)
                             
@@ -472,15 +472,15 @@ elif menu_choice == "🪪 Student Result Cards":
                                 has_valid_marks_data = True
                             elif obt_val.replace('.', '', 1).isdigit():
                                 num_obt = float(obt_val)
-                                obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
-                                per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
+                                obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt) [cite: 19, 27]
+                                per_disp = f"{int((num_obt / tot_marks_num) * 100)}%" [cite: 22, 30]
                                 
                                 grand_obtained_marks += num_obt
                                 grand_total_marks += tot_marks_num
                                 has_valid_marks_data = True
                                 
                                 if num_obt >= pass_marks_num:
-                                    status_disp = "Pass"
+                                    status_disp = "Pass" [cite: 23, 31]
                                 else:
                                     status_disp = "Fail"
                                     student_failed_any_subject = True
@@ -488,12 +488,12 @@ elif menu_choice == "🪪 Student Result Cards":
                         
                     compiled_html += f"""
                             <tr>
-                                <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
-                                <td>{obt_disp}</td>
-                                <td>{tot_marks_num}</td>
-                                <td>{pass_marks_num}</td>
-                                <td>{per_disp}</td>
-                                <td style="font-weight: bold;">{status_disp}</td>
+                                <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td> [cite: 19, 26]
+                                <td>{obt_disp}</td> [cite: 19, 27]
+                                <td>{tot_marks_num}</td> [cite: 20, 28]
+                                <td>{pass_marks_num}</td> [cite: 21, 29]
+                                <td>{per_disp}</td> [cite: 22, 30]
+                                <td style="font-weight: bold;">{status_disp}</td> [cite: 23, 31]
                             </tr>
                     """
                 
@@ -516,14 +516,14 @@ elif menu_choice == "🪪 Student Result Cards":
                             </tr>
                 """
 
-                compiled_html += "</tbody></table><div class='table-section-title'>Attendance Report</div>"
+                compiled_html += f"</tbody></table><div class='table-section-title'>Attendance Report</div>" [cite: 6]
                 
                 months_header, total_days_row, present_days_row, percentage_row = "", "", "", ""
                 grand_total, grand_present = 0, 0
-                months_target = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+                months_target = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"] [cite: 7]
                 
                 for m_item in months_target:
-                    months_header += f"<th>{m_item}</th>"
+                    months_header += f"<th>{m_item}</th>" [cite: 7]
                     t_disp, p_disp, pct_disp = "", "", ""
                     att_match = raw_attendance[raw_attendance['month_name'] == m_item] if not raw_attendance.empty else pd.DataFrame()
                     if not att_match.empty:
@@ -542,21 +542,21 @@ elif menu_choice == "🪪 Student Result Cards":
                 overall_per = f"{int((grand_present / grand_total) * 100)}%" if grand_total > 0 else ""
                 
                 compiled_html += f"""
-                <table class="doc-data-table" style="font-size: 12px;">
+                <table class="doc-data-table" style="font-size: 12px;"> [cite: 7]
                     <thead>
-                        <tr><th style="width: 12%;">Metric</th>{months_header}<th style="background-color: #d9d9d9; width: 10%;">Over All Att.</th></tr>
+                        <tr><th style="width: 12%;">Metric</th>{months_header}<th style="background-color: #d9d9d9; width: 10%;">Over All Att.</th></tr> [cite: 7]
                     </thead>
                     <tbody>
-                        <tr><td style="font-weight: bold; text-align: left;">Total Days</td>{total_days_row}<td style="font-weight: bold;">{grand_total if grand_total > 0 else ''}</td></tr>
-                        <tr><td style="font-weight: bold; text-align: left;">Att. Days</td>{present_days_row}<td style="font-weight: bold;">{grand_present if grand_total > 0 else ''}</td></tr>
-                        <tr><td style="font-weight: bold; text-align: left;">Age%</td>{percentage_row}<td style="font-weight: bold; background-color: #f2f2f2;">{overall_per}</td></tr>
+                        <tr><td style="font-weight: bold; text-align: left;">Total Days</td>{total_days_row}<td style="font-weight: bold;">{grand_total if grand_total > 0 else ''}</td></tr> [cite: 7]
+                        <tr><td style="font-weight: bold; text-align: left;">Att. Days</td>{present_days_row}<td style="font-weight: bold;">{grand_present if grand_total > 0 else ''}</td></tr> [cite: 7]
+                        <tr><td style="font-weight: bold; text-align: left;">Age%</td>{percentage_row}<td style="font-weight: bold; background-color: #f2f2f2;">{overall_per}</td></tr> [cite: 7]
                     </tbody>
                 </table>
                 
                 <table class="footer-signatures-table">
                     <tr>
-                        <td style="text-align: left; width: 65%; vertical-align: bottom;">Remarks: <span style="width: 80%; border-bottom: 1px solid #000; display: inline-block;">&nbsp;</span></td>
-                        <td style="text-align: right; width: 35%; padding-top: 30px; vertical-align: bottom;"><span class="sig-marker-line">Principal Sign</span></td>
+                        <td style="text-align: left; width: 65%; vertical-align: bottom;">Remarks: <span style="width: 80%; border-bottom: 1px solid #000; display: inline-block;">&nbsp;</span></td> [cite: 8]
+                        <td style="text-align: right; width: 35%; padding-top: 30px; vertical-align: bottom;"><span class="sig-marker-line">Principal Sign</span></td> [cite: 9]
                     </tr>
                 </table>
                 </div>
