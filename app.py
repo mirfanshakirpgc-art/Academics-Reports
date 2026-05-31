@@ -334,7 +334,7 @@ import base64
 import os
 
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
-elif menu_choice == "📈 Multi-Test Progress Report":
+if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
 
@@ -347,30 +347,27 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         </style>
     """, unsafe_allow_html=True)
 
-    # --- NEW: LOGO BASE64 ENCODER ENGINE ---
+    # --- LOGO BASE64 ENCODER ENGINE ---
     logo_base64 = ""
-    # Change "logo.png" to match your exact logo filename and extension (e.g., "college_logo.jpg")
     logo_filename = "logo.png" 
     
     if os.path.exists(logo_filename):
         with open(logo_filename, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
-            # Automatically detect extension type for the data header
             ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
             if ext == "jpg": ext = "jpeg"
             logo_base64 = f"data:image/{ext};base64,{encoded_string}"
     else:
-        # Fallback text style if the image file is missing on disk
         st.warning(f"⚠️ Logo file '{logo_filename}' not found on disk. Falling back to text logo header.")
 
-    # --- 0. EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
+    # --- EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
     all_frameworks = [
         "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
         "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
         "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
     ]
 
-    # --- 1. DYNAMIC CONTROLS INTERFACE PANEL ---
+    # --- DYNAMIC CONTROLS INTERFACE PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
     scope_choice = st.radio(
@@ -453,7 +450,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 2. DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
+    # --- DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
     if students_to_process and not selected_exams_list:
         st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
         
@@ -590,7 +587,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             object-fit: contain;
         }}
         
-        /* Fallback text block style if logo is not loaded */
         .cck-logo-fallback-text {{
             background-color: #e67e22;
             color: #ffffff;
@@ -850,7 +846,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
 
-            # Condition target display element dynamically based on whether base64 logo image parsed successfully
             if logo_base64:
                 logo_element_markup = f'<img class="cck-logo-image" src="{logo_base64}" alt="College Logo" />'
             else:
@@ -1005,7 +1000,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         
-        import streamlit.components.v1 as components
         dynamic_height = 1250 if len(students_to_process) == 1 else min(1150 * len(students_to_process), 9500)
         components.html(composite_html_payload, height=dynamic_height, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
