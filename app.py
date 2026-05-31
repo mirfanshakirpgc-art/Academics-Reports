@@ -131,9 +131,7 @@ AVAILABLE_EXAMS = [
 ]
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 
-# ==========================================================
-# 📊 HOME DASHBOARD
-# ==========================================================
+# ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
     st.title("Concordia Colleges, Kasur")
     try:
@@ -145,9 +143,7 @@ if menu_choice == "📊 Home Dashboard":
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
 
-# ==========================================================
-# ➕ ADD STUDENTS
-# ==========================================================
+# ----------------- ➕ ADD STUDENTS -----------------
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     import_template = pd.DataFrame([{"ID": "", "Full Name": "", "Section": "", "Class": "11th"} for _ in range(35)])
@@ -168,9 +164,7 @@ elif menu_choice == "➕ Add Students":
                 added_counter += 1
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
-# ==========================================================
-# 📝 ENTER MARKS & ATTENDANCE
-# ==========================================================
+# ----------------- 📝 ENTER MARKS & ATTENDANCE -----------------
 elif menu_choice == "📝 Enter Marks & Attendance":
     st.title("📝 Data Intake Management Dashboard")
     sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
@@ -298,9 +292,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.success("🎉 Section Attendance saved successfully!")
                         st.rerun()
 
-# ==========================================================
-# 📋 SECTION SUMMARY REPORT
-# ==========================================================
+# ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
     col_a, col_b, col_c = st.columns(3)
     with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
@@ -339,9 +331,7 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
 
-# ==========================================================
-# 🪪 STUDENT RESULT CARDS (With Remarks & CSS Fixes)
-# ==========================================================
+# ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
@@ -376,9 +366,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
                 .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
-                
-                /* 1. HIGHLIGHTED "RESULT CARD" BANNER */
-                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; background-color: #f2f2f2; padding: 8px; border: 1px solid #000; }
+                .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
                 
                 /* THE HORIZONTAL STRUCTURAL GRID */
                 .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
@@ -387,20 +375,14 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
                 .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-                .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
-                
-                /* 2. HIGHLIGHTED SUBJECTS COLUMN CELL */
-                .subject-cell { text-align: left; font-weight: bold; padding-left: 10px; background-color: #f9f9f9; }
-                
-                /* 3. HIGHLIGHTED GRAND TOTAL ROW */
-                .grand-total-row { background-color: #fff2cc !important; font-weight: bold; }
+                .doc-data-table th { font-weight: bold; background-color: #fff; }
                 
                 .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
                 
-                /* 4. HORIZONTAL ATTENDANCE LAYOUT WITH HIGHLIGHTED MONTHS ROW */
+                /* HORIZONTAL ATTENDANCE LAYOUT */
                 .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
                 .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
-                .attendance-matrix-table th { font-weight: bold; background-color: #f2f2f2; }
+                .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
                 .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
                 
                 .footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
@@ -435,6 +417,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
+                # Fetch full complete sequence ledger dataset for horizontal formatting table matrix reconstruction
                 db_att = run_query("""
                     SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
                     FROM attendance WHERE student_id = :id
@@ -455,6 +438,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     else:
                         att_cells[m] = {"td": "", "pd": "", "pct": ""}
                 
+                # Determine overall attendance percentage figure
                 attendance_percentage = 0.0
                 if tot_sum > 0:
                     attendance_percentage = (pres_sum / tot_sum) * 100
@@ -464,6 +448,7 @@ elif menu_choice == "🪪 Student Result Cards":
 
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
                 
+                # Reset grand totals for this student card
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 
@@ -476,7 +461,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                     </div>
                     
-                    <div class="doc-type-banner">Result Card</div>
+                    <div class="doc-type-banner"> Result Card</div>
                     
                     <table class="meta-layout-table">
                         <tr>
@@ -491,12 +476,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     <table class="doc-data-table">
                         <thead>
                             <tr>
-                                <th style="text-align: left; width: 30%; padding-left: 10px;">Subjects</th>
-                                <th style="width: 12%;">Obt. Marks</th>
-                                <th style="width: 12%;">Total Marks</th>
-                                <th style="width: 12%;">Pass Marks</th>
-                                <th style="width: 12%;">Age%</th>
-                                <th style="width: 22%;">Remarks</th>
+                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
+                                <th style="width: 13%;">Obt. Marks</th>
+                                <th style="width: 13%;">Total Marks</th>
+                                <th style="width: 13%;">Pass Marks</th>
+                                <th style="width: 13%;">Age%</th>
+                                <th style="width: 13%;">Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -507,7 +492,7 @@ elif menu_choice == "🪪 Student Result Cards":
 
                 for sub in subjects_list:
                     match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'] == selected_test)]
-                    obt_disp, tot_marks_num, pass_marks_num, per_disp, remarks_disp = "", "", "", "", ""
+                    obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
                     if not match.empty:
                         try:
                             obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
@@ -516,7 +501,7 @@ elif menu_choice == "🪪 Student Result Cards":
                             pass_marks_num = int(tot_marks_num * 0.4)
                             
                             if obt_val in ["A", "ABSENT"]:
-                                obt_disp, per_disp, remarks_disp = "A", "0%", "Absent / Fail"
+                                obt_disp, per_disp, status_disp = "A", "0%", "Fail"
                                 grand_total_marks += tot_marks_num
                                 student_failed_any_subject = True
                                 has_valid_marks_data = True
@@ -530,95 +515,111 @@ elif menu_choice == "🪪 Student Result Cards":
                                 has_valid_marks_data = True
                                 
                                 if num_obt >= pass_marks_num:
-                                    if (num_obt / tot_marks_num) >= 0.8:
-                                        remarks_disp = "Excellent"
-                                    elif (num_obt / tot_marks_num) >= 0.6:
-                                        remarks_disp = "Good"
-                                    else:
-                                        remarks_disp = "Fair / Pass"
+                                    status_disp = "Pass"
                                 else:
-                                    remarks_disp = "Fail"
+                                    status_disp = "Fail"
                                     student_failed_any_subject = True
                         except Exception: 
                             pass
                         
                     compiled_html += f"""
                             <tr>
-                                <td class="subject-cell">{sub}</td>
+                                <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
                                 <td>{obt_disp}</td>
                                 <td>{tot_marks_num if tot_marks_num else "-"}</td>
                                 <td>{pass_marks_num if pass_marks_num else "-"}</td>
                                 <td>{per_disp}</td>
-                                <td style="font-weight: bold;">{remarks_disp}</td>
+                                <td style="font-weight: bold;">{status_disp}</td>
                             </tr>
                     """
                 
+                # Grand Total calculation row
                 grand_per_disp = ""
-                grand_remarks_disp = ""
+                grand_status_disp = ""
                 if has_valid_marks_data and grand_total_marks > 0:
                     grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
-                    grand_remarks_disp = "Needs Improvement" if student_failed_any_subject else "Promoted / Pass"
+                    grand_status_disp = "Fail" if student_failed_any_subject else "Pass"
 
-                # Highlighted Grand Total Calculations Row
+                # --- ALGORITHMIC AUTOMATED REMARKS ENGINE ---
+                remarks_text = "No records found."
+                if has_valid_marks_data:
+                    if student_failed_any_subject:
+                        if tot_sum > 0 and attendance_percentage < 85.0:
+                            remarks_text = "Unsatisfactory academic status with critical attendance below acceptable 85% benchmark. Immediate improvement required."
+                        else:
+                            remarks_text = "Academic failure detected in one or more subjects. Needs focused remedial attention and harder work."
+                    else:
+                        grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
+                        
+                        if tot_sum > 0 and attendance_percentage < 85.0:
+                            remarks_text = f"Good academic performance ({grand_percentage:.0f}%), but attendance is short ({attendance_percentage:.0f}%). Needs to maintain minimum 85% attendance."
+                        else:
+                            if grand_percentage >= 80:
+                                remarks_text = "Excellent work! Exceptional academic progress and highly commendable attendance performance."
+                            elif grand_percentage >= 60:
+                                remarks_text = "Good overall performance. Capable of achieving higher results with consistent effort."
+                            else:
+                                remarks_text = "Fair performance. Has passed all subjects but possesses significant potential to increase scores."
+
                 compiled_html += f"""
-                            <tr class="grand-total-row">
+                            <tr style="background-color: #fff; font-weight: bold;">
                                 <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
                                 <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
                                 <td>{int(grand_total_marks)}</td>
                                 <td>-</td>
                                 <td>{grand_per_disp}</td>
-                                <td>{grand_remarks_disp}</td>
+                                <td>{grand_status_disp}</td>
                             </tr>
                         </tbody>
                     </table>
                     
-                    <div class="section-header-title">Attendance History Record</div>
+                    <div class="section-header-title">Attendance Report</div>
                     
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
-                                <th style="width: 12%;">Type Ledger</th>
-                """
-                
-                for m in AVAILABLE_MONTHS:
-                    compiled_html += f"<th>{m}</th>"
-                compiled_html += "<th>Over All Att.</th></tr></thead><tbody>"
-                
-                # Row 1: Total Days
-                compiled_html += "<tr><td class='row-title-cell'>Total Days</td>"
-                for m in AVAILABLE_MONTHS:
-                    compiled_html += f"<td>{att_cells[m]['td']}</td>"
-                compiled_html += f"<td style='font-weight:bold;'>{att_cells['Over All Att.']['td']}</td></tr>"
-                
-                # Row 2: Present Days
-                compiled_html += "<tr><td class='row-title-cell'>Present Days</td>"
-                for m in AVAILABLE_MONTHS:
-                    compiled_html += f"<td>{att_cells[m]['pd']}</td>"
-                compiled_html += f"<td style='font-weight:bold;'>{att_cells['Over All Att.']['pd']}</td></tr>"
-                
-                # Row 3: Percentage
-                compiled_html += "<tr><td class='row-title-cell'>Percentage</td>"
-                for m in AVAILABLE_MONTHS:
-                    compiled_html += f"<td>{att_cells[m]['pct']}</td>"
-                compiled_html += f"<td style='font-weight:bold; background-color:#fff2cc;'>{att_cells['Over All Att.']['pct']}</td></tr>"
-                
-                compiled_html += """
-                    </tbody>
+                                <th style="width: 12%;">Metric</th>
+                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
+                                <th style="width: 11%;">Over All Att.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="row-title-cell">Total Days</td>
+                                {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
+                                <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
+                            </tr>
+                            <tr>
+                                <td class="row-title-cell">Att. Days</td>
+                                {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
+                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
+                            </tr>
+                            <tr>
+                                <td class="row-title-cell">Age%</td>
+                                {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
+                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
+                            </tr>
+                        </tbody>
                     </table>
+                    
+                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">
+                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
+                    </div>
                     
                     <table class="footer-signatures-table">
                         <tr>
-                            <td style="width: 33.3%; text-align: left;"><span class="sig-marker-line">Class Teacher</span></td>
-                            <td style="width: 33.3%; text-align: center;"><span class="sig-marker-line">Controller of Exams</span></td>
-                            <td style="width: 33.3%; text-align: right;"><span class="sig-marker-line">Principal Signature</span></td>
+                            <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
+                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
                         </tr>
                     </table>
                 </div>
+                <div class="print-page-break-divider"></div>
                 """
-                if print_scope == "👥 Complete Section Cards" and idx < len(students_to_print) - 1:
-                    compiled_html += '<div class="print-page-break-divider"></div>'
-
-            compiled_html += "</body></html>"
+                
+            compiled_html += """
+            </body>
+            </html>
+            """
+            
+            # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-        else:
-            st.error("❌ This roll number does not exist.")
