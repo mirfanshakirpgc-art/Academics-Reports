@@ -420,13 +420,8 @@ for idx, student_row in students_to_print.iterrows():
             grand_total_marks = 0.0
             grand_obtained_marks = 0.0
             
-            compiled_html += f"""            
-            # Reset grand totals for this student card
-            grand_total_marks = 0.0
-            grand_obtained_marks = 0.0
-            
             compiled_html += f"""
-                <div class="official-card-container">
+            <div class="official-card-container">
                     <table class="header-wrapper-table">
                         <tr>
                             <td class="logo-cell">
