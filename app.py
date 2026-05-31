@@ -501,33 +501,29 @@ elif menu_choice == "🪪 Student Result Cards":
         .inst-sub-header { text-align: center; font-size: 15px; margin: 2px 0px 0px 0px; color: #000000; }
         .doc-type-banner { text-align: center; font-weight: bold; font-size: 20px; margin: 15px 0px 20px 0px; color: #000000; }
         
-        /* STRICT INLINE-FLEX MATRIX FOR METADATA LINE WITHOUT WRAPPING DISRUPTION */
-        .horizontal-meta-line { 
-            display: flex !important;
-            flex-flow: row wrap !important;
-            justify-content: flex-start !important;
-            align-items: flex-end !important;
-            width: 100% !important; 
-            margin-bottom: 25px !important; 
-            font-size: 16px !important; 
-            color: #000000 !important; 
+        /* INVISIBLE DATA CONTAINER TABLE (PREVENTS LINE BREAKS) */
+        .meta-layout-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: none !important;
+            margin-bottom: 25px !important;
+            font-size: 16px !important;
+            color: #000000 !important;
         }
-        .meta-field-item {
-            display: inline-flex !important;
-            align-items: flex-end !important;
-            margin-right: 18px !important;
+        .meta-layout-table td {
+            border: none !important;
+            padding: 0px 5px 0px 0px !important;
+            vertical-align: bottom !important;
             white-space: nowrap !important;
         }
-        .meta-label {
+        .meta-label-span {
             font-weight: normal !important;
-            margin-right: 4px !important;
         }
-        .fill-blank-text { 
-            border-bottom: 1px solid #000000 !important; 
-            font-weight: bold !important; 
-            padding: 0px 2px !important; 
-            text-transform: uppercase !important; 
-            text-align: left !important;
+        .underlined-value-span {
+            border-bottom: 1px solid #000000 !important;
+            font-weight: bold !important;
+            padding: 0px 4px !important;
+            text-transform: uppercase !important;
             display: inline-block !important;
         }
         
@@ -608,20 +604,22 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # --- ALL HEADER METADATA RENDERED TOGETHER INSIDE ONE SINGLE TEMPLATE ---
+                # --- AN INVISIBLE STRUCTURAL HTML TABLE DEFIES WRAPPING AND ENFORCES INLINE EXECUTION ---
                 card_html_payload = f"""
                 <div class="official-card-container">
                     <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                     <div class="inst-sub-header">A Project of Beaconhouse</div>
                     <div class="doc-type-banner">Result Card</div>
                     
-                    <div class="horizontal-meta-line">
-                        <div class="meta-field-item"><span class="meta-label">Name:</span><span class="fill-blank-text" style="width: 250px;">{name}</span></div>
-                        <div class="meta-field-item"><span class="meta-label">ID:</span><span class="fill-blank-text" style="width: 70px;">{current_id}</span></div>
-                        <div class="meta-field-item"><span class="meta-label">Section:</span><span class="fill-blank-text" style="width: 110px;">{section}</span></div>
-                        <div class="meta-field-item"><span class="meta-label">Class:</span><span class="fill-blank-text" style="width: 65px;">{grade_class}</span></div>
-                        <div class="meta-field-item"><span class="meta-label">Test:</span><span class="fill-blank-text" style="width: 95px;">{test_names}</span></div>
-                    </div>
+                    <table class="meta-layout-table">
+                        <tr>
+                            <td style="width: 40%;"><span class="meta-label-span">Name:</span><span class="underlined-value-span" style="width: 82%;">{name}</span></td>
+                            <td style="width: 13%;"><span class="meta-label-span">ID:</span><span class="underlined-value-span" style="width: 65%;">{current_id}</span></td>
+                            <td style="width: 18%;"><span class="meta-label-span">Section:</span><span class="underlined-value-span" style="width: 60%;">{section}</span></td>
+                            <td style="width: 14%;"><span class="meta-label-span">Class:</span><span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
+                            <td style="width: 15%;"><span class="meta-label-span">Test:</span><span class="underlined-value-span" style="width: 65%;">{test_names}</span></td>
+                        </tr>
+                    </table>
                 """
                 
                 # Table Body Build append
@@ -767,7 +765,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 <div class="{page_break_class}"></div>
                 """
                 
-                # RENDER FULL CARD CONTENT VIA SINGLE INTAKE CALL
+                # RENDER FULL CARD CONTENT VIA SINGLE CONTINUOUS INTAKE CALL
                 st.markdown(card_html_payload, unsafe_allow_html=True)
 
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
