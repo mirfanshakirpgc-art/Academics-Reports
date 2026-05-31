@@ -665,7 +665,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             padding-left: 8px;
         }}
         .cck-remarks-area {{
-            margin-top: 25px;
+            margin-top: 50px;
             font-size: 14px;
             display: flex;
             align-items: flex-end;
