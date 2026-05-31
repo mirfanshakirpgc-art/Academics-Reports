@@ -501,30 +501,30 @@ elif menu_choice == "🪪 Student Result Cards":
         .inst-sub-header { text-align: center; font-size: 15px; margin: 2px 0px 0px 0px; color: #000000; }
         .doc-type-banner { text-align: center; font-weight: bold; font-size: 20px; margin: 15px 0px 20px 0px; color: #000000; }
         
-        /* INVISIBLE DATA CONTAINER TABLE (PREVENTS LINE BREAKS) */
-        .meta-layout-table {
+        /* BULLETPROOF METADATA HORIZONTAL TEXT ELEMENT PANEL */
+        .meta-text-block-row {
             width: 100% !important;
-            border-collapse: collapse !important;
-            border: none !important;
             margin-bottom: 25px !important;
             font-size: 16px !important;
             color: #000000 !important;
+            text-align: left !important;
+            line-height: 1.6 !important;
         }
-        .meta-layout-table td {
-            border: none !important;
-            padding: 0px 5px 0px 0px !important;
-            vertical-align: bottom !important;
+        .meta-field-wrapper {
+            display: inline-block !important;
             white-space: nowrap !important;
+            margin-right: 15px !important;
         }
-        .meta-label-span {
+        .meta-label-txt {
             font-weight: normal !important;
         }
-        .underlined-value-span {
+        .meta-underlined-val {
             border-bottom: 1px solid #000000 !important;
             font-weight: bold !important;
             padding: 0px 4px !important;
             text-transform: uppercase !important;
             display: inline-block !important;
+            text-align: left !important;
         }
         
         .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 15px; }
@@ -604,23 +604,20 @@ elif menu_choice == "🪪 Student Result Cards":
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
-                # --- AN INVISIBLE STRUCTURAL HTML TABLE DEFIES WRAPPING AND ENFORCES INLINE EXECUTION ---
-                card_html_payload = f"""
-                <div class="official-card-container">
-                    <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                    <div class="inst-sub-header">A Project of Beaconhouse</div>
-                    <div class="doc-type-banner">Result Card</div>
-                    
-                    <table class="meta-layout-table">
-                        <tr>
-                            <td style="width: 40%;"><span class="meta-label-span">Name:</span><span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                            <td style="width: 13%;"><span class="meta-label-span">ID:</span><span class="underlined-value-span" style="width: 65%;">{current_id}</span></td>
-                            <td style="width: 18%;"><span class="meta-label-span">Section:</span><span class="underlined-value-span" style="width: 60%;">{section}</span></td>
-                            <td style="width: 14%;"><span class="meta-label-span">Class:</span><span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 15%;"><span class="meta-label-span">Test:</span><span class="underlined-value-span" style="width: 65%;">{test_names}</span></td>
-                        </tr>
-                    </table>
-                """
+                # --- STRIPPING ALL PYTHON F-STRING NEWLINES ENFORCES ABSOLUTE INLINE POSITIONING ---
+                card_html_payload = (
+                    f'<div class="official-card-container">'
+                    f'<div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>'
+                    f'<div class="inst-sub-header">A Project of Beaconhouse</div>'
+                    f'<div class="doc-type-banner">Result Card</div>'
+                    f'<div class="meta-text-block-row">'
+                    f'<div class="meta-field-wrapper"><span class="meta-label-txt">Name:</span><span class="meta-underlined-val" style="width:230px;">{name}</span></div>'
+                    f'<div class="meta-field-wrapper"><span class="meta-label-txt">ID:</span><span class="meta-underlined-val" style="width:75px;">{current_id}</span></div>'
+                    f'<div class="meta-field-wrapper"><span class="meta-label-txt">Section:</span><span class="meta-underlined-val" style="width:110px;">{section}</span></div>'
+                    f'<div class="meta-field-wrapper"><span class="meta-label-txt">Class:</span><span class="meta-underlined-val" style="width:65px;">{grade_class}</span></div>'
+                    f'<div class="meta-field-wrapper"><span class="meta-label-txt">Test:</span><span class="meta-underlined-val" style="width:100px;">{test_names}</span></div>'
+                    f'</div>'
+                )
                 
                 # Table Body Build append
                 card_html_payload += """
@@ -765,7 +762,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 <div class="{page_break_class}"></div>
                 """
                 
-                # RENDER FULL CARD CONTENT VIA SINGLE CONTINUOUS INTAKE CALL
+                # RENDER FULL CARD CONTENT VIA SINGLE CONTINUOUS INTAKE CALL WITH NO INTERMEDIATE PARSING
                 st.markdown(card_html_payload, unsafe_allow_html=True)
 
 # ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
