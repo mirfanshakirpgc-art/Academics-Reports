@@ -354,7 +354,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     if os.path.exists(logo_filename):
         with open(logo_filename, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(logo_filename)[1].replace(".", "").upper()
+            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
             if ext == "jpg": ext = "jpeg"
             logo_base64 = f"data:image/{ext};base64,{encoded_string}"
     else:
@@ -573,8 +573,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
         }}
         
         .cck-logo-image-container {{
-            width: 65px;
-            height: 65px;
+            width: 75px;
+            height: 75px;
             position: absolute;
             left: 20px;
             display: flex;
@@ -592,8 +592,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
             color: #ffffff;
             font-weight: bold;
             font-size: 22px;
-            width: 55px;
-            height: 55px;
+            width: 75px;
+            height: 75px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -606,7 +606,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         .cck-main-title {{
             font-size: 24px;
             font-weight: bold;
-            margin: 0;
+            margin: 15;
             letter-spacing: 0.5px;
         }}
         .cck-sub-title {{
@@ -859,7 +859,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     </div>
                     <div class="cck-title-block">
                         <div class="cck-main-title">CONCORDIA COLLEGE KASUR</div>
-                        <div class="cck-sub-title">A Project of Beaconhouse</div>
                     </div>
                 </div>
                 
