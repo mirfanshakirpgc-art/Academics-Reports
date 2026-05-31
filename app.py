@@ -330,6 +330,123 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
+        # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+elif menu_choice == "📈 Multi-Test Progress Report":
+    st.title("📈 Multi-Test Progress Analytics Dashboard")
+    st.markdown("Compare student performance dynamics across multiple selected examination cycles side-by-side.")
+
+    # Layout filter controls
+    col_x, col_y = st.columns(2)
+    with col_x:
+        sel_disc = st.selectbox("Filter by Discipline Context:", AVAILABLE_DISCIPLINE, key="mt_disc")
+        sel_sec = st.selectbox("Select Target Section Roll:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="mt_sec")
+    with col_y:
+        # Allow multi-selecting test frameworks
+        selected_exams_list = st.multiselect(
+            "Select Test Frameworks to Compare Side-by-Side:", 
+            options=AVAILABLE_EXAMS,
+            default=["MT_1", "MT_2", "SEND_UP"] if all(x in AVAILABLE_EXAMS for x in ["MT_1", "MT_2", "SEND_UP"]) else [AVAILABLE_EXAMS[0]]
+        )
+
+    if not selected_exams_list:
+        st.warning("⚠️ Please choose at least one test cycle from the selector framework above.")
+    else:
+        # Fetch base students belonging to the chosen section partition
+        students_df = run_query("""
+            SELECT id AS "ID", name AS "Student Name" 
+            FROM students 
+            WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+            ORDER BY id ASC
+        """, {"section": sel_sec})
+
+        if students_df.empty:
+            st.info(f"💡 No registered student profiles found in section '{sel_sec}'.")
+        else:
+            # Fetch relational marks corresponding across all selected tracking metrics
+            marks_df = run_query("""
+                SELECT student_id, TRIM(exam_type) as exam_type, marks_obtained, total_marks
+                FROM marks
+                WHERE student_id IN (SELECT id FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)))
+                AND TRIM(exam_type) IN :exams
+            """, {"section": sel_sec, "exams": tuple(selected_exams_list)})
+
+            # Algorithmic Pivot Restructuring Process
+            compiled_report_data = []
+            
+            for _, s_row in students_df.iterrows():
+                s_id = s_row["ID"]
+                row_entry = {
+                    "Roll No": s_id,
+                    "Student Name": s_row["Student Name"]
+                }
+                
+                # Filter marks record for current student pointer
+                student_marks = marks_df[marks_df["student_id"] == s_id]
+                
+                for exam in selected_exams_list:
+                    exam_subset = student_marks[student_marks["exam_type"] == exam]
+                    
+                    obt_accumulated = 0.0
+                    tot_accumulated = 0.0
+                    has_data = False
+                    
+                    for _, m_row in exam_subset.iterrows():
+                        val = str(m_row["marks_obtained"]).strip().upper()
+                        if val.replace('.', '', 1).isdigit():
+                            obt_accumulated += float(val)
+                            tot_accumulated += float(m_row["total_marks"] if m_row["total_marks"] else 100)
+                            has_data = True
+                        elif val in ["A", "ABSENT"]:
+                            tot_accumulated += float(m_row["total_marks"] if m_row["total_marks"] else 100)
+                            has_data = True
+                    
+                    # Calculate aggregate percentage for this exam frame
+                    if has_data and tot_accumulated > 0:
+                        agg_percentage = (obt_accumulated / tot_accumulated) * 100
+                        row_entry[f"{exam} Agg %"] = f"{int(agg_percentage)}%"
+                        row_entry[f"{exam} Score"] = f"{int(obt_accumulated)}/{int(tot_accumulated)}"
+                    else:
+                        row_entry[f"{exam} Agg %"] = "-"
+                        row_entry[f"{exam} Score"] = "-"
+                
+                compiled_report_data.append(row_entry)
+
+            # Generate Unified Reporting Output Matrix DataFrame
+            final_mt_df = pd.DataFrame(compiled_report_data).set_index("Roll No")
+            
+            # Divide into Tabbed Viewframes for Clean Presentation UI
+            tab_grid, tab_chart = st.tabs(["📊 Tabular Matrix View", "📈 Section Trend Visualization"])
+            
+            with tab_grid:
+                st.subheader(f"Cross-Examination Comparative Ledger — Section: {sel_sec}")
+                st.dataframe(final_mt_df, use_container_width=True)
+                
+            with tab_chart:
+                st.subheader("Performance Volatility Line Tracking")
+                
+                # Transform data structuring compatible with native Streamlit charts
+                chart_records = []
+                for entry in compiled_report_data:
+                    for exam in selected_exams_list:
+                        pct_val = entry[f"{exam} Agg %"]
+                        if pct_val != "-":
+                            chart_records.append({
+                                "Student": f"{entry['Roll No']} - {entry['Student Name']}",
+                                "Exam Cycle": exam,
+                                "Percentage Marks": float(pct_val.replace("%", ""))
+                            })
+                
+                if chart_records:
+                    chart_df = pd.DataFrame(chart_records)
+                    
+                    # Pivot out data frame tailored explicitly for visual plotting execution
+                    pivot_chart_df = chart_df.pivot(index="Exam Cycle", columns="Student", values="Percentage Marks")
+                    # Enforce original array sort index consistency
+                    pivot_chart_df = pivot_chart_df.reindex(selected_exams_list)
+                    
+                    st.line_chart(pivot_chart_df, use_container_width=True)
+                else:
+                    st.info("💡 Insufficient numeric score mappings discovered to generate a trajectory line plot.")
 
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
