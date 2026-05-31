@@ -284,7 +284,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             with col_as3:
                 att_month = st.selectbox("Select Reporting Attendance Month:", AVAILABLE_MONTHS, key="att_month")
                 
-            # Single entry for total working days assigned across the selected section layout row
             default_days = st.number_input("📌 Set Total Working Days for this entire Section:", min_value=1, max_value=31, value=24, key="sec_global_days")
             
             st.markdown(f"### 📋 Roster Grid: Attendance Log for `{att_section}` ({att_month})")
@@ -434,7 +433,6 @@ elif menu_choice == "🪪 Student Result Cards":
         <style>
         /* 🖨️ ADVANCED MECHANICAL PRINT CONTEXT TUNING RULES */
         @media print {
-            /* Forcing structural application frames to break spatial collapses */
             html, body {
                 background-color: #ffffff !important;
                 color: #000000 !important;
@@ -442,7 +440,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 padding: 0px !important;
             }
             
-            /* Eliminates Streamlit system app wrapper spacing tracks to fix the top gap issue */
             div[data-testid="stAppViewMainContainer"],
             .stAppViewMainContainer,
             .stMain,
@@ -462,7 +459,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 position: relative !important;
             }
             
-            /* Remove the interactive user options panels, sidebar grids and headers from print outs */
             [data-testid="stSidebar"], 
             header, 
             footer, 
@@ -481,7 +477,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 padding: 0px !important;
             }
 
-            /* Remapping the Result Document Container Dimensions */
             .official-card-container {
                 border: none !important;
                 box-shadow: none !important;
@@ -498,7 +493,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 break-after: page !important;
             }
 
-            /* Enforce crisp black text and light gray borders for system table nodes when printing */
             .doc-data-table {
                 width: 100% !important;
                 border-collapse: collapse !important;
@@ -554,7 +548,6 @@ elif menu_choice == "🪪 Student Result Cards":
             color: #000000;
         }
         
-        /* Layout Grid Configuration for Metadata Information Fields */
         .meta-data-table {
             width: 100%;
             margin-bottom: 20px;
@@ -575,7 +568,6 @@ elif menu_choice == "🪪 Student Result Cards":
             text-transform: uppercase;
         }
         
-        /* Result Core Ledger and Attendance Table Layouts */
         .doc-data-table {
             width: 100%;
             border-collapse: collapse;
@@ -602,7 +594,6 @@ elif menu_choice == "🪪 Student Result Cards":
             color: #000000;
         }
         
-        /* Footer Authentication Elements and Lines Block */
         .footer-signatures-table {
             width: 100%;
             margin-top: 40px;
@@ -633,7 +624,6 @@ elif menu_choice == "🪪 Student Result Cards":
     with col_c2:
         selected_tests = st.multiselect("🎯 Select Specific Test Term to Extract:", options=AVAILABLE_EXAMS, default=["MT_1"])
 
-    # Native Browser Print Execution Bridge Component
     import streamlit.components.v1 as components
     components.html("""
         <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
@@ -663,7 +653,6 @@ elif menu_choice == "🪪 Student Result Cards":
         else:
             target_section = base_student['section'].iloc[0].upper().strip()
             
-            # Extract target student array records based on operational scope constraints
             if print_scope == "👥 Print Complete Section Cards":
                 students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
             else:
@@ -682,7 +671,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class'])
                 
-                # Dynamic discipline identification mapping tracking matching array
                 matched_disp = "MEDICAL"
                 for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
                     if section in [x.upper().strip() for x in secs]:
@@ -691,20 +679,20 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 
-                # SQL Query fetches for specific processing card entry targets
                 raw_marks = run_query("""
                     SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
                     FROM marks 
                     WHERE student_id = :id
                 """, {"id": current_id})
                 
+                # --- FIXED: Added parameter mapping here to solve the error ---
                 raw_attendance = run_query("""
                     SELECT month_name, total_days, present_days 
                     FROM attendance 
                     WHERE student_id = :id
-                """)
+                """, {"id": current_id})
                 
-                # 1. Output the institutional structured top text lines
+                # 1. Output institutional structured layout
                 st.markdown(f"""
                 <div class="official-card-container">
                     <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
@@ -729,7 +717,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     </table>
                 """, unsafe_allow_html=True)
                 
-                # 2. Build the exact structured academic performance data table
+                # 2. Build explicit structural academic performance data table
                 html_table = """
                 <table class="doc-data-table">
                     <thead>
@@ -746,14 +734,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 """
                 
                 for sub in subjects_list:
-                    # Filter for records assigned to the selected subject tracking path
                     match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'].isin(selected_tests))]
                     
                     if not match.empty:
                         obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
                         tot_val = match['total_marks'].iloc[0]
                         tot_marks_num = int(tot_val) if tot_val else 100
-                        pass_marks_num = int(tot_marks_num * 0.4) # Standardized 40% threshold requirement
+                        pass_marks_num = int(tot_marks_num * 0.4)
                         
                         if obt_val == "A" or obt_val == "ABSENT":
                             obt_disp = "A"
@@ -784,7 +771,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 html_table += "</tbody></table>"
                 st.markdown(html_table, unsafe_allow_html=True)
                 
-                # 3. Build the Attendance Matrix Track Section Grid
+                # 3. Build Attendance Matrix Track Section Grid
                 st.markdown("<div class='table-section-title'>Attendance Report</div>", unsafe_allow_html=True)
                 
                 months_header_row = ""
@@ -792,7 +779,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 present_days_row = ""
                 percentage_row = ""
                 
-                # Cumulative structural counter items mapping variables
                 grand_total_days = 0
                 grand_present_days = 0
                 
@@ -800,7 +786,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 for m_item in months_target_array:
                     months_header_row += f"<th>{m_item}</th>"
-                    att_match = raw_attendance[(raw_attendance['student_id'] == current_id) & (raw_attendance['month_name'] == m_item)]
+                    att_match = raw_attendance[raw_attendance['month_name'] == m_item]
                     
                     if not att_match.empty:
                         t_d = int(att_match['total_days'].iloc[0])
@@ -818,7 +804,6 @@ elif menu_choice == "🪪 Student Result Cards":
                         present_days_row += "<td></td>"
                         percentage_row += "<td></td>"
                 
-                # Calculate the global compound aggregate percentage rate
                 overall_per_disp = f"{int((grand_present_days / grand_total_days) * 100)}%" if grand_total_days > 0 else ""
                 overall_tot_disp = grand_total_days if grand_total_days > 0 else ""
                 overall_pres_disp = grand_present_days if grand_total_days > 0 else ""
@@ -853,7 +838,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 """
                 st.markdown(html_att, unsafe_allow_html=True)
                 
-                # 4. Remarks line section and authenticated signature verification footprint
+                # 4. Remarks and Authenticated Signatures Block
                 is_last_index = (idx == total_records_count - 1)
                 page_break_class = "" if is_last_index else "print-page-break-divider"
                 
