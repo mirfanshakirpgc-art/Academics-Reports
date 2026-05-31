@@ -96,7 +96,8 @@ def execute_db_command(command, params=None):
         conn.execute(text(command), params)
 
 # --- NAVIGATION SIDEBAR ---
-st.sidebar.title("🏫 Menu Navigation")
+st.sidebar.image("logo.jpg", use_container_width=True)
+st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
     ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "👨‍🏫 Teacher Management"]
