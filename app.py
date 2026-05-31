@@ -336,9 +336,10 @@ elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
     print_scope = st.radio("🖨️ Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
-    col_c1, col_c2 = st.columns(2)
+    col_c1, col_c2, col_c3 = st.columns(3)
     with col_c1: search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
     with col_c2: selected_tests = st.multiselect("🎯 Select Specific Test Term:", options=AVAILABLE_EXAMS, default=["MT_1"])
+    with col_c3: report_month = st.selectbox("📅 Select Attendance Month context:", options=AVAILABLE_MONTHS, index=3)
 
     if search_id and search_id.isdigit() and selected_tests:
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
@@ -374,10 +375,13 @@ elif menu_choice == "🪪 Student Result Cards":
                 .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
                 .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
                 
-                .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 20px; font-size: 14px; }
+                .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
                 .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
                 .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
-                .table-section-title { font-size: 15px; font-weight: bold; margin: 15px 0 5px 0; text-align: left; }
+                
+                .attendance-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; font-size: 14px; }
+                .attendance-table td { border: 1px solid #000; padding: 6px; text-align: center; }
+                .attendance-title { font-weight: bold; background-color: #f2f2f2; text-align: left; padding-left: 10px; width: 35%; }
                 
                 .footer-signatures-table { width: 100%; margin-top: 35px; font-size: 15px; border: none; }
                 .footer-signatures-table td { border: none; }
@@ -393,7 +397,6 @@ elif menu_choice == "🪪 Student Result Cards":
             </head>
             <body>
                 <button class="print-btn" onclick="window.print();">🖨️ Trigger Document Print (Ctrl+P)</button>
-             stream
             """
 
             for idx, student_row in students_to_print.iterrows():
@@ -412,6 +415,16 @@ elif menu_choice == "🪪 Student Result Cards":
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
+                # Retrieve individual attendance ledger data
+                att_record = run_query("SELECT total_days, present_days FROM attendance WHERE student_id = :id AND month_name = :month", {"id": current_id, "month": report_month})
+                if not att_record.empty:
+                    tot_days = int(att_record['total_days'].iloc[0])
+                    pres_days = int(att_record['present_days'].iloc[0])
+                    abs_days = max(0, tot_days - pres_days)
+                    att_per = f"{int((pres_days / tot_days) * 100)}%" if tot_days > 0 else "0%"
+                else:
+                    tot_days, pres_days, abs_days, att_per = "-", "-", "-", "-"
+
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
                 
                 # Reset grand totals for this student card
@@ -524,6 +537,16 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
+                    <table class="attendance-table">
+                        <tr>
+                            <td class="attendance-title">ATTENDANCE ({report_month.upper()})</td>
+                            <td style="width: 16%;">Total Days: <strong>{tot_days}</strong></td>
+                            <td style="width: 16%;">Present: <strong>{pres_days}</strong></td>
+                            <td style="width: 16%;">Absent: <strong>{abs_days}</strong></td>
+                            <td style="width: 17%;">Percentage: <strong>{att_per}</strong></td>
+                        </tr>
+                    </table>
+                    
                     <table class="footer-signatures-table">
                         <tr>
                             <td style="text-align: left; width: 33%;"><span class="sig-marker-line">Class Incharge</span></td>
@@ -541,4 +564,4 @@ elif menu_choice == "🪪 Student Result Cards":
             """
             
             # Render the beautifully formatted document layout safely via safe iframe component
-            components.html(compiled_html, height=650, scrolling=True)
+            components.html(compiled_html, height=730, scrolling=True)
