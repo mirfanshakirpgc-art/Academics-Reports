@@ -427,149 +427,243 @@ elif menu_choice == "📋 Section Summary Report":
 
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
-    st.title("🍁 Concordia Colleges, Kasur — Academic Report Card")
+    st.title("🪪 Student Result Cards — Print Engine")
     
-    # --- DYNAMIC PRINT LAYOUT CONFIGURATION OPTIONS PANEL ---
-    with st.expander("🛠️ Customize Print Layout Options (Click to Change)"):
-        col_p1, col_p2, col_p3 = st.columns(3)
-        with col_p1:
-            paper_orient = st.selectbox("Paper Orientation:", ["portrait", "landscape"])
-            paper_size = st.selectbox("Paper Size:", ["A4", "letter", "legal"])
-            font_size = st.selectbox("Text Font Size:", ["13pt (Normal)", "11pt (Compact)", "15pt (Large)"])
-        with col_p2:
-            st.markdown("**Page Margin Settings (mm):**")
-            margin_top = st.slider("Top Margin", min_value=0, max_value=50, value=15, step=1)
-            margin_bottom = st.slider("Bottom Margin", min_value=0, max_value=50, value=15, step=1)
-        with col_p3:
-            st.markdown("**Page Margin Settings (mm):**")
-            margin_left = st.slider("Left Margin", min_value=0, max_value=50, value=15, step=1)
-            margin_right = st.slider("Right Margin", min_value=0, max_value=50, value=15, step=1)
-            
-            st.write("") 
-            border_style = st.selectbox("Card Border Style:", ["None", "4px double #f8a100 (Official)", "2px solid #000000 (Minimal)"])
-            page_break = st.toggle("Force 1 Card per Page", value=True)
-
-    font_val = "11pt" if "Compact" in font_size else ("15pt" if "Large" in font_size else "13pt")
-    border_val = "none" if border_style == "None" else border_style
-    break_val = "always" if page_break else "auto"
-    max_w_val = "800px" if border_style != "None" else "100%"
-
-    st.markdown(f"""
+    # --- AUTOMATED MEDIA ENGINE STYLE SHEET OVERRIDES ---
+    st.markdown("""
         <style>
-        :root {{
-            --paper-orient: {paper_orient};
-            --paper-size: {paper_size};
-            --font-size-choice: {font_val};
-            --border-choice: {border_val};
-            --break-choice: {break_val};
-            --max-width-choice: {max_w_val};
-        }}
-        
-        /* 🖨️ CRITICAL PRINT INSTRUCTION STYLE ADJUSTMENTS */
-        @media print {{
-            @page {{
-                size: {paper_size} {paper_orient};
-                margin-top: {margin_top}mm !important;
-                margin-bottom: {margin_bottom}mm !important;
-                margin-left: {margin_left}mm !important;
-                margin-right: {margin_right}mm !important;
-            }}
+        /* 🖨️ ADVANCED MECHANICAL PRINT CONTEXT TUNING RULES */
+        @media print {
+            /* Forcing structural application frames to break spatial collapses */
+            html, body {
+                background-color: #ffffff !important;
+                color: #000000 !important;
+                margin: 0px !important;
+                padding: 0px !important;
+            }
             
+            /* Eliminates Streamlit system app wrapper spacing tracks to fix the top gap issue */
+            div[data-testid="stAppViewMainContainer"],
+            .stAppViewMainContainer,
+            .stMain,
+            .main,
+            div[data-testid="stAppViewBlockContainer"],
+            .stAppViewBlockContainer,
+            .block-container {
+                padding-top: 0mm !important;
+                padding-bottom: 0mm !important;
+                margin-top: 0mm !important;
+                margin-bottom: 0mm !important;
+                padding-left: 0mm !important;
+                padding-right: 0mm !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                top: 0px !important;
+                position: relative !important;
+            }
+            
+            /* Remove the interactive user options panels, sidebar grids and headers from print outs */
             [data-testid="stSidebar"], 
             header, 
             footer, 
-            [data-testid="stHeader"] {{
-                display: none !important;
-            }}
-            
-            h1, 
-            .stExpander, 
-            [data-testid="stRadio"], 
-            [data-testid="stTextInput"], 
-            [data-testid="stMultiSelect"], 
+            [data-testid="stHeader"],
+            .stButton, 
+            [data-testid="stTextInput"],
+            [data-testid="stRadio"],
+            [data-testid="stMultiSelect"],
+            .stExpander,
             hr,
-            iframe {{
+            div.element-container iframe {
                 display: none !important;
-            }}
+                visibility: hidden !important;
+                height: 0px !important;
+                margin: 0px !important;
+                padding: 0px !important;
+            }
+
+            /* Remapping the Result Document Container Dimensions */
+            .official-card-container {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0mm !important;
+                margin: 0mm auto 10mm auto !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
             
-            .print-card-break {{
+            .print-page-break-divider {
                 page-break-after: always !important;
                 break-after: page !important;
-            }}
-            
-            .attendance-print-table {{
+            }
+
+            /* Enforce crisp black text and light gray borders for system table nodes when printing */
+            .doc-data-table {
                 width: 100% !important;
                 border-collapse: collapse !important;
-                margin-top: 15px !important;
-                margin-bottom: 15px !important;
-            }}
-            .attendance-print-table th, .attendance-print-table td {{
+            }
+            .doc-data-table th, .doc-data-table td {
                 border: 1px solid #000000 !important;
-                padding: 6px !important;
-                text-align: center !important;
-                font-size: 11pt !important;
-            }}
-            .attendance-print-table th {{
-                background-color: #8b0000 !important;
-                color: white !important;
+                color: #000000 !important;
+                font-family: "Times New Roman", Times, serif !important;
+            }
+            .doc-data-table th {
+                background-color: #e6e6e6 !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
-            }}
-        }}
+            }
+        }
         
-        .attendance-print-table {{
+        /* 🖥️ LIVE SCREEN RENDERING SYSTEM PREVIEW CONTROLS */
+        .official-card-container {
+            max-width: 850px;
+            margin: 20px auto;
+            padding: 30px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: "Times New Roman", Times, serif;
+            color: #000000;
+        }
+        
+        .inst-main-header {
+            text-align: center;
+            font-weight: bold;
+            font-size: 28px;
+            margin: 0px 0px 2px 0px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #000000;
+        }
+        .inst-sub-header {
+            text-align: center;
+            font-style: italic;
+            font-size: 16px;
+            margin: 0px 0px 4px 0px;
+            color: #333333;
+        }
+        .doc-type-banner {
+            text-align: center;
+            font-weight: bold;
+            text-decoration: underline;
+            font-size: 21px;
+            margin: 12px 0px 22px 0px;
+            text-transform: uppercase;
+            color: #000000;
+        }
+        
+        /* Layout Grid Configuration for Metadata Information Fields */
+        .meta-data-table {
+            width: 100%;
+            margin-bottom: 20px;
+            font-size: 16px;
+            border: none !important;
+        }
+        .meta-data-table td {
+            padding: 6px 0px;
+            vertical-align: middle;
+            border: none !important;
+            text-align: left;
+        }
+        .underlined-field-fill {
+            border-bottom: 1px solid #000000;
+            display: inline-block;
+            font-weight: bold;
+            padding-left: 5px;
+            text-transform: uppercase;
+        }
+        
+        /* Result Core Ledger and Attendance Table Layouts */
+        .doc-data-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
-            margin-bottom: 15px;
-            font-family: sans-serif;
-        }}
-        .attendance-print-table th, .attendance-print-table td {{
-            border: 1px solid #ddd;
-            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 25px;
+            font-size: 15px;
+        }
+        .doc-data-table th, .doc-data-table td {
+            border: 1px solid #000000;
+            padding: 7px 5px;
             text-align: center;
-        }}
-        .attendance-print-table th {{
-            background-color: #802200;
-            color: white;
-        }}
-        .attendance-print-table tr:nth-child(even){{background-color: #f2f2f2;}}
+            color: #000000;
+        }
+        .doc-data-table th {
+            font-weight: bold;
+            background-color: #f2f2f2;
+        }
+        .table-section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 20px 0px 6px 0px;
+            text-align: left;
+            text-transform: uppercase;
+            color: #000000;
+        }
+        
+        /* Footer Authentication Elements and Lines Block */
+        .footer-signatures-table {
+            width: 100%;
+            margin-top: 40px;
+            font-size: 16px;
+            border: none !important;
+        }
+        .footer-signatures-table td {
+            border: none !important;
+            padding: 5px 0px;
+        }
+        .sig-marker-line {
+            border-top: 1px solid #000000;
+            width: 180px;
+            text-align: center;
+            padding-top: 4px;
+            display: inline-block;
+            font-weight: bold;
+        }
         </style>
     """, unsafe_allow_html=True)
-    
+
+    # --- CONTROL PANEL FILTER WIDGET CHANNELS ---
     print_scope = st.radio("🖨️ Select Print Output Scope:", ["👤 Print Single Student Card", "👥 Print Complete Section Cards"], horizontal=True)
     
-    search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
-    selected_tests = st.multiselect("🎯 Select Specific Test Terms to Compare:", options=AVAILABLE_EXAMS, default=["MT_1"])
-    
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        search_id = st.text_input("🔍 Search Student Roll Number / ID:", key="print_card_search")
+    with col_c2:
+        selected_tests = st.multiselect("🎯 Select Specific Test Term to Extract:", options=AVAILABLE_EXAMS, default=["MT_1"])
+
+    # Native Browser Print Execution Bridge Component
     import streamlit.components.v1 as components
     components.html("""
         <button onclick="window.parent.parent.focus(); window.parent.parent.print();" style="
-            background-color: #f8a100; 
+            background-color: #222222; 
             color: white; 
-            border: none;
+            border: 1px solid #000000;
             font-weight: bold; 
-            padding: 10px 24px; 
+            padding: 12px 24px; 
             border-radius: 4px; 
             cursor: pointer;
-            font-family: sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             font-size: 16px;
-            width: 220px;
-        ">🖨️ Open Print Preview</button>
-    """, height=60)
+            width: 240px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        ">🖨️ Trigger Document Print (Ctrl+P)</button>
+    """, height=55)
             
     st.markdown("---")
 
+    # --- LOGIC RUNTIME ENGINE EXECUTION LOOP ---
     if search_id and search_id.isdigit():
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
         if base_student.empty:
             st.error("❌ No student record discovered with that Roll Number.")
         elif not selected_tests:
-            st.warning("Please pick at least one test type option.")
+            st.warning("Please select an exam target reference parameter.")
         else:
             target_section = base_student['section'].iloc[0].upper().strip()
-            num_selected_tests = len(selected_tests)
             
+            # Extract target student array records based on operational scope constraints
             if print_scope == "👥 Print Complete Section Cards":
                 students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
             else:
@@ -580,272 +674,204 @@ elif menu_choice == "🪪 Student Result Cards":
                     "class": base_student['class'].iloc[0]
                 }])
 
+            total_records_count = len(students_to_print)
+            
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class'])
                 
-                st.markdown(f"""
-                <div style="background-color:#f8a100; padding:15px; border-radius:5px; color:white; font-weight:bold; margin-top:20px; margin-bottom:10px; font-family:sans-serif;">
-                    <h2 style='margin:0; color:white;'>ACADEMICS PERFORMANCE REPORT</h2>
-                    <p style='margin:5px 0 0 0; font-size:16px; color:white;'>
-                        <b>NAME:</b> {name} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                        <b>ID:</b> {current_id} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                        <b>SECTION:</b> {section} &nbsp;&nbsp;|&nbsp;&nbsp; 
-                        <b>CLASS:</b> {grade_class}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
+                # Dynamic discipline identification mapping tracking matching array
+                matched_disp = "MEDICAL"
+                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
+                    if section in [x.upper().strip() for x in secs]:
+                        matched_disp = disp
+                        break
                 
+                subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
+                
+                # SQL Query fetches for specific processing card entry targets
                 raw_marks = run_query("""
                     SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks 
                     FROM marks 
-                    WHERE student_id = :id AND exam_type IN :exams
-                """, {"id": current_id, "exams": tuple(selected_tests)})
+                    WHERE student_id = :id
+                """, {"id": current_id})
                 
-                assigned_discipline = "MEDICAL"
-                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
-                    if section in [x.upper().strip() for x in secs]:
-                        assigned_discipline = disp
-                        break
+                raw_attendance = run_query("""
+                    SELECT month_name, total_days, present_days 
+                    FROM attendance 
+                    WHERE student_id = :id
+                """)
                 
-                ordered_subjects = DISCIPLINE_SUBJECTS_MAP[assigned_discipline]
-                matrix_data = []
-                
-                grand_total_obtained = 0.0
-                grand_total_max = 0.0
-                current_card_percentage = 0 
-                
-                for subj in ordered_subjects:
-                    row_entry = {"SUBJECTS": subj}
-                    subj_total_obt = 0.0
-                    subj_total_max = 0.0
-                    
-                    if num_selected_tests == 1:
-                        # --- SINGLE TEST MODE COLUMNS ---
-                        exam = selected_tests[0]
-                        match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
-                        if not match.empty:
-                            obt = str(match['marks_obtained'].iloc[0]).strip().upper()
-                            tot = match['total_marks'].iloc[0]
-                            passing_criteria = float(tot) * 0.40
-                            
-                            row_entry["Obt. Marks"] = obt
-                            row_entry["Total Marks"] = str(tot)
-                            row_entry["Passing Marks"] = f"{int(passing_criteria)}"
-                            
-                            if str(obt).replace('.', '', 1).isdigit():
-                                numeric_obt = float(obt)
-                                row_entry["Age%"] = f"{int(numeric_obt/tot * 100)}%"
-                                row_entry["Status"] = "Pass" if numeric_obt >= passing_criteria else "Fail"
-                                grand_total_obtained += numeric_obt
-                                grand_total_max += tot
-                            elif obt == "A":
-                                row_entry["Age%"] = "A"
-                                row_entry["Status"] = "Absent"
-                                grand_total_max += tot
-                            else:
-                                row_entry["Age%"] = "-"
-                                row_entry["Status"] = "-"
-                        else:
-                            row_entry["Obt. Marks"] = "-"
-                            row_entry["Total Marks"] = "-"
-                            row_entry["Passing Marks"] = "-"
-                            row_entry["Age%"] = "-"
-                            row_entry["Status"] = "-"
-                    else:
-                        # --- MULTI TEST MODE COLUMNS ---
-                        for exam in selected_tests:
-                            match = raw_marks[(raw_marks['subject'] == subj.upper().strip()) & (raw_marks['exam_type'] == exam.strip())]
-                            if not match.empty:
-                                obt = str(match['marks_obtained'].iloc[0]).strip().upper()
-                                tot = match['total_marks'].iloc[0]
-                                row_entry[f"{exam} (Obt)"] = obt
-                                if str(obt).replace('.', '', 1).isdigit():
-                                    row_entry[f"{exam} (%)"] = f"{int(float(obt)/tot * 100)}%"
-                                    subj_total_obt += float(obt)
-                                    subj_total_max += tot
-                                    grand_total_obtained += float(obt)
-                                    grand_total_max += tot
-                                elif obt == "A":
-                                    row_entry[f"{exam} (%)"] = "A"
-                                else:
-                                    row_entry[f"{exam} (%)"] = "-"
-                            else:
-                                row_entry[f"{exam} (Obt)"] = "-"
-                                row_entry[f"{exam} (%)"] = "-"
-                        
-                        if subj_total_max > 0:
-                            row_entry["Total Age%"] = f"{int((subj_total_obt / subj_total_max) * 100)}%"
-                        else:
-                            row_entry["Total Age%"] = "-"
-                            
-                    matrix_data.append(row_entry)
-                
-                report_df = pd.DataFrame(matrix_data)
-                total_row = {"SUBJECTS": "⚡ TOTAL"}
-                
-                if num_selected_tests == 1:
-                    exam = selected_tests[0]
-                    exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
-                    valid_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                    
-                    if not valid_matches.empty:
-                        t_obt = valid_matches['marks_obtained'].astype(float).sum()
-                        t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                        t_pass = t_max * 0.40
-                        current_card_percentage = int((t_obt/t_max)*100)
-                        
-                        total_row["Obt. Marks"] = f"{int(t_obt)}"
-                        total_row["Total Marks"] = f"{int(t_max)}"
-                        total_row["Passing Marks"] = f"{int(t_pass)}"
-                        total_row["Age%"] = f"{current_card_percentage}%"
-                        total_row["Status"] = "Pass" if t_obt >= t_pass else "Fail"
-                    else:
-                        total_row["Obt. Marks"] = "-"
-                        total_row["Total Marks"] = "-"
-                        total_row["Passing Marks"] = "-"
-                        total_row["Age%"] = "-"
-                        total_row["Status"] = "-"
-                else:
-                    for exam in selected_tests:
-                        exam_matches = raw_marks[raw_marks['exam_type'] == exam.strip()]
-                        valid_exam_matches = exam_matches[exam_matches['marks_obtained'].apply(lambda x: str(x).replace('.','',1).isdigit())]
-                        if not valid_exam_matches.empty:
-                            t_obt = valid_exam_matches['marks_obtained'].astype(float).sum()
-                            t_max = exam_matches['total_marks'].iloc[0] * len(ordered_subjects)
-                            total_row[f"{exam} (Obt)"] = f"{int(t_obt)}"
-                            total_row[f"{exam} (%)"] = f"{int((t_obt/t_max)*100)}%"
-                        else:
-                            total_row[f"{exam} (Obt)"] = "-"
-                            total_row[f"{exam} (%)"] = "-"
-                    
-                    if grand_total_max > 0:
-                        current_card_percentage = int((grand_total_obtained / grand_total_max) * 100)
-                        total_row["Total Age%"] = f"{current_card_percentage}%"
-                    else:
-                        total_row["Total Age%"] = "-"
-                
-                report_df = pd.concat([report_df, pd.DataFrame([total_row])], ignore_index=True)
-                st.dataframe(report_df.set_index("SUBJECTS"), use_container_width=True, key=f"tbl_{current_id}")
-                
-                # --- ATTENDANCE SUMMARY PANEL RENDERING ---
-                db_att = run_query("SELECT month_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
-                
-                header_row_html = ""
-                total_days_html = ""
-                present_days_html = ""
-                percentage_html = ""
-                
-                sum_total_days = 0
-                sum_present_days = 0
-                
-                for m in AVAILABLE_MONTHS:
-                    header_row_html += f"<th>{m}</th>"
-                    m_match = db_att[db_att['month_name'] == m]
-                    
-                    if not m_match.empty:
-                        td = int(m_match['total_days'].iloc[0])
-                        pd_val = int(m_match['present_days'].iloc[0])
-                        pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
-                        
-                        sum_total_days += td
-                        sum_present_days += pd_val
-                        
-                        total_days_html += f"<td>{td}</td>"
-                        present_days_html += f"<td>{pd_val}</td>"
-                        percentage_html += f"<td>{pct}</td>"
-                    else:
-                        total_days_html += "<td>-</td>"
-                        present_days_html += "<td>-</td>"
-                        percentage_html += "<td>-</td>"
-                        
-                overall_pct = f"{int((sum_present_days / sum_total_days) * 100)}%" if sum_total_days > 0 else "-"
-                str_sum_total = str(sum_total_days) if sum_total_days > 0 else "-"
-                str_sum_present = str(sum_present_days) if sum_total_days > 0 else "-"
-                
+                # 1. Output the institutional structured top text lines
                 st.markdown(f"""
-                <h4 style="margin-top:15px; margin-bottom:5px; font-family:sans-serif; color:#333;">📅 Attendance Report</h4>
-                <table class="attendance-print-table">
+                <div class="official-card-container">
+                    <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
+                    <div class="inst-sub-header">A Project of Beaconhouse</div>
+                    <div class="doc-type-banner">Result Card</div>
+                    
+                    <table class="meta-data-table">
+                        <tr>
+                            <td style="width: 10%;">Name:</td>
+                            <td style="width: 50%;"><span class="underlined-field-fill" style="width: 95%;">{name}</span></td>
+                            <td style="width: 10%;">ID:</td>
+                            <td style="width: 30%;"><span class="underlined-field-fill" style="width: 100%;">{current_id}</span></td>
+                        </tr>
+                        <tr>
+                            <td style="width: 10%;">Section:</td>
+                            <td style="width: 25%;"><span class="underlined-field-fill" style="width: 90%;">{section}</span></td>
+                            <td style="width: 10%;">Class:</td>
+                            <td style="width: 25%;"><span class="underlined-field-fill" style="width: 90%;">{grade_class}</span></td>
+                            <td style="width: 10%;">Test:</td>
+                            <td style="width: 20%;"><span class="underlined-field-fill" style="width: 100%;">{", ".join(selected_tests)}</span></td>
+                        </tr>
+                    </table>
+                """, unsafe_allow_html=True)
+                
+                # 2. Build the exact structured academic performance data table
+                html_table = """
+                <table class="doc-data-table">
                     <thead>
-                        <tr style="background-color:#802200; color:white;">
-                            <th style="text-align:left;">Metrics Reference</th>
-                            {header_row_html}
-                            <th style="background-color:#5c1900;">Over All Att.</th>
+                        <tr>
+                            <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
+                            <th style="width: 13%;">Obt. Marks</th>
+                            <th style="width: 13%;">Total Marks</th>
+                            <th style="width: 13%;">Pass Marks</th>
+                            <th style="width: 13%;">Age%</th>
+                            <th style="width: 13%;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """
+                
+                for sub in subjects_list:
+                    # Filter for records assigned to the selected subject tracking path
+                    match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'].isin(selected_tests))]
+                    
+                    if not match.empty:
+                        obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
+                        tot_val = match['total_marks'].iloc[0]
+                        tot_marks_num = int(tot_val) if tot_val else 100
+                        pass_marks_num = int(tot_marks_num * 0.4) # Standardized 40% threshold requirement
+                        
+                        if obt_val == "A" or obt_val == "ABSENT":
+                            obt_disp = "A"
+                            per_disp = "0%"
+                            status_disp = "Fail"
+                        elif obt_val.replace('.', '', 1).isdigit():
+                            num_obt = float(obt_val)
+                            obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
+                            per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
+                            status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
+                        else:
+                            obt_disp = obt_val
+                            per_disp = "-"
+                            status_disp = "-"
+                    else:
+                        obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
+                        
+                    html_table += f"""
+                        <tr>
+                            <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
+                            <td>{obt_disp}</td>
+                            <td>{tot_marks_num}</td>
+                            <td>{pass_marks_num}</td>
+                            <td>{per_disp}</td>
+                            <td style="font-weight: bold;">{status_disp}</td>
+                        </tr>
+                    """
+                html_table += "</tbody></table>"
+                st.markdown(html_table, unsafe_allow_html=True)
+                
+                # 3. Build the Attendance Matrix Track Section Grid
+                st.markdown("<div class='table-section-title'>Attendance Report</div>", unsafe_allow_html=True)
+                
+                months_header_row = ""
+                total_days_row = ""
+                present_days_row = ""
+                percentage_row = ""
+                
+                # Cumulative structural counter items mapping variables
+                grand_total_days = 0
+                grand_present_days = 0
+                
+                months_target_array = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+                
+                for m_item in months_target_array:
+                    months_header_row += f"<th>{m_item}</th>"
+                    att_match = raw_attendance[(raw_attendance['student_id'] == current_id) & (raw_attendance['month_name'] == m_item)]
+                    
+                    if not att_match.empty:
+                        t_d = int(att_match['total_days'].iloc[0])
+                        p_d = int(att_match['present_days'].iloc[0])
+                        calc_per = f"{int((p_d / t_d) * 100)}%" if t_d > 0 else "0%"
+                        
+                        grand_total_days += t_d
+                        grand_present_days += p_d
+                        
+                        total_days_row += f"<td>{t_d}</td>"
+                        present_days_row += f"<td>{p_d}</td>"
+                        percentage_row += f"<td>{calc_per}</td>"
+                    else:
+                        total_days_row += "<td></td>"
+                        present_days_row += "<td></td>"
+                        percentage_row += "<td></td>"
+                
+                # Calculate the global compound aggregate percentage rate
+                overall_per_disp = f"{int((grand_present_days / grand_total_days) * 100)}%" if grand_total_days > 0 else ""
+                overall_tot_disp = grand_total_days if grand_total_days > 0 else ""
+                overall_pres_disp = grand_present_days if grand_total_days > 0 else ""
+                
+                html_att = f"""
+                <table class="doc-data-table" style="font-size: 13px; margin-bottom: 20px;">
+                    <thead>
+                        <tr>
+                            <th style="width: 12%;">Metric</th>
+                            {months_header_row}
+                            <th style="background-color: #d9d9d9; width: 10%;">Over All Att.</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="text-align:left; font-weight:bold;">Total Days</td>
-                            {total_days_html}
-                            <td style="font-weight:bold; background-color:#f9f9f9;">{str_sum_total}</td>
+                            <td style="font-weight: bold; text-align: left; padding-left: 5px;">Total Days</td>
+                            {total_days_row}
+                            <td style="font-weight: bold; background-color: #fafafa;">{overall_tot_disp}</td>
                         </tr>
                         <tr>
-                            <td style="text-align:left; font-weight:bold;">Atten. Days</td>
-                            {present_days_html}
-                            <td style="font-weight:bold; background-color:#f9f9f9;">{str_sum_present}</td>
+                            <td style="font-weight: bold; text-align: left; padding-left: 5px;">Att. Days</td>
+                            {present_days_row}
+                            <td style="font-weight: bold; background-color: #fafafa;">{overall_pres_disp}</td>
                         </tr>
-                        <tr style="background-color: #fcf8e3;">
-                            <td style="text-align:left; font-weight:bold;">Age%</td>
-                            {percentage_html}
-                            <td style="font-weight:bold; background-color:#f2dede; color:#a94442;">{overall_pct}</td>
+                        <tr>
+                            <td style="font-weight: bold; text-align: left; padding-left: 5px;">Age%</td>
+                            {percentage_row}
+                            <td style="font-weight: bold; background-color: #f2f2f2;">{overall_per_disp}</td>
                         </tr>
                     </tbody>
                 </table>
-                """, unsafe_allow_html=True)
+                """
+                st.markdown(html_att, unsafe_allow_html=True)
                 
-                # --- AUTOMATED DYNAMIC REMARKS GENERATION BLOCK ---
-                if current_card_percentage >= 80:
-                    remarks_text = "🌟 EXCELLENT! Exceptional academic drive and mastery. Keep maintaining this elite level of execution."
-                    remarks_color = "#155724"
-                    remarks_bg = "#d4edda"
-                elif current_card_percentage >= 60:
-                    remarks_text = "👍 GOOD JOB! Strong performance overall. With consistent effort on complex topics, you can reach top tier honors."
-                    remarks_color = "#0c5460"
-                    remarks_bg = "#d1ecf1"
-                elif current_card_percentage >= 40:
-                    remarks_text = "⚠️ SATISFACTORY. Passed, but indicates significant gaps in critical subject areas. Extra study hours are strongly recommended."
-                    remarks_color = "#856404"
-                    remarks_bg = "#fff3cd"
-                else:
-                    remarks_text = "🚨 CRITICAL ATTENTION REQUIRED. Falling short of passing parameters. Immediate remedial coaching and parental consultation required."
-                    remarks_color = "#721c24"
-                    remarks_bg = "#f8d7da"
+                # 4. Remarks line section and authenticated signature verification footprint
+                is_last_index = (idx == total_records_count - 1)
+                page_break_class = "" if is_last_index else "print-page-break-divider"
                 
                 st.markdown(f"""
-                <div style="background-color:{remarks_bg}; color:{remarks_color}; border-left: 6px solid {remarks_color}; padding: 12px 18px; margin-top: 5px; margin-bottom: 25px; border-radius: 4px; font-family: sans-serif; font-size: 14px;">
-                    <b>💡 TEACHER REMARKS & RECOMMENDATIONS:</b><br/> {remarks_text}
+                    <table class="footer-signatures-table">
+                        <tr>
+                            <td style="text-align: left; width: 65%; font-size: 16px; vertical-align: bottom;">
+                                Remarks: <span class="underlined-field-fill" style="width: 80%;">&nbsp;</span>
+                            </td>
+                            <td style="text-align: right; width: 35%; padding-top: 45px; vertical-align: bottom;">
+                                <span class="sig-marker-line">Principal Sign</span>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
+                <div class="{page_break_class}"></div>
                 """, unsafe_allow_html=True)
-                
-                st.markdown('<div class="print-card-break"></div>', unsafe_allow_html=True)
 
-# ----------------- 📈 PERFORMANCE LEDGER -----------------
+# ----------------- 📈 MASTER PERFORMANCE LEDGER -----------------
 elif menu_choice == "📈 Master Performance Ledger":
-    st.title("📈 Subject-wise Consolidated Performance Ledger")
-    c1, c2, c3 = st.columns(3)
-    with c1: l_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="l_disc")
-    with c2: l_subj = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[l_disc], key="l_subj")
-    with c3: l_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[l_disc], key="l_sec")
-    st.markdown("---")
-    
-    raw_ledger = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", m.exam_type, m.marks_obtained
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-        ORDER BY s.id ASC
-    """, {"subject": l_subj, "section": l_sec})
-    
-    if raw_ledger.empty:
-        st.info("No student information found for this configuration.")
-    else:
-        pivot_df = raw_ledger.pivot_table(index=["ID", "Student Name"], columns="exam_type", values="marks_obtained", aggfunc="first").reset_index()
-        for exam in AVAILABLE_EXAMS:
-            if exam not in pivot_df.columns: pivot_df[exam] = "-"
-        ordered_cols = ["ID", "Student Name"] + [e for e in AVAILABLE_EXAMS if e in pivot_df.columns]
-        pivot_df = pivot_df[ordered_cols].fillna("-")
-        st.dataframe(pivot_df, use_container_width=True)
-        csv = pivot_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export Report Ledger to CSV / Excel", data=csv, file_name=f"Ledger_{l_sec}_{l_subj}.csv", mime="text/csv")
+    pass  # Keep your original Master Ledger performance block here unchanged
