@@ -408,6 +408,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         matched_disp = disp
                         break
                 
+              # DELETE THIS BROKEN BLOCK:
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
