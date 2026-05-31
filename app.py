@@ -25,7 +25,9 @@ if "assigned_subject" not in st.session_state:
 
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
-    st.title("🏫 Concordia Colleges, Kasur")
+    # Display the official logo centered or cleanly sized on the login page
+    st.image("logo.png", width=120) 
+    st.title("Concordia Colleges, Kasur")
     
     username_input = st.text_input("Username")
     password_input = st.text_input("Password", type="password")
