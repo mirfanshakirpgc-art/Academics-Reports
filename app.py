@@ -366,7 +366,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
                 .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
-                .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
+                
+                /* 1. HIGHLIGHTED "RESULT CARD" BANNER */
+                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; background-color: #f2f2f2; padding: 8px; border: 1px solid #000; }
                 
                 /* THE HORIZONTAL STRUCTURAL GRID */
                 .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
@@ -375,14 +377,20 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
                 .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-                .doc-data-table th { font-weight: bold; background-color: #fff; }
+                .doc-data-table th { font-weight: bold; background-color: #f2f2f2; }
+                
+                /* 2. HIGHLIGHTED SUBJECTS COLUMN CELL */
+                .subject-cell { text-align: left; font-weight: bold; padding-left: 10px; background-color: #f9f9f9; }
+                
+                /* 3. HIGHLIGHTED GRAND TOTAL ROW */
+                .grand-total-row { background-color: #fff2cc !important; font-weight: bold; }
                 
                 .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
                 
-                /* HORIZONTAL ATTENDANCE LAYOUT */
+                /* 4. HORIZONTAL ATTENDANCE LAYOUT WITH HIGHLIGHTED MONTHS ROW */
                 .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
                 .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
-                .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
+                .attendance-matrix-table th { font-weight: bold; background-color: #f2f2f2; } /* Highlights target month columns header row */
                 .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
                 
                 .footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
@@ -417,7 +425,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
-                # Fetch full complete sequence ledger dataset for horizontal formatting table matrix reconstruction
                 db_att = run_query("""
                     SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
                     FROM attendance WHERE student_id = :id
@@ -438,7 +445,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     else:
                         att_cells[m] = {"td": "", "pd": "", "pct": ""}
                 
-                # Determine overall attendance percentage figure
                 attendance_percentage = 0.0
                 if tot_sum > 0:
                     attendance_percentage = (pres_sum / tot_sum) * 100
@@ -448,7 +454,6 @@ elif menu_choice == "🪪 Student Result Cards":
 
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
                 
-                # Reset grand totals for this student card
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 
@@ -461,7 +466,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                     </div>
                     
-                    <div class="doc-type-banner"> Result Card</div>
+                    <div class="doc-type-banner">Result Card</div>
                     
                     <table class="meta-layout-table">
                         <tr>
@@ -524,7 +529,7 @@ elif menu_choice == "🪪 Student Result Cards":
                         
                     compiled_html += f"""
                             <tr>
-                                <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
+                                <td class="subject-cell">{sub}</td>
                                 <td>{obt_disp}</td>
                                 <td>{tot_marks_num if tot_marks_num else "-"}</td>
                                 <td>{pass_marks_num if pass_marks_num else "-"}</td>
@@ -533,36 +538,15 @@ elif menu_choice == "🪪 Student Result Cards":
                             </tr>
                     """
                 
-                # Grand Total calculation row
                 grand_per_disp = ""
                 grand_status_disp = ""
                 if has_valid_marks_data and grand_total_marks > 0:
                     grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
                     grand_status_disp = "Fail" if student_failed_any_subject else "Pass"
 
-                # --- ALGORITHMIC AUTOMATED REMARKS ENGINE ---
-                remarks_text = "No records found."
-                if has_valid_marks_data:
-                    if student_failed_any_subject:
-                        if tot_sum > 0 and attendance_percentage < 85.0:
-                            remarks_text = "Unsatisfactory academic status with critical attendance below acceptable 85% benchmark. Immediate improvement required."
-                        else:
-                            remarks_text = "Academic failure detected in one or more subjects. Needs focused remedial attention and harder work."
-                    else:
-                        grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
-                        
-                        if tot_sum > 0 and attendance_percentage < 85.0:
-                            remarks_text = f"Good academic performance ({grand_percentage:.0f}%), but attendance is short ({attendance_percentage:.0f}%). Needs to maintain minimum 85% attendance."
-                        else:
-                            if grand_percentage >= 80:
-                                remarks_text = "Excellent work! Exceptional academic progress and highly commendable attendance performance."
-                            elif grand_percentage >= 60:
-                                remarks_text = "Good overall performance. Capable of achieving higher results with consistent effort."
-                            else:
-                                remarks_text = "Fair performance. Has passed all subjects but possesses significant potential to increase scores."
-
+                # 3. Highlighted Grand Total Calculations Row
                 compiled_html += f"""
-                            <tr style="background-color: #fff; font-weight: bold;">
+                            <tr class="grand-total-row">
                                 <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
                                 <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
                                 <td>{int(grand_total_marks)}</td>
@@ -573,53 +557,53 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <div class="section-header-title">Attendance Report</div>
+                    <div class="section-header-title">Attendance History Record</div>
                     
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
-                                <th style="width: 12%;">Metric</th>
-                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
-                                <th style="width: 11%;">Over All Att.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td class="row-title-cell">Total Days</td>
-                                {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
-                            </tr>
-                            <tr>
-                                <td class="row-title-cell">Att. Days</td>
-                                {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
-                            </tr>
-                            <tr>
-                                <td class="row-title-cell">Age%</td>
-                                {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
-                            </tr>
-                        </tbody>
+                                <th style="width: 12%;">Type Ledger</th>
+                """
+                
+                for m in AVAILABLE_MONTHS:
+                    compiled_html += f"<th>{m}</th>"
+                compiled_html += "<th>Over All Att.</th></tr></thead><tbody>"
+                
+                # Row 1: Total Days
+                compiled_html += "<tr><td class='row-title-cell'>Total Days</td>"
+                for m in AVAILABLE_MONTHS:
+                    compiled_html += f"<td>{att_cells[m]['td']}</td>"
+                compiled_html += f"<td style='font-weight:bold;'>{att_cells['Over All Att.']['td']}</td></tr>"
+                
+                # Row 2: Present Days
+                compiled_html += "<tr><td class='row-title-cell'>Present Days</td>"
+                for m in AVAILABLE_MONTHS:
+                    compiled_html += f"<td>{att_cells[m]['pd']}</td>"
+                compiled_html += f"<td style='font-weight:bold;'>{att_cells['Over All Att.']['pd']}</td></tr>"
+                
+                # Row 3: Percentage
+                compiled_html += "<tr><td class='row-title-cell'>Percentage</td>"
+                for m in AVAILABLE_MONTHS:
+                    compiled_html += f"<td>{att_cells[m]['pct']}</td>"
+                compiled_html += f"<td style='font-weight:bold; background-color:#fff2cc;'>{att_cells['Over All Att.']['pct']}</td></tr>"
+                
+                compiled_html += """
+                    </tbody>
                     </table>
-                    
-                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">
-                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
-                    </div>
                     
                     <table class="footer-signatures-table">
                         <tr>
-                            <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
-                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
+                            <td style="width: 33.3%; text-align: left;"><span class="sig-marker-line">Class Teacher</span></td>
+                            <td style="width: 33.3%; text-align: center;"><span class="sig-marker-line">Controller of Exams</span></td>
+                            <td style="width: 33.3%; text-align: right;"><span class="sig-marker-line">Principal Signature</span></td>
                         </tr>
                     </table>
                 </div>
-                <div class="print-page-break-divider"></div>
                 """
-                
-            compiled_html += """
-            </body>
-            </html>
-            """
-            
-            # Render layout view frame container component
+                if print_scope == "👥 Complete Section Cards" and idx < len(students_to_print) - 1:
+                    compiled_html += '<div class="print-page-break-divider"></div>'
+
+            compiled_html += "</body></html>"
             components.html(compiled_html, height=800, scrolling=True)
+        else:
+            st.error("❌ This roll number does not exist.")
