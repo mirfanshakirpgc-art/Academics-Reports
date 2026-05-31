@@ -330,10 +330,10 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
-   # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+  # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
-    st.markdown("Generate comprehensive, print-ready multi-test academic dossiers based on your selection criteria.")
+    st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
 
     # High-Fidelity Print Styling Mirroring the Uploaded Layout Exactly
     st.markdown("""
@@ -433,12 +433,6 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             text-align: left;
             padding-left: 8px;
         }
-        .cck-section-heading {
-            text-align: center;
-            font-weight: bold;
-            font-size: 15px;
-            margin: 20px 0 10px 0;
-        }
         .cck-remarks-area {
             margin-top: 25px;
             font-size: 14px;
@@ -469,72 +463,98 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         </style>
     """, unsafe_allow_html=True)
 
-    # --- 1. ACTION SELECTORS & SCOPE SELECTION PANEL (TOP LEVEL FIRST) ---
+    # --- 1. DYNAMIC CONTROLS INTERFACE PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
-    # Segmented Scope Buttons placed prominently at the top level row
-    scope_choice = st.segmented_control(
+    # Selection Scope Toggles
+    scope_choice = st.radio(
         "𖨾 Select Scope:",
         options=["👤 Single Student Card", "👥 Complete Section Cards"],
-        default="👤 Single Student Card",
-        key="mt_scope_segmented"
+        index=0,
+        horizontal=True,
+        key="mt_reporting_scope"
     )
 
-    # Quick Parameters Alignment Row
-    btn_col1, btn_col2, btn_col3 = st.columns([1.5, 1.5, 2])
-    
-    with btn_col1:
-        sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="mt_scope_disc")
-    with btn_col2:
-        sel_sec = st.selectbox("Select Target Class Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="mt_scope_sec")
-    with btn_col3:
-        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_Up"]
-        selected_exams_list = st.multiselect(
-            "🎯 Select Tests:",
-            options=all_frameworks,
-            default=all_frameworks,
-            key="mt_tests_multiselect"
-        )
-        
+    # Reusable constants
+    all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_Up"]
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
     students_to_process = []
+    selected_exams_list = []
+    
+    # Global contextual parameters derived inside processing blocks
+    rendered_discipline = ""
+    rendered_section = ""
 
-    # Conditional parameter capturing based on user button selection frame
+    # CONDITIONAL SCOPE FORM RENDERERS
     if scope_choice == "👤 Single Student Card":
-        search_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="mt_search_id_input")
-        if search_id.strip():
-            single_student_df = run_query("""
-                SELECT id, name, class_name 
-                FROM students 
-                WHERE id = :sid AND UPPER(TRIM(section)) = UPPER(TRIM(:section))
-            """, {"sid": search_id.strip(), "section": sel_sec})
+        with st.form("single_student_secure_form"):
+            st.markdown("##### 👤 Single Profile Verification Panel")
+            col_s1, col_s2 = st.columns([2, 3])
+            with col_s1:
+                search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
+            with col_s2:
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=all_frameworks, key="form_exams_single")
             
-            if not single_student_df.empty:
-                students_to_process = [single_student_df.iloc[0].to_dict()]
+            submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
+            
+        if submit_single:
+            if not search_id.strip():
+                st.error("⚠️ Please input a valid Student Roll Number / ID.")
             else:
-                st.error(f"❌ Student ID #{search_id} not found within section '{sel_sec}'. Please verify inputs.")
+                student_df = run_query("""
+                    SELECT id, name, section, class_name 
+                    FROM students 
+                    WHERE id = :sid
+                """, {"sid": search_id.strip()})
+                
+                if not student_df.empty:
+                    students_to_process = [student_df.iloc[0].to_dict()]
+                    rendered_discipline = student_df.iloc[0]["class_name"] if student_df.iloc[0]["class_name"] else "N/A"
+                    rendered_section = student_df.iloc[0]["section"]
+                else:
+                    st.error(f"❌ Student ID #{search_id} was not found in the records database.")
+
     else:
-        section_students_df = run_query("""
-            SELECT id, name, class_name 
-            FROM students 
-            WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-            ORDER BY id ASC
-        """, {"section": sel_sec})
-        
-        if not section_students_df.empty:
-            students_to_process = section_students_df.to_dict('records')
-            st.info(f"📋 Ready to compile dossiers for all {len(students_to_process)} students in Section: **{sel_sec}**")
-        else:
-            st.info(f"💡 No registered student profiles mapped to section '{sel_sec}'.")
+        # User requested complete class list selection profiles
+        with st.form("complete_section_secure_form"):
+            st.markdown("##### 👥 Complete Section Processing Panel")
+            col_c1, col_c2, col_c3 = st.columns(3)
+            with col_c1:
+                sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="form_sel_disc_bulk")
+            with col_c2:
+                # Connected map safely isolated from runtime interrupt cycles inside the form closure
+                sel_sec = st.selectbox("Select Target Class Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="form_sel_sec_bulk")
+            with col_c3:
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=all_frameworks, key="form_exams_bulk")
+                
+            submit_bulk = st.form_submit_button("🚀 Compile All Section Cards", use_container_width=True)
+            
+        if submit_bulk:
+            rendered_discipline = sel_disc
+            rendered_section = sel_sec
+            
+            section_students_df = run_query("""
+                SELECT id, name, section, class_name 
+                FROM students 
+                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                ORDER BY id ASC
+            """, {"section": sel_sec})
+            
+            if not section_students_df.empty:
+                students_to_process = section_students_df.to_dict('records')
+            else:
+                st.info(f"💡 No registered student profiles mapped to section '{sel_sec}'.")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 2. EXECUTE DATA COMPILATION PIPELINE ENGINE ---
+    # --- 2. DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
     if students_to_process and not selected_exams_list:
-        st.warning("⚠️ Select at least one test parameter metric from the configuration panel to render reports.")
+        st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
+        
     elif students_to_process:
         student_ids_tuple = tuple([s['id'] for s in students_to_process])
         
+        # Protected database routing logic using efficient bulk tuples lookup batches
         marks_df = run_query("""
             SELECT student_id, subject_name, TRIM(exam_type) as exam_type, marks_obtained, total_marks
             FROM marks
@@ -549,13 +569,15 @@ elif menu_choice == "📈 Multi-Test Progress Report":
 
         st.write("---")
         
+        # Generate Cards for every resolved structural row dictionary item
         for s_meta in students_to_process:
             s_id = s_meta["id"]
             s_name = s_meta["name"]
-            s_class = s_meta["class_name"] if s_meta["class_name"] else sel_disc
+            s_class = s_meta["class_name"] if s_meta["class_name"] else rendered_discipline
+            s_section = s_meta["section"] if s_meta["section"] else rendered_section
             
-            # --- MARKS PROCESSING ---
-            s_marks = marks_df[marks_df["student_id"] == s_id]
+            # --- MARKS CARD MATRIX PROCESSING ---
+            s_marks = marks_df[marks_df["student_id"] == s_id] if not marks_df.empty else pd.DataFrame()
             unique_subjects = sorted(list(s_marks["subject_name"].unique())) if not s_marks.empty else ["English", "Urdu", "Mathematics", "Physics", "Chemistry"]
             
             table_rows_html = ""
@@ -564,12 +586,12 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
             for sub in unique_subjects:
-                sub_marks = s_marks[s_marks["subject_name"] == sub]
+                sub_marks = s_marks[s_marks["subject_name"] == sub] if not s_marks.empty else pd.DataFrame()
                 row_html = f"<tr><td>{sub}</td>"
                 sub_percentages = []
 
                 for exam in selected_exams_list:
-                    exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()]
+                    exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
                     
                     if not exam_subset.empty:
                         m_obt = exam_subset.iloc[0]["marks_obtained"]
@@ -604,7 +626,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                     
                 table_rows_html += row_html
 
-            # Bottom Summary Totals Row Row Calculation
+            # Bottom Summary Totals Row Matrix
             total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in selected_exams_list:
@@ -621,8 +643,8 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             else:
                 total_row_html += "<td></td></tr>"
 
-            # --- ATTENDANCE PROCESSING ---
-            s_att = attendance_df[attendance_df["student_id"] == s_id] if not attendance_df.empty else attendance_df
+            # --- ATTENDANCE TRACKER PROCESSING ---
+            s_att = attendance_df[attendance_df["student_id"] == s_id] if not attendance_df.empty else pd.DataFrame()
             
             tot_days_row = ""
             att_days_row = ""
@@ -632,7 +654,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             overall_att_days = 0
 
             for m in months_list:
-                m_subset = s_att[s_att["month_name"].str.startswith(m[:3], na=False)] if not s_att.empty else s_att
+                m_subset = s_att[s_att["month_name"].str.startswith(m[:3], na=False)] if not s_att.empty else pd.DataFrame()
                 
                 if not s_att.empty and not m_subset.empty:
                     t_d = int(m_subset.iloc[0]["total_days"])
@@ -660,7 +682,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 att_days_row += "<td></td>"
                 pct_days_row += "<td></td>"
 
-            # --- REMARKS TEXT SETUP ---
+            # --- ANALYTIC AUTO REMARKS TEXT ---
             if grand_total_percentages:
                 final_perf = grand_total_percentages[-1]
                 if final_perf >= 85: remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
@@ -673,7 +695,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
 
-            # --- RENDER CARD STRUCTURAL TEMPLATE ---
+            # --- EMBED GRAPHIC CARD COMPONENT LAYOUT ---
             html_output = f"""
             <div class="cck-container">
                 <div class="cck-header-wrapper">
@@ -691,7 +713,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 <div class="cck-meta-row">
                     <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
                     <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
-                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{sel_sec}</span></div>
+                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
                     <div class="cck-meta-field">Class: <span class="cck-line-fill">{s_class}</span></div>
                 </div>
                 
@@ -747,7 +769,7 @@ elif menu_choice == "📈 Multi-Test Progress Report":
             st.write(html_output, unsafe_allow_html=True)
         
         st.markdown('<div class="no-print">', unsafe_allow_html=True)
-        st.button("🖨️ Print Dossiers", help="Press Ctrl+P on your keyboard to trigger browser window printing.")
+        st.button("🖨️ Print Dossiers", help="Press Ctrl+P on your keyboard to save your output cards to physical print layouts or clean PDFs.")
         st.markdown('</div>', unsafe_allow_html=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
