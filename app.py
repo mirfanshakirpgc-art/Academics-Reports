@@ -1118,11 +1118,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             # --- MARKS CARD MATRIX PROCESSING ---
             if not marks_df.empty:
-                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
+                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)].copy()
             else:
                 s_marks = pd.DataFrame()
                 
-            unique_subjects = sorted(list(s_marks["subject_name"].unique())) if not s_marks.empty else ["English", "Urdu", "Mathematics", "Physics", "Chemistry"]
+            if not s_marks.empty:
+                s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
+                
+                # Filter out old standalone subjects from generating individual primary rows
+                active_marks = s_marks[s_marks["exam_type"].str.upper().isin([e.upper() for e in selected_exams_list])]
+                unique_subjects = sorted(list(active_marks["subject_clean"].unique()))
+                
+                if not unique_subjects:
+                    unique_subjects = sorted(list(s_marks["subject_clean"].unique()))
+            else:
+                unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Isl_Eth"]
             
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -1130,13 +1140,38 @@ if menu_choice == "📈 Multi-Test Progress Report":
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
             for sub in unique_subjects:
-                sub_marks = s_marks[s_marks["subject_name"] == sub] if not s_marks.empty else pd.DataFrame()
+                sub_marks = s_marks[s_marks["subject_clean"] == sub] if not s_marks.empty else pd.DataFrame()
                 row_html = f"<tr><td>{sub}</td>"
                 sub_percentages = []
 
                 for exam in selected_exams_list:
                     exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
                     
+                    # 🔍 HISTORICAL LOOKUP: If the new subject cell is empty for this exam,
+                    # look up whether they have historical marks from an old subject instead!
+                    if exam_subset.empty and not s_marks.empty:
+                        old_subject_match = s_marks[s_marks["exam_type"].str.upper() == exam.upper()]
+                        if not old_subject_match.empty:
+                            old_sub_name = old_subject_match.iloc[0]["subject_clean"][:3] # Gets 'Phy'
+                            m_obt = old_subject_match.iloc[0]["marks_obtained"]
+                            m_tot = old_subject_match.iloc[0]["total_marks"]
+                            
+                            try:
+                                val_obt = float(m_obt)
+                                val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
+                                pct = (val_obt / val_tot) * 100
+                                
+                                # Render inline as Sub(Marks%) under the current row's column cell!
+                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>{old_sub_name}({int(pct)}%)</span></td>"
+                                sub_percentages.append(pct)
+                                
+                                exam_totals_obtained[exam] += val_obt
+                                exam_totals_max[exam] += val_tot
+                                exam_has_any_data[exam] = True
+                                continue # Move to next exam column
+                            except:
+                                pass
+
                     if not exam_subset.empty:
                         m_obt = exam_subset.iloc[0]["marks_obtained"]
                         m_tot = exam_subset.iloc[0]["total_marks"]
@@ -1153,24 +1188,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             exam_has_any_data[exam] = True
                         except:
                             clean_obt = str(m_obt).strip().upper()
-                            if clean_obt in ["A", "ABSENT"]:
+                            if clean_obt in ["A", "ABSENT", "ABS"]:
                                 row_html += "<td>A</td>"
-                                exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
+                                exam_totals_max[exam] += float(m_tot) if pd.notna(m_tot) and float(m_tot) > 0 else 100.0
                                 exam_has_any_data[exam] = True
                                 sub_percentages.append(0.0)
-                            elif clean_obt == "NC":
-                                # This replaces the empty <td></td> when the test is Not Conducted
+                            elif clean_obt in ["NC", "N.C"]:
                                 row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
                             else:
-                                row_html += "<td></td>"
+                                row_html += "<td>-</td>"
                     else:
-                        row_html += "<td></td>"
+                        row_html += "<td>-</td>"
                 
                 if sub_percentages:
                     avg_pct = int(sum(sub_percentages) / len(sub_percentages))
                     row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
                 else:
-                    row_html += "<td></td></tr>"
+                    row_html += "<td><strong>-</strong></td></tr>"
                     
                 table_rows_html += row_html
 
@@ -1182,14 +1216,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     total_row_html += f"<td><strong>{tot_pct}%</strong></td>"
                     grand_total_percentages.append(tot_pct)
                 else:
-                    total_row_html += "<td></td>"
+                    total_row_html += "<td><strong>-</strong></td>"
             
             if grand_total_percentages:
                 overall_avg = int(sum(grand_total_percentages) / len(grand_total_percentages))
                 total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
             else:
-                total_row_html += "<td></td></tr>"
-
+                total_row_html += "<td><strong>-</strong></td></tr>"
             # --- ATTENDANCE TRACKER PROCESSING ---
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"].astype(str) == str(match_id)]
