@@ -474,6 +474,20 @@ elif menu_choice == "📋 Section Summary Report":
     with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
     with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
     
+    # Simple dictionary mapping for short-form subject names
+    SHORT_SUBJECTS_MAP = {
+        "MATHEMATICS": "MATH",
+        "COMPUTER SCIENCE": "COMP",
+        "COMPUTER": "COMP",
+        "PHYSICS": "PHY",
+        "CHEMISTRY": "CHEM",
+        "BIOLOGY": "BIO",
+        "ENGLISH": "ENG",
+        "URDU": "URDU",
+        "ISLAMIAT": "ISL",
+        "PAKISTAN STUDIES": "PAK.ST"
+    }
+    
     # 1. Fetch Students
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class" 
@@ -512,31 +526,34 @@ elif menu_choice == "📋 Section Summary Report":
             has_explicit_nc = False
             
             for sub in subjects:
-                sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub.upper().strip())]
+                sub_upper = sub.upper().strip()
+                # Determine short form if available in mapping, else fall back to original
+                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
+                
+                sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
                 
                 if not sub_match.empty:
                     val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
                     tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
                     
                     if val == "NC":
-                        entry[f"{sub} (Obt)"] = "NC"
+                        entry[short_sub] = "NC"
                         has_explicit_nc = True
                     elif val == "A":
-                        entry[f"{sub} (Obt)"] = "A"
-                        max_total += tot       # A: Count total marks, keep obtained at 0
+                        entry[short_sub] = "A"
+                        max_total += tot       
                         has_valid_scores = True
                     elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        entry[f"{sub} (Obt)"] = float(val)
+                        entry[short_sub] = float(val)
                         obtained_total += float(val)
                         max_total += tot       
                         has_valid_scores = True
                     else:
-                        entry[f"{sub} (Obt)"] = val
+                        entry[short_sub] = val
                 else:
-                    # If database entry does not exist at all, show as empty placeholder '-'
-                    entry[f"{sub} (Obt)"] = "-"
+                    entry[short_sub] = "-"
 
-            # Dynamic total calculation rules based on criteria
+            # Dynamic total calculation rules
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
                 entry["Total Max"] = int(max_total)
@@ -552,16 +569,16 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         
         # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
-        # Dynamic Subject Headers Construction
-        thead_subjects_html = "".join([f'<th>{sub} (Obt)</th>' for sub in subjects])
+        # Generate clean short form subject labels without "(Obt)"
+        short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
+        thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
         # Dynamic Rows Compilation
         tbody_rows_html = ""
         for _, row in final_report_df.iterrows():
-            # Generate styling context checks for NC / A elements
             row_subjects_cells = ""
-            for sub in subjects:
-                cell_val = str(row[f"{sub} (Obt)"])
+            for lbl in short_subject_labels:
+                cell_val = str(row[lbl])
                 cell_style = "color: #e74c3c; font-weight: bold;" if cell_val in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_val == "NC" else "")
                 row_subjects_cells += f'<td style="{cell_style}">{cell_val}</td>'
             
@@ -579,7 +596,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
         
-        # Comprehensive Styled Frame Blueprint Payload
+        # HTML Rendering Payload Configuration
         analytics_html_payload = f"""
         <!DOCTYPE html>
         <html>
@@ -675,7 +692,7 @@ elif menu_choice == "📋 Section Summary Report":
         </html>
         """
         
-        # Render high-performance analytical container interface components
+        # Render components
         components.html(analytics_html_payload, height=750, scrolling=True)
         
     else:
