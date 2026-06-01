@@ -1726,7 +1726,7 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-            # ----------------- STUDENT MANAGEMENT -----------------
+           # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management")
     st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
@@ -1735,9 +1735,9 @@ elif menu_choice == "Student Management":
     search_id = st.number_input("Enter Student ID:", min_value=1, step=1, key="manage_search_id")
     
     if search_id:
-        # Fetch current student details
+        # Step 1: Query safely without the 'status' column first to prevent complete crash
         student_data = run_query("""
-            SELECT id, name, section, class, status 
+            SELECT id, name, section, class 
             FROM students 
             WHERE id = :id
         """, {"id": search_id})
@@ -1747,7 +1747,16 @@ elif menu_choice == "Student Management":
             s_name = student_data.iloc[0]["name"]
             s_sec = student_data.iloc[0]["section"]
             s_class = student_data.iloc[0]["class"]
-            s_status = student_data.iloc[0]["status"] if "status" in student_data.columns and pd.notna(student_data.iloc[0]["status"]) else "Active"
+            
+            # Step 2: Try to get status separately, default to 'Active' if column doesn't exist
+            s_status = "Active"
+            try:
+                status_check = run_query("SELECT status FROM students WHERE id = :id", {"id": s_id})
+                if not status_check.empty and pd.notna(status_check.iloc[0]["status"]):
+                    s_status = status_check.iloc[0]["status"]
+            except Exception:
+                # If this errors, the column doesn't exist yet, which is fine!
+                pass
             
             # Display current profile card
             st.info(f"""
@@ -1774,16 +1783,27 @@ elif menu_choice == "Student Management":
                 
                 if st.button("💾 Save Status", use_container_width=True):
                     try:
+                        # Attempt to save status directly
                         run_update("""
                             UPDATE students 
                             SET status = :status 
                             WHERE id = :id
                         """, {"status": new_status, "id": s_id})
-                        
                         st.success(f"✅ Successfully updated status to **{new_status}**!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Failed to update status. Ensure a 'status' column exists in your students table. Error: {e}")
+                        # Auto-Migration fallback if column is missing
+                        if "no such column" in str(e).lower() or "unknown column" in str(e).lower() or "status" in str(e).lower():
+                            st.warning("⚡ Creating missing 'status' column in your database table...")
+                            try:
+                                run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
+                                run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
+                                st.success(f"✅ Table upgraded successfully! Updated status to **{new_status}**.")
+                                st.rerun()
+                            except Exception as migration_err:
+                                st.error(f"Could not automatically add column: {migration_err}")
+                        else:
+                            st.error(f"Failed to update status: {e}")
             
             # --- SECTION CHANGE MANAGEMENT ---
             with col_section:
