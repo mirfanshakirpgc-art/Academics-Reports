@@ -865,7 +865,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             s_id = s_meta['id']
             match_id = int(s_id) if str(s_id).isdigit() else s_id
             
-            # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
+           # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
             s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)] if not marks_df.empty else pd.DataFrame()
 
             # 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
@@ -876,7 +876,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             lookup_section = str(s_section).strip().upper()
             
-           if lookup_section in blueprint_map:
+            if lookup_section in blueprint_map:
                 active_subjects = blueprint_map[lookup_section]
             else:
                 # 🪄 DEFENSIVE SUBSTRING FALLBACK: Forces correct blueprint layout for subject transfers
@@ -902,32 +902,32 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
                     
                     if not exam_subset.empty:
-						# --- NORMAL STRATEGY: Active subject mark exists ---
-						m_obt = exam_subset.iloc[0]["marks_obtained"]
-						m_tot = exam_subset.iloc[0]["total_marks"]
-						
-						try:
-							val_obt = float(m_obt)
-							val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
-							pct = (val_obt / val_tot) * 100
-							row_html += f"<td>{int(pct)}%</td>"
-							sub_percentages.append(pct)
-							
-							exam_totals_obtained[exam] += val_obt
-							exam_totals_max[exam] += val_tot
-							exam_has_any_data[exam] = True
-						except:
-							clean_obt = str(m_obt).strip().upper()
-							if clean_obt in ["A", "ABSENT"]:
-								row_html += "<td>A</td>"
-								exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
-								exam_has_any_data[exam] = True
-								sub_percentages.append(0.0)
-							elif clean_obt == "NC":
-								row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
-							else:
-								row_html += "<td></td>"
-					else:
+                        # --- NORMAL STRATEGY: Active subject mark exists ---
+                        m_obt = exam_subset.iloc[0]["marks_obtained"]
+                        m_tot = exam_subset.iloc[0]["total_marks"]
+                        
+                        try:
+                            val_obt = float(m_obt)
+                            val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
+                            pct = (val_obt / val_tot) * 100
+                            row_html += f"<td>{int(pct)}%</td>"
+                            sub_percentages.append(pct)
+                            
+                            exam_totals_obtained[exam] += val_obt
+                            exam_totals_max[exam] += val_tot
+                            exam_has_any_data[exam] = True
+                        except:
+                            clean_obt = str(m_obt).strip().upper()
+                            if clean_obt in ["A", "ABSENT"]:
+                                row_html += "<td>A</td>"
+                                exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
+                                exam_has_any_data[exam] = True
+                                sub_percentages.append(0.0)
+                            elif clean_obt == "NC":
+                                row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
+                            else:
+                                row_html += "<td></td>"
+                    else:
 						# --- 🪄 FALLBACK STRATEGY: Merge older historical elective logs if active is blank ---
 						old_elective_match = s_marks[
 							(s_marks["exam_type"].str.upper() == exam.upper()) & 
