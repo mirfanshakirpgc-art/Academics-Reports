@@ -1946,16 +1946,15 @@ elif menu_choice == "Student Management":
             """)
         except Exception:
             log_data_df = pd.DataFrame(columns=["ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
-            
         # Fallback tracking scan
         try:
             left_fallback_df = run_query("""
                 SELECT id AS "ID", name AS "Student Name", 
                        'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
-                       status AS "To", 'Legacy Record' AS "Date Stamp", 
+                       UPPER(TRIM(status)) AS "To", 'Legacy Record' AS "Date Stamp", 
                        'Profile marked left before tracking initialized' AS "Staff Remarks Context"
                 FROM students
-                WHERE status IS NOT NULL AND status != ''
+                WHERE UPPER(TRIM(status)) = 'LEFT'
             """)
         except Exception:
             left_fallback_df = pd.DataFrame()
