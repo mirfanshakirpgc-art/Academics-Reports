@@ -876,7 +876,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             lookup_section = str(s_section).strip().upper()
             
-            if lookup_section in blueprint_map:
+           if lookup_section in blueprint_map:
                 active_subjects = blueprint_map[lookup_section]
             else:
                 # 🪄 DEFENSIVE SUBSTRING FALLBACK: Forces correct blueprint layout for subject transfers
@@ -886,29 +886,22 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     active_subjects = blueprint_map["CB_CS"]
                 else:
                     active_subjects = sorted(list(s_marks["subject_name"].str.upper().unique())) if not s_marks.empty else ["ENGLISH", "URDU", "MATHEMATICS"]
-				# 🪄 DEFENSIVE SUBSTRING FALLBACK: Forces correct blueprint layout for subject transfers
-				if "STATS" in lookup_section:
-					active_subjects = blueprint_map["CB_STATS"]
-				elif "CS" in lookup_section or "COMP" in lookup_section:
-					active_subjects = blueprint_map["CB_CS"]
-				else:
-					active_subjects = sorted(list(s_marks["subject_name"].str.upper().unique())) if not s_marks.empty else ["ENGLISH", "URDU", "MATHEMATICS"]
 
-			table_rows_html = ""
-			exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
-			exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
-			exam_has_any_data = {exam: False for exam in selected_exams_list}
+            table_rows_html = ""
+            exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
+            exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
+            exam_has_any_data = {exam: False for exam in selected_exams_list}
 
-			# 🎯 Step 2: Render rows ONLY for your current section blueprint requirements
-			for sub in active_subjects:
-				sub_marks = s_marks[s_marks["subject_name"].str.upper() == sub.upper()] if not s_marks.empty else pd.DataFrame()
-				row_html = f"<tr><td>{sub.title()}</td>"
-				sub_percentages = []
+            # 🎯 Step 2: Render rows ONLY for your current section blueprint requirements
+            for sub in active_subjects:
+                sub_marks = s_marks[s_marks["subject_name"].str.upper() == sub.upper()] if not s_marks.empty else pd.DataFrame()
+                row_html = f"<tr><td>{sub.title()}</td>"
+                sub_percentages = []
 
-				for exam in selected_exams_list:
-					exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
-					
-					if not exam_subset.empty:
+                for exam in selected_exams_list:
+                    exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
+                    
+                    if not exam_subset.empty:
 						# --- NORMAL STRATEGY: Active subject mark exists ---
 						m_obt = exam_subset.iloc[0]["marks_obtained"]
 						m_tot = exam_subset.iloc[0]["total_marks"]
