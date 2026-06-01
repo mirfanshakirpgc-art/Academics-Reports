@@ -929,9 +929,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 row_html += "<td></td>"
                     else:
 						# --- 🪄 FALLBACK STRATEGY: Merge older historical elective logs if active is blank ---
-						old_elective_match = s_marks[
-                            s_marks["subject_name"].str.upper().str.contains("ELECTIVE", na=False)
-                        ] if not s_marks.empty else pd.DataFrame()
+    old_elective_match = s_marks[
+        s_marks["subject_name"].str.upper().str.contains("ELECTIVE", na=False)
+    ] if not s_marks.empty else pd.DataFrame()
                         
                         exam_elective = old_elective_match[
                             old_elective_match["exam_type"].str.upper() == exam.upper()
