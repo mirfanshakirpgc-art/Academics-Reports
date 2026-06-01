@@ -866,19 +866,32 @@ if menu_choice == "📈 Multi-Test Progress Report":
 			match_id = int(s_id) if str(s_id).isdigit() else s_id
 			
 			# --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
-			s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)] if not marks_df.empty else pd.DataFrame()
+			s_class = " ".join(raw_class.replace("\n", " ").split())
+            
+            s_id = s_meta['id']
+            match_id = int(s_id) if str(s_id).isdigit() else s_id
+            
+            # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
+            s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)] if not marks_df.empty else pd.DataFrame()
 
-			# 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
-			blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
-				"CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
-				"CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
-			})
-			
-			lookup_section = str(s_section).strip().upper()
-			
-			if lookup_section in blueprint_map:
-				active_subjects = blueprint_map[lookup_section]
-			else:
+            # 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
+            blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
+                "CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
+                "CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
+            })
+            
+            lookup_section = str(s_section).strip().upper()
+            
+            if lookup_section in blueprint_map:
+                active_subjects = blueprint_map[lookup_section]
+            else:
+                # 🪄 DEFENSIVE SUBSTRING FALLBACK: Forces correct blueprint layout for subject transfers
+                if "STATS" in lookup_section:
+                    active_subjects = blueprint_map["CB_STATS"]
+                elif "CS" in lookup_section or "COMP" in lookup_section:
+                    active_subjects = blueprint_map["CB_CS"]
+                else:
+                    active_subjects = sorted(list(s_marks["subject_name"].str.upper().unique())) if not s_marks.empty else ["ENGLISH", "URDU", "MATHEMATICS"]
 				# 🪄 DEFENSIVE SUBSTRING FALLBACK: Forces correct blueprint layout for subject transfers
 				if "STATS" in lookup_section:
 					active_subjects = blueprint_map["CB_STATS"]
