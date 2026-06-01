@@ -1126,23 +1126,19 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
                 raw_subs = list(s_marks["subject_clean"].unique())
                 
-                # Check if student has transitioned into a Statistics tracking group
-                detected_sections_upper = []
-                if "section" in s_marks.columns:
-                    detected_sections_upper = [str(x).upper() for x in s_marks["section"].dropna().unique()]
-                
-                is_stats_student = "Statistics" in raw_subs or any("STATS" in sec for sec in detected_sections_upper)
+                # Check what unique subjects exist in their records
+                has_physics = "Physics" in raw_subs
+                has_stats = "Statistics" in raw_subs
                 
                 unique_subjects = []
                 for s in sorted(raw_subs):
-                    # ✂️ REMOVE STANDALONE PHYSICS ROW: 
-                    # If they are a stats student, skip adding Physics as a standalone row header entirely
-                    if s == "Physics" and is_stats_student:
-                        continue
+                    # ✂️ STRICTLY FILTER OUT STANDALONE PHYSICS ONLY IF STATISTICS DATA OR TRACK IS APPARENT
+                    if s == "Physics" and (has_stats or len(raw_subs) > 1):
+                        continue  # Drops the independent Physics row
                     unique_subjects.append(s)
                     
-                # Explicitly guarantee Statistics row shows up to receive the mapped marks
-                if is_stats_student and "Statistics" not in unique_subjects:
+                # Explicitly force STATISTICS to be the active primary row header
+                if "Statistics" not in unique_subjects:
                     unique_subjects.append("Statistics")
                     
                 unique_subjects = sorted(list(set(unique_subjects)))
@@ -1162,8 +1158,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
                     
                     # 🔍 HISTORICAL TRANSITION INTERCEPTION:
-                    # If processing the STATISTICS row and this student has no marks logged under "Statistics" yet,
-                    # look up their previous discipline tracking marks under "Physics" for this exam cell.
+                    # If processing STATISTICS row and no explicit marks are logged under 'Statistics' yet for this term,
+                    # safely grab their historical 'Physics' tracking scores and render inline.
                     if exam_subset.empty and sub == "Statistics" and not s_marks.empty:
                         old_match = s_marks[(s_marks["subject_clean"] == "Physics") & (s_marks["exam_type"].str.upper() == exam.upper())]
                         if not old_match.empty:
@@ -1174,7 +1170,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
                                 pct = (val_obt / val_tot) * 100
                                 
-                                # Appends the discipline swap tag neatly inside the cell
+                                # Appends the discipline reference indicator neatly inside the slot cell
                                 row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>Phy({int(pct)}%)</span></td>"
                                 sub_percentages.append(pct)
                                 
