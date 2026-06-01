@@ -424,7 +424,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'present_days' names exactly.")
                 except Exception as e:
                     st.error(f"Error handling system processing upload: {e}")
-# ----------------- 📋 SECTION SUMMARY REPORT -----------------
+# ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
     col_a, col_b, col_c = st.columns(3)
@@ -432,6 +432,7 @@ elif menu_choice == "📋 Section Summary Report":
     with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
     with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
     
+    # 1. Fetch Students
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class" 
         FROM students 
@@ -441,12 +442,18 @@ elif menu_choice == "📋 Section Summary Report":
     
     if not students_df.empty:
         subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
+        
+        # 2. Fetch Marks Entries
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m JOIN students s ON m.student_id = s.id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) AND TRIM(m.exam_type) = TRIM(:exam)
         """, {"section": sel_sec, "exam": sel_exam})
         
+        # Check if the database completely lacks records for this specific combination
+        if marks_df.empty:
+            st.warning(f"⚠️ No marks data found in the database for Section **{sel_sec}** under Exam Cycle **{sel_exam}**. Please make sure marks have been saved in the 'Enter Marks & Attendance' module.")
+            
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
@@ -459,7 +466,8 @@ elif menu_choice == "📋 Section Summary Report":
             
             obtained_total = 0.0
             max_total = 0.0
-            has_valid_scores = False  # Track if at least one subject is NOT "NC"
+            has_valid_scores = False  
+            has_explicit_nc = False
             
             for sub in subjects:
                 sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub.upper().strip())]
@@ -470,29 +478,32 @@ elif menu_choice == "📋 Section Summary Report":
                     
                     if val == "NC":
                         entry[f"{sub} (Obt)"] = "NC"
-                        # NC: Do not consider total marks, do not add to obtained
+                        has_explicit_nc = True
                     elif val == "A":
                         entry[f"{sub} (Obt)"] = "A"
-                        max_total += tot       # A: Consider total marks capacity
+                        max_total += tot       # A: Count total marks, keep obtained at 0
                         has_valid_scores = True
-                    elif val.replace('.', '', 1).isdigit():
-                        entry[f"{sub} (Obt)"] = val
+                    elif val.replace('.', '', 1).isdigit() or val.isdigit():
+                        entry[f"{sub} (Obt)"] = float(val)
                         obtained_total += float(val)
-                        max_total += tot       # Normal numeric entry
+                        max_total += tot       
                         has_valid_scores = True
                     else:
                         entry[f"{sub} (Obt)"] = val
                 else:
-                    # Default if no record exists in the database table for this entry
-                    entry[f"{sub} (Obt)"] = "NC"
+                    # If database entry does not exist at all, show as empty placeholder '-' instead of confusing it with explicit 'NC'
+                    entry[f"{sub} (Obt)"] = "-"
 
-            # Check logic constraints for the summary columns
+            # Dynamic total calculation rules based on your criteria
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
                 entry["Total Max"] = int(max_total)
-            else:
+            elif has_explicit_nc:
                 entry["Total (Obt)"] = "NC"
                 entry["Total Max"] = "NC"
+            else:
+                entry["Total (Obt)"] = "-"
+                entry["Total Max"] = "-"
                 
             summary_rows.append(entry)
             
@@ -500,7 +511,6 @@ elif menu_choice == "📋 Section Summary Report":
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
     else:
         st.info("💡 No active student profiles loaded under this section yet.")
-
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
