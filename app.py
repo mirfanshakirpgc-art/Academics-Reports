@@ -930,30 +930,38 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     else:
 						# --- 🪄 FALLBACK STRATEGY: Merge older historical elective logs if active is blank ---
 						old_elective_match = s_marks[
-							(s_marks["exam_type"].str.upper() == exam.upper()) & 
-							(~s_marks["subject_name"].str.upper().isin([x.upper() for x in active_subjects]))
-						]
-						
-						if not old_elective_match.empty:
-							old_sub_name = str(old_elective_match.iloc[0]["subject_name"]).strip()
-							old_m_obt = old_elective_match.iloc[0]["marks_obtained"]
-							old_m_tot = old_elective_match.iloc[0]["total_marks"]
-							
-							try:
-								old_val_obt = float(old_m_obt)
-								old_val_tot = float(old_m_tot) if float(old_m_tot) > 0 else 100.0
-								old_pct = (old_val_obt / old_val_tot) * 100
-								
-								short_prefix = old_sub_name[:4].title()
-								row_html += f"<td style='font-size: 11px; color: #555;'>{short_prefix} ({int(old_pct)}%)</td>"
-								sub_percentages.append(old_pct)
-								
-								exam_totals_obtained[exam] += old_val_obt
-								exam_totals_max[exam] += old_val_tot
-								exam_has_any_data[exam] = True
-							except:
-								row_html += "<td></td>"
-						else:
+                            s_marks["subject_name"].str.upper().str.contains("ELECTIVE", na=False)
+                        ] if not s_marks.empty else pd.DataFrame()
+                        
+                        exam_elective = old_elective_match[
+                            old_elective_match["exam_type"].str.upper() == exam.upper()
+                        ] if not old_elective_match.empty else pd.DataFrame()
+                        
+                        if not exam_elective.empty:
+                            m_obt = exam_elective.iloc[0]["marks_obtained"]
+                            m_tot = exam_elective.iloc[0]["total_marks"]
+                            
+                            try:
+                                val_obt = float(m_obt)
+                                val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
+                                pct = (val_obt / val_tot) * 100
+                                row_html += f"<td>{int(pct)}%</td>"
+                                sub_percentages.append(pct)
+                                
+                                exam_totals_obtained[exam] += val_obt
+                                exam_totals_max[exam] += val_tot
+                                exam_has_any_data[exam] = True
+                            except:
+                                clean_obt = str(m_obt).strip().upper()
+                                if clean_obt in ["A", "ABSENT"]:
+                                    row_html += "<td>A</td>"
+                                    exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
+                                    exam_has_any_data[exam] = True
+                                    sub_percentages.append(0.0)
+                                else:
+                                    row_html += "<td></td>"
+                        else:
+                            row_html += "<td>-</td>"
 							row_html += "<td></td>"
 				
 				if sub_percentages:
