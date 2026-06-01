@@ -1102,25 +1102,22 @@ if menu_choice == "📈 Multi-Test Progress Report":
             <div id="dossiers-master-wrapper">
         """
         
-       # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
+          # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
             if not marks_df.empty:
                 s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
             else:
                 s_marks = pd.DataFrame()
 
             # 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
-            # (Fallback defaults to common subjects if section mapping dictionary isn't globally found)
             blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
                 "CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
                 "CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
             })
             
-            # Normalize the lookup key to match your database sections (e.g., 'CB_STATS')
             lookup_section = str(s_section).strip().upper()
             if lookup_section in blueprint_map:
                 active_subjects = blueprint_map[lookup_section]
             else:
-                # Fallback safeguard: if section map fails, fallback to subjects natively found in historical data
                 active_subjects = sorted(list(s_marks["subject_name"].str.upper().unique())) if not s_marks.empty else ["ENGLISH", "URDU", "MATHEMATICS"]
 
             table_rows_html = ""
@@ -1165,7 +1162,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 row_html += "<td></td>"
                     else:
                         # --- 🪄 FALLBACK STRATEGY: Current blueprint subject is empty for this exam block ---
-                        # Look for alternate historic marks from an old elective taken during this specific test slot
                         old_elective_match = s_marks[
                             (s_marks["exam_type"].str.upper() == exam.upper()) & 
                             (~s_marks["subject_name"].str.upper().isin([x.upper() for x in active_subjects]))
@@ -1181,12 +1177,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 old_val_tot = float(old_m_tot) if float(old_m_tot) > 0 else 100.0
                                 old_pct = (old_val_obt / old_val_tot) * 100
                                 
-                                # Crop to a short display prefix like "Phy" or "Comp"
                                 short_prefix = old_sub_name[:4].title()
-                                row_html += f"<td style='font-size: 11px; color: #555;'>{short_prefix} ({dynamic_pct}%)</td>".replace('dynamic_pct', str(int(old_pct)))
+                                row_html += f"<td style='font-size: 11px; color: #555;'>{short_prefix} ({int(old_pct)}%)</td>"
                                 sub_percentages.append(old_pct)
                                 
-                                # Accrue values into grand totals matrix so cumulative calculation stays mathematically whole
                                 exam_totals_obtained[exam] += old_val_obt
                                 exam_totals_max[exam] += old_val_tot
                                 exam_has_any_data[exam] = True
