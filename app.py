@@ -1935,25 +1935,43 @@ elif menu_choice == "Student Management":
                 LEFT JOIN students s ON l.student_id = s.id
                 ORDER BY l.id DESC
             """)
-            
-            if log_data_df.empty:
-                st.info("💡 No history logs or section adjustments have been recorded yet.")
-            else:
-                if filter_view == "Left Students Master List":
-                    filtered_df = log_data_df[log_data_df["To"] == "Left"]
-                elif filter_view == "Section Transfer Track Log":
-                    filtered_df = log_data_df[log_data_df["Action"] == "SECTION_TRANSFER"]
-                else:
-                    filtered_df = log_data_df
-                    
-                if filtered_df.empty:
-                    st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
-                else:
-                    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
-                    
         except Exception:
-            # Fallback if no actions have executed yet to create the internal schema
-            st.info("💡 Audit tracking table is initialized. Logs will populate dynamically here once status or section changes are saved.")
+            # Fallback if the student_logs table hasn't been built yet
+            log_data_df = pd.DataFrame(columns=["ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
+            
+        # 🌟 SMART BACKUP: Scan the main student table for any existing 'Left' records 
+        # so they show up here even if they were changed before logging was turned on!
+        left_fallback_df = run_query("""
+            SELECT id AS "ID", name AS "Student Name", 
+                   'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
+                   status AS "To", 'Legacy Record' AS "Date Stamp", 
+                   'Profile marked left before tracking initialized' AS "Staff Remarks Context"
+            FROM students
+            WHERE UPPER(TRIM(status)) = 'LEFT'
+        """)
+        
+        # Combine the running history logs and any legacy left records securely
+        if not left_fallback_df.empty:
+            # Drop any duplicates if they exist in both tables to keep it clean
+            existing_logged_ids = log_data_df[log_data_df["To"] == "Left"]["ID"].tolist()
+            filtered_fallback = left_fallback_df[~left_fallback_df["ID"].isin(existing_logged_ids)]
+            log_data_df = pd.concat([log_data_df, filtered_fallback], ignore_index=True)
+
+        # Render lists based on selected dropdown filter
+        if log_data_df.empty:
+            st.info("💡 No history logs or section adjustments have been recorded yet.")
+        else:
+            if filter_view == "Left Students Master List":
+                filtered_df = log_data_df[log_data_df["To"] == "Left"]
+            elif filter_view == "Section Transfer Track Log":
+                filtered_df = log_data_df[log_data_df["Action"] == "SECTION_TRANSFER"]
+            else:
+                filtered_df = log_data_df
+                
+            if filtered_df.empty:
+                st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
+            else:
+                st.dataframe(filtered_df, use_container_width=True, hide_index=True)
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
