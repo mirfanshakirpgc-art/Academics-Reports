@@ -133,6 +133,13 @@ def run_query(query, params=None):
     with engine.connect() as conn:
         return pd.read_sql_query(text(query), conn, params=params)
 
+def run_update(query, params=None):
+    if params is None:
+        params = {}
+    # This uses your existing 'engine' and automatically handles COMMITs!
+    with engine.begin() as conn:
+        conn.execute(text(query), params)
+
 def execute_db_command(command, params=None):
     if params is None:
         params = {}
@@ -1755,7 +1762,7 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-        # ----------------- STUDENT MANAGEMENT -----------------
+       # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management")
     st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
@@ -1818,17 +1825,16 @@ elif menu_choice == "Student Management":
                         st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
                     else:
                         try:
-                            # Using run_query to execute the update statement to bypass missing conn variable
-                            run_query("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
+                            run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
                             st.success(f"✅ Successfully updated status to **{new_status}**!")
                             st.rerun()
                         except Exception as e:
                             if "status" in str(e).lower() or "no such column" in str(e).lower():
-                                st.warning("⚡ Adding missing status columns to your database structure...")
+                                st.warning("⚡ Automatically adding 'status' column to database schema...")
                                 try:
-                                    run_query("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
-                                    run_query("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                    st.success(f"✅ Table upgraded! Updated status to **{new_status}**.")
+                                    run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
+                                    run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
+                                    st.success(f"✅ Database upgraded! Status updated to **{new_status}**.")
                                     st.rerun()
                                 except Exception as migration_err:
                                     st.error(f"Could not update schema automatically: {migration_err}")
@@ -1852,7 +1858,7 @@ elif menu_choice == "Student Management":
                         st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                     else:
                         try:
-                            run_query("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
+                            run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
                             st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
                             st.rerun()
                         except Exception as e:
