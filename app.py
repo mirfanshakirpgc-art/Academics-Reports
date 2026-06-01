@@ -1126,18 +1126,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
                 raw_subs = list(s_marks["subject_clean"].unique())
                 
-                # Smart Merging: If they have both Computer and Physics records, combine them into one row
+                # DISCIPLINE BRIDGE: If they transitioned from Physics to Statistics sections, 
+                # keep "Statistics" as the official row header and filter out standalone "Physics".
                 unique_subjects = []
-                has_elective_swap = "Computer" in raw_subs and "Physics" in raw_subs
-                
                 for s in sorted(raw_subs):
-                    if has_elective_swap and s in ["Computer", "Physics"]:
-                        if "Computer / Physics" not in unique_subjects:
-                            unique_subjects.append("Computer / Physics")
-                    else:
-                        unique_subjects.append(s)
+                    if s == "Physics" and ("Statistics" in raw_subs or "Cb_Stats" in current_section.upper() or "CG_STATS" in current_section.upper()):
+                        continue  # Do not give Physics its own individual row
+                    unique_subjects.append(s)
+                    
+                # Explicitly guarantee Statistics row shows up for tracking their active elective
+                if "Statistics" not in unique_subjects:
+                    unique_subjects.append("Statistics")
+                    
+                unique_subjects = sorted(list(set(unique_subjects)))
             else:
-                unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Isl_Eth"]
+                unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
             
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -1145,34 +1148,35 @@ if menu_choice == "📈 Multi-Test Progress Report":
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
             for sub in unique_subjects:
-                row_html = f"<tr><td>{sub}</td>"
+                row_html = f"<tr><td>{sub.upper()}</td>"
                 sub_percentages = []
 
                 for exam in selected_exams_list:
-                    # If dealing with our merged elective track
-                    if sub == "Computer / Physics":
-                        # 1. Try to pull current track (Computer)
-                        exam_subset = s_marks[(s_marks["subject_clean"] == "Computer") & (s_marks["exam_type"].str.upper() == exam.upper())]
-                        
-                        # 2. If empty, fall back to historical track (Physics) and label it inline
-                        if exam_subset.empty:
-                            old_match = s_marks[(s_marks["subject_clean"] == "Physics") & (s_marks["exam_type"].str.upper() == exam.upper())]
-                            if not old_match.empty:
-                                m_obt = old_match.iloc[0]["marks_obtained"]
-                                m_tot = old_match.iloc[0]["total_marks"]
-                                try:
-                                    pct = (float(m_obt) / (float(m_tot) if float(m_tot) > 0 else 100.0)) * 100
-                                    row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>Phy({int(pct)}%)</span></td>"
-                                    sub_percentages.append(pct)
-                                    exam_totals_obtained[exam] += float(m_obt)
-                                    exam_totals_max[exam] += float(m_tot) if float(m_tot) > 0 else 100.0
-                                    exam_has_any_data[exam] = True
-                                    continue
-                                except:
-                                    pass
-                    else:
-                        # Standard subject loop processing
-                        exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())]
+                    exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
+                    
+                    # 🔍 HISTORICAL TRANSITION INTERCEPTION:
+                    # If processing the STATISTICS row and this student has no marks logged under "Statistics" yet,
+                    # look up their previous discipline tracking marks under "Physics" for this exam cell.
+                    if exam_subset.empty and sub == "Statistics" and not s_marks.empty:
+                        old_match = s_marks[(s_marks["subject_clean"] == "Physics") & (s_marks["exam_type"].str.upper() == exam.upper())]
+                        if not old_match.empty:
+                            m_obt = old_match.iloc[0]["marks_obtained"]
+                            m_tot = old_match.iloc[0]["total_marks"]
+                            try:
+                                val_obt = float(m_obt)
+                                val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
+                                pct = (val_obt / val_tot) * 100
+                                
+                                # Appends the discipline swap tag neatly inside the cell
+                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>Phy({int(pct)}%)</span></td>"
+                                sub_percentages.append(pct)
+                                
+                                exam_totals_obtained[exam] += val_obt
+                                exam_totals_max[exam] += val_tot
+                                exam_has_any_data[exam] = True
+                                continue # Cell handled! Advance column loop.
+                            except:
+                                pass
 
                     if not exam_subset.empty:
                         m_obt = exam_subset.iloc[0]["marks_obtained"]
