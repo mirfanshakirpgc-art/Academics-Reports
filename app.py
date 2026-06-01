@@ -2028,8 +2028,8 @@ elif menu_choice == "Student Management":
                         
                         if st.button("🗑️ Erase Log Entry Row Permanently", type="primary", use_container_width=True):
                             try:
-                                # Using execute_db_command to process clean updates safely!
-                                execute_db_command("DELETE FROM student_logs WHERE id = :log_id", {"log_id": target_log_id})
+                                # Using your application's native run_update engine!
+                                run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": target_log_id})
                                 st.success(f"💥 Successfully purged Log Row Entry #{target_log_id} from tracking historical records!")
                                 st.rerun()
                             except Exception as del_err:
