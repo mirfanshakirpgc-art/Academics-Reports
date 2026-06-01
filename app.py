@@ -426,12 +426,18 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     st.error(f"Error handling system processing upload: {e}")
 # ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
+    st.title("📋 Section Performance Analytics Report")
     col_a, col_b, col_c = st.columns(3)
     with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
     with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
     with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
     
-    students_df = run_query("SELECT id AS \"ID\", name AS \"Student Name\", section AS \"Section\", class AS \"Class\" FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": sel_sec})
+    students_df = run_query("""
+        SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class" 
+        FROM students 
+        WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+        ORDER BY id ASC
+    """, {"section": sel_sec})
     
     if not students_df.empty:
         subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
@@ -444,26 +450,56 @@ elif menu_choice == "📋 Section Summary Report":
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
-            entry = {"ID": s_id, "Student Name": s_row["Student Name"], "Section": s_row["Section"], "Class": s_row["Class"]}
-            obtained_total, max_total, has_scores = 0.0, 0.0, False
+            entry = {
+                "ID": s_id, 
+                "Student Name": s_row["Student Name"], 
+                "Section": s_row["Section"], 
+                "Class": s_row["Class"]
+            }
+            
+            obtained_total = 0.0
+            max_total = 0.0
+            has_valid_scores = False  # Track if at least one subject is NOT "NC"
             
             for sub in subjects:
                 sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub.upper().strip())]
+                
                 if not sub_match.empty:
                     val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
-                    entry[f"{sub} (Obt)"] = val
-                    if val.replace('.', '', 1).isdigit():
-                        tot = float(sub_match["total_marks"].iloc[0])
+                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
+                    
+                    if val == "NC":
+                        entry[f"{sub} (Obt)"] = "NC"
+                        # NC: Do not consider total marks, do not add to obtained
+                    elif val == "A":
+                        entry[f"{sub} (Obt)"] = "A"
+                        max_total += tot       # A: Consider total marks capacity
+                        has_valid_scores = True
+                    elif val.replace('.', '', 1).isdigit():
+                        entry[f"{sub} (Obt)"] = val
                         obtained_total += float(val)
-                        max_total += tot
-                        has_scores = True
-            entry["Total (Obt)"] = int(obtained_total) if has_scores else "-"
+                        max_total += tot       # Normal numeric entry
+                        has_valid_scores = True
+                    else:
+                        entry[f"{sub} (Obt)"] = val
+                else:
+                    # Default if no record exists in the database table for this entry
+                    entry[f"{sub} (Obt)"] = "NC"
+
+            # Check logic constraints for the summary columns
+            if has_valid_scores:
+                entry["Total (Obt)"] = int(obtained_total)
+                entry["Total Max"] = int(max_total)
+            else:
+                entry["Total (Obt)"] = "NC"
+                entry["Total Max"] = "NC"
+                
             summary_rows.append(entry)
             
         final_report_df = pd.DataFrame(summary_rows)
         st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
-import base64
-import os
+    else:
+        st.info("💡 No active student profiles loaded under this section yet.")
 
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
