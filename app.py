@@ -1921,7 +1921,7 @@ elif menu_choice == "Student Management":
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
 
 # =========================================================
-    # TAB 2: AUDIT LOGS VIEW (With Delete & Excel Export Features)
+    # TAB 2: AUDIT LOGS VIEW (No-Dependency CSV Export & Delete)
     # =========================================================
     with logs_tab:
         st.subheader("📋 Institutional Exit & Section Transfer Logs")
@@ -1980,40 +1980,39 @@ elif menu_choice == "Student Management":
                 # Clean up tracking columns before presentation
                 display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
                 
-                # Render the main logs dataframe (Hiding the internal Log ID column from layout)
+                # Render the main logs dataframe (Hiding internal Log ID from UI layout)
                 st.dataframe(display_df.drop(columns=["Log ID"], errors="ignore"), use_container_width=True, hide_index=True)
                 
                 st.markdown("---")
                 # Action Tools Layout
                 col_dl, col_del = st.columns([2, 2])
                 
-                # --- EXCEL DOWNLOAD UTILITY ---
+                # --- ZERO-DEPENDENCY CSV DOWNLOAD UTILITY ---
                 with col_dl:
                     st.subheader("📥 Export History Logs")
                     try:
-                        import io
-                        buffer = io.BytesIO()
-                        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                            # Save clean display data without internal log row IDs
-                            export_df = display_df.drop(columns=["Log ID"], errors="ignore")
-                            export_df.to_excel(writer, sheet_name='Audit Logs', index=False)
+                        # Drop internal tracking ID column before saving out file
+                        export_df = display_df.drop(columns=["Log ID"], errors="ignore")
+                        
+                        # Convert to standard CSV string stream (works instantly everywhere without extra libraries)
+                        csv_data = export_df.to_csv(index=False).encode('utf-8')
                         
                         st.download_button(
-                            label="📥 Download Log Ledger as Excel",
-                            data=buffer.getvalue(),
-                            file_name=f"student_audit_logs_{filter_view.lower().replace(' ', '_')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            label="📥 Download Log Ledger (CSV for Excel)",
+                            data=csv_data,
+                            file_name=f"student_audit_logs_{filter_view.lower().replace(' ', '_')}.csv",
+                            mime="text/csv",
                             use_container_width=True,
                             type="secondary"
                         )
-                    except Exception as xl_err:
-                        st.error(f"Excel Generator failed: {xl_err}")
+                    except Exception as csv_err:
+                        st.error(f"Export Generator failed: {csv_err}")
                 
-                # --- ROW REMOVAL ENGINE ---
+                # --- ROW REMOVAL ENGINE (Using your execute_db_command wrapper) ---
                 with col_del:
                     st.subheader("🗑️ Delete History Log Row")
                     
-                    # Create select options filtering out entries missing a Log ID (legacy fallback row placeholders)
+                    # Create select options filtering out entries missing a Log ID
                     log_rows_with_ids = display_df[display_df["Log ID"].notna()]
                     
                     if log_rows_with_ids.empty:
@@ -2029,7 +2028,8 @@ elif menu_choice == "Student Management":
                         
                         if st.button("🗑️ Erase Log Entry Row Permanently", type="primary", use_container_width=True):
                             try:
-                                run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": target_log_id})
+                                # Using execute_db_command to process clean updates safely!
+                                execute_db_command("DELETE FROM student_logs WHERE id = :log_id", {"log_id": target_log_id})
                                 st.success(f"💥 Successfully purged Log Row Entry #{target_log_id} from tracking historical records!")
                                 st.rerun()
                             except Exception as del_err:
