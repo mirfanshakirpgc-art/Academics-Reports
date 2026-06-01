@@ -1921,27 +1921,18 @@ elif menu_choice == "Student Management":
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
 
 # =========================================================
-    # TAB 2: AUDIT LOGS VIEW (With Raw Database Debugger)
+    # TAB 2: AUDIT LOGS VIEW (With Delete & Excel Export Features)
     # =========================================================
     with logs_tab:
         st.subheader("📋 Institutional Exit & Section Transfer Logs")
-        
-        # 👇 🔍 EMERGENCY DIAGNOSTIC WINDOW 🔍 👇
-        with st.expander("🕵️‍♂️ Database inspector (Click to see what is actually inside your database)"):
-            st.markdown("This shows the first 50 entries in your database so you can check if anyone actually has a status.")
-            try:
-                raw_debug_df = run_query("SELECT id, name, section, class, status FROM students LIMIT 50")
-                st.dataframe(raw_debug_df, use_container_width=True)
-            except Exception as debug_err:
-                st.error(f"Could not read database columns: {debug_err}")
-        # 👆 🔍 END OF DIAGNOSTIC WINDOW 👆 
-
         st.markdown("Review running logs of all student profile departures and section allocation changes.")
+        
         filter_view = st.selectbox("Filter Log Matrix By Type:", ["All Historical Actions", "Left Students Master List", "Section Transfer Track Log"])
         
+        # Pull master references including the true Log ID from log tables
         try:
             log_data_df = run_query("""
-                SELECT l.student_id AS "ID", s.name AS "Student Name", 
+                SELECT l.id AS "Log ID", l.student_id AS "ID", s.name AS "Student Name", 
                        l.change_type AS "Action", l.old_value AS "From", 
                        l.new_value AS "To", l.log_date AS "Date Stamp", 
                        l.remarks AS "Staff Remarks Context"
@@ -1950,11 +1941,12 @@ elif menu_choice == "Student Management":
                 ORDER BY l.id DESC
             """)
         except Exception:
-            log_data_df = pd.DataFrame(columns=["ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
-        # Fallback tracking scan
+            log_data_df = pd.DataFrame(columns=["Log ID", "ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
+            
+        # Fallback tracking scan for legacy left records
         try:
             left_fallback_df = run_query("""
-                SELECT id AS "ID", name AS "Student Name", 
+                SELECT NULL AS "Log ID", id AS "ID", name AS "Student Name", 
                        'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
                        UPPER(TRIM(status)) AS "To", 'Legacy Record' AS "Date Stamp", 
                        'Profile marked left before tracking initialized' AS "Staff Remarks Context"
@@ -1985,8 +1977,63 @@ elif menu_choice == "Student Management":
             if filtered_df.empty:
                 st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
             else:
+                # Clean up tracking columns before presentation
                 display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                
+                # Render the main logs dataframe (Hiding the internal Log ID column from layout)
+                st.dataframe(display_df.drop(columns=["Log ID"], errors="ignore"), use_container_width=True, hide_index=True)
+                
+                st.markdown("---")
+                # Action Tools Layout
+                col_dl, col_del = st.columns([2, 2])
+                
+                # --- EXCEL DOWNLOAD UTILITY ---
+                with col_dl:
+                    st.subheader("📥 Export History Logs")
+                    try:
+                        import io
+                        buffer = io.BytesIO()
+                        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                            # Save clean display data without internal log row IDs
+                            export_df = display_df.drop(columns=["Log ID"], errors="ignore")
+                            export_df.to_excel(writer, sheet_name='Audit Logs', index=False)
+                        
+                        st.download_button(
+                            label="📥 Download Log Ledger as Excel",
+                            data=buffer.getvalue(),
+                            file_name=f"student_audit_logs_{filter_view.lower().replace(' ', '_')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            type="secondary"
+                        )
+                    except Exception as xl_err:
+                        st.error(f"Excel Generator failed: {xl_err}")
+                
+                # --- ROW REMOVAL ENGINE ---
+                with col_del:
+                    st.subheader("🗑️ Delete History Log Row")
+                    
+                    # Create select options filtering out entries missing a Log ID (legacy fallback row placeholders)
+                    log_rows_with_ids = display_df[display_df["Log ID"].notna()]
+                    
+                    if log_rows_with_ids.empty:
+                        st.caption("ℹ️ Legacy records cannot be individual log cleared. Use the status modifier profile card to change state.")
+                    else:
+                        delete_options = {
+                            f"Log #{int(row['Log ID'])}: Student ID {row['ID']} - {row['Action']} ({row['Date Stamp']})": int(row['Log ID'])
+                            for _, row in log_rows_with_ids.iterrows()
+                        }
+                        
+                        target_row_label = st.selectbox("Select precise log entry row to purge:", list(delete_options.keys()))
+                        target_log_id = delete_options[target_row_label]
+                        
+                        if st.button("🗑️ Erase Log Entry Row Permanently", type="primary", use_container_width=True):
+                            try:
+                                run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": target_log_id})
+                                st.success(f"💥 Successfully purged Log Row Entry #{target_log_id} from tracking historical records!")
+                                st.rerun()
+                            except Exception as del_err:
+                                st.error(f"Failed to clear requested historical index: {del_err}")
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
