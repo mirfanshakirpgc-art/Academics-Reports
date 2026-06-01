@@ -1102,17 +1102,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
             <div id="dossiers-master-wrapper">
         """
         
-          # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
-            if not marks_df.empty:
-                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
-            else:
-                s_marks = pd.DataFrame()
+         # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
+			if not marks_df.empty:
+				s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
+			else:
+				s_marks = pd.DataFrame()
 
-            # 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
-            blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
-                "CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
-                "CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
-            })
+			# 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
+			blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
+				"CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
+				"CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
+			})
+
+			lookup_section = str(s_section).strip().upper()
+			if lookup_section in blueprint_map:
+				active_subjects = blueprint_map[lookup_section]
+			else:
+				active_subjects = sorted(list(s_marks["subject_name"].str.upper().unique())) if not s_marks.empty else ["ENGLISH", "URDU", "MATHEMATICS"]
             
             lookup_section = str(s_section).strip().upper()
             if lookup_section in blueprint_map:
