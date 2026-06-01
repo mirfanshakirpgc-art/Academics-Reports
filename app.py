@@ -966,11 +966,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             exam_totals_max[exam] += val_tot
                             exam_has_any_data[exam] = True
                         except:
-                            if str(m_obt).strip().upper() in ["A", "ABSENT"]:
+                            clean_obt = str(m_obt).strip().upper()
+                            if clean_obt in ["A", "ABSENT"]:
                                 row_html += "<td>A</td>"
                                 exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
                                 exam_has_any_data[exam] = True
                                 sub_percentages.append(0.0)
+                            elif clean_obt == "NC":
+                                # This replaces the empty <td></td> when the test is Not Conducted
+                                row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
                             else:
                                 row_html += "<td></td>"
                     else:
