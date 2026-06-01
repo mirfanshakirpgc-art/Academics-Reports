@@ -852,21 +852,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
     elif students_to_process:
         params_dict = {}
         placeholder_list = []
-		for index, s_meta in enumerate(students_to_process):
-			raw_name = str(s_meta["name"])
-			s_name = " ".join(raw_name.replace("\n", " ").split())
-			
-			raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
-			s_section = " ".join(raw_section.replace("\n", " ").split())
-			
-			raw_class = str(s_meta["class"]) if s_meta.get("class") else "11th"
-			s_class = " ".join(raw_class.replace("\n", " ").split())
-			
-			s_id = s_meta['id']
-			match_id = int(s_id) if str(s_id).isdigit() else s_id
-			
-			# --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
-			s_class = " ".join(raw_class.replace("\n", " ").split())
+        for index, s_meta in enumerate(students_to_process):
+            raw_name = str(s_meta["name"])
+            s_name = " ".join(raw_name.replace("\n", " ").split())
+            
+            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
+            s_section = " ".join(raw_section.replace("\n", " ").split())
+            
+            raw_class = str(s_meta["class"]) if s_meta.get("class") else "11th"
+            s_class = " ".join(raw_class.replace("\n", " ").split())
             
             s_id = s_meta['id']
             match_id = int(s_id) if str(s_id).isdigit() else s_id
