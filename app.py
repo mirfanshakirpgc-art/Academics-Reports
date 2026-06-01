@@ -260,12 +260,13 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 
                 try:
                     roster_df = run_query("""
-                        SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-                        FROM students s
-                        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                        ORDER BY s.id ASC
-                    """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
+    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+    FROM students s
+    LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
+    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+    ORDER BY s.id ASC
+""", {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
                     
                     if roster_df.empty:
                         st.info(f"💡 No students found registered in section '{sel_section}' yet.")
@@ -291,7 +292,12 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         elif entry_mode == "👤 By Single Student Roll Number":
             target_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id")
             if target_id and target_id.isdigit():
-                student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(target_id)})
+                student_info = run_query("""
+    SELECT name, section, class, status 
+    FROM students 
+    WHERE id = :id 
+      AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
+""", {"id": int(target_id)})
                 if student_info.empty:
                     st.error("❌ This roll number does not exist.")
                 else:
