@@ -1755,7 +1755,7 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-         # ----------------- STUDENT MANAGEMENT -----------------
+        # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management")
     st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
@@ -1818,27 +1818,16 @@ elif menu_choice == "Student Management":
                         st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
                     else:
                         try:
-                            # Direct modification via a connection block to remove run_update dependency
-                            with conn.session as session:
-                                session.execute(
-                                    text("UPDATE students SET status = :status WHERE id = :id"),
-                                    {"status": new_status, "id": s_id}
-                                )
-                                session.commit()
+                            # Using run_query to execute the update statement to bypass missing conn variable
+                            run_query("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
                             st.success(f"✅ Successfully updated status to **{new_status}**!")
                             st.rerun()
                         except Exception as e:
-                            # Dynamic schema update if 'status' column is missing completely
                             if "status" in str(e).lower() or "no such column" in str(e).lower():
-                                st.warning("⚡ Adding missing status columns to your database storage structure...")
+                                st.warning("⚡ Adding missing status columns to your database structure...")
                                 try:
-                                    with conn.session as session:
-                                        session.execute(text("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';"))
-                                        session.execute(
-                                            text("UPDATE students SET status = :status WHERE id = :id"),
-                                            {"status": new_status, "id": s_id}
-                                        )
-                                        session.commit()
+                                    run_query("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
+                                    run_query("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
                                     st.success(f"✅ Table upgraded! Updated status to **{new_status}**.")
                                     st.rerun()
                                 except Exception as migration_err:
@@ -1863,12 +1852,7 @@ elif menu_choice == "Student Management":
                         st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                     else:
                         try:
-                            with conn.session as session:
-                                session.execute(
-                                    text("UPDATE students SET section = :new_section WHERE id = :id"),
-                                    {"new_section": new_sec, "id": s_id}
-                                )
-                                session.commit()
+                            run_query("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
                             st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
                             st.rerun()
                         except Exception as e:
