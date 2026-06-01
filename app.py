@@ -1102,7 +1102,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             <div id="dossiers-master-wrapper">
         """
         
-         # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
+            # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
 			if not marks_df.empty:
 				s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
 			else:
