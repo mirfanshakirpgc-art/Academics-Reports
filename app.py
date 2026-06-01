@@ -266,11 +266,6 @@ def execute_db_command(command, params=None):
     with engine.begin() as conn:
         conn.execute(text(command), params)
 
-# --- NAVIGATION SIDEBAR ---
-st.sidebar.image("logo.png", use_container_width=True)
-st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
-
-
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
     "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
