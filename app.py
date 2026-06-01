@@ -1110,6 +1110,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
 				"CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
 			})
 			
+			# Cleanse section text thoroughly to prevent fallback misses
+			lookup_section = str(s_section).strip().upper() if 's_section' in locals() else ""
+			
+			if lookup_section in blueprint_map:
+				active_subjects = blueprint_map[lookup_section]
+			else:
+				# Defensive fallback: If string matching fails, scan for key substrings to enforce correct layout
+				if "STATS" in lookup_section:
+					active_subjects = blueprint_map["CB_STATS"]
+				else:
+					active_subjects = blueprint_map["CB_CS"]
+			
 			lookup_section = str(s_section).strip().upper() if 's_section' in locals() else ""
 			
 			if lookup_section in blueprint_map:
