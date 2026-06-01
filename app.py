@@ -167,11 +167,17 @@ elif menu_choice == "➕ Add Students":
                 added_counter += 1
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
-# ----------------- 📝 ENTER MARKS & ATTENDANCE -----------------
+# ---------------------------------------------------------
+# 📝 ENTER MARKS & ATTENDANCE MODULE
+# ---------------------------------------------------------
 elif menu_choice == "📝 Enter Marks & Attendance":
     st.title("📝 Data Intake Management Dashboard")
     sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
     st.markdown("---")
+
+    # Get active session identity data
+    current_user_id = st.session_state.get('user_id', None)
+    current_role = st.session_state.get('role', st.session_state.get('user_role', 'teacher'))
 
     if sub_tab_selection == "📝 Academic Exam Marks Entry":
         entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number"], horizontal=True)
@@ -179,48 +185,61 @@ elif menu_choice == "📝 Enter Marks & Attendance":
 
         if entry_mode == "📋 By Complete Section":
             c1, c2, c3 = st.columns(3)
-            with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-            with c2: 
-                if st.session_state.user_role == 'teacher' and st.session_state.assigned_subject:
-                    teacher_subj = st.session_state.assigned_subject.upper().strip()
-                    sel_subject = st.selectbox("Select Subject:", [teacher_subj])
-                else:
-                    sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
-            with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
             
-            row2_1, row2_2 = st.columns(2)
-            with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
-            with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
-            
-            try:
-                roster_df = run_query("""
-                    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-                    FROM students s
-                    LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                    ORDER BY s.id ASC
-                """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
+            # Smart allocation lookup for active teacher accounts
+            if current_role == 'teacher' and current_user_id is not None:
+                teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
                 
-                if roster_df.empty:
-                    st.info(f"💡 No students found registered in section '{sel_section}' yet.")
+                if not teacher_rights.empty:
+                    allowed_subs = sorted(list(teacher_rights['subject'].unique()))
+                    allowed_secs = sorted(list(teacher_rights['section'].unique()))
+                    
+                    with c1: st.info("🔒 Bound to Assigned Allocation Profile")
+                    with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
+                    with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
                 else:
-                    roster_df['Marks'] = roster_df['Marks'].fillna("")
-                    with st.form("bulk_marks_form"):
-                        updated_scores = {}
-                        for idx, row in roster_df.iterrows():
-                            col_s1, col_s2 = st.columns([3, 1])
-                            col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
-                            updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
-                        
-                        if st.form_submit_button("💾 Save Section Marks", type="primary"):
-                            for s_id, score in updated_scores.items():
-                                execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
-                                if score.strip() != "":
-                                    execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
-                            st.success("🎉 Section marks matrix saved completely!")
-                            st.rerun()
-            except Exception as e:
-                st.error(f"Database sync issue: {e}")
+                    st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                    sel_subject, sel_section = None, None
+            else:
+                # Dynamic full admin view controls
+                with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+                with c2: sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
+                with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
+            
+            if sel_subject and sel_section:
+                row2_1, row2_2 = st.columns(2)
+                with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
+                with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
+                
+                try:
+                    roster_df = run_query("""
+                        SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                        FROM students s
+                        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                        ORDER BY s.id ASC
+                    """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
+                    
+                    if roster_df.empty:
+                        st.info(f"💡 No students found registered in section '{sel_section}' yet.")
+                    else:
+                        roster_df['Marks'] = roster_df['Marks'].fillna("")
+                        with st.form("bulk_marks_form"):
+                            updated_scores = {}
+                            for idx, row in roster_df.iterrows():
+                                col_s1, col_s2 = st.columns([3, 1])
+                                col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
+                                updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
+                            
+                            if st.form_submit_button("💾 Save Section Marks", type="primary"):
+                                for s_id, score in updated_scores.items():
+                                    execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
+                                    if score.strip() != "":
+                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
+                                st.success("🎉 Section marks matrix saved completely!")
+                                st.rerun()
+                except Exception as e:
+                    st.error(f"Database sync issue: {e}")
 
         elif entry_mode == "👤 By Single Student Roll Number":
             target_id = st.text_input("🔍 Enter Student Roll Number / ID:")
@@ -262,38 +281,48 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         
         if att_flow_mode == "📋 By Complete Section":
             col_as1, col_as2, col_as3 = st.columns(3)
-            with col_as1: att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
-            with col_as2: att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec")
-            with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+            
+            if current_role == 'teacher' and current_user_id is not None:
+                teacher_rights = run_query("SELECT section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
+                allowed_secs = sorted(list(teacher_rights['section'].unique())) if not teacher_rights.empty else []
                 
-            default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
+                with col_as1: st.info("🔒 Logged Teacher Roster View")
+                with col_as2: att_section = st.selectbox("Select Target Section:", allowed_secs, key="att_sec")
+                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+            else:
+                with col_as1: att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
+                with col_as2: att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec")
+                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
             
-            students_att_list = run_query("""
-                SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
-                FROM students s
-                LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                ORDER BY s.id ASC
-            """, {"month": att_month, "section": att_section})
-            
-            if not students_att_list.empty:
-                with st.form("bulk_attendance_form"):
-                    saved_att_presents = {}
-                    for idx, row in students_att_list.iterrows():
-                        c_b1, c_b2 = st.columns([3, 1])
-                        c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                        init_pres = int(row['present_days']) if pd.notna(row['present_days']) else default_days
-                        saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"pres_{row['ID']}")
-                    
-                    if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
-                        for s_id, p_d in saved_att_presents.items():
-                            execute_db_command("""
-                                INSERT INTO attendance (student_id, month_name, total_days, present_days)
-                                VALUES (:s_id, :month, :td, :pd)
-                                ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
-                            """, {"s_id": int(s_id), "month": att_month.strip(), "td": default_days, "pd": int(p_d)})
-                        st.success("🎉 Section Attendance saved successfully!")
-                        st.rerun()
+            if att_section:
+                default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
+                
+                students_att_list = run_query("""
+                    SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
+                    FROM students s
+                    LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                    ORDER BY s.id ASC
+                """, {"month": att_month, "section": att_section})
+                
+                if not students_att_list.empty:
+                    with st.form("bulk_attendance_form"):
+                        saved_att_presents = {}
+                        for idx, row in students_att_list.iterrows():
+                            c_b1, c_b2 = st.columns([3, 1])
+                            c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                            init_pres = int(row['present_days']) if pd.notna(row['present_days']) else default_days
+                            saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"pres_{row['ID']}")
+                        
+                        if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
+                            for s_id, p_d in saved_att_presents.items():
+                                execute_db_command("""
+                                    INSERT INTO attendance (student_id, month_name, total_days, present_days)
+                                    VALUES (:s_id, :month, :td, :pd)
+                                    ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
+                                """, {"s_id": int(s_id), "month": att_month.strip(), "td": default_days, "pd": int(p_d)})
+                            st.success("🎉 Section Attendance saved successfully!")
+                            st.rerun()
 
 # ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
