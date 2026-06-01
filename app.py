@@ -499,25 +499,32 @@ elif menu_choice == "📋 Section Summary Report":
     if not students_df.empty:
         subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
         
-        # 2. Fetch Marks Entries
+     # 2. Fetch Marks Entries (Synchronized to exclude LEFT statuses)
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
-            FROM marks m JOIN students s ON m.student_id = s.id
-            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) AND TRIM(m.exam_type) = TRIM(:exam)
+            FROM marks m 
+            JOIN students s ON m.student_id = s.id
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
+              AND TRIM(m.exam_type) = TRIM(:exam)
+              AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
         """, {"section": sel_sec, "exam": sel_exam})
         
-        # Check if the database completely lacks records for this specific combination
         if marks_df.empty:
             st.warning(f"⚠️ No marks data found in the database for Section **{sel_sec}** under Exam Cycle **{sel_exam}**. Please make sure marks have been saved in the 'Enter Marks & Attendance' module.")
             
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
+            
+            # Fetch status safely from row data (defaulting to 'Active')
+            s_status = s_row["Status"] if "Status" in s_row and pd.notna(s_row["Status"]) else "Active"
+            
             entry = {
                 "ID": s_id, 
                 "Student Name": s_row["Student Name"], 
                 "Section": s_row["Section"], 
-                "Class": s_row["Class"]
+                "Class": s_row["Class"],
+                "Status": s_status
             }
             
             obtained_total = 0.0
@@ -527,7 +534,6 @@ elif menu_choice == "📋 Section Summary Report":
             
             for sub in subjects:
                 sub_upper = sub.upper().strip()
-                # Determine short form if available in mapping, else fall back to original
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
                 
                 sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
@@ -568,7 +574,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
+      # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
         # Generate clean short form subject labels without "(Obt)"
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
@@ -576,6 +582,27 @@ elif menu_choice == "📋 Section Summary Report":
         # Dynamic Rows Compilation
         tbody_rows_html = ""
         for _, row in final_report_df.iterrows():
+            s_id = row["ID"]
+            current_status = row["Status"]
+            
+            # Dynamic visual status badge for Re-Active student profiles
+            status_badge = ""
+            if current_status == "Re-Active":
+                status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
+            
+            # Find old/hidden subject marks that aren't part of this student's current layout mapping
+            old_marks_badges = []
+            hidden_marks_df = marks_df[marks_df["student_id"] == s_id]
+            for _, h_row in hidden_marks_df.iterrows():
+                h_sub = h_row["subject"]
+                if h_sub not in [sub.upper().strip() for sub in subjects]:
+                    short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub)
+                    old_marks_badges.append(f"{short_h_sub}: {h_row['marks_obtained']}")
+            
+            history_str = ""
+            if old_marks_badges:
+                history_str = f"<br><span style='color: #d35400; font-size: 11px; font-style: italic;'>Dropped ({', '.join(old_marks_badges)})</span>"
+            
             row_subjects_cells = ""
             for lbl in short_subject_labels:
                 cell_val = str(row[lbl])
@@ -585,7 +612,9 @@ elif menu_choice == "📋 Section Summary Report":
             tbody_rows_html += f"""
             <tr>
                 <td>{row['ID']}</td>
-                <td style="text-align: left; font-weight: bold; padding-left: 12px;">{row['Student Name']}</td>
+                <td style="text-align: left; font-weight: bold; padding-left: 12px;">
+                    {row['Student Name']} {status_badge} {history_str}
+                </td>
                 <td>{row['Section']}</td>
                 <td>{row['Class']}</td>
                 {row_subjects_cells}
@@ -692,7 +721,7 @@ elif menu_choice == "📋 Section Summary Report":
         </html>
         """
         
-        # Render components
+        # Render components safely
         components.html(analytics_html_payload, height=750, scrolling=True)
         
     else:
