@@ -80,7 +80,6 @@ def initialize_database():
             );
         """))
 
-try:
     initialize_database()
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
