@@ -1826,7 +1826,7 @@ elif menu_choice == "Student Management":
                     req_star = " *" if new_status in ["Left", "Re-Active"] else ""
                     status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder="Required for Left/Re-Active actions", key="status_rem_input")
                     
-                    if st.button("💾 Save Status", use_container_width=True):
+                   if st.button("💾 Save Status", use_container_width=True):
                     if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
                         st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
                     else:
@@ -1844,6 +1844,31 @@ elif menu_choice == "Student Management":
                                 );
                             """)
                         except Exception:
+                            pass # If it's already there or handled, keep going
+
+                        # 2. Process the status modification
+                        try:
+                            run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
+                            
+                            run_update("""
+                                INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
+                                VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)
+                            """, {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
+                            
+                            st.success(f"✅ Successfully updated status to **{new_status}**!")
+                            st.rerun()
+                        except Exception as e:
+                            # Only add the status column if the error explicitly says it's missing
+                            if "column" in str(e).lower() and "status" in str(e).lower() and "not exist" in str(e).lower():
+                                try:
+                                    run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
+                                    run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
+                                    st.success(f"✅ Database upgraded! Status updated to **{new_status}**.")
+                                    st.rerun()
+                                except Exception as migration_err:
+                                    st.error(f"Could not add column: {migration_err}")
+                            else:
+                                st.error(f"Failed to update status: {e}")
                             pass # If it's already there or handled, keep going
 
                         # 2. Process the status modification
