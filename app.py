@@ -337,11 +337,12 @@ elif menu_choice == "➕ Add Students":
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
 # ---------------------------------------------------------
-# 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
+# 📝 ENTER MARKS & ATTENDANCE MODULE (SAFE KEY ISOLATION)
 # ---------------------------------------------------------
 elif menu_choice == "📝 Enter Marks & Attendance":
     st.title("📝 Data Intake Management Dashboard")
-    sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
+    st.caption("💡 Tip: You can now enter student marks as numbers, 'A' for Absent, or 'NC' for Not Conducted.")
+    sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True, key="main_intake_sub_tab")
     st.markdown("---")
 
     # Get active session identity data safely
@@ -352,7 +353,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
     # 1. ACADEMIC EXAM MARKS ENTRY SUB-MODULE
     # =========================================================
     if sub_tab_selection == "📝 Academic Exam Marks Entry":
-        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
+        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode_isolated")
         st.markdown("---")
 
         if entry_mode == "📋 By Complete Section":
@@ -363,20 +364,20 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                     allowed_secs = sorted(list(teacher_rights['section'].unique()))
                     with c1: st.info("🔒 Bound to Assigned Allocation Profile")
-                    with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
-                    with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
+                    with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="m_sec_sub_select")
+                    with c3: sel_section = st.selectbox("Select Section:", allowed_secs, key="m_sec_sec_select")
                 else:
                     st.warning("🚨 You do not have any active subjects or sections assigned yet.")
                     sel_subject, sel_section = None, None
             else:
-                with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-                with c2: sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
-                with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
+                with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="m_sec_disc_admin")
+                with c2: sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline], key="m_sec_sub_admin")
+                with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline], key="m_sec_sec_admin")
             
             if sel_subject and sel_section:
                 row2_1, row2_2 = st.columns(2)
-                with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
-                with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
+                with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS, key="m_sec_exam_type")
+                with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100, key="m_sec_total_allocated")
                 
                 try:
                     roster_df = run_query("""
@@ -391,25 +392,27 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.info(f"💡 No students found registered in section '{sel_section}' yet.")
                     else:
                         roster_df['Marks'] = roster_df['Marks'].fillna("")
-                        with st.form("bulk_marks_form"):
+                        with st.form("bulk_marks_form_isolated"):
                             updated_scores = {}
                             for idx, row in roster_df.iterrows():
                                 col_s1, col_s2 = st.columns([3, 1])
                                 col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
-                                updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
+                                updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"isolated_sec_input_{row['ID']}", label_visibility="collapsed")
                             
                             if st.form_submit_button("💾 Save Section Marks", type="primary"):
                                 for s_id, score in updated_scores.items():
                                     execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
-                                    if score.strip() != "":
-                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
-                                st.success("🎉 Section marks matrix saved completely!")
+                                    
+                                    cleaned_score = score.strip().upper()
+                                    if cleaned_score != "":
+                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": cleaned_score, "total": total_marks})
+                                st.success("🎉 Section marks matrix saved completely with text keys!")
                                 st.rerun()
                 except Exception as e:
                     st.error(f"Database sync issue: {e}")
 
         elif entry_mode == "👤 By Single Student Roll Number":
-            target_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id")
+            target_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_isolated")
             if target_id and target_id.isdigit():
                 student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(target_id)})
                 if student_info.empty:
@@ -427,33 +430,35 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                             break
                     
                     c_sub, c_ex, c_m = st.columns(3)
-                    with c_sub: single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
-                    with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam")
-                    with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
+                    with c_sub: single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub_marks_isolated")
+                    with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam_marks_isolated")
+                    with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max_marks_isolated")
                     
                     existing_record = run_query("SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
                     current_val = str(existing_record['marks_obtained'].iloc[0]) if not existing_record.empty else ""
-                    single_score = st.text_input("✏️ Enter Marks Obtained:", value=current_val)
+                    single_score = st.text_input("✏️ Enter Marks Obtained (Number, A, or NC):", value=current_val, key="single_score_input_field")
                     
-                    if st.button("💾 Save Student Record", type="primary"):
+                    if st.button("💾 Save Student Record", type="primary", key="btn_save_single_mark_isolated"):
                         execute_db_command("DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
-                        if single_score.strip() != "":
-                            execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(target_id), "sub": single_subj.strip().upper(), "exam": single_exam.strip(), "score": single_score.strip(), "total": single_total})
+                        
+                        cleaned_single_score = single_score.strip().upper()
+                        if cleaned_single_score != "":
+                            execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(target_id), "sub": single_subj.strip().upper(), "exam": single_exam.strip(), "score": cleaned_single_score, "total": single_total})
                         st.success("🎉 Marks updated successfully!")
                         st.rerun()
 
         elif entry_mode == "📤 Bulk Excel/CSV Import":
             st.subheader("📤 Bulk Marks CSV Document Importer")
-            st.info("📊 Spreadsheet layout must use these lowercase headers: **student_id** and **marks_obtained**")
+            st.info("📊 Row marks data can include normal numbers, **A**, or **NC** values cleanly.")
             
             c_xl1, c_xl2, c_xl3 = st.columns(3)
             all_subjects_flat = sorted(list(set(sum(DISCIPLINE_SUBJECTS_MAP.values(), []))))
             
-            with c_xl1: xl_subject = st.selectbox("Target Entry Subject:", all_subjects_flat, key="xl_m_sub")
-            with c_xl2: xl_exam = st.selectbox("Target Entry Test Context:", AVAILABLE_EXAMS, key="xl_m_exam")
-            with c_xl3: xl_total = st.number_input("Set Assignment Total Marks Capacity:", value=100, key="xl_m_total")
+            with c_xl1: xl_subject = st.selectbox("Target Entry Subject:", all_subjects_flat, key="xl_m_sub_isolated")
+            with c_xl2: xl_exam = st.selectbox("Target Entry Test Context:", AVAILABLE_EXAMS, key="xl_m_exam_isolated")
+            with c_xl3: xl_total = st.number_input("Set Assignment Total Marks Capacity:", value=100, key="xl_m_total_isolated")
             
-            uploaded_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="marks_uploader_widget")
+            uploaded_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="marks_uploader_widget_isolated")
             if uploaded_file is not None:
                 try:
                     df = pd.read_csv(uploaded_file)
@@ -461,17 +466,17 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     
                     if 'student_id' in df.columns and 'marks_obtained' in df.columns:
                         st.dataframe(df, use_container_width=True)
-                        if st.button("🚀 Process and Save Bulk Marks", type="primary"):
+                        if st.button("🚀 Process and Save Bulk Marks", type="primary", key="btn_process_bulk_marks_isolated"):
                             success_count = 0
                             for _, row in df.iterrows():
                                 s_id = str(row['student_id']).split('.')[0].strip()
-                                score = str(row['marks_obtained']).strip()
+                                score = str(row['marks_obtained']).strip().upper()
                                 if s_id.isdigit():
                                     execute_db_command("DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(s_id), "sub": xl_subject, "exam": xl_exam})
                                     if score != "" and score.lower() != 'nan':
                                         execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(s_id), "sub": xl_subject.strip().upper(), "exam": xl_exam.strip(), "score": score, "total": xl_total})
                                         success_count += 1
-                            st.success(f"🎉 Successfully updated {success_count} student grade rows!")
+                            st.success(f"🎉 Successfully updated {success_count} student grade profiles!")
                             st.rerun()
                     else:
                         st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'marks_obtained' names exactly.")
@@ -483,7 +488,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
     # =========================================================
     elif sub_tab_selection == "📅 Monthly Attendance Entry":
         st.subheader("📅 Monthly Attendance Workspace")
-        att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode")
+        att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode_isolated")
         st.markdown("---")
         
         if att_flow_mode == "📋 By Complete Section":
@@ -492,15 +497,15 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 teacher_rights = run_query("SELECT section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
                 allowed_secs = sorted(list(teacher_rights['section'].unique())) if not teacher_rights.empty else []
                 with col_as1: st.info("🔒 Logged Teacher Roster View")
-                with col_as2: att_section = st.selectbox("Select Target Section:", allowed_secs, key="att_sec")
-                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+                with col_as2: att_section = st.selectbox("Select Target Section:", allowed_secs, key="att_sec_isolated")
+                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month_isolated")
             else:
-                with col_as1: att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
-                with col_as2: att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec")
-                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+                with col_as1: att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc_isolated")
+                with col_as2: att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec_admin_isolated")
+                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month_admin_isolated")
             
             if att_section:
-                default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
+                default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days_isolated")
                 students_att_list = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
                     FROM students s
@@ -510,13 +515,13 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 """, {"month": att_month, "section": att_section})
                 
                 if not students_att_list.empty:
-                    with st.form("bulk_attendance_form"):
+                    with st.form("bulk_attendance_form_isolated"):
                         saved_att_presents = {}
                         for idx, row in students_att_list.iterrows():
                             c_b1, c_b2 = st.columns([3, 1])
                             c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
                             init_pres = int(row['present_days']) if pd.notna(row['present_days']) else default_days
-                            saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"pres_{row['ID']}")
+                            saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"isolated_pres_input_{row['ID']}")
                         
                         if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
                             for s_id, p_d in saved_att_presents.items():
@@ -530,7 +535,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
 
         elif att_flow_mode == "👤 By Single Student Roll Number":
             st.subheader("👤 Single Student Attendance Record Manager")
-            single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
+            single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input_isolated")
             
             if single_att_id and single_att_id.isdigit():
                 student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(single_att_id)})
@@ -542,15 +547,15 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     st.info(f"👤 Found Student: {s_name} | Current Section: {s_section}")
                     
                     c_at1, c_at2, c_at3 = st.columns(3)
-                    with c_at1: single_att_month = st.selectbox("Select Target Month:", AVAILABLE_MONTHS, key="s_att_m")
-                    with c_at2: single_att_total = st.number_input("Total Tracked Days:", min_value=1, max_value=31, value=24, key="s_att_tot")
+                    with c_at1: single_att_month = st.selectbox("Select Target Month:", AVAILABLE_MONTHS, key="s_att_m_isolated")
+                    with c_at2: single_att_total = st.number_input("Total Tracked Days:", min_value=1, max_value=31, value=24, key="s_att_tot_isolated")
                     
                     existing_att = run_query("SELECT present_days FROM attendance WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"id": int(single_att_id), "month": single_att_month})
                     init_present_val = int(existing_att['present_days'].iloc[0]) if not existing_att.empty else int(single_att_total)
                     
-                    with c_at3: single_att_present = st.number_input("Days Attended:", min_value=0, max_value=int(single_att_total), value=min(int(init_present_val), int(single_att_total)), key="s_att_pres")
+                    with c_at3: single_att_present = st.number_input("Days Attended:", min_value=0, max_value=int(single_att_total), value=min(int(init_present_val), int(single_att_total)), key="s_att_pres_isolated")
                     
-                    if st.button("💾 Save Individual Attendance Record", type="primary"):
+                    if st.button("💾 Save Individual Attendance Record", type="primary", key="btn_save_single_att_isolated"):
                         execute_db_command("""
                             INSERT INTO attendance (student_id, month_name, total_days, present_days)
                             VALUES (:s_id, :month, :td, :pd)
@@ -564,10 +569,10 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             st.info("📊 Spreadsheet layout must use these lowercase headers: **student_id** and **present_days**")
             
             c_ax1, c_ax2 = st.columns(2)
-            with c_ax1: xl_month = st.selectbox("Target Log Target Month:", AVAILABLE_MONTHS, key="xl_a_month")
-            with c_ax2: xl_total_days = st.number_input("Total Monthly Accountable Days:", min_value=1, max_value=31, value=24, key="xl_a_td")
+            with c_ax1: xl_month = st.selectbox("Target Log Target Month:", AVAILABLE_MONTHS, key="xl_a_month_isolated")
+            with c_ax2: xl_total_days = st.number_input("Total Monthly Accountable Days:", min_value=1, max_value=31, value=24, key="xl_a_td_isolated")
             
-            uploaded_att_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="att_uploader_widget")
+            uploaded_att_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="att_uploader_widget_isolated")
             if uploaded_att_file is not None:
                 try:
                     df = pd.read_csv(uploaded_att_file)
@@ -575,7 +580,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     
                     if 'student_id' in df.columns and 'present_days' in df.columns:
                         st.dataframe(df, use_container_width=True)
-                        if st.button("🚀 Process and Save Bulk Attendance", type="primary"):
+                        if st.button("🚀 Process and Save Bulk Attendance", type="primary", key="btn_process_bulk_att_isolated"):
                             success_count = 0
                             for _, row in df.iterrows():
                                 s_id = str(row['student_id']).split('.')[0].strip()
