@@ -1441,8 +1441,6 @@ elif menu_choice == "🪪 Student Result Cards":
                                 <td>{per_disp}</td>
                                 <td style="font-weight: bold;">{status_disp}</td>
                             </tr>
-                    """
-                
                 # Grand Total calculation row
                 grand_per_disp = ""
                 grand_status_disp = ""
