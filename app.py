@@ -1780,38 +1780,38 @@ elif menu_choice == "Student Management":
                 
                 new_status = st.radio("Select Status:", status_options, index=default_idx)
                 
-                # Dynamic inputs based on status change
                 status_date = st.date_input("Status Change Date:", key="status_date_input")
-                status_remarks = st.text_input("Status Remarks:", placeholder="e.g., Transfer to another branch, Personal reasons, etc.", key="status_rem_input")
+                status_remarks = st.text_input("Status Remarks *", placeholder="Required: Why is this status changing?", key="status_rem_input")
                 
                 if st.button("💾 Save Status", use_container_width=True):
-                    # Combine fields or save to status text column gracefully if no special tables exist
-                    combined_status_remarks = f"[{status_date}] Status changed to {new_status}. Remarks: {status_remarks}"
-                    try:
-                        run_update("""
-                            UPDATE students 
-                            SET status = :status 
-                            WHERE id = :id
-                        """, {"status": new_status, "id": s_id})
-                        st.success(f"✅ Successfully updated status to **{new_status}**!")
-                        st.rerun()
-                    except Exception as e:
-                        # Auto-Migration fallback if column is missing
-                        if "status" in str(e).lower():
-                            st.warning("⚡ Creating missing columns in your database table...")
-                            try:
-                                run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
-                                run_update("""
-                                    UPDATE students 
-                                    SET status = :status 
-                                    WHERE id = :id
-                                """, {"status": new_status, "id": s_id})
-                                st.success(f"✅ Table upgraded! Updated status to **{new_status}**.")
-                                st.rerun()
-                            except Exception as migration_err:
-                                st.error(f"Could not automatically add column: {migration_err}")
-                        else:
-                            st.error(f"Failed to update status: {e}")
+                    # STRICT VALIDATION: Check if remarks field is empty
+                    if not status_remarks.strip():
+                        st.error("❌ Action Blocked: You must provide **Status Remarks** before saving.")
+                    else:
+                        try:
+                            run_update("""
+                                UPDATE students 
+                                SET status = :status 
+                                WHERE id = :id
+                            """, {"status": new_status, "id": s_id})
+                            st.success(f"✅ Successfully updated status to **{new_status}**!")
+                            st.rerun()
+                        except Exception as e:
+                            if "status" in str(e).lower():
+                                st.warning("⚡ Creating missing columns in your database table...")
+                                try:
+                                    run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
+                                    run_update("""
+                                        UPDATE students 
+                                        SET status = :status 
+                                        WHERE id = :id
+                                    """, {"status": new_status, "id": s_id})
+                                    st.success(f"✅ Table upgraded! Updated status to **{new_status}**.")
+                                    st.rerun()
+                                except Exception as migration_err:
+                                    st.error(f"Could not automatically add column: {migration_err}")
+                            else:
+                                st.error(f"Failed to update status: {e}")
             
             # --- SECTION CHANGE MANAGEMENT ---
             with col_section:
@@ -1821,13 +1821,15 @@ elif menu_choice == "Student Management":
                 
                 new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx)
                 
-                # Dynamic inputs for Section changes
                 section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
-                section_remarks = st.text_input("Transfer Remarks:", placeholder="e.g., Performance balancing, Student request, etc.", key="sec_rem_input")
+                section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
                 
                 if st.button("🔄 Change Section", use_container_width=True):
                     if new_sec == s_sec:
                         st.warning("⚠️ Student is already assigned to this section.")
+                    # STRICT VALIDATION: Check if remarks field is empty
+                    elif not section_remarks.strip():
+                        st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                     else:
                         run_update("""
                             UPDATE students 
