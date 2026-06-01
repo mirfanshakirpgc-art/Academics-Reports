@@ -1726,6 +1726,88 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
+            # ----------------- STUDENT MANAGEMENT -----------------
+elif menu_choice == "Student Management":
+    st.title("👤 Student Management")
+    st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
+    
+    # Search feature by Student ID
+    search_id = st.number_input("Enter Student ID:", min_value=1, step=1, key="manage_search_id")
+    
+    if search_id:
+        # Fetch current student details
+        student_data = run_query("""
+            SELECT id, name, section, class, status 
+            FROM students 
+            WHERE id = :id
+        """, {"id": search_id})
+        
+        if not student_data.empty:
+            s_id = student_data.iloc[0]["id"]
+            s_name = student_data.iloc[0]["name"]
+            s_sec = student_data.iloc[0]["section"]
+            s_class = student_data.iloc[0]["class"]
+            s_status = student_data.iloc[0]["status"] if "status" in student_data.columns and pd.notna(student_data.iloc[0]["status"]) else "Active"
+            
+            # Display current profile card
+            st.info(f"""
+            **📍 Student Profile Found:**
+            * **ID:** {s_id}
+            * **Name:** {s_name}
+            * **Class:** {s_class}
+            * **Section:** {s_sec}
+            * **Status:** {s_status}
+            """)
+            
+            st.divider()
+            
+            # Interactive management columns
+            col_status, col_section = st.columns(2)
+            
+            # --- STATUS MANAGEMENT (LEFT / RE-ACTIVE) ---
+            with col_status:
+                st.subheader("Update Status")
+                status_options = ["Active", "Left"]
+                default_idx = status_options.index(s_status) if s_status in status_options else 0
+                
+                new_status = st.radio("Select Status:", status_options, index=default_idx)
+                
+                if st.button("💾 Save Status", use_container_width=True):
+                    try:
+                        run_update("""
+                            UPDATE students 
+                            SET status = :status 
+                            WHERE id = :id
+                        """, {"status": new_status, "id": s_id})
+                        
+                        st.success(f"✅ Successfully updated status to **{new_status}**!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to update status. Ensure a 'status' column exists in your students table. Error: {e}")
+            
+            # --- SECTION CHANGE MANAGEMENT ---
+            with col_section:
+                st.subheader("Change Section")
+                all_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
+                default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
+                
+                new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx)
+                
+                if st.button("🔄 Change Section", use_container_width=True):
+                    if new_sec == s_sec:
+                        st.warning("⚠️ Student is already assigned to this section.")
+                    else:
+                        run_update("""
+                            UPDATE students 
+                            SET section = :new_section 
+                            WHERE id = :id
+                        """, {"new_section": new_sec, "id": s_id})
+                        
+                        st.success(f"✅ Successfully transferred student to **{new_sec}**!")
+                        st.rerun()
+                        
+        else:
+            st.error(f"❌ No student profile found with ID: **{search_id}**")
         # ---------------------------------------------------------
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
