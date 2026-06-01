@@ -533,10 +533,10 @@ elif menu_choice == "📋 Section Summary Report":
                     else:
                         entry[f"{sub} (Obt)"] = val
                 else:
-                    # If database entry does not exist at all, show as empty placeholder '-' instead of confusing it with explicit 'NC'
+                    # If database entry does not exist at all, show as empty placeholder '-'
                     entry[f"{sub} (Obt)"] = "-"
 
-            # Dynamic total calculation rules based on your criteria
+            # Dynamic total calculation rules based on criteria
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
                 entry["Total Max"] = int(max_total)
@@ -550,7 +550,134 @@ elif menu_choice == "📋 Section Summary Report":
             summary_rows.append(entry)
             
         final_report_df = pd.DataFrame(summary_rows)
-        st.dataframe(final_report_df.set_index("ID"), use_container_width=True)
+        
+        # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
+        # Dynamic Subject Headers Construction
+        thead_subjects_html = "".join([f'<th>{sub} (Obt)</th>' for sub in subjects])
+        
+        # Dynamic Rows Compilation
+        tbody_rows_html = ""
+        for _, row in final_report_df.iterrows():
+            # Generate styling context checks for NC / A elements
+            row_subjects_cells = ""
+            for sub in subjects:
+                cell_val = str(row[f"{sub} (Obt)"])
+                cell_style = "color: #e74c3c; font-weight: bold;" if cell_val in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_val == "NC" else "")
+                row_subjects_cells += f'<td style="{cell_style}">{cell_val}</td>'
+            
+            tbody_rows_html += f"""
+            <tr>
+                <td>{row['ID']}</td>
+                <td style="text-align: left; font-weight: bold; padding-left: 12px;">{row['Student Name']}</td>
+                <td>{row['Section']}</td>
+                <td>{row['Class']}</td>
+                {row_subjects_cells}
+                <td style="font-weight: bold; background-color: #fcfcfc;">{row['Total (Obt)']}</td>
+                <td style="font-weight: bold; color: #555; background-color: #fcfcfc;">{row['Total Max']}</td>
+            </tr>
+            """
+            
+        logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+        
+        # Comprehensive Styled Frame Blueprint Payload
+        analytics_html_payload = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <style>
+            body {{ font-family: "Segoe UI", Arial, sans-serif; color: #333; background-color: #fff; margin: 0; padding: 10px; }}
+            .report-wrapper-container {{ max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
+            
+            /* TOP ACTION UTILITIES PANEL */
+            .action-panel-bar {{ display: flex; gap: 12px; margin-bottom: 22px; }}
+            .btn-action {{ padding: 10px 22px; font-weight: bold; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }}
+            .btn-print {{ background: #222; color: #fff; }}
+            .btn-image {{ background: #0066cc; color: #fff; }}
+            .btn-action:hover {{ opacity: 0.9; }}
+            
+            /* OFFICIAL BRAND BANNER HEADER */
+            .header-banner {{ display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 20px; }}
+            .header-branding {{ text-align: left; }}
+            .inst-title {{ font-size: 24px; font-weight: 800; color: #111; letter-spacing: 0.5px; margin: 0; }}
+            .doc-subtitle {{ font-size: 15px; color: #555; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
+            .meta-details {{ text-align: right; font-size: 13px; color: #444; line-height: 1.5; }}
+            .brand-logo-img {{ max-height: 55px; width: auto; object-fit: contain; }}
+            
+            /* DATA LEDGER TABLE GRID STRUCTURE */
+            .analytics-grid-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
+            .analytics-grid-table th, .analytics-grid-table td {{ border: 1px solid #dcdcdc; padding: 10px 8px; text-align: center; }}
+            .analytics-grid-table th {{ background-color: #f8f9fa; font-weight: 700; color: #2c3e50; white-space: nowrap; }}
+            .analytics-grid-table tr:nth-child(even) {{ background-color: #fbfbfb; }}
+            .analytics-grid-table tr:hover {{ background-color: #f5f7fa; }}
+            
+            @media print {{
+                .action-panel-bar {{ display: none !important; }}
+                body {{ padding: 0; margin: 0; }}
+                .report-wrapper-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; }}
+            }}
+        </style>
+        </head>
+        <body>
+            <div class="action-panel-bar">
+                <button class="btn-action btn-print" onclick="window.print();">🖨️ Print Summary Ledger</button>
+                <button class="btn-action btn-image" id="capture-summary-trigger">📸 Save Layout As Image</button>
+            </div>
+            
+            <div class="report-wrapper-container" id="printable-summary-target">
+                <div class="header-banner">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <img class="brand-logo-img" src="{logo_url}" alt="Logo">
+                        <div class="header-branding">
+                            <h1 class="inst-title">CONCORDIA COLLEGE KASUR</h1>
+                            <div class="doc-subtitle">Section Performance Summary Report</div>
+                        </div>
+                    </div>
+                    <div class="meta-details">
+                        <b>Discipline:</b> {sel_disc}<br>
+                        <b>Section Block:</b> {sel_sec}<br>
+                        <b>Exam Phase:</b> {sel_exam}
+                    </div>
+                </div>
+                
+                <table class="analytics-grid-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 7%;">ID</th>
+                            <th style="text-align: left; padding-left: 12px;">Student Name</th>
+                            <th style="width: 9%;">Section</th>
+                            <th style="width: 7%;">Class</th>
+                            {thead_subjects_html}
+                            <th style="background-color: #f1f3f5; width: 10%;">Total (Obt)</th>
+                            <th style="background-color: #f1f3f5; width: 9%;">Total Max</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {tbody_rows_html}
+                    </tbody>
+                </table>
+            </div>
+
+            <script>
+                document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
+                    const targetEl = document.getElementById('printable-summary-target');
+                    const filenameStr = "Summary_Report_{sel_sec}_{sel_exam}.png";
+                    
+                    html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
+                        const linkHook = document.createElement('a');
+                        linkHook.download = filenameStr;
+                        linkHook.href = canvas.toDataURL('image/png');
+                        linkHook.click();
+                    }});
+                }});
+            </script>
+        </body>
+        </html>
+        """
+        
+        # Render high-performance analytical container interface components
+        components.html(analytics_html_payload, height=750, scrolling=True)
+        
     else:
         st.info("💡 No active student profiles loaded under this section yet.")
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
