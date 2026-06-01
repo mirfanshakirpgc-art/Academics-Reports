@@ -1116,7 +1116,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             match_id = int(s_id) if s_id.isdigit() else s_id
             
-            # --- MARKS CARD MATRIX PROCESSING ---
+           # --- MARKS CARD MATRIX PROCESSING ---
             if not marks_df.empty:
                 s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)].copy()
             else:
@@ -1126,23 +1126,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
                 raw_subs = list(s_marks["subject_clean"].unique())
                 
-                # Safe section detection directly from the student's marks data rows
+                # Check if student has transitioned into a Statistics tracking group
                 detected_sections_upper = []
                 if "section" in s_marks.columns:
                     detected_sections_upper = [str(x).upper() for x in s_marks["section"].dropna().unique()]
                 
-                # DISCIPLINE BRIDGE: If they transitioned from Physics to Statistics sections, 
-                # keep "Statistics" as the official row header and filter out standalone "Physics".
+                is_stats_student = "Statistics" in raw_subs or any("STATS" in sec for sec in detected_sections_upper)
+                
                 unique_subjects = []
                 for s in sorted(raw_subs):
-                    # We check raw_subs or the data records to avoid NameErrors entirely
-                    is_stats_section = "STATISTICS" in raw_subs or any("STATS" in sec for sec in detected_sections_upper)
-                    if s == "Physics" and is_stats_section:
-                        continue  # Do not give Physics its own individual row
+                    # ✂️ REMOVE STANDALONE PHYSICS ROW: 
+                    # If they are a stats student, skip adding Physics as a standalone row header entirely
+                    if s == "Physics" and is_stats_student:
+                        continue
                     unique_subjects.append(s)
                     
-                # Explicitly guarantee Statistics row shows up for tracking their active elective
-                if "Statistics" not in unique_subjects:
+                # Explicitly guarantee Statistics row shows up to receive the mapped marks
+                if is_stats_student and "Statistics" not in unique_subjects:
                     unique_subjects.append("Statistics")
                     
                 unique_subjects = sorted(list(set(unique_subjects)))
@@ -1181,7 +1181,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 exam_totals_obtained[exam] += val_obt
                                 exam_totals_max[exam] += val_tot
                                 exam_has_any_data[exam] = True
-                                continue # Cell handled! Advance column loop.
+                                continue 
                             except:
                                 pass
 
