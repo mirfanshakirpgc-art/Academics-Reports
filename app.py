@@ -962,7 +962,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     row_html += "<td></td>"
                         else:
                             row_html += "<td>-</td>"
-							row_html += "<td></td>"
 				
 				if sub_percentages:
 					avg_pct = int(sum(sub_percentages) / len(sub_percentages))
