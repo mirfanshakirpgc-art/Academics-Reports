@@ -1125,9 +1125,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not s_marks.empty:
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
                 
-                # Filter out old standalone subjects from generating individual primary rows
-                active_marks = s_marks[s_marks["exam_type"].str.upper().isin([e.upper() for e in selected_exams_list])]
-                unique_subjects = sorted(list(active_marks["subject_clean"].unique()))
+                # Identify what subjects have entries in the currently viewed/selected exams
+                active_exams_upper = [e.upper() for e in selected_exams_list]
+                active_marks = s_marks[s_marks["exam_type"].str.upper().isin(active_exams_upper)]
+                
+                # CRITICAL: Define what core subjects actually belong to the current section dynamically.
+                # We drop standalone historical subjects (like Physics) from creating their own row 
+                # if the student has transitioned to a new primary tracker subject (like Computer).
+                all_subs = list(active_marks["subject_clean"].unique())
+                if "Computer" in all_subs and "Physics" in all_subs:
+                    unique_subjects = sorted([s for s in all_subs if s != "Physics"])
+                else:
+                    unique_subjects = sorted(all_subs)
                 
                 if not unique_subjects:
                     unique_subjects = sorted(list(s_marks["subject_clean"].unique()))
@@ -1147,12 +1156,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 for exam in selected_exams_list:
                     exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
                     
-                    # 🔍 HISTORICAL LOOKUP: If the new subject cell is empty for this exam,
-                    # look up whether they have historical marks from an old subject instead!
-                    if exam_subset.empty and not s_marks.empty:
-                        old_subject_match = s_marks[s_marks["exam_type"].str.upper() == exam.upper()]
+                    # 🔍 SMART SWAP INTERCEPTION:
+                    # If we are processing the "Computer" row, and this specific exam column is empty,
+                    # look specifically to see if they have historical "Physics" marks for this test instead.
+                    if exam_subset.empty and not s_marks.empty and sub == "Computer":
+                        old_subject_match = s_marks[
+                            (s_marks["exam_type"].str.upper() == exam.upper()) & 
+                            (s_marks["subject_clean"] == "Physics")
+                        ]
                         if not old_subject_match.empty:
-                            old_sub_name = old_subject_match.iloc[0]["subject_clean"][:3] # Gets 'Phy'
                             m_obt = old_subject_match.iloc[0]["marks_obtained"]
                             m_tot = old_subject_match.iloc[0]["total_marks"]
                             
@@ -1161,14 +1173,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
                                 pct = (val_obt / val_tot) * 100
                                 
-                                # Render inline as Sub(Marks%) under the current row's column cell!
-                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>{old_sub_name}({int(pct)}%)</span></td>"
+                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>Phy({int(pct)}%)</span></td>"
                                 sub_percentages.append(pct)
                                 
                                 exam_totals_obtained[exam] += val_obt
                                 exam_totals_max[exam] += val_tot
                                 exam_has_any_data[exam] = True
-                                continue # Move to next exam column
+                                continue 
                             except:
                                 pass
 
@@ -1204,7 +1215,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     avg_pct = int(sum(sub_percentages) / len(sub_percentages))
                     row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
                 else:
-                    row_html += "<td><strong>-</strong></td></tr>"
+                    row_html += "<td>export strong>-</strong></td></tr>"
                     
                 table_rows_html += row_html
 
