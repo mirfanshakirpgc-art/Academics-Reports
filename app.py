@@ -1921,7 +1921,7 @@ elif menu_choice == "Student Management":
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
 
 # =========================================================
-    # TAB 2: AUDIT LOGS VIEW (No-Dependency CSV Export & Delete)
+    # TAB 2: AUDIT LOGS VIEW (Inline Row-by-Row Deletion Engine)
     # =========================================================
     with logs_tab:
         st.subheader("📋 Institutional Exit & Section Transfer Logs")
@@ -1977,63 +1977,67 @@ elif menu_choice == "Student Management":
             if filtered_df.empty:
                 st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
             else:
-                # Clean up tracking columns before presentation
+                # Clean up tracking columns before layout compilation
                 display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
                 
-                # Render the main logs dataframe (Hiding internal Log ID from UI layout)
-                st.dataframe(display_df.drop(columns=["Log ID"], errors="ignore"), use_container_width=True, hide_index=True)
+                # --- EXCEL / CSV DOWNLOAD UTILITY ---
+                try:
+                    export_df = display_df.drop(columns=["Log ID"], errors="ignore")
+                    csv_data = export_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Filtered Log Ledger (CSV for Excel)",
+                        data=csv_data,
+                        file_name=f"student_audit_logs_{filter_view.lower().replace(' ', '_')}.csv",
+                        mime="text/csv",
+                        type="secondary"
+                    )
+                except Exception as csv_err:
+                    st.error(f"Export Generator failed: {csv_err}")
                 
                 st.markdown("---")
-                # Action Tools Layout
-                col_dl, col_del = st.columns([2, 2])
                 
-                # --- ZERO-DEPENDENCY CSV DOWNLOAD UTILITY ---
-                with col_dl:
-                    st.subheader("📥 Export History Logs")
-                    try:
-                        # Drop internal tracking ID column before saving out file
-                        export_df = display_df.drop(columns=["Log ID"], errors="ignore")
-                        
-                        # Convert to standard CSV string stream (works instantly everywhere without extra libraries)
-                        csv_data = export_df.to_csv(index=False).encode('utf-8')
-                        
-                        st.download_button(
-                            label="📥 Download Log Ledger (CSV for Excel)",
-                            data=csv_data,
-                            file_name=f"student_audit_logs_{filter_view.lower().replace(' ', '_')}.csv",
-                            mime="text/csv",
-                            use_container_width=True,
-                            type="secondary"
-                        )
-                    except Exception as csv_err:
-                        st.error(f"Export Generator failed: {csv_err}")
+                # --- DYNAMIC INLINE ROW RENDERING TABLE HEADER ---
+                th_id, th_name, th_act, th_frm, th_to, th_date, th_rem, th_btn = st.columns([1, 2.5, 1.8, 1.2, 1.2, 1.3, 2, 1])
+                th_id.markdown("**ID**")
+                th_name.markdown("**Student Name**")
+                th_act.markdown("**Action**")
+                th_frm.markdown("**From**")
+                th_to.markdown("**To**")
+                th_date.markdown("**Date**")
+                th_rem.markdown("**Staff Remarks**")
+                th_btn.markdown("**Action**")
+                st.markdown("<hr style='margin: 4px 0px 12px 0px; border-color: rgba(49, 51, 63, 0.2);'>", unsafe_allow_html=True)
                 
-                # --- ROW REMOVAL ENGINE (Using your execute_db_command wrapper) ---
-                with col_del:
-                    st.subheader("🗑️ Delete History Log Row")
+                # --- ITERATE RECORDS FOR INLINE ACTIONS ---
+                for idx, row in display_df.iterrows():
+                    r_id, r_name, r_act, r_frm, r_to, r_date, r_rem = row["ID"], row["Student Name"], row["Action"], row["From"], row["To"], row["Date Stamp"], row["Staff Remarks Context"]
+                    log_id = row["Log ID"]
                     
-                    # Create select options filtering out entries missing a Log ID
-                    log_rows_with_ids = display_df[display_df["Log ID"].notna()]
+                    # Create matching horizontal grids for data layout alignment
+                    c_id, c_name, c_act, c_frm, c_to, c_date, c_rem, c_btn = st.columns([1, 2.5, 1.8, 1.2, 1.2, 1.3, 2, 1])
                     
-                    if log_rows_with_ids.empty:
-                        st.caption("ℹ️ Legacy records cannot be individual log cleared. Use the status modifier profile card to change state.")
-                    else:
-                        delete_options = {
-                            f"Log #{int(row['Log ID'])}: Student ID {row['ID']} - {row['Action']} ({row['Date Stamp']})": int(row['Log ID'])
-                            for _, row in log_rows_with_ids.iterrows()
-                        }
-                        
-                        target_row_label = st.selectbox("Select precise log entry row to purge:", list(delete_options.keys()))
-                        target_log_id = delete_options[target_row_label]
-                        
-                        if st.button("🗑️ Erase Log Entry Row Permanently", type="primary", use_container_width=True):
+                    c_id.write(str(r_id))
+                    c_name.write(str(r_name))
+                    c_act.write(str(r_act))
+                    c_frm.write(str(r_frm))
+                    c_to.write(str(r_to))
+                    c_date.write(str(r_date))
+                    c_rem.write(str(r_rem))
+                    
+                    # Display an inline delete button if it has an operational Log ID tracking reference
+                    if pd.notna(log_id):
+                        if c_btn.button("🗑️ Delete", key=f"del_inline_{int(log_id)}", type="primary", use_container_width=True):
                             try:
-                                # Using your application's native run_update engine!
-                                run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": target_log_id})
-                                st.success(f"💥 Successfully purged Log Row Entry #{target_log_id} from tracking historical records!")
+                                run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": int(log_id)})
+                                st.success(f"💥 Purged Log #{int(log_id)}!")
                                 st.rerun()
-                            except Exception as del_err:
-                                st.error(f"Failed to clear requested historical index: {del_err}")
+                            except Exception as inline_err:
+                                st.error(f"Error: {inline_err}")
+                    else:
+                        c_btn.caption("Legacy")
+                    
+                    # Thin separation line between data rows
+                    st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
