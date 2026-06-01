@@ -1804,47 +1804,45 @@ elif menu_choice == "Student Management":
             # --- STATUS MANAGEMENT (LEFT / RE-ACTIVE / ACTIVE) ---
             with col_status:
                 st.subheader("Update Status")
-                # Added 'Re-Active' cleanly alongside other status modes
                 status_options = ["Active", "Left", "Re-Active"]
                 default_idx = status_options.index(s_status) if s_status in status_options else 0
                 
                 new_status = st.radio("Select Status:", status_options, index=default_idx)
-                
                 status_date = st.date_input("Status Change Date:", key="status_date_input")
                 
-                # Show an asterisk if a validation constraint applies
                 req_star = " *" if new_status in ["Left", "Re-Active"] else ""
-                status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder=f"Required for Left/Re-Active actions", key="status_rem_input")
+                status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder="Required for Left/Re-Active actions", key="status_rem_input")
                 
                 if st.button("💾 Save Status", use_container_width=True):
-                    # STRICT VALIDATION: Block if Left or Re-Active are selected without reasons
                     if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
                         st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
                     else:
-                        # Map Re-Active choices internally to 'Active' status or keep 'Re-Active' depending on layout preferences.
-                        # Storing it directly gives you excellent future logging capability!
                         try:
-                            run_update("""
-                                UPDATE students 
-                                SET status = :status 
-                                WHERE id = :id
-                            """, {"status": new_status, "id": s_id})
+                            # Direct modification via a connection block to remove run_update dependency
+                            with conn.session as session:
+                                session.execute(
+                                    text("UPDATE students SET status = :status WHERE id = :id"),
+                                    {"status": new_status, "id": s_id}
+                                )
+                                session.commit()
                             st.success(f"✅ Successfully updated status to **{new_status}**!")
                             st.rerun()
                         except Exception as e:
-                            if "status" in str(e).lower():
-                                st.warning("⚡ Creating missing columns in your database table...")
+                            # Dynamic schema update if 'status' column is missing completely
+                            if "status" in str(e).lower() or "no such column" in str(e).lower():
+                                st.warning("⚡ Adding missing status columns to your database storage structure...")
                                 try:
-                                    run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
-                                    run_update("""
-                                        UPDATE students 
-                                        SET status = :status 
-                                        WHERE id = :id
-                                    """, {"status": new_status, "id": s_id})
+                                    with conn.session as session:
+                                        session.execute(text("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';"))
+                                        session.execute(
+                                            text("UPDATE students SET status = :status WHERE id = :id"),
+                                            {"status": new_status, "id": s_id}
+                                        )
+                                        session.commit()
                                     st.success(f"✅ Table upgraded! Updated status to **{new_status}**.")
                                     st.rerun()
                                 except Exception as migration_err:
-                                    st.error(f"Could not automatically add column: {migration_err}")
+                                    st.error(f"Could not update schema automatically: {migration_err}")
                             else:
                                 st.error(f"Failed to update status: {e}")
             
@@ -1855,7 +1853,6 @@ elif menu_choice == "Student Management":
                 default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
                 
                 new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx)
-                
                 section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
                 section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
                 
@@ -1865,14 +1862,17 @@ elif menu_choice == "Student Management":
                     elif not section_remarks.strip():
                         st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                     else:
-                        run_update("""
-                            UPDATE students 
-                            SET section = :new_section 
-                            WHERE id = :id
-                        """, {"new_section": new_sec, "id": s_id})
-                        
-                        st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
-                        st.rerun()
+                        try:
+                            with conn.session as session:
+                                session.execute(
+                                    text("UPDATE students SET section = :new_section WHERE id = :id"),
+                                    {"new_section": new_sec, "id": s_id}
+                                )
+                                session.commit()
+                            st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to change section: {e}")
                         
         else:
             st.error(f"❌ No student profile found with ID: **{search_id}**")
