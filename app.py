@@ -1397,7 +1397,9 @@ elif menu_choice == "🪪 Student Result Cards":
                             tot_marks_num = int(tot_val) if tot_val else 100
                             pass_marks_num = int(tot_marks_num * 0.4)
                             
-                            if obt_val in ["A", "ABSENT"]:
+                            if obt_val == "NC":
+                                obt_disp, per_disp, status_disp = "NC", "NC", "NC"
+                            elif obt_val in ["A", "ABSENT"]:
                                 obt_disp, per_disp, status_disp = "A", "0%", "Fail"
                                 grand_total_marks += tot_marks_num
                                 student_failed_any_subject = True
@@ -1419,7 +1421,18 @@ elif menu_choice == "🪪 Student Result Cards":
                         except Exception: 
                             pass
                         
+                    style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
+                    
                     compiled_html += f"""
+                            <tr>
+                                <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
+                                <td style="{style_override}">{obt_disp}</td>
+                                <td style="{style_override}">{tot_marks_num if obt_disp != "NC" else "NC"}</td>
+                                <td style="{style_override}">{pass_marks_num if obt_disp != "NC" else "NC"}</td>
+                                <td style="{style_override}">{per_disp}</td>
+                                <td style="font-weight: bold; {style_override}">{status_disp}</td>
+                            </tr>
+                    """
                             <tr>
                                 <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
                                 <td>{obt_disp}</td>
