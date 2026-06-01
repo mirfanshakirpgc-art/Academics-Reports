@@ -1818,7 +1818,7 @@ elif menu_choice == "Student Management":
                 # --- STATUS MANAGEMENT ---
                 with col_status:
                     st.subheader("Update Status")
-                    status_options = ["Active", "Left", "Re-Active"]
+                    status_options = ["Left", "Re-Active"]
                     default_idx = status_options.index(s_status) if s_status in status_options else 0
                     
                     new_status = st.radio("Select Status:", status_options, index=default_idx)
