@@ -516,7 +516,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
 
-    # CSS Injection (Kept for print control classes remaining in parent app context)
+    # CSS Injection 
     st.markdown("""
         <style>
         @media print {
@@ -525,18 +525,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </style>
     """, unsafe_allow_html=True)
 
-    # --- LOGO BASE64 ENCODER ENGINE ---
-    logo_base64 = ""
-    logo_filename = "logo.png" 
-    
-    if logo_base64 != "":
-        with open(logo_filename, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            if ext == "jpg": ext = "jpeg"
-            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
-    else:
-        st.warning(f"⚠️ Logo file '{logo_filename}' not found on disk. Falling back to text logo header.")
+    # Note: logo_filename and logo_base64 are now read safely from the global scope!
 
     # --- EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
     all_frameworks = [
