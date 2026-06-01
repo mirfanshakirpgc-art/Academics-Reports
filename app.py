@@ -1726,7 +1726,7 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-          # ----------------- STUDENT MANAGEMENT -----------------
+         # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management")
     st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
@@ -1772,22 +1772,28 @@ elif menu_choice == "Student Management":
             # Interactive management columns
             col_status, col_section = st.columns(2)
             
-            # --- STATUS MANAGEMENT (LEFT / RE-ACTIVE) ---
+            # --- STATUS MANAGEMENT (LEFT / RE-ACTIVE / ACTIVE) ---
             with col_status:
                 st.subheader("Update Status")
-                status_options = ["Active", "Left"]
+                # Added 'Re-Active' cleanly alongside other status modes
+                status_options = ["Active", "Left", "Re-Active"]
                 default_idx = status_options.index(s_status) if s_status in status_options else 0
                 
                 new_status = st.radio("Select Status:", status_options, index=default_idx)
                 
                 status_date = st.date_input("Status Change Date:", key="status_date_input")
-                status_remarks = st.text_input("Status Remarks *", placeholder="Required: Why is this status changing?", key="status_rem_input")
+                
+                # Show an asterisk if a validation constraint applies
+                req_star = " *" if new_status in ["Left", "Re-Active"] else ""
+                status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder=f"Required for Left/Re-Active actions", key="status_rem_input")
                 
                 if st.button("💾 Save Status", use_container_width=True):
-                    # STRICT VALIDATION: Check if remarks field is empty
-                    if not status_remarks.strip():
-                        st.error("❌ Action Blocked: You must provide **Status Remarks** before saving.")
+                    # STRICT VALIDATION: Block if Left or Re-Active are selected without reasons
+                    if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
+                        st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
                     else:
+                        # Map Re-Active choices internally to 'Active' status or keep 'Re-Active' depending on layout preferences.
+                        # Storing it directly gives you excellent future logging capability!
                         try:
                             run_update("""
                                 UPDATE students 
@@ -1827,7 +1833,6 @@ elif menu_choice == "Student Management":
                 if st.button("🔄 Change Section", use_container_width=True):
                     if new_sec == s_sec:
                         st.warning("⚠️ Student is already assigned to this section.")
-                    # STRICT VALIDATION: Check if remarks field is empty
                     elif not section_remarks.strip():
                         st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                     else:
@@ -1842,7 +1847,6 @@ elif menu_choice == "Student Management":
                         
         else:
             st.error(f"❌ No student profile found with ID: **{search_id}**")
-        # ---------------------------------------------------------
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
