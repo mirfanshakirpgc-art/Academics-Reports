@@ -1,24 +1,33 @@
 # patcher.py
 import re
-import os
 
 filename = "app.py"
 
-if not os.path.exists(filename):
-    print("❌ Error: Could not find app.py in this directory. Move patcher.py into the same folder as app.py!")
-    exit()
-
+print("🔄 Reading app.py...")
 with open(filename, "r", encoding="utf-8") as f:
-    content = f.read()
+    code = f.read()
 
-# Create a backup just in case
-with open("app_backup.py", "w", encoding="utf-8") as f:
-    f.write(content)
-print("📦 Created safety backup as 'app_backup.py'")
+# Fix 1: Ensure logo_filename is safely defined at the very top of the script
+if "logo_filename =" not in code[:2000]:
+    print("📌 Injecting global asset initializations at the top...")
+    setup_block = (
+        "import os\n"
+        "import base64\n"
+        "import pandas as pd\n"
+        "import streamlit as st\n\n"
+        "# --- GLOBAL INITIALIZATIONS ---\n"
+        "logo_filename = 'logo.png'\n"
+        "logo_base64 = ''\n"
+    )
+    # Put it right after the very first line of the script
+    code = setup_block + code
 
-# This script will search your code for table row definitions (<tr>) 
-# and intelligently insert the NC/Absent logic block we designed.
-print("🔍 Scanning app.py for the report card rendering engine...")
+# Fix 2: Clean up the broken conditional block execution 
+# by changing the global check to a safe string validation
+print("🛠️ Fixing the line 532 error pattern...")
+code = code.replace("if os.path.exists(logo_filename):", "if 'logo_filename' in globals() and os.path.exists(logo_filename):")
 
-# Let's locate the subject row loop inside your app
-# If you paste a snippet of your loop here, I can pinpoint it instantly!
+with open(filename, "w", encoding="utf-8") as f:
+    f.write(code)
+
+print("✅ Complete! Commit and push these updates, then refresh your Streamlit Cloud portal.")
