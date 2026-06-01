@@ -1762,7 +1762,7 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-       # ----------------- STUDENT MANAGEMENT -----------------
+     # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management")
     st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
@@ -1779,7 +1779,8 @@ elif menu_choice == "Student Management":
         """, {"id": search_id})
         
         if not student_data.empty:
-            s_id = student_data.iloc[0]["id"]
+            # 🌟 FIXED HERE: Wrap student ID selection with int() to clean up NumPy type mismatches
+            s_id = int(student_data.iloc[0]["id"])
             s_name = student_data.iloc[0]["name"]
             s_sec = student_data.iloc[0]["section"]
             s_class = student_data.iloc[0]["class"]
