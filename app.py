@@ -1102,10 +1102,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
             <div id="dossiers-master-wrapper">
         """
         
-            if not marks_df.empty:
-				s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
+            s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)] if not marks_df.empty else pd.DataFrame()
+
+			# 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
+			blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
+				"CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
+				"CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
+			})
+			
+			lookup_section = str(s_section).strip().upper() if 's_section' in locals() else ""
+			
+			if lookup_section in blueprint_map:
+				active_subjects = blueprint_map[lookup_section]
 			else:
-				s_marks = pd.DataFrame()
+				active_subjects = ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"] if "STATS" in lookup_section else ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
 
 			# 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
 			blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
