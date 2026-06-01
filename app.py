@@ -529,7 +529,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     logo_base64 = ""
     logo_filename = "logo.png" 
     
-    if os.path.exists(logo_filename):
+    if logo_base64 != "":
         with open(logo_filename, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
             ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
