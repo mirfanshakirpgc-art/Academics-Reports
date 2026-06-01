@@ -1915,16 +1915,25 @@ elif menu_choice == "Student Management":
             else:
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
 
-    # =========================================================
-    # TAB 2: AUDIT LOGS VIEW (Where you can find Left & Changed rosters)
+# =========================================================
+    # TAB 2: AUDIT LOGS VIEW (With Raw Database Debugger)
     # =========================================================
     with logs_tab:
         st.subheader("📋 Institutional Exit & Section Transfer Logs")
-        st.markdown("Review running logs of all student profile departures and section allocation changes.")
         
+        # 👇 🔍 EMERGENCY DIAGNOSTIC WINDOW 🔍 👇
+        with st.expander("🕵️‍♂️ Database inspector (Click to see what is actually inside your database)"):
+            st.markdown("This shows the first 50 entries in your database so you can check if anyone actually has a status.")
+            try:
+                raw_debug_df = run_query("SELECT id, name, section, class, status FROM students LIMIT 50")
+                st.dataframe(raw_debug_df, use_container_width=True)
+            except Exception as debug_err:
+                st.error(f"Could not read database columns: {debug_err}")
+        # 👆 🔍 END OF DIAGNOSTIC WINDOW 👆 
+
+        st.markdown("Review running logs of all student profile departures and section allocation changes.")
         filter_view = st.selectbox("Filter Log Matrix By Type:", ["All Historical Actions", "Left Students Master List", "Section Transfer Track Log"])
         
-        # Pull master references from log tables joined with core student name details
         try:
             log_data_df = run_query("""
                 SELECT l.student_id AS "ID", s.name AS "Student Name", 
@@ -1936,32 +1945,29 @@ elif menu_choice == "Student Management":
                 ORDER BY l.id DESC
             """)
         except Exception:
-            # Fallback if the student_logs table hasn't been built yet
             log_data_df = pd.DataFrame(columns=["ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
             
-        # 🌟 SMART BACKUP: Scan the main student table for any existing 'Left' records 
-        # so they show up here even if they were changed before logging was turned on!
-        left_fallback_df = run_query("""
-            SELECT id AS "ID", name AS "Student Name", 
-                   'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
-                   status AS "To", 'Legacy Record' AS "Date Stamp", 
-                   'Profile marked left before tracking initialized' AS "Staff Remarks Context"
-            FROM students
-            WHERE UPPER(TRIM(status)) = 'LEFT'
-        """)
+        # Fallback tracking scan
+        try:
+            left_fallback_df = run_query("""
+                SELECT id AS "ID", name AS "Student Name", 
+                       'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
+                       status AS "To", 'Legacy Record' AS "Date Stamp", 
+                       'Profile marked left before tracking initialized' AS "Staff Remarks Context"
+                FROM students
+                WHERE status IS NOT NULL AND status != ''
+            """)
+        except Exception:
+            left_fallback_df = pd.DataFrame()
         
-        # Combine the running history logs and any legacy left records securely
-        if not left_fallback_df.empty:
-            # Drop any duplicates if they exist in both tables to keep it clean
+        if left_fallback_df is not None and not left_fallback_df.empty:
             existing_logged_ids = log_data_df[log_data_df["To"] == "Left"]["ID"].tolist()
             filtered_fallback = left_fallback_df[~left_fallback_df["ID"].isin(existing_logged_ids)]
             log_data_df = pd.concat([log_data_df, filtered_fallback], ignore_index=True)
 
-       # Render lists based on selected dropdown filter
         if log_data_df.empty:
             st.info("💡 No history logs or section adjustments have been recorded yet.")
         else:
-            # Clean up strings for rock-solid filtering comparison
             log_data_df["To_Clean"] = log_data_df["To"].astype(str).str.strip().str.upper()
             log_data_df["Action_Clean"] = log_data_df["Action"].astype(str).str.strip().str.upper()
 
@@ -1975,8 +1981,7 @@ elif menu_choice == "Student Management":
             if filtered_df.empty:
                 st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
             else:
-                # Drop our temporary cleaning columns before rendering to keep the UI beautiful
-                display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"])
+                display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
