@@ -1432,7 +1432,7 @@ elif menu_choice == "🪪 Student Result Cards":
                                 <td style="{style_override}">{per_disp}</td>
                                 <td style="font-weight: bold; {style_override}">{status_disp}</td>
                             </tr>
-                    """
+"""
                             <tr>
                                 <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
                                 <td>{obt_disp}</td>
