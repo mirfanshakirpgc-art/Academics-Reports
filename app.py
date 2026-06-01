@@ -1387,7 +1387,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 student_failed_any_subject = False
                 has_valid_marks_data = False
 
-for sub in subjects_list:
+                for sub in subjects_list:
                     match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'] == selected_test)]
                     obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
                     if not match.empty:
@@ -1424,36 +1424,16 @@ for sub in subjects_list:
                     style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
                     
                     compiled_html += f"""
-<tr>
-<td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
-<td style="{style_override}">{obt_disp}</td>
-<td style="{style_override}">{tot_marks_num if obt_disp != "NC" else "NC"}</td>
-<td style="{style_override}">{pass_marks_num if obt_disp != "NC" else "NC"}</td>
-<td style="{style_override}">{per_disp}</td>
-<td style="font-weight: bold; {style_override}">{status_disp}</td>
-if num_obt >= pass_marks_num:
-                                    status_disp = "Pass"
-                                else:
-                                    status_disp = "Fail"
-                                    student_failed_any_subject = True
-                        except Exception: 
-                            pass
-                        
-                    style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
-                    
-                    compiled_html += f"""
-<tr>
-<td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
-<td style="{style_override}">{obt_disp}</td>
-<td style="{style_override}">{tot_marks_num if obt_disp != "NC" else "NC"}</td>
-<td style="{style_override}">{pass_marks_num if obt_disp != "NC" else "NC"}</td>
-<td style="{style_override}">{per_disp}</td>
-<td style="font-weight: bold; {style_override}">{status_disp}</td>
-</tr>
-"""
-
-                # Grand Total calculation row
-                grand_per_disp = ""
+                    <tr>
+                        <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
+                        <td style="{style_override}">{obt_disp}</td>
+                        <td style="{style_override}">{tot_marks_num if obt_disp != "NC" else "NC"}</td>
+                        <td style="{style_override}">{pass_marks_num if obt_disp != "NC" else "NC"}</td>
+                        <td style="{style_override}">{per_disp}</td>
+                        <td style="font-weight: bold; {style_override}">{status_disp}</td>
+                    </tr>
+                    """
+                
                 # Grand Total calculation row
                 grand_per_disp = ""
                 grand_status_disp = ""
