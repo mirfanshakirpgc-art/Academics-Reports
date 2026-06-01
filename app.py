@@ -1,3 +1,29 @@
+# ==============================================================================
+# 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
+# ==============================================================================
+import streamlit as st
+import pandas as pd
+import sqlite3
+import os
+import base64
+
+logo_filename = "logo.png"
+logo_base64 = ""
+
+# Pre-load and encode logo globally so any module can read it instantly
+if os.path.exists(logo_filename):
+    try:
+        with open(logo_filename, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
+            if ext == "jpg": ext = "jpeg"
+            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
+    except Exception:
+        pass
+
+# ==============================================================================
+# 2. YOUR REST OF THE CODE CONTINUES BELOW HERE...
+# ==============================================================================
 import os
 import base64
 
