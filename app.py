@@ -1102,9 +1102,106 @@ if menu_choice == "📈 Multi-Test Progress Report":
             <div id="dossiers-master-wrapper">
         """
         
-        for index, s_meta in enumerate(students_to_process):
-            s_id = str(s_meta["id"]).strip()
+       # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
+            if not marks_df.empty:
+                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
+            else:
+                s_marks = pd.DataFrame()
+
+            # 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
+            # (Fallback defaults to common subjects if section mapping dictionary isn't globally found)
+            blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
+                "CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
+                "CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
+            })
             
+            # Normalize the lookup key to match your database sections (e.g., 'CB_STATS')
+            lookup_section = str(s_section).strip().upper()
+            if lookup_section in blueprint_map:
+                active_subjects = blueprint_map[lookup_section]
+            else:
+                # Fallback safeguard: if section map fails, fallback to subjects natively found in historical data
+                active_subjects = sorted(list(s_marks["subject_name"].str.upper().unique())) if not s_marks.empty else ["ENGLISH", "URDU", "MATHEMATICS"]
+
+            table_rows_html = ""
+            exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
+            exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
+            exam_has_any_data = {exam: False for exam in selected_exams_list}
+
+            # 🎯 Step 2: Render rows ONLY for your current section blueprint requirements
+            for sub in active_subjects:
+                sub_marks = s_marks[s_marks["subject_name"].str.upper() == sub.upper()] if not s_marks.empty else pd.DataFrame()
+                row_html = f"<tr><td>{sub.title()}</td>"
+                sub_percentages = []
+
+                for exam in selected_exams_list:
+                    exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
+                    
+                    if not exam_subset.empty:
+                        # --- NORMAL STRATEGY: Active subject mark exists ---
+                        m_obt = exam_subset.iloc[0]["marks_obtained"]
+                        m_tot = exam_subset.iloc[0]["total_marks"]
+                        
+                        try:
+                            val_obt = float(m_obt)
+                            val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
+                            pct = (val_obt / val_tot) * 100
+                            row_html += f"<td>{int(pct)}%</td>"
+                            sub_percentages.append(pct)
+                            
+                            exam_totals_obtained[exam] += val_obt
+                            exam_totals_max[exam] += val_tot
+                            exam_has_any_data[exam] = True
+                        except:
+                            clean_obt = str(m_obt).strip().upper()
+                            if clean_obt in ["A", "ABSENT"]:
+                                row_html += "<td>A</td>"
+                                exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
+                                exam_has_any_data[exam] = True
+                                sub_percentages.append(0.0)
+                            elif clean_obt == "NC":
+                                row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
+                            else:
+                                row_html += "<td></td>"
+                    else:
+                        # --- 🪄 FALLBACK STRATEGY: Current blueprint subject is empty for this exam block ---
+                        # Look for alternate historic marks from an old elective taken during this specific test slot
+                        old_elective_match = s_marks[
+                            (s_marks["exam_type"].str.upper() == exam.upper()) & 
+                            (~s_marks["subject_name"].str.upper().isin([x.upper() for x in active_subjects]))
+                        ]
+                        
+                        if not old_elective_match.empty:
+                            old_sub_name = str(old_elective_match.iloc[0]["subject_name"]).strip()
+                            old_m_obt = old_elective_match.iloc[0]["marks_obtained"]
+                            old_m_tot = old_elective_match.iloc[0]["total_marks"]
+                            
+                            try:
+                                old_val_obt = float(old_m_obt)
+                                old_val_tot = float(old_m_tot) if float(old_m_tot) > 0 else 100.0
+                                old_pct = (old_val_obt / old_val_tot) * 100
+                                
+                                # Crop to a short display prefix like "Phy" or "Comp"
+                                short_prefix = old_sub_name[:4].title()
+                                row_html += f"<td style='font-size: 11px; color: #555;'>{short_prefix} ({dynamic_pct}%)</td>".replace('dynamic_pct', str(int(old_pct)))
+                                sub_percentages.append(old_pct)
+                                
+                                # Accrue values into grand totals matrix so cumulative calculation stays mathematically whole
+                                exam_totals_obtained[exam] += old_val_obt
+                                exam_totals_max[exam] += old_val_tot
+                                exam_has_any_data[exam] = True
+                            except:
+                                row_html += "<td></td>"
+                        else:
+                            row_html += "<td></td>"
+                
+                if sub_percentages:
+                    avg_pct = int(sum(sub_percentages) / len(sub_percentages))
+                    row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
+                else:
+                    row_html += "<td></td></tr>"
+                    
+                table_rows_html += row_html
             raw_name = str(s_meta["name"])
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
