@@ -852,8 +852,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     elif students_to_process:
         params_dict = {}
         placeholder_list = []
-        
-        for index, s_meta in enumerate(students_to_process):
+		for index, s_meta in enumerate(students_to_process):
 			raw_name = str(s_meta["name"])
 			s_name = " ".join(raw_name.replace("\n", " ").split())
 			
