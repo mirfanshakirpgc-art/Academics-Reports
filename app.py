@@ -1126,11 +1126,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
                 raw_subs = list(s_marks["subject_clean"].unique())
                 
+                # Safe section detection directly from the student's marks data rows
+                detected_sections_upper = []
+                if "section" in s_marks.columns:
+                    detected_sections_upper = [str(x).upper() for x in s_marks["section"].dropna().unique()]
+                
                 # DISCIPLINE BRIDGE: If they transitioned from Physics to Statistics sections, 
                 # keep "Statistics" as the official row header and filter out standalone "Physics".
                 unique_subjects = []
                 for s in sorted(raw_subs):
-                    if s == "Physics" and ("Statistics" in raw_subs or "Cb_Stats" in current_section.upper() or "CG_STATS" in current_section.upper()):
+                    # We check raw_subs or the data records to avoid NameErrors entirely
+                    is_stats_section = "STATISTICS" in raw_subs or any("STATS" in sec for sec in detected_sections_upper)
+                    if s == "Physics" and is_stats_section:
                         continue  # Do not give Physics its own individual row
                     unique_subjects.append(s)
                     
