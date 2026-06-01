@@ -168,32 +168,31 @@ elif menu_choice == "➕ Add Students":
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
 # ---------------------------------------------------------
-# 📝 ENTER MARKS & ATTENDANCE MODULE
+# 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
 # ---------------------------------------------------------
 elif menu_choice == "📝 Enter Marks & Attendance":
     st.title("📝 Data Intake Management Dashboard")
     sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
     st.markdown("---")
 
-    # Get active session identity data
+    # Get active session identity data safely
     current_user_id = st.session_state.get('user_id', None)
     current_role = st.session_state.get('role', st.session_state.get('user_role', 'teacher'))
 
+    # =========================================================
+    # 1. ACADEMIC EXAM MARKS ENTRY SUB-MODULE
+    # =========================================================
     if sub_tab_selection == "📝 Academic Exam Marks Entry":
-        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number"], horizontal=True)
+        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
         st.markdown("---")
 
         if entry_mode == "📋 By Complete Section":
             c1, c2, c3 = st.columns(3)
-            
-            # Smart allocation lookup for active teacher accounts
             if current_role == 'teacher' and current_user_id is not None:
                 teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
-                
                 if not teacher_rights.empty:
                     allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                     allowed_secs = sorted(list(teacher_rights['section'].unique()))
-                    
                     with c1: st.info("🔒 Bound to Assigned Allocation Profile")
                     with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
                     with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
@@ -201,7 +200,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     st.warning("🚨 You do not have any active subjects or sections assigned yet.")
                     sel_subject, sel_section = None, None
             else:
-                # Dynamic full admin view controls
                 with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
                 with c2: sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
                 with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
@@ -242,7 +240,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     st.error(f"Database sync issue: {e}")
 
         elif entry_mode == "👤 By Single Student Roll Number":
-            target_id = st.text_input("🔍 Enter Student Roll Number / ID:")
+            target_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id")
             if target_id and target_id.isdigit():
                 student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(target_id)})
                 if student_info.empty:
@@ -275,17 +273,55 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.success("🎉 Marks updated successfully!")
                         st.rerun()
 
+        elif entry_mode == "📤 Bulk Excel/CSV Import":
+            st.subheader("📤 Bulk Marks CSV Document Importer")
+            st.info("📊 Spreadsheet layout must use these lowercase headers: **student_id** and **marks_obtained**")
+            
+            c_xl1, c_xl2, c_xl3 = st.columns(3)
+            all_subjects_flat = sorted(list(set(sum(DISCIPLINE_SUBJECTS_MAP.values(), []))))
+            
+            with c_xl1: xl_subject = st.selectbox("Target Entry Subject:", all_subjects_flat, key="xl_m_sub")
+            with c_xl2: xl_exam = st.selectbox("Target Entry Test Context:", AVAILABLE_EXAMS, key="xl_m_exam")
+            with c_xl3: xl_total = st.number_input("Set Assignment Total Marks Capacity:", value=100, key="xl_m_total")
+            
+            uploaded_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="marks_uploader_widget")
+            if uploaded_file is not None:
+                try:
+                    df = pd.read_csv(uploaded_file)
+                    df.columns = [str(c).lower().strip() for c in df.columns]
+                    
+                    if 'student_id' in df.columns and 'marks_obtained' in df.columns:
+                        st.dataframe(df, use_container_width=True)
+                        if st.button("🚀 Process and Save Bulk Marks", type="primary"):
+                            success_count = 0
+                            for _, row in df.iterrows():
+                                s_id = str(row['student_id']).split('.')[0].strip()
+                                score = str(row['marks_obtained']).strip()
+                                if s_id.isdigit():
+                                    execute_db_command("DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(s_id), "sub": xl_subject, "exam": xl_exam})
+                                    if score != "" and score.lower() != 'nan':
+                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(s_id), "sub": xl_subject.strip().upper(), "exam": xl_exam.strip(), "score": score, "total": xl_total})
+                                        success_count += 1
+                            st.success(f"🎉 Successfully updated {success_count} student grade rows!")
+                            st.rerun()
+                    else:
+                        st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'marks_obtained' names exactly.")
+                except Exception as e:
+                    st.error(f"Error handling system processing upload: {e}")
+
+    # =========================================================
+    # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE
+    # =========================================================
     elif sub_tab_selection == "📅 Monthly Attendance Entry":
         st.subheader("📅 Monthly Attendance Workspace")
-        att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number"], horizontal=True, key="att_flow")
+        att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode")
+        st.markdown("---")
         
         if att_flow_mode == "📋 By Complete Section":
             col_as1, col_as2, col_as3 = st.columns(3)
-            
             if current_role == 'teacher' and current_user_id is not None:
                 teacher_rights = run_query("SELECT section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
                 allowed_secs = sorted(list(teacher_rights['section'].unique())) if not teacher_rights.empty else []
-                
                 with col_as1: st.info("🔒 Logged Teacher Roster View")
                 with col_as2: att_section = st.selectbox("Select Target Section:", allowed_secs, key="att_sec")
                 with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
@@ -296,7 +332,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             
             if att_section:
                 default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
-                
                 students_att_list = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
                     FROM students s
@@ -324,6 +359,71 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                             st.success("🎉 Section Attendance saved successfully!")
                             st.rerun()
 
+        elif att_flow_mode == "👤 By Single Student Roll Number":
+            st.subheader("👤 Single Student Attendance Record Manager")
+            single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
+            
+            if single_att_id and single_att_id.isdigit():
+                student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(single_att_id)})
+                if student_info.empty:
+                    st.error("❌ This roll number does not exist.")
+                else:
+                    s_name = student_info['name'].iloc[0].upper()
+                    s_section = student_info['section'].iloc[0].upper().strip()
+                    st.info(f"👤 Found Student: {s_name} | Current Section: {s_section}")
+                    
+                    c_at1, c_at2, c_at3 = st.columns(3)
+                    with c_at1: single_att_month = st.selectbox("Select Target Month:", AVAILABLE_MONTHS, key="s_att_m")
+                    with c_at2: single_att_total = st.number_input("Total Tracked Days:", min_value=1, max_value=31, value=24, key="s_att_tot")
+                    
+                    existing_att = run_query("SELECT present_days FROM attendance WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"id": int(single_att_id), "month": single_att_month})
+                    init_present_val = int(existing_att['present_days'].iloc[0]) if not existing_att.empty else int(single_att_total)
+                    
+                    with c_at3: single_att_present = st.number_input("Days Attended:", min_value=0, max_value=int(single_att_total), value=min(int(init_present_val), int(single_att_total)), key="s_att_pres")
+                    
+                    if st.button("💾 Save Individual Attendance Record", type="primary"):
+                        execute_db_command("""
+                            INSERT INTO attendance (student_id, month_name, total_days, present_days)
+                            VALUES (:s_id, :month, :td, :pd)
+                            ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
+                        """, {"s_id": int(single_att_id), "month": single_att_month.strip(), "td": single_att_total, "pd": single_att_present})
+                        st.success(f"🎉 Attendance updated successfully for {s_name}!")
+                        st.rerun()
+
+        elif att_flow_mode == "📤 Bulk Excel/CSV Import":
+            st.subheader("📤 Bulk Attendance CSV Document Importer")
+            st.info("📊 Spreadsheet layout must use these lowercase headers: **student_id** and **present_days**")
+            
+            c_ax1, c_ax2 = st.columns(2)
+            with c_ax1: xl_month = st.selectbox("Target Log Target Month:", AVAILABLE_MONTHS, key="xl_a_month")
+            with c_ax2: xl_total_days = st.number_input("Total Monthly Accountable Days:", min_value=1, max_value=31, value=24, key="xl_a_td")
+            
+            uploaded_att_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="att_uploader_widget")
+            if uploaded_att_file is not None:
+                try:
+                    df = pd.read_csv(uploaded_att_file)
+                    df.columns = [str(c).lower().strip() for c in df.columns]
+                    
+                    if 'student_id' in df.columns and 'present_days' in df.columns:
+                        st.dataframe(df, use_container_width=True)
+                        if st.button("🚀 Process and Save Bulk Attendance", type="primary"):
+                            success_count = 0
+                            for _, row in df.iterrows():
+                                s_id = str(row['student_id']).split('.')[0].strip()
+                                p_days = str(row['present_days']).split('.')[0].strip()
+                                if s_id.isdigit() and p_days.isdigit():
+                                    execute_db_command("""
+                                        INSERT INTO attendance (student_id, month_name, total_days, present_days)
+                                        VALUES (:s_id, :month, :td, :pd)
+                                        ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
+                                    """, {"s_id": int(s_id), "month": xl_month.strip(), "td": xl_total_days, "pd": int(p_days)})
+                                    success_count += 1
+                            st.success(f"🎉 Successfully imported attendance logs for {success_count} students!")
+                            st.rerun()
+                    else:
+                        st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'present_days' names exactly.")
+                except Exception as e:
+                    st.error(f"Error handling system processing upload: {e}")
 # ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
     col_a, col_b, col_c = st.columns(3)
