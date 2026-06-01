@@ -852,7 +852,259 @@ if menu_choice == "📈 Multi-Test Progress Report":
     elif students_to_process:
         params_dict = {}
         placeholder_list = []
+        
+        for idx, s in enumerate(students_to_process):
+            s_id = s['id']
+            clean_s_id = int(s_id) if str(s_id).isdigit() else str(s_id).strip()
+            
+            key = f"sid_{idx}"
+            placeholder_list.append(f":{key}")
+            params_dict[key] = clean_s_id
+            
+        placeholders_str = ", ".join(placeholder_list)
+        
+        marks_df = pd.DataFrame()
+        attendance_df = pd.DataFrame()
+
+        try:
+            sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
+            cols_marks = [c.lower() for c in sample_marks.columns]
+            
+            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else cols_marks[min(1, len(cols_marks)-1)])
+            exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
+            obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
+            tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
+
+            marks_df = run_query(f"""
+                SELECT student_id, {sub_col} as subject_name, TRIM({exam_col}) as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
+                FROM marks
+                WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
+
+        try:
+            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
+            cols_att = [c.lower() for c in sample_att.columns]
+            
+            month_col = "month_name" if "month_name" in cols_att else ("month" if "month" in cols_att else "month_name")
+            tot_days_col = "total_days" if "total_days" in cols_att else "total_days"
+            
+            att_days_col = "attended_days"
+            for variant in ["attended_days", "present_days", "present", "attended"]:
+                if variant in cols_att:
+                    att_days_col = variant
+                    break
+
+            attendance_df = run_query(f"""
+                SELECT student_id, {month_col} as month_name, {tot_days_col} as total_days, {att_days_col} as attended_days 
+                FROM attendance
+                WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
+
+        st.write("---")
+
+        composite_html_payload = f"""
+        <html>
+        <head>
+        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        <style>
+        body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
+        
+        .action-dashboard-panel {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            max-width: 850px;
+            margin: 10px auto 25px auto;
+            font-family: 'Arial', sans-serif;
+        }}
+        .action-control-btn {{
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: background 0.2s, transform 0.1s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }}
+        .action-control-btn:active {{
+            transform: scale(0.97);
+        }}
+        .btn-print-single {{ background-color: #2e7d32; }}
+        .btn-print-single:hover {{ background-color: #1b5e20; }}
+        .btn-print-bulk {{ background-color: #1565c0; }}
+        .btn-print-bulk:hover {{ background-color: #0d47a1; }}
+        .btn-img-single {{ background-color: #e65100; }}
+        .btn-img-single:hover {{ background-color: #b33900; }}
+        .btn-img-bulk {{ background-color: #6a1b9a; }}
+        .btn-img-bulk:hover {{ background-color: #4a148c; }}
+
+        .cck-container {{
+            background-color: #ffffff;
+            border: 1px solid #000000;
+            padding: 30px;
+            margin: 0 auto 30px auto;
+            max-width: 850px;
+            color: #000000;
+            font-family: 'Arial', sans-serif;
+            page-break-after: always;
+            box-sizing: border-box;
+        }}
+        .cck-header-wrapper {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            position: relative;
+        }}
+        
+        .cck-logo-image-container {{
+            width: 75px;
+            height: 75px;
+            position: absolute;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        .cck-logo-image {{
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }}
+        
+        .cck-logo-fallback-text {{
+            background-color: #e67e22;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 22px;
+            width: 75px;
+            height: 75px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }}
+        
+        .cck-title-block {{
+            text-align: center;
+        }}
+        .cck-main-title {{
+            font-size: 24px;
+            font-weight: bold;
+            margin: 15;
+            letter-spacing: 0.5px;
+        }}
+        .cck-sub-title {{
+            font-size: 13px;
+            color: #444444;
+            margin: 2px 0 0 0;
+        }}
+        .cck-badge-wrapper {{
+            text-align: center;
+            margin: 15px 0;
+        }}
+        .cck-doc-badge {{
+            display: inline-block;
+            background-color: #d1d5db;
+            color: #000000;
+            font-weight: bold;
+            font-size: 16px;
+            padding: 4px 20px;
+            border-radius: 2px;
+        }}
+        .cck-meta-row {{
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }}
+        .cck-meta-field {{
+            margin-right: 15px;
+            margin-bottom: 8px;
+        }}
+        .cck-line-fill {{
+            border-bottom: 1px solid #000000;
+            display: inline-block;
+            min-width: 120px;
+            padding-left: 5px;
+            font-weight: bold;
+        }}
+        .cck-report-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 13px;
+        }}
+        .cck-report-table th, .cck-report-table td {{
+            border: 1px solid #000000;
+            padding: 6px 4px;
+            text-align: center;
+        }}
+        .cck-report-table th {{
+            background-color: #ffffff;
+            font-weight: normal;
+        }}
+        .cck-report-table td:first-child {{
+            text-align: left;
+            padding-left: 8px;
+        }}
+        .cck-remarks-area {{
+            margin-top: 100px;
+            font-size: 14px;
+            display: flex;
+            align-items: flex-end;
+        }}
+        .cck-remarks-line {{
+            flex-grow: 1;
+            border-bottom: 1px solid #000000;
+            margin-left: 8px;
+            padding-left: 5px;
+            font-style: italic;
+        }}
+        .cck-footer-sign {{
+            margin-top: 25px;
+            text-align: right;
+            font-size: 14px;
+            padding-right: 20px;
+        }}
+        
+        @media print {{
+            .action-dashboard-panel {{ display: none !important; }}
+            .cck-single-print-isolation {{ display: block !important; }}
+            .cck-single-print-hide {{ display: none !important; }}
+            .cck-container {{
+                border: none !important;
+                padding: 0 !important;
+                margin-bottom: 0 !important;
+            }}
+        }}
+        </style>
+        </head>
+        <body>
+            <div class="action-dashboard-panel">
+                <button class="action-control-btn btn-print-single" onclick="executeTargetPrint(true)">👤 Print Single Student</button>
+                <button class="action-control-btn btn-print-bulk" onclick="executeTargetPrint(false)">👥 Print Complete Section</button>
+                <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Single as Picture</button>
+                <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Section as Pictures</button>
+            </div>
+            
+            <div id="dossiers-master-wrapper">
+        """
+        
         for index, s_meta in enumerate(students_to_process):
+            s_id = str(s_meta["id"]).strip()
+            
             raw_name = str(s_meta["name"])
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
@@ -862,47 +1114,30 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_class = str(s_meta["class"]) if s_meta.get("class") else "11th"
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
-            s_id = s_meta['id']
-            match_id = int(s_id) if str(s_id).isdigit() else s_id
+            match_id = int(s_id) if s_id.isdigit() else s_id
             
-           # --- MARKS CARD MATRIX PROCESSING (UPGRADED WITH INLINE CROSS-SUBJECT MERGE) ---
-            s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)] if not marks_df.empty else pd.DataFrame()
-
-            # 🎯 Step 1: Define what subjects SHOULD exist based strictly on the current active Section Blueprint
-            blueprint_map = globals().get("SECTION_SUBJECTS_MAP", {
-                "CB_STATS": ["STATISTICS", "ENGLISH", "ISL_ETH", "MATHEMATICS", "T_QURAN", "URDU", "ECONOMICS"],
-                "CB_CS": ["COMPUTER", "ENGLISH", "ISL_ETH", "MATHEMATICS", "PHYSICS", "T_QURAN", "URDU"]
-            })
-            
-            lookup_section = str(s_section).strip().upper()
-            
-            if lookup_section in blueprint_map:
-                active_subjects = blueprint_map[lookup_section]
+            # --- MARKS CARD MATRIX PROCESSING ---
+            if not marks_df.empty:
+                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
             else:
-                # 🪄 DEFENSIVE SUBSTRING FALLBACK: Forces correct blueprint layout for subject transfers
-                if "STATS" in lookup_section:
-                    active_subjects = blueprint_map["CB_STATS"]
-                elif "CS" in lookup_section or "COMP" in lookup_section:
-                    active_subjects = blueprint_map["CB_CS"]
-                else:
-                    active_subjects = sorted(list(s_marks["subject_name"].str.upper().unique())) if not s_marks.empty else ["ENGLISH", "URDU", "MATHEMATICS"]
-
+                s_marks = pd.DataFrame()
+                
+            unique_subjects = sorted(list(s_marks["subject_name"].unique())) if not s_marks.empty else ["English", "Urdu", "Mathematics", "Physics", "Chemistry"]
+            
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
             exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
-            # 🎯 Step 2: Render rows ONLY for your current section blueprint requirements
-            for sub in active_subjects:
-                sub_marks = s_marks[s_marks["subject_name"].str.upper() == sub.upper()] if not s_marks.empty else pd.DataFrame()
-                row_html = f"<tr><td>{sub.title()}</td>"
+            for sub in unique_subjects:
+                sub_marks = s_marks[s_marks["subject_name"] == sub] if not s_marks.empty else pd.DataFrame()
+                row_html = f"<tr><td>{sub}</td>"
                 sub_percentages = []
 
                 for exam in selected_exams_list:
                     exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
                     
                     if not exam_subset.empty:
-                        # --- NORMAL STRATEGY: Active subject mark exists ---
                         m_obt = exam_subset.iloc[0]["marks_obtained"]
                         m_tot = exam_subset.iloc[0]["total_marks"]
                         
@@ -924,52 +1159,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 exam_has_any_data[exam] = True
                                 sub_percentages.append(0.0)
                             elif clean_obt == "NC":
+                                # This replaces the empty <td></td> when the test is Not Conducted
                                 row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
                             else:
                                 row_html += "<td></td>"
                     else:
-						# --- 🪄 FALLBACK STRATEGY: Merge older historical elective logs if active is blank ---
-    old_elective_match = s_marks[
-        s_marks["subject_name"].str.upper().str.contains("ELECTIVE", na=False)
-    ] if not s_marks.empty else pd.DataFrame()
-                        
-                        exam_elective = old_elective_match[
-                            old_elective_match["exam_type"].str.upper() == exam.upper()
-                        ] if not old_elective_match.empty else pd.DataFrame()
-                        
-                        if not exam_elective.empty:
-                            m_obt = exam_elective.iloc[0]["marks_obtained"]
-                            m_tot = exam_elective.iloc[0]["total_marks"]
-                            
-                            try:
-                                val_obt = float(m_obt)
-                                val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
-                                pct = (val_obt / val_tot) * 100
-                                row_html += f"<td>{int(pct)}%</td>"
-                                sub_percentages.append(pct)
-                                
-                                exam_totals_obtained[exam] += val_obt
-                                exam_totals_max[exam] += val_tot
-                                exam_has_any_data[exam] = True
-                            except:
-                                clean_obt = str(m_obt).strip().upper()
-                                if clean_obt in ["A", "ABSENT"]:
-                                    row_html += "<td>A</td>"
-                                    exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
-                                    exam_has_any_data[exam] = True
-                                    sub_percentages.append(0.0)
-                                else:
-                                    row_html += "<td></td>"
-                        else:
-                            row_html += "<td>-</td>"
-				
-				if sub_percentages:
-					avg_pct = int(sum(sub_percentages) / len(sub_percentages))
-					row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
-				else:
-					row_html += "<td></td></tr>"
-					
-				table_rows_html += row_html
+                        row_html += "<td></td>"
+                
+                if sub_percentages:
+                    avg_pct = int(sum(sub_percentages) / len(sub_percentages))
+                    row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
+                else:
+                    row_html += "<td></td></tr>"
+                    
+                table_rows_html += row_html
 
             total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
