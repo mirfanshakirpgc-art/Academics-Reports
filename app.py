@@ -1726,7 +1726,7 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-           # ----------------- STUDENT MANAGEMENT -----------------
+          # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management")
     st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
@@ -1735,7 +1735,7 @@ elif menu_choice == "Student Management":
     search_id = st.number_input("Enter Student ID:", min_value=1, step=1, key="manage_search_id")
     
     if search_id:
-        # Step 1: Query safely without the 'status' column first to prevent complete crash
+        # Step 1: Query student core details
         student_data = run_query("""
             SELECT id, name, section, class 
             FROM students 
@@ -1748,14 +1748,13 @@ elif menu_choice == "Student Management":
             s_sec = student_data.iloc[0]["section"]
             s_class = student_data.iloc[0]["class"]
             
-            # Step 2: Try to get status separately, default to 'Active' if column doesn't exist
+            # Step 2: Try to get status safely
             s_status = "Active"
             try:
                 status_check = run_query("SELECT status FROM students WHERE id = :id", {"id": s_id})
                 if not status_check.empty and pd.notna(status_check.iloc[0]["status"]):
                     s_status = status_check.iloc[0]["status"]
             except Exception:
-                # If this errors, the column doesn't exist yet, which is fine!
                 pass
             
             # Display current profile card
@@ -1781,9 +1780,14 @@ elif menu_choice == "Student Management":
                 
                 new_status = st.radio("Select Status:", status_options, index=default_idx)
                 
+                # Dynamic inputs based on status change
+                status_date = st.date_input("Status Change Date:", key="status_date_input")
+                status_remarks = st.text_input("Status Remarks:", placeholder="e.g., Transfer to another branch, Personal reasons, etc.", key="status_rem_input")
+                
                 if st.button("💾 Save Status", use_container_width=True):
+                    # Combine fields or save to status text column gracefully if no special tables exist
+                    combined_status_remarks = f"[{status_date}] Status changed to {new_status}. Remarks: {status_remarks}"
                     try:
-                        # Attempt to save status directly
                         run_update("""
                             UPDATE students 
                             SET status = :status 
@@ -1793,12 +1797,16 @@ elif menu_choice == "Student Management":
                         st.rerun()
                     except Exception as e:
                         # Auto-Migration fallback if column is missing
-                        if "no such column" in str(e).lower() or "unknown column" in str(e).lower() or "status" in str(e).lower():
-                            st.warning("⚡ Creating missing 'status' column in your database table...")
+                        if "status" in str(e).lower():
+                            st.warning("⚡ Creating missing columns in your database table...")
                             try:
                                 run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
-                                run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                st.success(f"✅ Table upgraded successfully! Updated status to **{new_status}**.")
+                                run_update("""
+                                    UPDATE students 
+                                    SET status = :status 
+                                    WHERE id = :id
+                                """, {"status": new_status, "id": s_id})
+                                st.success(f"✅ Table upgraded! Updated status to **{new_status}**.")
                                 st.rerun()
                             except Exception as migration_err:
                                 st.error(f"Could not automatically add column: {migration_err}")
@@ -1813,6 +1821,10 @@ elif menu_choice == "Student Management":
                 
                 new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx)
                 
+                # Dynamic inputs for Section changes
+                section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
+                section_remarks = st.text_input("Transfer Remarks:", placeholder="e.g., Performance balancing, Student request, etc.", key="sec_rem_input")
+                
                 if st.button("🔄 Change Section", use_container_width=True):
                     if new_sec == s_sec:
                         st.warning("⚠️ Student is already assigned to this section.")
@@ -1823,7 +1835,7 @@ elif menu_choice == "Student Management":
                             WHERE id = :id
                         """, {"new_section": new_sec, "id": s_id})
                         
-                        st.success(f"✅ Successfully transferred student to **{new_sec}**!")
+                        st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
                         st.rerun()
                         
         else:
