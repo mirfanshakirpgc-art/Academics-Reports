@@ -1957,21 +1957,27 @@ elif menu_choice == "Student Management":
             filtered_fallback = left_fallback_df[~left_fallback_df["ID"].isin(existing_logged_ids)]
             log_data_df = pd.concat([log_data_df, filtered_fallback], ignore_index=True)
 
-        # Render lists based on selected dropdown filter
+       # Render lists based on selected dropdown filter
         if log_data_df.empty:
             st.info("💡 No history logs or section adjustments have been recorded yet.")
         else:
+            # Clean up strings for rock-solid filtering comparison
+            log_data_df["To_Clean"] = log_data_df["To"].astype(str).str.strip().str.upper()
+            log_data_df["Action_Clean"] = log_data_df["Action"].astype(str).str.strip().str.upper()
+
             if filter_view == "Left Students Master List":
-                filtered_df = log_data_df[log_data_df["To"] == "Left"]
+                filtered_df = log_data_df[log_data_df["To_Clean"] == "LEFT"]
             elif filter_view == "Section Transfer Track Log":
-                filtered_df = log_data_df[log_data_df["Action"] == "SECTION_TRANSFER"]
+                filtered_df = log_data_df[log_data_df["Action_Clean"] == "SECTION_TRANSFER"]
             else:
                 filtered_df = log_data_df
                 
             if filtered_df.empty:
                 st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
             else:
-                st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+                # Drop our temporary cleaning columns before rendering to keep the UI beautiful
+                display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"])
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
