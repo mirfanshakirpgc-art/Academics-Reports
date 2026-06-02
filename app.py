@@ -1131,6 +1131,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
+                # Fallback to general form scope selection if data rows are missing/unmapped
+                target_section_context = detected_sec if detected_sec != "UNKNOWN" else s_section.upper().strip()
+                
                 # Dynamic mapping arrays from institutional blueprints
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
                 engineering_secs = ["EG_BLUE", "EB_BLUE"]
@@ -1142,20 +1145,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
                 compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
                 
-                if any(x in detected_sec for x in medical_secs) or detected_sec.startswith("M"):
+                if any(x in target_section_context for x in medical_secs) or target_section_context.startswith("M"):
                     active_electives = ["Chemistry", "Biology", "Physics"]
-                elif any(x in detected_sec for x in engineering_secs) or detected_sec.startswith("E"):
+                elif any(x in target_section_context for x in engineering_secs) or target_section_context.startswith("E"):
                     active_electives = ["Chemistry", "Mathematics", "Physics"]
-                elif any(x in detected_sec for x in ics_physics_secs):
+                elif any(x in target_section_context for x in ics_physics_secs):
                     active_electives = ["Computer", "Mathematics", "Physics"]
-                elif any(x in detected_sec for x in ics_stats_secs) or "STATS" in detected_sec:
+                elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
-                elif any(x in detected_sec for x in commerce_secs) or detected_sec.startswith("I"):
+                elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
                     # Core electives replacing standard elective slots
                     active_electives = ["Accounting", "Economics", "Commerce"]
-                elif any(x in detected_sec for x in humanities_secs) or detected_sec.startswith("F"):
+                elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
                     active_electives = ["Education", "Isl_Elc", "Computer"]
-                elif any(x in detected_sec for x in it_secs) or detected_sec.startswith("DIT"):
+                elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
                     active_electives = ["Information Technology", "Computer Science", "Networks"]
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
@@ -1172,13 +1175,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     "Education": ["Mathematics", "Physics", "Chemistry"],
                     "Isl_Elc": ["Statistics", "Biology"],
                     "Accounting": ["Mathematics"],       # Maps past Mathematics to Accounting
-                    "Economics": ["Chemistry", "Computer"], # Maps past non-business technical fields 
+                    "Economics": ["Chemistry", "Computer"], # Maps past non-business technical fields
                     "Commerce": ["Physics", "Biology"],   # Maps alternative scientific electives
                     "B_Math": ["Mathematics"]            # Additional standalone math history bridge
                 }
             else:
                 unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
                 history_bridge_map = {}
+                target_section_context = s_section.upper().strip()
             
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -1249,10 +1253,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     row_html += "<td><strong>-</strong></td></tr>"
                 table_rows_html += row_html
 
-            # 2. Append B_Math explicitly at the end as an additional row for designated tracks
-            if any(x in detected_sec for x in ["IB", "IG", "FB", "FG"]):
+            # 2. Append B_Math explicitly at the end as an additional 8th row for Commerce/Humanities
+            if any(x in target_section_context for x in ["IB", "IG", "FB", "FG"]):
                 bm_sub = "B_Math"
-                bm_row_html = f"<tr style='background-color: #fafafa;'><td><strong>{bm_sub.upper()} (ADDITIONAL)</strong></td>"
+                bm_row_html = f"<tr><td>{bm_sub.upper()}</td>"
                 bm_percentages = []
 
                 for exam in selected_exams_list:
