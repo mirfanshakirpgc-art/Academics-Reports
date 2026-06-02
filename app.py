@@ -1131,10 +1131,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
-                # Fallback to general form scope selection if data rows are missing/unmapped
-                target_section_context = detected_sec if detected_sec != "UNKNOWN" else s_section.upper().strip()
+                # STABLE CONTEXT: Always trust the current profile section choice if database rows are blank
+                target_section_context = s_section.upper().strip() if s_section else detected_sec
                 
-                # Dynamic mapping arrays from institutional blueprints
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
                 engineering_secs = ["EG_BLUE", "EB_BLUE"]
                 ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
@@ -1154,7 +1153,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
                 elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
-                    # Core electives replacing standard elective slots
                     active_electives = ["Accounting", "Economics", "Commerce"]
                 elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
                     active_electives = ["Education", "Isl_Elc", "Computer"]
@@ -1167,22 +1165,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 if "B_Math" in unique_subjects:
                     unique_subjects.remove("B_Math")
                 
-                # Comprehensive structural history bridge mapping matrix
                 history_bridge_map = {
                     "Chemistry": ["Computer"],
                     "Biology": ["Statistics"],
                     "Physics": ["Mathematics"],
                     "Education": ["Mathematics", "Physics", "Chemistry"],
                     "Isl_Elc": ["Statistics", "Biology"],
-                    "Accounting": ["Mathematics"],       # Maps past Mathematics to Accounting
-                    "Economics": ["Chemistry", "Computer"], # Maps past non-business technical fields
-                    "Commerce": ["Physics", "Biology"],   # Maps alternative scientific electives
-                    "B_Math": ["Mathematics"]            # Additional standalone math history bridge
+                    "Accounting": ["Mathematics"],       
+                    "Economics": ["Chemistry", "Computer"], 
+                    "Commerce": ["Physics", "Biology"],   
+                    "B_Math": ["Mathematics"]            
                 }
             else:
                 unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
                 history_bridge_map = {}
-                target_section_context = s_section.upper().strip()
+                target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
             
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -1253,7 +1250,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     row_html += "<td><strong>-</strong></td></tr>"
                 table_rows_html += row_html
 
-            # 2. Append B_Math explicitly at the end as an additional 8th row for Commerce/Humanities
+            # 2. Append B_Math explicitly checking against target_section_context
             if any(x in target_section_context for x in ["IB", "IG", "FB", "FG"]):
                 bm_sub = "B_Math"
                 bm_row_html = f"<tr><td>{bm_sub.upper()}</td>"
@@ -1301,6 +1298,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     bm_row_html += f"<td><strong>{bm_avg}%</strong></td></tr>"
                 else:
                     bm_row_html += "<td><strong>-</strong></td></tr>"
+                
                 table_rows_html += bm_row_html
 
             # 3. Render structural grand totals row
