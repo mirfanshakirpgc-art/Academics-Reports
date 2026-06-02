@@ -2120,7 +2120,7 @@ elif menu_choice == "Student Management":
                     
                     # Thin separation line between data rows
                     st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
-                    # ==============================================================================
+                   # ==============================================================================
 # 👨‍🎓 MODULE: PROMOTE STUDENTS
 # ==============================================================================
 elif menu_choice == "Promote Students":
@@ -2173,7 +2173,7 @@ elif menu_choice == "Promote Students":
                                 "cc": new_class, "cl": new_class, "sess": new_session, 
                                 "sec": new_section.strip().upper(), "stat": new_status, "id": search_id
                             })
-                        st.success(f"🚀 Successfully migrated target profile profile metrics for {res[1]}!")
+                        st.success(f"🚀 Successfully migrated target profile metrics for {res[1]}!")
                 else:
                     st.warning("❌ No matching record located under that database Roll Number.")
             except Exception as e:
@@ -2183,7 +2183,7 @@ elif menu_choice == "Promote Students":
     elif promo_mode == "📋 Bulk Group / Section Promotion":
         st.subheader("Bulk Shift Entire Roster Segments")
         
-        # Filter inputs to target target class pool to adjust
+        # Filter inputs to target class pool to adjust
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             filter_class = st.selectbox("Current Source Class Level:", ["11th", "12th"])
@@ -2241,6 +2241,11 @@ elif menu_choice == "Promote Students":
                     st.warning("⚠️ No active student rows currently align with your filtered field selections.")
             except Exception as e:
                 st.error(f"Database Query Fault: {str(e)}")
+
+# ==============================================================================
+# 📂 EXISTING MODULE: STUDENT MANAGEMENT (Leave your old code below this line)
+# ==============================================================================
+elif menu_choice == "Student Management":
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
