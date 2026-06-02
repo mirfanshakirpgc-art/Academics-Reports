@@ -2374,7 +2374,8 @@ if menu_choice == "🎓 Promote Students":
     st.subheader("1. Identify Current Cohort")
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
-        current_promo_session = st.selectbox("Current Active Session:", ["2024-2025", "2025-2026", "2026-2027", "2027-2028"], index=1, key="standalone_src_sess")
+        # Configured to default to your active 2025-2027 session
+        current_promo_session = st.selectbox("Current Active Session:", ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], index=1, key="standalone_src_sess")
     with col_s2:
         all_flat_sections = sorted(list(set(sum(DISCIPLINE_SECTIONS_MAP.values(), []))))
         current_promo_sec = st.selectbox("Current Roster Section:", all_flat_sections, key="standalone_src_sec")
@@ -2393,7 +2394,7 @@ if menu_choice == "🎓 Promote Students":
     """, {"sec": current_promo_sec, "cls": current_promo_class, "sess": current_promo_session})
     
     if promo_candidates.empty:
-        st.warning("⚠️ No active students found matching this exact combination of Session, Section, and Class.")
+        st.warning(f"⚠️ No active students found matching this exact combination of Session ({current_promo_session}), Section ({current_promo_sec}), and Class ({current_promo_class}).")
     else:
         st.success(f"📈 Found {len(promo_candidates)} student profiles eligible for promotion processing.")
         st.dataframe(promo_candidates, use_container_width=True)
@@ -2403,7 +2404,8 @@ if menu_choice == "🎓 Promote Students":
         st.subheader("2. Configure Promotion Target")
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
-            target_promo_session = st.selectbox("Next Academic Session:", ["2025-2026", "2026-2027", "2027-2028", "2028-2029"], index=1, key="standalone_tgt_sess")
+            # Set target choices to reflect upcoming batches
+            target_promo_session = st.selectbox("Next Academic Session:", ["2025-2027", "2026-2028", "2027-2029", "2028-2030"], index=1, key="standalone_tgt_sess")
         with col_t2:
             target_promo_sec = st.selectbox("Target Assignment Section:", all_flat_sections, key="standalone_tgt_sec")
         with col_t3:
