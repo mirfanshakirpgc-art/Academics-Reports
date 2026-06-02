@@ -1135,7 +1135,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
-                # Dynamic mapping arrays built from tracking blueprints
+                # Dynamic mapping arrays from institutional blueprints
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
                 engineering_secs = ["EG_BLUE", "EB_BLUE"]
                 ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
