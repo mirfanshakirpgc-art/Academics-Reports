@@ -1131,7 +1131,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
-                # Dynamic section context verification
+                # Verify section context safely
                 target_section_context = s_section.upper().strip() if s_section else detected_sec
                 
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
@@ -1161,10 +1161,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
                 
-                # Base list of subjects
                 raw_subjects = list(set(compulsory_subs + active_electives))
-                
-                # Custom sorting: Alphabetical, but forces B_Math to the absolute bottom row
+                # Custom sorting: Keep alphabetical structure but drop B_Math down to the last element
                 unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
                 
                 history_bridge_map = {
@@ -1175,8 +1173,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     "Isl_Elc": ["Statistics", "Biology"],
                     "Accounting": ["Mathematics"],       
                     "Economics": ["Chemistry", "Computer"], 
-                    "Commerce": ["Physics", "Biology"],   
-                    "B_Math": ["Mathematics"]            
+                    "Commerce": ["Physics", "Biology"]
+                    # Removed history mapping link from B_Math completely
                 }
             else:
                 target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
@@ -1192,12 +1190,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
             exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
-            # Loop natively processes all subjects, ensuring B_Math renders at the end seamlessly
+            # Loop runs naturally through unique_subjects (where B_Math is guaranteed at the bottom row)
             for sub in unique_subjects:
                 row_html = f"<tr><td>{sub.upper()}</td>"
                 sub_percentages = []
 
                 for exam in selected_exams_list:
+                    # Clean matching check
                     exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
                     
                     if exam_subset.empty and sub in history_bridge_map and not s_marks.empty:
@@ -1247,6 +1246,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             else:
                                 row_html += "<td>-</td>"
                     else:
+                        # This safely forces B_Math to display empty dash layout columns instead of dropping out completely
                         row_html += "<td>-</td>"
                 
                 if sub_percentages:
@@ -1257,98 +1257,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html += row_html
 
             # --- GRAND TOTALS ROW ---
-            total_row_html = "<tr><td><strong>Total</strong></td>"
-            grand_total_percentages = []
-            for exam in selected_exams_list:
-                if exam_has_any_data[exam] and exam_totals_max[exam] > 0:
-                    tot_pct = int((exam_totals_obtained[exam] / exam_totals_max[exam]) * 100)
-                    total_row_html += f"<td><strong>{tot_pct}%</strong></td>"
-                    grand_total_percentages.append(tot_pct)
-                else:
-                    total_row_html += "<td><strong>-</strong></td>"
-            
-            if grand_total_percentages:
-                overall_avg = int(sum(grand_total_percentages) / len(grand_total_percentages))
-                total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
-            else:
-                total_row_html += "<td><strong>-</strong></td></tr>"
-            
-            table_rows_html = ""
-            exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
-            exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
-            exam_has_any_data = {exam: False for exam in selected_exams_list}
-
-            for sub in unique_subjects:
-                row_html = f"<tr><td>{sub.upper()}</td>"
-                sub_percentages = []
-
-                for exam in selected_exams_list:
-                    exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
-                    
-                    if exam_subset.empty and sub in history_bridge_map and not s_marks.empty:
-                        possible_old_subs = history_bridge_map[sub]
-                        old_match = s_marks[
-                            (s_marks["subject_clean"].isin(possible_old_subs)) & 
-                            (s_marks["exam_type"].str.upper() == exam.upper())
-                        ]
-                        
-                        if not old_match.empty:
-                            old_sub_clean = old_match.iloc[0]["subject_clean"]
-                            shorthand_tag = old_sub_clean[:4] if len(old_sub_clean) > 4 else old_sub_clean
-                            
-                            m_obt = old_match.iloc[0]["marks_obtained"]
-                            m_tot = old_match.iloc[0]["total_marks"]
-                            try:
-                                val_obt = float(m_obt)
-                                val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
-                                pct = (val_obt / val_tot) * 100
-                                
-                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>{shorthand_tag}({int(pct)}%)</span></td>"
-                                sub_percentages.append(pct)
-                                
-                                exam_totals_obtained[exam] += val_obt
-                                exam_totals_max[exam] += val_tot
-                                exam_has_any_data[exam] = True
-                                continue 
-                            except:
-                                pass
-
-                    if not exam_subset.empty:
-                        m_obt = exam_subset.iloc[0]["marks_obtained"]
-                        m_tot = exam_subset.iloc[0]["total_marks"]
-                        
-                        try:
-                            val_obt = float(m_obt)
-                            val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
-                            pct = (val_obt / val_tot) * 100
-                            row_html += f"<td>{int(pct)}%</td>"
-                            sub_percentages.append(pct)
-                            
-                            exam_totals_obtained[exam] += val_obt
-                            exam_totals_max[exam] += val_tot
-                            exam_has_any_data[exam] = True
-                        except:
-                            clean_obt = str(m_obt).strip().upper()
-                            if clean_obt in ["A", "ABSENT", "ABS"]:
-                                row_html += "<td>A</td>"
-                                exam_totals_max[exam] += float(m_tot) if pd.notna(m_tot) and float(m_tot) > 0 else 100.0
-                                exam_has_any_data[exam] = True
-                                sub_percentages.append(0.0)
-                            elif clean_obt in ["NC", "N.C"]:
-                                row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
-                            else:
-                                row_html += "<td>-</td>"
-                    else:
-                        row_html += "<td>-</td>"
-                
-                if sub_percentages:
-                    avg_pct = int(sum(sub_percentages) / len(sub_percentages))
-                    row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
-                else:
-                    row_html += "<td><strong>-</strong></td></tr>"
-                    
-                table_rows_html += row_html
-
             total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in selected_exams_list:
