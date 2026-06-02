@@ -131,6 +131,10 @@ def run_query(query, params=None):
     if params is None:
         params = {}
     with engine.connect() as conn:
+# ==============================================================================
+# DATABASE UTILITY FUNCTIONS
+# ==============================================================================
+
 def run_query(query, params=None):
     with engine.connect() as conn:
         if params:
@@ -138,6 +142,7 @@ def run_query(query, params=None):
         else:
             return pd.read_sql_query(text(query), conn)
 
+# Make sure the next function or line of code starts completely on the left margin again!
 def execute_db_command(command, params=None):
     if params is None:
         params = {}
