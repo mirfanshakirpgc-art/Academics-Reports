@@ -236,15 +236,15 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         st.markdown("---")
 
         if entry_mode == "📋 By Complete Section":
-            # FUNCTIONAL UPGRADE: Added dedicated Class Level AND Academic Session selectors
-            c_cls, c_sess, c1, c2, c3 = st.columns([1, 1.5, 1.5, 2, 2])
+            # 1. Update the layout row columns to accommodate the new Session box
+            c_cls, c_sess, c1, c2, c3 = st.columns([1.2, 1.5, 1.8, 2, 2])
             
             with c_cls:
-                sel_class = st.selectbox("Class Level:", ["11th", "12th"], index=0, key="entry_marks_class_lvl")
+                sel_class = st.selectbox("Class Level:", ["11th", "12th"], index=1, key="entry_marks_class_lvl") # Default index=1 sets it to 12th
             
             with c_sess:
-                # Dynamically maps default sessions based on the chosen class tier
-                default_sessions = ["2026-2028", "2025-2027"] if sel_class == "11th" else ["2025-2027", "2026-2028"]
+                # 2. Dynamic Session assignment based on selected class
+                default_sessions = ["2025-2027", "2026-2028"] if sel_class == "12th" else ["2026-2028", "2025-2027"]
                 sel_session = st.selectbox("Academic Session:", default_sessions, key="entry_marks_session")
 
             if current_role == 'teacher' and current_user_id is not None:
@@ -252,31 +252,22 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 if not teacher_rights.empty:
                     allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                     allowed_secs = sorted(list(teacher_rights['section'].unique()))
-                    with c1: st.info("🔒 Bound to Assigned Allocation Profile")
+                    with c1: st.info("🔒 Bound to Allocation")
                     with c2: raw_sel_subject = st.selectbox("Select Subject:", allowed_subs)
                     with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
                 else:
-                    st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                    st.warning("🚨 No teacher profile allocations found.")
                     raw_sel_subject, sel_section = None, None
             else:
-                with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-                with c2: raw_sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
+                # Admin View: Connect directly to your dynamic dictionary maps
+                with c1: 
+                    sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+                with c2: 
+                    raw_sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, []))
                 with c3: 
+                    # Normalize string keys to fetch matched sections from your dictionary layout
                     matched_key = next((k for k in DISCIPLINE_SECTIONS_MAP.keys() if k.lower() == sel_discipline.lower()), sel_discipline)
                     sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP.get(matched_key, []))
-            
-            # Pure Python dynamic subject parsing for 12th Commerce cohorts
-            sel_subject = raw_sel_subject
-            if sel_class == "12th" and raw_sel_subject:
-                cleaned_sub = str(raw_sel_subject).strip().upper()
-                if cleaned_sub == 'B_MATH':      sel_subject = "B_stats"
-                elif cleaned_sub == 'COMMERCE':   sel_subject = "Banking"
-                elif cleaned_sub == 'ECONOMICS':  sel_subject = "GEO"
-
-            if sel_subject and sel_section:
-                row2_1, row2_2 = st.columns(2)
-                with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
-                with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
                 
                 try:
                     # FUNCTIONAL UPGRADE: SQL query now binds both class AND session parameters explicitly
@@ -323,14 +314,16 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         st.markdown("---")
         
         if att_flow_mode == "📋 By Complete Section":
-            # FUNCTIONAL UPGRADE: Dual isolation columns added to attendance UI layout
-            c_att_cls, c_att_sess, col_as1, col_as2, col_as3 = st.columns([1, 1.5, 1.5, 2, 2])
+            # FUNCTIONAL UPGRADE: Layout rows configured to isolate Session tracking values cleanly
+            c_att_cls, c_att_sess, col_as1, col_as2, col_as3 = st.columns([1.2, 1.5, 1.8, 2, 2])
             
             with c_att_cls:
-                att_class = st.selectbox("Class Level:", ["11th", "12th"], index=0, key="entry_att_class_lvl")
+                # index=1 switches the system default view directly to 12th on page load
+                att_class = st.selectbox("Class Level:", ["11th", "12th"], index=1, key="entry_att_class_lvl")
             
             with c_att_sess:
-                att_default_sessions = ["2026-2028", "2025-2027"] if att_class == "11th" else ["2025-2027", "2026-2028"]
+                # Dynamic matching filters matching tracks for distinct session brackets
+                att_default_sessions = ["2025-2027", "2026-2028"] if att_class == "12th" else ["2026-2028", "2025-2027"]
                 att_session = st.selectbox("Academic Session:", att_default_sessions, key="entry_att_session")
 
             if current_role == 'teacher' and current_user_id is not None:
@@ -340,11 +333,14 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 with col_as2: att_section = st.selectbox("Select Target Section:", allowed_secs, key="att_sec")
                 with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
             else:
-                with col_as1: att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
+                with col_as1: 
+                    att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
                 with col_as2: 
+                    # Pulls your clean dictionary mapped sections list (e.g. CQ1, CK1) instead of placeholders
                     matched_key = next((k for k in DISCIPLINE_SECTIONS_MAP.keys() if k.lower() == att_discipline.lower()), att_discipline)
                     att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP.get(matched_key, []), key="att_sec")
-                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+                with col_as3: 
+                    att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
             
             if att_section:
                 default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
