@@ -127,10 +127,6 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
-def run_query(query, params=None):
-    if params is None:
-        params = {}
-    with engine.connect() as conn:
 # ==============================================================================
 # DATABASE UTILITY FUNCTIONS
 # ==============================================================================
@@ -141,8 +137,6 @@ def run_query(query, params=None):
             return pd.read_sql_query(text(query).bindparams(**params), conn)
         else:
             return pd.read_sql_query(text(query), conn)
-
-# Make sure the next function or line of code starts completely on the left margin again!
 def execute_db_command(command, params=None):
     if params is None:
         params = {}
