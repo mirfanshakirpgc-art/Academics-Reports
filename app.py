@@ -258,13 +258,13 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 with c2: raw_sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
                 with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
             
-            # UPGRADE: Apply dynamic subject names for 12th Commerce cohorts
+            # UPGRADE: Pure Python dynamic subject parsing for 12th Commerce cohorts
             sel_subject = raw_sel_subject
-if sel_class == "12th" and raw_sel_subject:
-    cleaned_sub = str(raw_sel_subject).strip().upper()
-    if cleaned_sub == 'B_MATH':     sel_subject = "B_stats"
-    elif cleaned_sub == 'COMMERCE':  sel_subject = "Banking"
-    elif cleaned_sub == 'ECONOMICS': sel_subject = "GEO"
+            if sel_class == "12th" and raw_sel_subject:
+                cleaned_sub = str(raw_sel_subject).strip().upper()
+                if cleaned_sub == 'B_MATH':      sel_subject = "B_stats"
+                elif cleaned_sub == 'COMMERCE':   sel_subject = "Banking"
+                elif cleaned_sub == 'ECONOMICS':  sel_subject = "GEO"
 
             if sel_subject and sel_section:
                 row2_1, row2_2 = st.columns(2)
@@ -272,7 +272,7 @@ if sel_class == "12th" and raw_sel_subject:
                 with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
                 
                 try:
-                    # UPGRADE: SQL query now explicitly filters by Class to segment 11th and 12th rosters
+                    # UPGRADE: SQL query explicitly screens s.class to segment rosters
                     roster_df = run_query("""
                         SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                         FROM students s
@@ -327,7 +327,7 @@ if sel_class == "12th" and raw_sel_subject:
                             matched_disp = disp
                             break
                     
-                    # UPGRADE: Intercept and calculate context base subjects for Single Students in 12th Commerce
+                    # UPGRADE: Intercept and translate subjects dynamically for Single Student 12th Commerce operations
                     base_subjects = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                     active_single_subjects = []
                     for sub in base_subjects:
@@ -418,7 +418,7 @@ if sel_class == "12th" and raw_sel_subject:
             if att_section:
                 default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
                 
-                # UPGRADE: SQL query now explicitly evaluates s.class to isolate seniors and juniors
+                # UPGRADE: SQL query now explicitly evaluates s.class to separate juniors and seniors
                 students_att_list = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
                     FROM students s
