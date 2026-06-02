@@ -1135,10 +1135,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
+                # Dynamic mapping arrays built from tracking blueprints
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
                 engineering_secs = ["EG_BLUE", "EB_BLUE"]
                 ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
                 ics_stats_secs = ["CG_STATS", "CB_STATS"]
+                commerce_secs = ["IG", "IB"]
+                humanities_secs = ["FB", "FG"]
+                it_secs = ["DITB", "DITG"]
                 
                 compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
                 
@@ -1150,6 +1154,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     active_electives = ["Computer", "Mathematics", "Physics"]
                 elif any(x in detected_sec for x in ics_stats_secs) or "STATS" in detected_sec:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
+                elif any(x in detected_sec for x in commerce_secs) or detected_sec.startswith("I"):
+                    active_electives = ["Accounting", "Economics", "Commerce"]
+                elif any(x in detected_sec for x in humanities_secs) or detected_sec.startswith("F"):
+                    active_electives = ["History", "Civics", "Education"]
+                elif any(x in detected_sec for x in it_secs) or detected_sec.startswith("DIT"):
+                    active_electives = ["Information Technology", "Computer Science", "Networks"]
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
                 
