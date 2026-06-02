@@ -1153,7 +1153,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 elif any(x in detected_sec for x in commerce_secs) or detected_sec.startswith("I"):
                     active_electives = ["Accounting", "Economics", "Commerce"]
                 elif any(x in detected_sec for x in humanities_secs) or detected_sec.startswith("F"):
-                    active_electives = ["History", "Civics", "Education"]
+                    active_electives = ["Education", "Isl_Elc", "Computer"]
                 elif any(x in detected_sec for x in it_secs) or detected_sec.startswith("DIT"):
                     active_electives = ["Information Technology", "Computer Science", "Networks"]
                 else:
