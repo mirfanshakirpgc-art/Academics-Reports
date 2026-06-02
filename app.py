@@ -1154,12 +1154,10 @@ Replace your matrix processing section with this implementation. It dynamically 
             if not s_marks.empty:
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
                 
-                # Dynamic Current Section Group Parsing
                 detected_sec = "UNKNOWN"
                 if "section" in s_marks.columns and not s_marks["section"].dropna().empty:
                     detected_sec = str(s_marks["section"].dropna().iloc[-1]).upper().strip()
                 
-                # Master Discipline Arrays Reference Mapping
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
                 engineering_secs = ["EG_BLUE", "EB_BLUE"]
                 ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
@@ -1167,7 +1165,6 @@ Replace your matrix processing section with this implementation. It dynamically 
                 
                 compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
                 
-                # Determine active row scheme based on current section
                 if any(x in detected_sec for x in medical_secs) or detected_sec.startswith("M"):
                     active_electives = ["Chemistry", "Biology", "Physics"]
                 elif any(x in detected_sec for x in engineering_secs) or detected_sec.startswith("E"):
@@ -1181,7 +1178,6 @@ Replace your matrix processing section with this implementation. It dynamically 
                 
                 unique_subjects = sorted(list(set(compulsory_subs + active_electives)))
                 
-                # Dynamic Reverse History Reference Rules Lookup
                 history_bridge_map = {
                     "Chemistry": ["Computer"],
                     "Biology": ["Statistics"],
@@ -1203,8 +1199,6 @@ Replace your matrix processing section with this implementation. It dynamically 
                 for exam in selected_exams_list:
                     exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
                     
-                    # 🔍 HISTORICAL DISCIPLINE INTERCEPTION:
-                    # If the core cell is blank, fetch alternative historical track marks
                     if exam_subset.empty and sub in history_bridge_map and not s_marks.empty:
                         possible_old_subs = history_bridge_map[sub]
                         old_match = s_marks[
