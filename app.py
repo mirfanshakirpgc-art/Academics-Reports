@@ -1145,7 +1145,7 @@ To convert historical `ICS_STATS` or `ICS_PHYSICS` marks into a Medical card lay
 Replace your matrix processing section with this implementation. It dynamically reads the student's active section group and bridges all historical elective paths automatically.
 
 ```python
-            # --- MARKS CARD MATRIX PROCESSING ---
+           # --- MARKS CARD MATRIX PROCESSING ---
             if not marks_df.empty:
                 s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)].copy()
             else:
@@ -1278,7 +1278,6 @@ Replace your matrix processing section with this implementation. It dynamically 
                 total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
             else:
                 total_row_html += "<td><strong>-</strong></td></tr>"
-
 ```
             # --- ATTENDANCE TRACKER PROCESSING ---
             if not attendance_df.empty:
