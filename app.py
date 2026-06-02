@@ -134,12 +134,14 @@ except Exception as e:
 def run_query(query, params=None):
     with engine.connect() as conn:
         if params:
-            # Execute natively using SQLAlchemy text binding (100% reliable)
-            result = conn.execute(text(query), params)
-            # Convert the rows directly into a Pandas DataFrame
-            return pd.DataFrame(result.fetchall(), columns=result.keys())
+            # Safely bind the dictionary mapping to the text statement explicitly
+            stmt = text(query).bindparams(**params)
+            result = conn.execute(stmt)
+            # Reconstruct the expected dataframe using native mappings
+            return pd.DataFrame([dict(row) for row in result.mappings().all()])
         else:
             result = conn.execute(text(query))
+            return pd.DataFrame([dict(row) for row in result.mappings().all()])
             return pd.DataFrame(result.fetchall(), columns=result.keys())
     if params is None:
         params = {}
