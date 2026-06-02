@@ -1151,7 +1151,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 elif any(x in detected_sec for x in ics_stats_secs) or "STATS" in detected_sec:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
                 elif any(x in detected_sec for x in commerce_secs) or detected_sec.startswith("I"):
-                    # Core electives replacing other section slots
+                    # Core electives replacing standard elective slots
                     active_electives = ["Accounting", "Economics", "Commerce"]
                 elif any(x in detected_sec for x in humanities_secs) or detected_sec.startswith("F"):
                     active_electives = ["Education", "Isl_Elc", "Computer"]
@@ -1160,20 +1160,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
                 
-                # Filter alphabetical subjects to exclude B_Math so it doesn't mix into the middle
                 unique_subjects = sorted(list(set(compulsory_subs + active_electives)))
                 if "B_Math" in unique_subjects:
                     unique_subjects.remove("B_Math")
                 
-                # Structural history bridge map with strictly isolated parameters
+                # Comprehensive structural history bridge mapping matrix
                 history_bridge_map = {
                     "Chemistry": ["Computer"],
                     "Biology": ["Statistics"],
                     "Physics": ["Mathematics"],
                     "Education": ["Mathematics", "Physics", "Chemistry"],
-                    "Isl_Elc": ["Statistics", "Biology"], 
-                    "Accounting": ["Mathematics"],
-                    "B_Math": ["Mathematics"]
+                    "Isl_Elc": ["Statistics", "Biology"],
+                    "Accounting": ["Mathematics"],       # Maps past Mathematics to Accounting
+                    "Economics": ["Chemistry", "Computer"], # Maps past non-business technical fields 
+                    "Commerce": ["Physics", "Biology"],   # Maps alternative scientific electives
+                    "B_Math": ["Mathematics"]            # Additional standalone math history bridge
                 }
             else:
                 unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
@@ -1248,7 +1249,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     row_html += "<td><strong>-</strong></td></tr>"
                 table_rows_html += row_html
 
-            # 2. Append B_Math explicitly at the end as an additional row if section is IB, IG, FB, or FG
+            # 2. Append B_Math explicitly at the end as an additional row for designated tracks
             if any(x in detected_sec for x in ["IB", "IG", "FB", "FG"]):
                 bm_sub = "B_Math"
                 bm_row_html = f"<tr style='background-color: #fafafa;'><td><strong>{bm_sub.upper()} (ADDITIONAL)</strong></td>"
