@@ -2120,7 +2120,7 @@ elif menu_choice == "Student Management":
                     
                     # Thin separation line between data rows
                     st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
-                   # ==============================================================================
+        # ==============================================================================
 # 👨‍🎓 MODULE: PROMOTE STUDENTS
 # ==============================================================================
 elif menu_choice == "Promote Students":
@@ -2235,7 +2235,7 @@ elif menu_choice == "Promote Students":
                                 "t_sec": target_section, "t_stat": target_status,
                                 "f_cc": filter_class, "f_sess": filter_session, "f_sec": filter_section
                             })
-                        st.success(f"🎉 Roster update successfully processed! {len(matched_df)} students moved safely to {target_class} ({target_session}).")
+                        st.success(f"🎉 Roster update successfully processed! Moved safely to {target_class}.")
                         st.balloons()
                 else:
                     st.warning("⚠️ No active student rows currently align with your filtered field selections.")
