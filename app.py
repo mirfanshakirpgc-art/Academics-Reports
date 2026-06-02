@@ -2374,7 +2374,6 @@ if menu_choice == "🎓 Promote Students":
     st.subheader("1. Identify Current Cohort")
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
-        # Configured to default to your active 2025-2027 session
         current_promo_session = st.selectbox("Current Active Session:", ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], index=1, key="standalone_src_sess")
     with col_s2:
         all_flat_sections = sorted(list(set(sum(DISCIPLINE_SECTIONS_MAP.values(), []))))
@@ -2382,19 +2381,33 @@ if menu_choice == "🎓 Promote Students":
     with col_s3:
         current_promo_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0, key="standalone_src_class")
         
-    # Query matching candidate list explicitly based on your Supabase columns
+    # Robust formatting-agnostic database lookup
     promo_candidates = run_query("""
         SELECT id AS "Roll No", name AS "Student Name", class AS "Class", section AS "Section", session AS "Session"
         FROM students
-        WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-          AND TRIM(class) = TRIM(:cls)
-          AND TRIM(session) = TRIM(:sess)
+        WHERE UPPER(TRIM(REPLACE(section, ' ', ''))) = UPPER(TRIM(REPLACE(:sec, ' ', '')))
+          AND UPPER(TRIM(class)) IN (UPPER(TRIM(:cls)), UPPER(TRIM(REPLACE(:cls, 'th', ''))))
+          AND UPPER(TRIM(session)) = UPPER(TRIM(:sess))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
     """, {"sec": current_promo_sec, "cls": current_promo_class, "sess": current_promo_session})
     
     if promo_candidates.empty:
         st.warning(f"⚠️ No active students found matching this exact combination of Session ({current_promo_session}), Section ({current_promo_sec}), and Class ({current_promo_class}).")
+        
+        # Diagnostic Inspector tool to see what strings are actually inside the database
+        with st.expander("🔍 Click here to inspect actual data formatting present in your Database"):
+            debug_df = run_query("""
+                SELECT class AS "Class in DB", section AS "Section in DB", session AS "Session in DB", COUNT(*) as "Total Students" 
+                FROM students 
+                GROUP BY class, section, session 
+                LIMIT 15
+            """)
+            if not debug_df.empty:
+                st.write("Here is exactly how your records look in Supabase right now:")
+                st.dataframe(debug_df, use_container_width=True)
+            else:
+                st.write("The students table appears to be completely empty.")
     else:
         st.success(f"📈 Found {len(promo_candidates)} student profiles eligible for promotion processing.")
         st.dataframe(promo_candidates, use_container_width=True)
@@ -2404,7 +2417,6 @@ if menu_choice == "🎓 Promote Students":
         st.subheader("2. Configure Promotion Target")
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
-            # Set target choices to reflect upcoming batches
             target_promo_session = st.selectbox("Next Academic Session:", ["2025-2027", "2026-2028", "2027-2029", "2028-2030"], index=1, key="standalone_tgt_sess")
         with col_t2:
             target_promo_sec = st.selectbox("Target Assignment Section:", all_flat_sections, key="standalone_tgt_sec")
