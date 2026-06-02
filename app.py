@@ -2397,7 +2397,7 @@ if menu_choice == "🎓 Promote Students":
         SELECT id AS "Roll No", name AS "Student Name", class AS "Class", section AS "Section", session AS "Session"
         FROM students
         WHERE UPPER(TRIM(REPLACE(section, ' ', ''))) = UPPER(TRIM(REPLACE(:sec, ' ', '')))
-          AND UPPER(TRIM(class)) IN (UPPER(TRIM(:cls)), UPPER(TRIM(REPLACE(:cls, 'th', ''))))
+          AND REPLACE(UPPER(TRIM(class)), '''', '') IN (UPPER(TRIM(:cls)), UPPER(TRIM(REPLACE(:cls, 'th', ''))))
           AND UPPER(TRIM(session)) = UPPER(TRIM(:sess))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
@@ -2428,11 +2428,18 @@ if menu_choice == "🎓 Promote Students":
         st.subheader("2. Configure Promotion Target")
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
-            target_promo_session = st.selectbox("Next Academic Session:", ["2025-2027", "2026-2028", "2027-2029", "2028-2030"], index=1, key="standalone_tgt_sess")
+            # Session remains automatically matched to the source selection
+            target_promo_session = st.selectbox(
+                "Next Academic Session:", 
+                ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], 
+                index=["2024-2026", "2025-2027", "2026-2028", "2027-2029"].index(current_promo_session), 
+                key="standalone_tgt_sess"
+            )
         with col_t2:
             target_promo_sec = st.selectbox("Target Assignment Section:", all_flat_sections, key="standalone_tgt_sec")
         with col_t3:
-            target_promo_class = st.selectbox("Target Class Level:", ["11th", "12th", "Graduated"], index=1, key="standalone_tgt_class")
+            # Updated option labels to exactly "12th" and "Pass Out"
+            target_promo_class = st.selectbox("Target Class Level:", ["12th", "Pass Out"], index=0, key="standalone_tgt_class")
             
         # 3. Execution Safety Gate
         st.markdown("---")
