@@ -2242,10 +2242,6 @@ elif menu_choice == "Promote Students":
             except Exception as e:
                 st.error(f"Database Query Fault: {str(e)}")
 
-# ==============================================================================
-# 📂 EXISTING MODULE: STUDENT MANAGEMENT (Leave your old code below this line)
-# ==============================================================================
-elif menu_choice == "Student Management":
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
