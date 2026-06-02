@@ -260,10 +260,11 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             
             # UPGRADE: Apply dynamic subject names for 12th Commerce cohorts
             sel_subject = raw_sel_subject
-            if sel_class == "12th" and raw_sel_subject:
-                if UPPER(TRIM(raw_sel_subject)) == 'B_MATH':     sel_subject = "B_stats"
-                elif UPPER(TRIM(raw_sel_subject)) == 'COMMERCE':  sel_subject = "Banking"
-                elif UPPER(TRIM(raw_sel_subject)) == 'ECONOMICS': sel_subject = "GEO"
+if sel_class == "12th" and raw_sel_subject:
+    cleaned_sub = str(raw_sel_subject).strip().upper()
+    if cleaned_sub == 'B_MATH':     sel_subject = "B_stats"
+    elif cleaned_sub == 'COMMERCE':  sel_subject = "Banking"
+    elif cleaned_sub == 'ECONOMICS': sel_subject = "GEO"
 
             if sel_subject and sel_section:
                 row2_1, row2_2 = st.columns(2)
