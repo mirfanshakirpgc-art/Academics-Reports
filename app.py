@@ -2244,7 +2244,7 @@ elif menu_choice == "Promote Students":
 
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
-if menu_choice == "👨‍🏫 Teacher Management":
+elif menu_choice == "👨‍🏫 Teacher Management":
     st.title("👨‍🏫 Teacher Allocation & Performance Engine")
     
     # Safely acquire access credentials
