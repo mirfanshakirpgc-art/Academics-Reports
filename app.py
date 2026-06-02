@@ -739,11 +739,7 @@ elif menu_choice == "📋 Section Summary Report":
         
     else:
         st.info("💡 No active student profiles loaded under this section yet.")
-Here is your fully cleaned, structured, and corrected `app.py` script section for the **Multi-Test Progress Report**.
 
-All conversational explanations, markdown formatting mix-ups, and trailing fragments have been removed. The cross-discipline history bridge mapping matrix is now integrated safely with proper layout block nesting.
-
-```python
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
