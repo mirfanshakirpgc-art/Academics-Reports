@@ -1178,7 +1178,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 }
             else:
                 target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
-                if any(x in target_section_context for x in ["IB", "IG", "FB", "FG"]):
+                if any(x in target_section_context for x in ["IB", "IG"]):
                     raw_subjects = ["English", "Urdu", "Accounting", "Economics", "Commerce", "Isl_Eth", "T_Quran", "B_Math"]
                     unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
                 else:
