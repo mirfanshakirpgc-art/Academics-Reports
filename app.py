@@ -739,6 +739,11 @@ elif menu_choice == "📋 Section Summary Report":
         
     else:
         st.info("💡 No active student profiles loaded under this section yet.")
+Here is your fully cleaned, structured, and corrected `app.py` script section for the **Multi-Test Progress Report**.
+
+All conversational explanations, markdown formatting mix-ups, and trailing fragments have been removed. The cross-discipline history bridge mapping matrix is now integrated safely with proper layout block nesting.
+
+```python
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
@@ -752,8 +757,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         }
         </style>
     """, unsafe_allow_html=True)
-
-    # Note: logo_filename and logo_base64 are now read safely from the global scope!
 
     # --- EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
     all_frameworks = [
@@ -821,7 +824,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
             with col_c1:
                 sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="form_sel_disc_bulk")
             with col_c2:
-                sel_sec = st.selectbox("Select Target Class Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="form_sel_sec_bulk")
+                filtered_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
+                sel_sec = st.selectbox("Select Target Class Section:", filtered_sections, key="form_sel_sec_bulk")
             with col_c3:
                 selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_bulk")
                 
@@ -1116,36 +1120,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             match_id = int(s_id) if s_id.isdigit() else s_id
             
-           Based on your layout documentation, the **Medical** tracks (`Medical_Secs` like `MG_BLUE`, `MG_WHITE`, `MB_BLUE`) must show this exact set of subjects:
-
-* **CHEMISTRY**
-* **BIOLOGY**
-* **PHYSICS**
-* **URDU**
-* **ENGLISH**
-* **ISL_ETH**
-* **T_QURAN**
-
-When a student transfers into a Medical section from an ICS group, the row headers on their card must switch entirely to these Medical subjects. Any historical marks from their old subjects need to map directly into their new Medical equivalents as text references.
-
-### 🔄 The Cross-Discipline Mapping Matrix
-
-To convert historical `ICS_STATS` or `ICS_PHYSICS` marks into a Medical card layout, we map them directly across matching elective slots:
-
-| Medical Row (New Subject) | Old Subject Source (ICS Tracks) | Cell Appearance Example |
-| --- | --- | --- |
-| **CHEMISTRY** | `COMPUTER` | `Comp(90%)` |
-| **BIOLOGY** | `STATISTICS` | `Stat(78%)` |
-| **PHYSICS** | `PHYSICS` (or `MATHEMATICS`) | Displays natively or as `Math(85%)` |
-
----
-
-### 💻 Updated Matrix Code Block for `app.py`
-
-Replace your matrix processing section with this implementation. It dynamically reads the student's active section group and bridges all historical elective paths automatically.
-
-```python
-           # --- MARKS CARD MATRIX PROCESSING ---
+            # --- MARKS CARD MATRIX PROCESSING ---
             if not marks_df.empty:
                 s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)].copy()
             else:
@@ -1157,6 +1132,8 @@ Replace your matrix processing section with this implementation. It dynamically 
                 detected_sec = "UNKNOWN"
                 if "section" in s_marks.columns and not s_marks["section"].dropna().empty:
                     detected_sec = str(s_marks["section"].dropna().iloc[-1]).upper().strip()
+                else:
+                    detected_sec = s_section.upper().strip()
                 
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
                 engineering_secs = ["EG_BLUE", "EB_BLUE"]
@@ -1278,6 +1255,7 @@ Replace your matrix processing section with this implementation. It dynamically 
                 total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
             else:
                 total_row_html += "<td><strong>-</strong></td></tr>"
+
 ```
             # --- ATTENDANCE TRACKER PROCESSING ---
             if not attendance_df.empty:
