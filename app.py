@@ -739,7 +739,6 @@ elif menu_choice == "📋 Section Summary Report":
         
     else:
         st.info("💡 No active student profiles loaded under this section yet.")
-
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
@@ -753,6 +752,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
         }
         </style>
     """, unsafe_allow_html=True)
+
+    # Note: logo_filename and logo_base64 are now read safely from the global scope!
 
     # --- EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
     all_frameworks = [
@@ -820,8 +821,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             with col_c1:
                 sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="form_sel_disc_bulk")
             with col_c2:
-                filtered_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
-                sel_sec = st.selectbox("Select Target Class Section:", filtered_sections, key="form_sel_sec_bulk")
+                sel_sec = st.selectbox("Select Target Class Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="form_sel_sec_bulk")
             with col_c3:
                 selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_bulk")
                 
@@ -1118,75 +1118,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             # --- MARKS CARD MATRIX PROCESSING ---
             if not marks_df.empty:
-                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)].copy()
+                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)]
             else:
                 s_marks = pd.DataFrame()
                 
-            if not s_marks.empty:
-                s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
-                
-                detected_sec = "UNKNOWN"
-                if "section" in s_marks.columns and not s_marks["section"].dropna().empty:
-                    detected_sec = str(s_marks["section"].dropna().iloc[-1]).upper().strip()
-                else:
-                    detected_sec = s_section.upper().strip()
-                
-                # Verify structural track selection safely
-                target_section_context = s_section.upper().strip() if s_section else detected_sec
-                
-                medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
-                engineering_secs = ["EG_BLUE", "EB_BLUE"]
-                ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
-                ics_stats_secs = ["CG_STATS", "CB_STATS"]
-                commerce_secs = ["IG", "IB"]
-                humanities_secs = ["FB", "FG"]
-                it_secs = ["DITB", "DITG"]
-                
-                compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
-                
-                if any(x in target_section_context for x in medical_secs) or target_section_context.startswith("M"):
-                    active_electives = ["Chemistry", "Biology", "Physics"]
-                elif any(x in target_section_context for x in engineering_secs) or target_section_context.startswith("E"):
-                    active_electives = ["Chemistry", "Mathematics", "Physics"]
-                elif any(x in target_section_context for x in ics_physics_secs):
-                    active_electives = ["Computer", "Mathematics", "Physics"]
-                elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
-                    active_electives = ["Computer", "Mathematics", "Statistics"]
-                elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
-                    # 4 elective track unique to Commerce
-                    active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
-                elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
-                    # 3 standard electives for Humanities
-                    active_electives = ["Education", "Isl_Elc", "Computer"]
-                elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
-                    active_electives = ["Information Technology", "Computer Science", "Networks"]
-                else:
-                    active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
-                
-                raw_subjects = list(set(compulsory_subs + active_electives))
-                unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
-                
-                # Preserved historical matrix maps for all tracks including FB / FG
-                history_bridge_map = {
-                    "Chemistry": ["Computer"],
-                    "Biology": ["Statistics"],
-                    "Physics": ["Mathematics"],
-                    "Education": ["Mathematics", "Physics", "Chemistry"],
-                    "Isl_Elc": ["Statistics", "Biology", "Economics", "Accounting"],
-                    "Accounting": ["Mathematics"],       
-                    "Economics": ["Chemistry", "Computer"], 
-                    "Commerce": ["Physics", "Biology"]
-                }
-            else:
-                target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
-                if any(x in target_section_context for x in ["IB", "IG"]):
-                    raw_subjects = ["English", "Urdu", "Accounting", "Economics", "Commerce", "Isl_Eth", "T_Quran", "B_Math"]
-                    unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
-                elif any(x in target_section_context for x in ["FB", "FG"]):
-                    unique_subjects = ["English", "Urdu", "Education", "Isl_Elc", "Computer", "Isl_Eth", "T_Quran"]
-                else:
-                    unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
-                history_bridge_map = {}
+            unique_subjects = sorted(list(s_marks["subject_name"].unique())) if not s_marks.empty else ["English", "Urdu", "Mathematics", "Physics", "Chemistry"]
             
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -1194,69 +1130,50 @@ if menu_choice == "📈 Multi-Test Progress Report":
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
             for sub in unique_subjects:
-                row_html = f"<tr><td>{sub.upper()}</td>"
+                sub_marks = s_marks[s_marks["subject_name"] == sub] if not s_marks.empty else pd.DataFrame()
+                row_html = f"<tr><td>{sub}</td>"
                 sub_percentages = []
 
                 for exam in selected_exams_list:
-                    exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
+                    exam_subset = sub_marks[sub_marks["exam_type"].str.upper() == exam.upper()] if not sub_marks.empty else pd.DataFrame()
                     
-                    if exam_subset.empty and sub in history_bridge_map and not s_marks.empty:
-                        possible_old_subs = history_bridge_map[sub]
-                        old_match = s_marks[(s_marks["subject_clean"].isin(possible_old_subs)) & (s_marks["exam_type"].str.upper() == exam.upper())]
-                        
-                        if not old_match.empty:
-                            old_sub_clean = old_match.iloc[0]["subject_clean"]
-                            shorthand_tag = old_sub_clean[:4] if len(old_sub_clean) > 4 else old_sub_clean
-                            
-                            m_obt = old_match.iloc[0]["marks_obtained"]
-                            m_tot = old_match.iloc[0]["total_marks"]
-                            try:
-                                val_obt = float(m_obt)
-                                val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
-                                pct = (val_obt / val_tot) * 100
-                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>{shorthand_tag}({int(pct)}%)</span></td>"
-                                sub_percentages.append(pct)
-                                exam_totals_obtained[exam] += val_obt
-                                exam_totals_max[exam] += val_tot
-                                exam_has_any_data[exam] = True
-                                continue 
-                            except:
-                                pass
-
                     if not exam_subset.empty:
                         m_obt = exam_subset.iloc[0]["marks_obtained"]
                         m_tot = exam_subset.iloc[0]["total_marks"]
+                        
                         try:
                             val_obt = float(m_obt)
                             val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
                             pct = (val_obt / val_tot) * 100
                             row_html += f"<td>{int(pct)}%</td>"
                             sub_percentages.append(pct)
+                            
                             exam_totals_obtained[exam] += val_obt
                             exam_totals_max[exam] += val_tot
                             exam_has_any_data[exam] = True
                         except:
                             clean_obt = str(m_obt).strip().upper()
-                            if clean_obt in ["A", "ABSENT", "ABS"]:
+                            if clean_obt in ["A", "ABSENT"]:
                                 row_html += "<td>A</td>"
-                                exam_totals_max[exam] += float(m_tot) if pd.notna(m_tot) and float(m_tot) > 0 else 100.0
+                                exam_totals_max[exam] += float(m_tot) if m_tot else 100.0
                                 exam_has_any_data[exam] = True
                                 sub_percentages.append(0.0)
-                            elif clean_obt in ["NC", "N.C"]:
+                            elif clean_obt == "NC":
+                                # This replaces the empty <td></td> when the test is Not Conducted
                                 row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
                             else:
-                                row_html += "<td>-</td>"
+                                row_html += "<td></td>"
                     else:
-                        row_html += "<td>-</td>"
+                        row_html += "<td></td>"
                 
                 if sub_percentages:
                     avg_pct = int(sum(sub_percentages) / len(sub_percentages))
                     row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
                 else:
-                    row_html += "<td><strong>-</strong></td></tr>"
+                    row_html += "<td></td></tr>"
+                    
                 table_rows_html += row_html
 
-            # --- GRAND TOTALS ROW ---
             total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in selected_exams_list:
@@ -1265,13 +1182,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     total_row_html += f"<td><strong>{tot_pct}%</strong></td>"
                     grand_total_percentages.append(tot_pct)
                 else:
-                    total_row_html += "<td><strong>-</strong></td>"
+                    total_row_html += "<td></td>"
             
             if grand_total_percentages:
                 overall_avg = int(sum(grand_total_percentages) / len(grand_total_percentages))
                 total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
             else:
-                total_row_html += "<td><strong>-</strong></td></tr>"
+                total_row_html += "<td></td></tr>"
+
             # --- ATTENDANCE TRACKER PROCESSING ---
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"].astype(str) == str(match_id)]
