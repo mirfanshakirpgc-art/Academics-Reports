@@ -1255,7 +1255,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
             else:
                 total_row_html += "<td><strong>-</strong></td></tr>"
-
 ```
             # --- ATTENDANCE TRACKER PROCESSING ---
             if not attendance_df.empty:
