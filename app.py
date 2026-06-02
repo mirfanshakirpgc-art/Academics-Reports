@@ -2359,17 +2359,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
-To handle the session names correctly based on your two-year brackets, we should define what the session values mean. At Concordia College, since the session remains exactly the same during a promotion (e.g., an 11th grader in session **2025-2027** becomes a 12th grader still in session **2025-2027**), the session only changes when a completely new batch is admitted.
-
-Let's make sure the dropdown options reflect your real-world academic cycle. Here are your standard session brackets:
-
-* **2024-2026** (Current 12th graders finishing up)
-* **2025-2027** (Current 11th graders promoting to 12th)
-* **2026-2028** (The next incoming batch of 11th graders)
-* **2027-2029** (Future incoming batch)
-
----
-
 # ---------------------------------------------------------
 # 🎓 STANDALONE STUDENT PROMOTION MODULE
 # ---------------------------------------------------------
