@@ -127,43 +127,31 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
-# ==============================================================================
-# DATABASE UTILITY FUNCTIONS
-# ==============================================================================
-
 def run_query(query, params=None):
-    """Safely executes a read query and converts row dicts directly to a pandas DataFrame."""
+    if params is None:
+        params = {}
     with engine.connect() as conn:
-        if params:
-            stmt = text(query).bindparams(**params)
-            result = conn.execute(stmt)
-            return pd.DataFrame([dict(row) for row in result.mappings().all()])
-        else:
-            result = conn.execute(text(query))
-            return pd.DataFrame([dict(row) for row in result.mappings().all()])
+        return pd.read_sql_query(text(query), conn, params=params)
 
-def execute_db_command(command_text, params=None):
-    """Safely executes write operations (INSERT, UPDATE, DELETE) inside transaction blocks."""
+def run_update(query, params=None):
+    if params is None:
+        params = {}
+    # This uses your existing 'engine' and automatically handles COMMITs!
+    with engine.begin() as conn:
+        conn.execute(text(query), params)
+
+def execute_db_command(command, params=None):
     if params is None:
         params = {}
     with engine.begin() as conn:
-        conn.execute(text(command_text), params)
+        conn.execute(text(command), params)
 
-# ==============================================================================
-# --- NAVIGATION SIDEBAR ---
-# ==============================================================================
-st.sidebar.image("logo.png", use_container_width=True)
-st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
-menu_choice = st.sidebar.radio(
-    "Go To Module:", 
-    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "Student Management", "👨‍🎓 Promote Students", "👨‍🏫 Teacher Management"]
-)
 # --- NAVIGATION SIDEBAR ---
 st.sidebar.image("logo.png", use_container_width=True)
 st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
-    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "Student Management", "👨‍🎓 Promote Students", "👨‍🏫 Teacher Management"]
+    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "Student Management", "👨‍🏫 Teacher Management"]
 )
 
 # --- MAP CONFIGURATIONS ---
@@ -591,10 +579,6 @@ elif menu_choice == "📋 Section Summary Report":
             elif has_explicit_nc:
                 entry["Total (Obt)"] = "NC"
                 entry["Total Max"] = "NC"
-           # Calculate and append totals safely based on data presence
-            if has_valid_scores:
-                entry["Total (Obt)"] = obtained_total
-                entry["Total Max"] = max_total
             else:
                 entry["Total (Obt)"] = "-"
                 entry["Total Max"] = "-"
@@ -602,11 +586,8 @@ elif menu_choice == "📋 Section Summary Report":
             summary_rows.append(entry)
             
         final_report_df = pd.DataFrame(summary_rows)
-
-        # Display the complete report table in your app
-        st.dataframe(final_report_df, use_container_width=True)
         
-        # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
+      # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
         # Generate clean short form subject labels without "(Obt)"
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
@@ -2139,131 +2120,9 @@ elif menu_choice == "Student Management":
                     
                     # Thin separation line between data rows
                     st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
-        # ==============================================================================
-# 👨‍🎓 MODULE: PROMOTE STUDENTS
-# ==============================================================================
-elif menu_choice == "Promote Students":
-    st.title("👨‍🎓 Promote Students & Academic Year Roll-Forward")
-    st.markdown("Shift students between classes, update sessions, or promote entire classes in bulk.")
-
-    # Workspace choice selector
-    promo_mode = st.radio(
-        "Select Promotion Workflow Mode:",
-        ["👤 Single Student Profile", "📋 Bulk Group / Section Promotion"],
-        horizontal=True
-    )
-
-    # 1. WORKFLOW MODE: SINGLE STUDENT UPDATE
-    if promo_mode == "👤 Single Student Profile":
-        st.subheader("Modify Individual Student Academic Lifecycle")
-        
-        # Roll number lookup input
-        search_id = st.number_input("Enter Student Roll Number (ID Column):", min_value=1, step=1)
-        
-        if search_id:
-            # Query existing row from database to check baseline data
-            student_query = "SELECT id, name, class, section, session, status, current_class FROM students WHERE id = :id"
-            try:
-                with engine.connect() as conn:
-                    res = conn.execute(text(student_query), {"id": search_id}).fetchone()
-                
-                if res:
-                    st.info(f"✨ Found Student Record: **{res[1]}**")
-                    
-                    # Layout grid for new assignment dropdown values
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        new_class = st.selectbox("Assign New Class Level:", ["11th", "12th"], index=0 if res[6] == "11th" else 1)
-                        new_session = st.selectbox("Assign New Academic Session:", ["2025-27", "2026-28", "2027-29"], index=0)
-                    with col2:
-                        # Standard list of available tracking sections
-                        new_section = st.text_input("Assign New Section (e.g. IB, IG, PM, PE):", value=str(res[3]))
-                        new_status = st.selectbox("Assign System Enrollment Status:", ["Active", "Left", "Graduated"], index=0 if res[5] == "Active" else 1)
-                    
-                    # Commit updates to database engine on press action
-                    if st.button("💾 Apply Single Update Changes", type="primary"):
-                        update_sql = """
-                            UPDATE students 
-                            SET current_class = :cc, class = :cl, session = :sess, section = :sec, status = :stat 
-                            WHERE id = :id
-                        """
-                        with engine.begin() as conn:
-                            conn.execute(text(update_sql), {
-                                "cc": new_class, "cl": new_class, "sess": new_session, 
-                                "sec": new_section.strip().upper(), "stat": new_status, "id": search_id
-                            })
-                        st.success(f"🚀 Successfully migrated target profile metrics for {res[1]}!")
-                else:
-                    st.warning("❌ No matching record located under that database Roll Number.")
-            except Exception as e:
-                st.error(f"Database Runtime Error: {str(e)}")
-
-    # 2. WORKFLOW MODE: BULK SECTION PROMOTION
-    elif promo_mode == "📋 Bulk Group / Section Promotion":
-        st.subheader("Bulk Shift Entire Roster Segments")
-        
-        # Filter inputs to target class pool to adjust
-        col_f1, col_f2, col_f3 = st.columns(3)
-        with col_f1:
-            filter_class = st.selectbox("Current Source Class Level:", ["11th", "12th"])
-        with col_f2:
-            filter_session = st.selectbox("Current Source Academic Session:", ["2025-27", "2026-28", "2027-29"])
-        with col_f3:
-            filter_section = st.text_input("Current Target Section (e.g. IB):").strip().upper()
-
-        if filter_section:
-            # Query full list of matching segment records
-            list_sql = """
-                SELECT id, name, current_class, section, session 
-                FROM students 
-                WHERE current_class = :cc AND session = :sess AND section = :sec AND status = 'Active'
-            """
-            try:
-                with engine.connect() as conn:
-                    matched_df = pd.read_sql(text(list_sql), conn, params={"cc": filter_class, "sess": filter_session, "sec": filter_section})
-                
-                if not matched_df.empty:
-                    st.dataframe(matched_df, use_container_width=True)
-                    st.write(f"📝 Found **{len(matched_df)}** active profiles matching assignment configuration criteria.")
-                    
-                    st.markdown("---")
-                    st.markdown("#### Define Target Progression Goals")
-                    
-                    # Select destiny settings for processing bulk items
-                    col_t1, col_t2, col_t3 = st.columns(3)
-                    with col_t1:
-                        target_class = st.selectbox("Destination Class Level:", ["12th", "Graduated / Left"])
-                    with col_t2:
-                        target_session = st.selectbox("Destination Session Batch:", ["2025-27", "2026-28", "2027-29"])
-                    with col_t3:
-                        target_section = st.text_input("Destination Section Name:", value=filter_section).strip().upper()
-                    
-                    # Batch upgrade execution framework
-                    if st.button("🔥 Execute Batch Promotion", type="primary"):
-                        target_status = "Active" if target_class == "12th" else "Left"
-                        final_class_val = "12th" if target_class == "12th" else filter_class
-                        
-                        bulk_sql = """
-                            UPDATE students 
-                            SET current_class = :t_cc, class = :t_cl, session = :t_sess, section = :t_sec, status = :t_stat
-                            WHERE current_class = :f_cc AND session = :f_sess AND section = :f_sec AND status = 'Active'
-                        """
-                        with engine.begin() as conn:
-                            conn.execute(text(bulk_sql), {
-                                "t_cc": final_class_val, "t_cl": final_class_val, "t_sess": target_session, 
-                                "t_sec": target_section, "t_stat": target_status,
-                                "f_cc": filter_class, "f_sess": filter_session, "f_sec": filter_section
-                            })
-                        st.success(f"🎉 Roster update successfully processed! Moved safely to {target_class}.")
-                        st.balloons()
-                else:
-                    st.warning("⚠️ No active student rows currently align with your filtered field selections.")
-            except Exception as e:
-                st.error(f"Database Query Fault: {str(e)}")
-
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
-elif menu_choice == "👨‍🏫 Teacher Management":
+if menu_choice == "👨‍🏫 Teacher Management":
     st.title("👨‍🏫 Teacher Allocation & Performance Engine")
     
     # Safely acquire access credentials
