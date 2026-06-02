@@ -1131,7 +1131,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
-                # Verify section context safely
+                # Trust selected section context primarily
                 target_section_context = s_section.upper().strip() if s_section else detected_sec
                 
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
@@ -1153,16 +1153,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
                 elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
+                    # Only IB and IG get the 4 commerce electives including B_Math
                     active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
                 elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
-                    active_electives = ["Education", "Isl_Elc", "Computer", "B_Math"]
+                    # FB and FG revert to standard 3 humanities electives without B_Math
+                    active_electives = ["Education", "Isl_Elc", "Computer"]
                 elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
                     active_electives = ["Information Technology", "Computer Science", "Networks"]
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
                 
                 raw_subjects = list(set(compulsory_subs + active_electives))
-                # Custom sorting: Keep alphabetical structure but drop B_Math down to the last element
+                # Custom sorting: Keep alphabetical structure but drop B_Math down to the last element if it exists
                 unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
                 
                 history_bridge_map = {
@@ -1174,13 +1176,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     "Accounting": ["Mathematics"],       
                     "Economics": ["Chemistry", "Computer"], 
                     "Commerce": ["Physics", "Biology"]
-                    # Removed history mapping link from B_Math completely
                 }
             else:
                 target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
                 if any(x in target_section_context for x in ["IB", "IG"]):
                     raw_subjects = ["English", "Urdu", "Accounting", "Economics", "Commerce", "Isl_Eth", "T_Quran", "B_Math"]
                     unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
+                elif any(x in target_section_context for x in ["FB", "FG"]):
+                    unique_subjects = ["English", "Urdu", "Education", "Isl_Elc", "Computer", "Isl_Eth", "T_Quran"]
                 else:
                     unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
                 history_bridge_map = {}
@@ -1190,13 +1193,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
             exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
-            # Loop runs naturally through unique_subjects (where B_Math is guaranteed at the bottom row)
+            # Loop natively processes unique_subjects
             for sub in unique_subjects:
                 row_html = f"<tr><td>{sub.upper()}</td>"
                 sub_percentages = []
 
                 for exam in selected_exams_list:
-                    # Clean matching check
                     exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
                     
                     if exam_subset.empty and sub in history_bridge_map and not s_marks.empty:
@@ -1246,7 +1248,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             else:
                                 row_html += "<td>-</td>"
                     else:
-                        # This safely forces B_Math to display empty dash layout columns instead of dropping out completely
                         row_html += "<td>-</td>"
                 
                 if sub_percentages:
