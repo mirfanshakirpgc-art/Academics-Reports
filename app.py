@@ -236,40 +236,54 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         st.markdown("---")
 
         if entry_mode == "📋 By Complete Section":
-            c1, c2, c3 = st.columns(3)
+            # UPGRADE: Expanded columns to accommodate Class dropdown selector
+            c_cls, c1, c2, c3 = st.columns([1, 1.5, 2, 2])
+            
+            with c_cls:
+                sel_class = st.selectbox("Class Level:", ["11th", "12th"], index=0, key="entry_marks_class_lvl")
+
             if current_role == 'teacher' and current_user_id is not None:
                 teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
                 if not teacher_rights.empty:
                     allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                     allowed_secs = sorted(list(teacher_rights['section'].unique()))
                     with c1: st.info("🔒 Bound to Assigned Allocation Profile")
-                    with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
+                    with c2: raw_sel_subject = st.selectbox("Select Subject:", allowed_subs)
                     with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
                 else:
                     st.warning("🚨 You do not have any active subjects or sections assigned yet.")
-                    sel_subject, sel_section = None, None
+                    raw_sel_subject, sel_section = None, None
             else:
                 with c1: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-                with c2: sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
+                with c2: raw_sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
                 with c3: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
             
+            # UPGRADE: Apply dynamic subject names for 12th Commerce cohorts
+            sel_subject = raw_sel_subject
+            if sel_class == "12th" and raw_sel_subject:
+                if UPPER(TRIM(raw_sel_subject)) == 'B_MATH':     sel_subject = "B_stats"
+                elif UPPER(TRIM(raw_sel_subject)) == 'COMMERCE':  sel_subject = "Banking"
+                elif UPPER(TRIM(raw_sel_subject)) == 'ECONOMICS': sel_subject = "GEO"
+
             if sel_subject and sel_section:
                 row2_1, row2_2 = st.columns(2)
                 with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
                 with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
                 
                 try:
+                    # UPGRADE: SQL query now explicitly filters by Class to segment 11th and 12th rosters
                     roster_df = run_query("""
-    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-    FROM students s
-    LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
-    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-    ORDER BY s.id ASC
-""", {"subject": sel_subject, "exam": sel_exam, "section": sel_section})
+                        SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                        FROM students s
+                        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                          AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class))
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+                        ORDER BY s.id ASC
+                    """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section, "class": sel_class})
                     
                     if roster_df.empty:
-                        st.info(f"💡 No students found registered in section '{sel_section}' yet.")
+                        st.info(f"💡 No students found registered in {sel_class} class, section '{sel_section}' yet.")
                     else:
                         roster_df['Marks'] = roster_df['Marks'].fillna("")
                         with st.form("bulk_marks_form"):
@@ -293,11 +307,11 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             target_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id")
             if target_id and target_id.isdigit():
                 student_info = run_query("""
-    SELECT name, section, class, status 
-    FROM students 
-    WHERE id = :id 
-      AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
-""", {"id": int(target_id)})
+                    SELECT name, section, class, status 
+                    FROM students 
+                    WHERE id = :id 
+                      AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
+                """, {"id": int(target_id)})
                 if student_info.empty:
                     st.error("❌ This roll number does not exist.")
                 else:
@@ -312,8 +326,18 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                             matched_disp = disp
                             break
                     
+                    # UPGRADE: Intercept and calculate context base subjects for Single Students in 12th Commerce
+                    base_subjects = DISCIPLINE_SUBJECTS_MAP[matched_disp]
+                    active_single_subjects = []
+                    for sub in base_subjects:
+                        if str(s_class).strip() == "12th":
+                            if sub == "B_Math":      sub = "B_stats"
+                            elif sub == "Commerce":   sub = "Banking"
+                            elif sub == "Economics":  sub = "GEO"
+                        active_single_subjects.append(sub)
+
                     c_sub, c_ex, c_m = st.columns(3)
-                    with c_sub: single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
+                    with c_sub: single_subj = st.selectbox("Choose Subject:", active_single_subjects, key="single_sub")
                     with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam")
                     with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
                     
@@ -373,7 +397,12 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         st.markdown("---")
         
         if att_flow_mode == "📋 By Complete Section":
-            col_as1, col_as2, col_as3 = st.columns(3)
+            # UPGRADE: Add Class filter dropdown to segment attendance sheets
+            c_att_cls, col_as1, col_as2, col_as3 = st.columns([1, 1.5, 2, 2])
+            
+            with c_att_cls:
+                att_class = st.selectbox("Class Level:", ["11th", "12th"], index=0, key="entry_att_class_lvl")
+
             if current_role == 'teacher' and current_user_id is not None:
                 teacher_rights = run_query("SELECT section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
                 allowed_secs = sorted(list(teacher_rights['section'].unique())) if not teacher_rights.empty else []
@@ -387,13 +416,17 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             
             if att_section:
                 default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
+                
+                # UPGRADE: SQL query now explicitly evaluates s.class to isolate seniors and juniors
                 students_att_list = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
                     FROM students s
                     LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class))
+                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                     ORDER BY s.id ASC
-                """, {"month": att_month, "section": att_section})
+                """, {"month": att_month, "section": att_section, "class": att_class})
                 
                 if not students_att_list.empty:
                     with st.form("bulk_attendance_form"):
@@ -413,6 +446,8 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                                 """, {"s_id": int(s_id), "month": att_month.strip(), "td": default_days, "pd": int(p_d)})
                             st.success("🎉 Section Attendance saved successfully!")
                             st.rerun()
+                else:
+                    st.info(f"💡 No students found registered in {att_class} class, section '{att_section}' for this query selection.")
 
         elif att_flow_mode == "👤 By Single Student Roll Number":
             st.subheader("👤 Single Student Attendance Record Manager")
@@ -425,7 +460,8 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 else:
                     s_name = student_info['name'].iloc[0].upper()
                     s_section = student_info['section'].iloc[0].upper().strip()
-                    st.info(f"👤 Found Student: {s_name} | Current Section: {s_section}")
+                    s_class = student_info['class'].iloc[0]
+                    st.info(f"👤 Found Student: {s_name} | Class: {s_class} | Current Section: {s_section}")
                     
                     c_at1, c_at2, c_at3 = st.columns(3)
                     with c_at1: single_att_month = st.selectbox("Select Target Month:", AVAILABLE_MONTHS, key="s_att_m")
