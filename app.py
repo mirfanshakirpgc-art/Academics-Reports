@@ -131,13 +131,12 @@ def run_query(query, params=None):
     if params is None:
         params = {}
     with engine.connect() as conn:
-        return pd.read_sql_query(text(query), conn, params=params)
-
-def run_update(query, params=None):
-    if params is None:
-        params = {}
-    # This uses your existing 'engine' and automatically handles COMMITs!
-    with engine.begin() as conn:
+        def run_query(query, params=None):
+    with engine.connect() as conn:
+        # Instead of wrapping text() inside read_sql_query, 
+        # use conn.execute with text() directly or pass the raw string to pandas
+        if params:
+            return pd.read_sql_query(text(query), conn, params=params)
         conn.execute(text(query), params)
 
 def execute_db_command(command, params=None):
