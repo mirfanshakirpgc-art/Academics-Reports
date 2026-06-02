@@ -133,11 +133,11 @@ def run_query(query, params=None):
     with engine.connect() as conn:
         def run_query(query, params=None):
     with engine.connect() as conn:
-        # Instead of wrapping text() inside read_sql_query, 
-        # use conn.execute with text() directly or pass the raw string to pandas
         if params:
-            return pd.read_sql_query(text(query), conn, params=params)
-        conn.execute(text(query), params)
+            # We bind the parameters directly to the SQLAlchemy text object first
+            return pd.read_sql_query(text(query).bindparams(**params), conn)
+        else:
+            return pd.read_sql_query(text(query), conn)
 
 def execute_db_command(command, params=None):
     if params is None:
