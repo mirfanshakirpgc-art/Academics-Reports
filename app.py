@@ -591,6 +591,10 @@ elif menu_choice == "📋 Section Summary Report":
             elif has_explicit_nc:
                 entry["Total (Obt)"] = "NC"
                 entry["Total Max"] = "NC"
+           # Calculate and append totals safely based on data presence
+            if has_valid_scores:
+                entry["Total (Obt)"] = obtained_total
+                entry["Total Max"] = max_total
             else:
                 entry["Total (Obt)"] = "-"
                 entry["Total Max"] = "-"
@@ -602,7 +606,7 @@ elif menu_choice == "📋 Section Summary Report":
         # Display the complete report table in your app
         st.dataframe(final_report_df, use_container_width=True)
         
-      # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
+        # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
         # Generate clean short form subject labels without "(Obt)"
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
