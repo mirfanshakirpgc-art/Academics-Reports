@@ -1124,26 +1124,47 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
             if not s_marks.empty:
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
-                raw_subs = list(s_marks["subject_clean"].unique())
                 
-                # Check what unique subjects exist in their records
-                has_physics = "Physics" in raw_subs
-                has_stats = "Statistics" in raw_subs
+                # Dynamic Current Section Detection
+                detected_sec = "UNKNOWN"
+                if "section" in s_marks.columns and not s_marks["section"].dropna().empty:
+                    detected_sec = str(s_marks["section"].dropna().iloc[-1]).upper().strip()
                 
-                unique_subjects = []
-                for s in sorted(raw_subs):
-                    # ✂️ STRICTLY FILTER OUT STANDALONE PHYSICS ONLY IF STATISTICS DATA OR TRACK IS APPARENT
-                    if s == "Physics" and (has_stats or len(raw_subs) > 1):
-                        continue  # Drops the independent Physics row
-                    unique_subjects.append(s)
-                    
-                # Explicitly force STATISTICS to be the active primary row header
-                if "Statistics" not in unique_subjects:
-                    unique_subjects.append("Statistics")
-                    
-                unique_subjects = sorted(list(set(unique_subjects)))
+                # Master Cross-Discipline Structural Target Maps
+                medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
+                engineering_secs = ["EG_BLUE", "EB_BLUE"]
+                ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
+                ics_stats_secs = ["CG_STATS", "CB_STATS"]
+                
+                # Define baseline compulsory core tracks
+                compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
+                
+                # Assign precise target rows based on the student's active discipline section
+                if any(x in detected_sec for x in medical_secs):
+                    active_electives = ["Chemistry", "Biology", "Physics"]
+                elif any(x in detected_sec for x in engineering_secs):
+                    active_electives = ["Chemistry", "Mathematics", "Physics"]
+                elif any(x in detected_sec for x in ics_physics_secs):
+                    active_electives = ["Computer", "Mathematics", "Physics"]
+                elif any(x in detected_sec for x in ics_stats_secs) or "STATS" in detected_sec:
+                    active_electives = ["Computer", "Mathematics", "Statistics"]
+                else:
+                    # Fallback default if no explicit section pattern matches
+                    active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
+                
+                # Combine core subjects and active electives to form the clean template row headers
+                unique_subjects = sorted(list(set(compulsory_subs + active_electives)))
+                
+                # Cross-Discipline Reverse History Lookup Rules Dictionary
+                # Key = Current Row Header, Value = Allowed Old Subject Substitutes
+                history_bridge_map = {
+                    "Chemistry": ["Computer"],
+                    "Biology": ["Statistics"],
+                    "Physics": ["Mathematics"]
+                }
             else:
                 unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
+                history_bridge_map = {}
             
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -1157,12 +1178,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 for exam in selected_exams_list:
                     exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
                     
-                    # 🔍 HISTORICAL TRANSITION INTERCEPTION:
-                    # If processing STATISTICS row and no explicit marks are logged under 'Statistics' yet for this term,
-                    # safely grab their historical 'Physics' tracking scores and render inline.
-                    if exam_subset.empty and sub == "Statistics" and not s_marks.empty:
-                        old_match = s_marks[(s_marks["subject_clean"] == "Physics") & (s_marks["exam_type"].str.upper() == exam.upper())]
+                    # 🔍 DYNAMIC CROSS-DISCIPLINE HISTORY INTERCEPTION:
+                    # If current row cell is empty, check if old historical data can be mapped inside it
+                    if exam_subset.empty and sub in history_bridge_map and not s_marks.empty:
+                        possible_old_subs = history_bridge_map[sub]
+                        old_match = s_marks[
+                            (s_marks["subject_clean"].isin(possible_old_subs)) & 
+                            (s_marks["exam_type"].str.upper() == exam.upper())
+                        ]
+                        
                         if not old_match.empty:
+                            old_sub_clean = old_match.iloc[0]["subject_clean"]
+                            # Shorthand abbreviation conversion (e.g., Computer -> Comp)
+                            shorthand_tag = old_sub_clean[:4] if len(old_sub_clean) > 4 else old_sub_clean
+                            
                             m_obt = old_match.iloc[0]["marks_obtained"]
                             m_tot = old_match.iloc[0]["total_marks"]
                             try:
@@ -1170,8 +1199,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
                                 pct = (val_obt / val_tot) * 100
                                 
-                                # Appends the discipline reference indicator neatly inside the slot cell
-                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>Phy({int(pct)}%)</span></td>"
+                                # Render inline as OldSub(Marks%) under the current valid tracking slot
+                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>{shorthand_tag}({int(pct)}%)</span></td>"
                                 sub_percentages.append(pct)
                                 
                                 exam_totals_obtained[exam] += val_obt
