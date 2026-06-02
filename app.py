@@ -2375,13 +2375,9 @@ Let's make sure the dropdown options reflect your real-world academic cycle. Her
 # ---------------------------------------------------------
 if menu_choice == "🎓 Promote Students":
     st.title("🎓 Year-End Student Promotion Workspace")
-    st.markdown("""
-    This utility shifts an entire class cohort into a new academic session. 
-    It modifies their **Session**, **Class Level**, and **Section** simultaneously in a safe batch operation.
-    """)
+    st.markdown("This utility shifts an entire class cohort into a new academic year.")
     st.markdown("---")
-    
-    # 1. Source Identification Setup
+
     st.subheader("1. Identify Current Cohort")
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
@@ -2391,8 +2387,7 @@ if menu_choice == "🎓 Promote Students":
         current_promo_sec = st.selectbox("Current Roster Section:", all_flat_sections, key="standalone_src_sec")
     with col_s3:
         current_promo_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0, key="standalone_src_class")
-        
-    # Robust formatting-agnostic database lookup
+
     promo_candidates = run_query("""
         SELECT id AS "Roll No", name AS "Student Name", class AS "Class", section AS "Section", session AS "Session"
         FROM students
@@ -2402,11 +2397,10 @@ if menu_choice == "🎓 Promote Students":
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
     """, {"sec": current_promo_sec, "cls": current_promo_class, "sess": current_promo_session})
-    
+
     if promo_candidates.empty:
-        st.warning(f"⚠️ No active students found matching this exact combination of Session ({current_promo_session}), Section ({current_promo_sec}), and Class ({current_promo_class}).")
+        st.warning(f"⚠️ No active students found matching Session ({current_promo_session}), Section ({current_promo_sec}), and Class ({current_promo_class}).")
         
-        # Diagnostic Inspector tool to see what strings are actually inside the database
         with st.expander("🔍 Click here to inspect actual data formatting present in your Database"):
             debug_df = run_query("""
                 SELECT class AS "Class in DB", section AS "Section in DB", session AS "Session in DB", COUNT(*) as "Total Students" 
@@ -2415,20 +2409,15 @@ if menu_choice == "🎓 Promote Students":
                 LIMIT 15
             """)
             if not debug_df.empty:
-                st.write("Here is exactly how your records look in Supabase right now:")
                 st.dataframe(debug_df, use_container_width=True)
-            else:
-                st.write("The students table appears to be completely empty.")
     else:
         st.success(f"📈 Found {len(promo_candidates)} student profiles eligible for promotion processing.")
         st.dataframe(promo_candidates, use_container_width=True)
-        
+
         st.markdown("---")
-        # 2. Target Configuration Setup
         st.subheader("2. Configure Promotion Target")
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
-            # Session remains automatically matched to the source selection
             target_promo_session = st.selectbox(
                 "Next Academic Session:", 
                 ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], 
@@ -2438,19 +2427,15 @@ if menu_choice == "🎓 Promote Students":
         with col_t2:
             target_promo_sec = st.selectbox("Target Assignment Section:", all_flat_sections, key="standalone_tgt_sec")
         with col_t3:
-            # Updated option labels to exactly "12th" and "Pass Out"
             target_promo_class = st.selectbox("Target Class Level:", ["12th", "Pass Out"], index=0, key="standalone_tgt_class")
-            
-        # 3. Execution Safety Gate
+
         st.markdown("---")
         st.subheader("3. Finalize Batch Migration")
         confirm_gate = st.checkbox("I verify that all academic marks entries for this active cohort are completely recorded and locked.")
-        
+
         if st.button("🚀 Process Bulk Roster Promotion", type="primary", disabled=not confirm_gate):
             candidate_ids = promo_candidates["Roll No"].tolist()
-            
             try:
-                # Update records cleanly utilizing the exact schema layout
                 for s_id in candidate_ids:
                     execute_db_command("""
                         UPDATE students 
@@ -2464,10 +2449,8 @@ if menu_choice == "🎓 Promote Students":
                         "next_session": target_promo_session,
                         "student_id": int(s_id)
                     })
-                
                 st.balloons()
-                st.success(f"🎉 Promotion successful! {len(candidate_ids)} profiles cleanly shifted to {target_promo_class} ({target_promo_sec}) for Session {target_promo_session}!")
+                st.success(f"🎉 Promotion successful! {len(candidate_ids)} profiles cleanly shifted!")
                 st.rerun()
-                
             except Exception as error:
                 st.error(f"Migration operational failure: {error}")
