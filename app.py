@@ -2364,9 +2364,10 @@ if menu_choice == "👨‍🏫 Teacher Management":
 # ---------------------------------------------------------
 if menu_choice == "🎓 Promote Students":
     st.title("🎓 Year-End Student Promotion Workspace")
-    st.markdown("This utility shifts an entire class cohort into a new academic year.")
+    st.markdown("This utility shifts an entire class cohort into 12th Class or marks them as Pass Out while preserving their original Session bracket.")
     st.markdown("---")
 
+    # 1. Source Identification Setup
     st.subheader("1. Identify Current Cohort")
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
@@ -2377,6 +2378,7 @@ if menu_choice == "🎓 Promote Students":
     with col_s3:
         current_promo_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0, key="standalone_src_class")
 
+    # Robust database lookup matching current filters
     promo_candidates = run_query("""
         SELECT id AS "Roll No", name AS "Student Name", class AS "Class", section AS "Section", session AS "Session"
         FROM students
@@ -2404,42 +2406,86 @@ if menu_choice == "🎓 Promote Students":
         st.dataframe(promo_candidates, use_container_width=True)
 
         st.markdown("---")
+        
+        # 2. Target Configuration Setup
         st.subheader("2. Configure Promotion Target")
         col_t1, col_t2, col_t3 = st.columns(3)
+        
         with col_t1:
-            target_promo_session = st.selectbox(
-                "Next Academic Session:", 
-                ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], 
-                index=["2024-2026", "2025-2027", "2026-2028", "2027-2029"].index(current_promo_session), 
-                key="standalone_tgt_sess"
-            )
-        with col_t2:
-            target_promo_sec = st.selectbox("Target Assignment Section:", all_flat_sections, key="standalone_tgt_sec")
-        with col_t3:
+            # Target class level changes to either 12th or Pass Out
             target_promo_class = st.selectbox("Target Class Level:", ["12th", "Pass Out"], index=0, key="standalone_tgt_class")
+            
+        with col_t2:
+            # Dropdown to isolate specific discipline criteria rules
+            target_discipline = st.selectbox(
+                "Target Discipline:",
+                ["Medical", "Engineering", "ICS_Physics", "ICS_Stats", "Humanities", "Commerce"],
+                index=0,
+                key="standalone_tgt_disc",
+                disabled=(target_promo_class == "Pass Out")
+            )
+            
+        with col_t3:
+            # Explicit section maps requested for 12th-grade assignments
+            discipline_sections = {
+                "Medical": ["MQ1", "MQ2", "MK"],
+                "Engineering": ["EQ", "EK"],
+                "ICS_Physics": ["CQ1", "CQ2", "CK1", "CK2"],
+                "ICS_Stats": ["CK3", "CQ3"],
+                "Humanities": ["FK", "FQ"],
+                "Commerce": ["IK", "IQ"]
+            }
+            available_target_sections = discipline_sections.get(target_discipline, all_flat_sections)
+            
+            # If student is passing out, section isn't critical, otherwise use targeted groups
+            target_promo_sec = st.selectbox(
+                "Target Assignment Section:", 
+                ["N/A"] if target_promo_class == "Pass Out" else available_target_sections, 
+                key="standalone_tgt_sec"
+            )
 
         st.markdown("---")
+        
+        # 3. Execution Safety Gate
         st.subheader("3. Finalize Batch Migration")
+        
+        # Special subject modification notice for Commerce tracking
+        if target_promo_class == "12th" and target_discipline == "Commerce":
+            st.info("ℹ️ **Commerce Swap Detection Active:** Promoting into 12th Commerce will automatically replace: `B_Math` ➡️ `B_stats`, `Commerce` ➡️ `Banking`, and `Economics` ➡️ `GEO`.")
+            
         confirm_gate = st.checkbox("I verify that all academic marks entries for this active cohort are completely recorded and locked.")
 
         if st.button("🚀 Process Bulk Roster Promotion", type="primary", disabled=not confirm_gate):
             candidate_ids = promo_candidates["Roll No"].tolist()
             try:
                 for s_id in candidate_ids:
+                    # Step A: Update basic student profile (Session is kept exactly the same as current_promo_session)
                     execute_db_command("""
                         UPDATE students 
                         SET class = :next_class, 
-                            section = :next_section, 
-                            session = :next_session
+                            section = :next_section
                         WHERE id = :student_id
                     """, {
                         "next_class": target_promo_class,
-                        "next_section": target_promo_sec,
-                        "next_session": target_promo_session,
+                        "next_section": current_promo_sec if target_promo_class == "Pass Out" else target_promo_sec,
                         "student_id": int(s_id)
                     })
+                    
+                    # Step B: If Commerce and staying in 12th, run the cascading data update for subject names
+                    if target_promo_class == "12th" and target_discipline == "Commerce":
+                        execute_db_command("""
+                            UPDATE marks 
+                            SET subject = CASE 
+                                WHEN UPPER(TRIM(subject)) = 'B_MATH' THEN 'B_stats'
+                                WHEN UPPER(TRIM(subject)) = 'COMMERCE' THEN 'Banking'
+                                WHEN UPPER(TRIM(subject)) = 'ECONOMICS' THEN 'GEO'
+                                ELSE subject
+                            END
+                            WHERE student_id = :student_id;
+                        """, {"student_id": int(s_id)})
+
                 st.balloons()
-                st.success(f"🎉 Promotion successful! {len(candidate_ids)} profiles cleanly shifted!")
+                st.success(f"🎉 Promotion complete! {len(candidate_ids)} profiles cleanly processed under Session {current_promo_session}!")
                 st.rerun()
             except Exception as error:
                 st.error(f"Migration operational failure: {error}")
