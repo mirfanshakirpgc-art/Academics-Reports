@@ -2370,11 +2370,6 @@ Let's make sure the dropdown options reflect your real-world academic cycle. Her
 
 ---
 
-### 🛠️ Complete & Fully Updated Promotion Module Code
-
-Here is the finalized code block for the very bottom of your script. It synchronizes the sessions, locks the target session to match the source session, updates the target options to exactly **"12th"** and **"Pass Out"**, and includes the robust string-cleaning database query:
-
-```python
 # ---------------------------------------------------------
 # 🎓 STANDALONE STUDENT PROMOTION MODULE
 # ---------------------------------------------------------
