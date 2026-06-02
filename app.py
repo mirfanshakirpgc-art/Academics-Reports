@@ -134,10 +134,13 @@ except Exception as e:
 def run_query(query, params=None):
     with engine.connect() as conn:
         if params:
-            return pd.read_sql_query(text(query).bindparams(**params), conn)
+            # Execute natively using SQLAlchemy text binding (100% reliable)
+            result = conn.execute(text(query), params)
+            # Convert the rows directly into a Pandas DataFrame
+            return pd.DataFrame(result.fetchall(), columns=result.keys())
         else:
-            return pd.read_sql_query(text(query), conn)
-def execute_db_command(command, params=None):
+            result = conn.execute(text(query))
+            return pd.DataFrame(result.fetchall(), columns=result.keys())
     if params is None:
         params = {}
     with engine.begin() as conn:
