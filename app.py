@@ -1131,7 +1131,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
-                # STABLE CONTEXT: Always trust the current profile section choice if database rows are blank
+                # Dynamic section context verification
                 target_section_context = s_section.upper().strip() if s_section else detected_sec
                 
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
@@ -1153,17 +1153,19 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
                 elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
-                    active_electives = ["Accounting", "Economics", "Commerce"]
+                    active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
                 elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
-                    active_electives = ["Education", "Isl_Elc", "Computer"]
+                    active_electives = ["Education", "Isl_Elc", "Computer", "B_Math"]
                 elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
                     active_electives = ["Information Technology", "Computer Science", "Networks"]
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
                 
-                unique_subjects = sorted(list(set(compulsory_subs + active_electives)))
-                if "B_Math" in unique_subjects:
-                    unique_subjects.remove("B_Math")
+                # Base list of subjects
+                raw_subjects = list(set(compulsory_subs + active_electives))
+                
+                # Custom sorting: Alphabetical, but forces B_Math to the absolute bottom row
+                unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
                 
                 history_bridge_map = {
                     "Chemistry": ["Computer"],
@@ -1177,16 +1179,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     "B_Math": ["Mathematics"]            
                 }
             else:
-                unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
-                history_bridge_map = {}
                 target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
+                if any(x in target_section_context for x in ["IB", "IG", "FB", "FG"]):
+                    raw_subjects = ["English", "Urdu", "Accounting", "Economics", "Commerce", "Isl_Eth", "T_Quran", "B_Math"]
+                    unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
+                else:
+                    unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
+                history_bridge_map = {}
             
             table_rows_html = ""
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
             exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
             exam_has_any_data = {exam: False for exam in selected_exams_list}
 
-            # 1. Render primary standard and core elective subjects
+            # Loop natively processes all subjects, ensuring B_Math renders at the end seamlessly
             for sub in unique_subjects:
                 row_html = f"<tr><td>{sub.upper()}</td>"
                 sub_percentages = []
@@ -1250,58 +1256,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     row_html += "<td><strong>-</strong></td></tr>"
                 table_rows_html += row_html
 
-            # 2. Append B_Math explicitly checking against target_section_context
-            if any(x in target_section_context for x in ["IB", "IG", "FB", "FG"]):
-                bm_sub = "B_Math"
-                bm_row_html = f"<tr><td>{bm_sub.upper()}</td>"
-                bm_percentages = []
-
-                for exam in selected_exams_list:
-                    exam_subset = s_marks[(s_marks["subject_clean"] == bm_sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
-                    
-                    if exam_subset.empty and bm_sub in history_bridge_map and not s_marks.empty:
-                        possible_old_subs = history_bridge_map[bm_sub]
-                        old_match = s_marks[(s_marks["subject_clean"].isin(possible_old_subs)) & (s_marks["exam_type"].str.upper() == exam.upper())]
-                        if not old_match.empty:
-                            old_sub_clean = old_match.iloc[0]["subject_clean"]
-                            shorthand_tag = old_sub_clean[:4] if len(old_sub_clean) > 4 else old_sub_clean
-                            try:
-                                val_obt = float(old_match.iloc[0]["marks_obtained"])
-                                val_tot = float(old_match.iloc[0]["total_marks"]) if float(old_match.iloc[0]["total_marks"]) > 0 else 100.0
-                                pct = (val_obt / val_tot) * 100
-                                bm_row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>{shorthand_tag}({int(pct)}%)</span></td>"
-                                bm_percentages.append(pct)
-                                exam_totals_obtained[exam] += val_obt
-                                exam_totals_max[exam] += val_tot
-                                exam_has_any_data[exam] = True
-                                continue
-                            except:
-                                pass
-
-                    if not exam_subset.empty:
-                        try:
-                            val_obt = float(exam_subset.iloc[0]["marks_obtained"])
-                            val_tot = float(exam_subset.iloc[0]["total_marks"]) if float(exam_subset.iloc[0]["total_marks"]) > 0 else 100.0
-                            pct = (val_obt / val_tot) * 100
-                            bm_row_html += f"<td>{int(pct)}%</td>"
-                            bm_percentages.append(pct)
-                            exam_totals_obtained[exam] += val_obt
-                            exam_totals_max[exam] += val_tot
-                            exam_has_any_data[exam] = True
-                        except:
-                            bm_row_html += "<td>-</td>"
-                    else:
-                        bm_row_html += "<td>-</td>"
-
-                if bm_percentages:
-                    bm_avg = int(sum(bm_percentages) / len(bm_percentages))
-                    bm_row_html += f"<td><strong>{bm_avg}%</strong></td></tr>"
-                else:
-                    bm_row_html += "<td><strong>-</strong></td></tr>"
-                
-                table_rows_html += bm_row_html
-
-            # 3. Render structural grand totals row
+            # --- GRAND TOTALS ROW ---
             total_row_html = "<tr><td><strong>Total</strong></td>"
             grand_total_percentages = []
             for exam in selected_exams_list:
