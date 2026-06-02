@@ -1161,10 +1161,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
                 unique_subjects = sorted(list(set(compulsory_subs + active_electives)))
                 
+                # Expanded structural history bridge map targeting newly entered tracks
                 history_bridge_map = {
                     "Chemistry": ["Computer"],
                     "Biology": ["Statistics"],
-                    "Physics": ["Mathematics"]
+                    "Physics": ["Mathematics"],
+                    "Education": ["Mathematics", "Physics", "Chemistry"],
+                    "Isl_Elc": ["Statistics", "Biology", "Economics", "Accounting"]
                 }
             else:
                 unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
