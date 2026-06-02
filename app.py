@@ -132,22 +132,32 @@ except Exception as e:
 # ==============================================================================
 
 def run_query(query, params=None):
+    """Safely executes a read query and converts row dicts directly to a pandas DataFrame."""
     with engine.connect() as conn:
         if params:
-            # Safely bind the dictionary mapping to the text statement explicitly
             stmt = text(query).bindparams(**params)
             result = conn.execute(stmt)
-            # Reconstruct the expected dataframe using native mappings
             return pd.DataFrame([dict(row) for row in result.mappings().all()])
         else:
             result = conn.execute(text(query))
             return pd.DataFrame([dict(row) for row in result.mappings().all()])
-            return pd.DataFrame(result.fetchall(), columns=result.keys())
+
+def execute_db_command(command_text, params=None):
+    """Safely executes write operations (INSERT, UPDATE, DELETE) inside transaction blocks."""
     if params is None:
         params = {}
     with engine.begin() as conn:
-        conn.execute(text(command), params)
+        conn.execute(text(command_text), params)
 
+# ==============================================================================
+# --- NAVIGATION SIDEBAR ---
+# ==============================================================================
+st.sidebar.image("logo.png", use_container_width=True)
+st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
+menu_choice = st.sidebar.radio(
+    "Go To Module:", 
+    ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "Student Management", "👨‍🎓 Promote Students", "👨‍🏫 Teacher Management"]
+)
 # --- NAVIGATION SIDEBAR ---
 st.sidebar.image("logo.png", use_container_width=True)
 st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
@@ -588,6 +598,9 @@ elif menu_choice == "📋 Section Summary Report":
             summary_rows.append(entry)
             
         final_report_df = pd.DataFrame(summary_rows)
+
+        # Display the complete report table in your app
+        st.dataframe(final_report_df, use_container_width=True)
         
       # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
         # Generate clean short form subject labels without "(Obt)"
