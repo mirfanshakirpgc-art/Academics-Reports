@@ -237,6 +237,17 @@ elif menu_choice == "📝 Enter Marks & Attendance":
     current_user_id = st.session_state.get('user_id', None)
     current_role = st.session_state.get('role', st.session_state.get('user_role', 'teacher'))
 
+    # ---------------------------------------------------------
+# 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
+# ---------------------------------------------------------
+elif menu_choice == "📝 Enter Marks & Attendance":
+    st.title("📝 Data Intake Management Dashboard")
+    sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
+    st.markdown("---")
+
+    current_user_id = st.session_state.get('user_id', None)
+    current_role = st.session_state.get('role', st.session_state.get('user_role', 'teacher'))
+
     # =========================================================
     # 1. ACADEMIC EXAM MARKS ENTRY SUB-MODULE
     # =========================================================
@@ -372,27 +383,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     """, {"month": att_month, "section": att_section, "class": att_class, "session": att_session})
                     
                     if not students_att_list.empty:
-                        with st.form("bulk_attendance_form"):
-                            saved_att_presents = {}
-                            for idx, row in students_att_list.iterrows():
-                                c_b1, c_b2 = st.columns([3, 1])
-                                c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                                init_pres = int(row['present_days']) if pd.notna(row['present_days']) else default_days
-                                saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"pres_{row['ID']}")
-                            
-                            if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
-                                for s_id, p_d in saved_att_presents.items():
-                                    execute_db_command("""
-                                        INSERT INTO attendance (student_id, month_name, total_days, present_days)
-                                        VALUES (:s_id, :month, :td, :pd)
-                                        ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
-                                    """, {"s_id": int(s_id), "month": att_month.strip(), "td": default_days, "pd": int(p_d)})
-                                st.success("🎉 Section Attendance saved successfully!")
-                                st.rerun()
-                    else:
-                        st.info(f"💡 No students found registered in {att_class} ({att_session}), section '{att_section}' for this query selection.")
-                except Exception as e:
-                    st.error(f"Attendance sync error: {e}")
+                        with st.form
                     
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
