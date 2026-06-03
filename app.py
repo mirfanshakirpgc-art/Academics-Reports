@@ -2411,10 +2411,10 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
-# ----------------- 🎓 ADVANCED PROMOTE STUDENTS -----------------
+# ----------------- 🎓 ADVANCED PROMOTE STUDENTS & REVERSAL PANEL -----------------
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
-    st.write("Promote whole sections or individual students while managing their target sections and subject mappings.")
+    st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
 
     # --- SECTION 1: SOURCE FILTERS ---
     st.subheader("🔍 Step 1: Select Source Student Pool")
@@ -2427,9 +2427,7 @@ elif menu_choice == "🎓 Promote Students":
     with src_c3:
         promo_scope = st.radio("Promotion Scope:", ["📋 Complete Section", "👤 Single Student"], horizontal=True)
 
-    # Wildcard prefix matching ('2025%') to unify 2-digit and 4-digit variations seamlessly
     sess_prefix = promo_session.split('-')[0] + '%' 
-    
     selected_section = None
     target_student_id = None
     
@@ -2473,13 +2471,11 @@ elif menu_choice == "🎓 Promote Students":
     tgt_c1, tgt_c2 = st.columns(2)
     
     with tgt_c2:
-        # Render the track selector first to ensure variable availability
         selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
 
     with tgt_c1:
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
-        # Exact 12th Grade dynamic section mapping routing logic
         if "MEDICAL" in disc_upper:
             available_tgt_sections = ["MQ1", "MQ2", "MK"]
         elif "ENGINEERING" in disc_upper:
@@ -2497,7 +2493,7 @@ elif menu_choice == "🎓 Promote Students":
 
         target_section = st.selectbox("Assign to Destination Section:", available_tgt_sections, key="promo_tgt_sec")
 
-    # 🔄 Split Curriculum Processing Engine (Fixed Rows vs Replaced Rows)
+    # 🔄 Split Curriculum Processing Engine
     base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
     fixed_subjects = []
     replaced_subjects = []
@@ -2505,35 +2501,22 @@ elif menu_choice == "🎓 Promote Students":
     if source_class == "11th":
         for sub in base_subjects:
             sub_clean = sub.strip().upper().replace(".", "").replace(" ", "")
-            
-            # Catch Universal Replacement
             if "ISL" in sub_clean or "ETH" in sub_clean:
                 if "Pak. Studies" not in replaced_subjects:
                     replaced_subjects.append("Pak. Studies")
-                    
-            # Catch Commerce Specific Replacements
             elif "COMMERCE" in disc_upper and ("MAT" in sub_clean or "MATH" in sub_clean or sub_clean == "BM"):
                 replaced_subjects.append("B_Stats")
-                
-            # 🎯 FIXED HERE: Added "POE" and "POA" check to catch Principles of Economics / Accounts safely
             elif "COMMERCE" in disc_upper and ("ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean or "POE" in sub_clean):
-                if "Banking" not in replaced_subjects:
-                    replaced_subjects.append("Banking")
-                    
+                replaced_subjects.append("Banking")
             elif "COMMERCE" in disc_upper and ("COM" in sub_clean or "POC" in sub_clean):
                 replaced_subjects.append("Geo")
-                
-            # Otherwise, it stays exactly the same as 11th Grade
             else:
                 fixed_subjects.append(sub)
                 
-        # Commerce safety check to make sure all three replacements are grouped properly
         if "COMMERCE" in disc_upper:
             for forced_sub in ["B_Stats", "Banking", "Geo"]:
                 if forced_sub not in replaced_subjects:
                     replaced_subjects.append(forced_sub)
-                    
-            # 🎯 FIXED HERE: Cleans out "POE" and "POA" variants from leaking into fixed row layout
             fixed_subjects = [f for f in fixed_subjects if not any(k in f.upper() for k in ["MATH", "ECO", "POC", "COM", "POE"])]
     else:
         fixed_subjects = base_subjects
@@ -2541,9 +2524,7 @@ elif menu_choice == "🎓 Promote Students":
     fixed_subjects = sorted(list(set(fixed_subjects)))
     replaced_subjects = sorted(list(set(replaced_subjects)))
 
-    # Display split curriculum visualization tables cleanly on the dashboard
     st.markdown("#### 📚 12th Grade Curriculum Blueprint Mapping")
-    
     st.markdown("**📌 Continuing/Fixed Core Subjects (Carried over from 11th):**")
     st.code(" ➔ ".join(fixed_subjects) if fixed_subjects else "None Specified")
     
@@ -2578,7 +2559,6 @@ elif menu_choice == "🎓 Promote Students":
         preview_query = "SELECT id, name, section, class, session FROM students WHERE id = :s_id"
         params = {"s_id": target_student_id}
 
-    # Verify parameters are configured before rendering database grid panels
     if (promo_scope == "📋 Complete Section" and selected_section and selected_section != "No Data Found") or (promo_scope == "👤 Single Student" and target_student_id):
         preview_df = run_query(preview_query, params)
         
@@ -2590,17 +2570,76 @@ elif menu_choice == "🎓 Promote Students":
                 student_ids_to_process = preview_df['id'].tolist()
                 
                 for s_id in student_ids_to_process:
+                    # Stash the original section name in a log tracker column if it exists, or just process updates cleanly
                     execute_db_command(
                         """
                         UPDATE students 
                         SET class = :next_cls, 
-                            section = :next_sec
+                            section = :next_sec,
+                            prev_promotion_log = :old_sec
                         WHERE id = :s_id
                         """,
-                        {"next_cls": next_class, "next_sec": target_section.strip().upper(), "s_id": int(s_id)}
+                        {
+                            "next_cls": next_class, 
+                            "next_sec": target_section.strip().upper(), 
+                            "old_sec": str(selected_section) if promo_scope == "📋 Complete Section" else "SINGLE_PROMO",
+                            "s_id": int(s_id)
+                        }
                     )
                 
                 st.success(f"🎉 Success! {len(student_ids_to_process)} records re-assigned safely to Class {next_class}.")
                 st.rerun()
         else:
             st.info("💡 No student records matching selected parameters were discovered inside the system roster.")
+
+    st.markdown("---")
+
+    # --- 🚨 NEW SECTION 4: PROMOTION HISTORY & SAFETY REVERSAL LOG ---
+    st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
+    st.write("Below are the 12th-grade sections currently tracking inside this session. If a section was promoted by mistake, hit **Undo Promotion** to rollback those records.")
+
+    # Find active 12th-grade section groupings that have rollback logs available
+    promoted_history_df = run_query(
+        """
+        SELECT section as "12th Grade Section", 
+               prev_promotion_log as "Original 11th Section", 
+               COUNT(*) as "Total Students"
+        FROM students 
+        WHERE session LIKE :sess 
+          AND class = '12th' 
+          AND prev_promotion_log IS NOT NULL
+        GROUP BY section, prev_promotion_log
+        ORDER BY section
+        """,
+        {"sess": sess_prefix}
+    )
+
+    if not promoted_history_df.empty:
+        # Loop through batches to present clear operational action rows
+        for index, row in promoted_history_df.iterrows():
+            sec_12th = row["12th Grade Section"]
+            sec_11th = row["Original 11th Section"]
+            count = row["Total Students"]
+            
+            col_info, col_btn = st.columns([3, 1])
+            with col_info:
+                st.markdown(f"📦 **Section Matrix:** `11th Grade ({sec_11th})` ➔ promoted to 12th Grade section `({sec_12th})` — **{count} Students**")
+            with col_btn:
+                # Unique action keys per dataset batch row to avoid Streamlit state clashes
+                if st.button(f"🗑️ Undo Promotion", key=f"undo_{sec_12th}_{sec_11th}_{index}"):
+                    execute_db_command(
+                        """
+                        UPDATE students 
+                        SET class = '11th',
+                            section = :old_sec,
+                            prev_promotion_log = NULL
+                        WHERE class = '12th'
+                          AND section = :curr_sec
+                          AND session LIKE :sess
+                        """,
+                        {"old_sec": sec_11th, "curr_sec": sec_12th, "sess": sess_prefix}
+                    )
+                    st.success(f"↩️ Successfully reverted section {sec_12th} back to 11th Grade ({sec_11th})!")
+                    st.rerun()
+    else:
+        st.info("🍃 No mass-promoted 12th-grade sections detected in the current active session logs yet.")
