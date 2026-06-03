@@ -2503,7 +2503,6 @@ elif menu_choice == "Student Management":
             LEFT JOIN master_registry m_sec ON s.section_key = m_sec.item_key AND m_sec.item_type = 'SECTION'
             LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION'
             WHERE s.is_active = TRUE
-        """
         
         params = {}
         if search_term:
