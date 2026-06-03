@@ -489,13 +489,16 @@ elif menu_choice == "📝 Enter Marks & Attendance":
             
             if att_section:
                 default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
-                students_att_list = run_query("""
-                    SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
-                    FROM students s
-                    LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                    ORDER BY s.id ASC
-                """, {"month": att_month, "section": att_section})
+                # Make sure the triple quotes start right before SELECT and wrap the query
+        query_text = """
+            SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
+            FROM students s
+            LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+            ORDER BY s.id ASC
+        """
+        
+        students_att_list = run_query(query_text, {"month": att_month, "section": att_section})
                 
                 if not students_att_list.empty:
                     with st.form("bulk_attendance_form"):
