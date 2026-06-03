@@ -236,15 +236,64 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         st.markdown("---")
 
         if entry_mode == "📋 By Complete Section":
-            c1, c2, c3 = st.columns(3)
+            # 1. Expand columns structure layout from 3 to 4 to hold the session selector cleanly
+            c1, c2, c3, c4 = st.columns(4)
+            
             if current_role == 'teacher' and current_user_id is not None:
                 teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
                 if not teacher_rights.empty:
                     allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                     allowed_secs = sorted(list(teacher_rights['section'].unique()))
-                    with c1: st.info("🔒 Bound to Assigned Allocation Profile")
+                    with c1: sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_t")
                     with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
                     with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
+                    with c4: st.info("🔒 Bound to Allocation Profile")
+                else:
+                    st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                    sel_subject, sel_section, sel_session = None, None, None
+            else:
+                with c1: sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_a")
+                with c2: sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+                with c3: sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline])
+                with c4: sel_section = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_discipline])
+            
+            if sel_subject and sel_section and sel_session:
+                row2_1, row2_2 = st.columns(2)
+                with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
+                with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
+                
+                try:
+                    # 2. Updated the SQL roster lookup query statement to filter on the new 'session' database field
+                    roster_df = run_query("""
+                        SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                        FROM students s
+                        LEFT JOIN marks m ON s.id = m.student_id AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) AND TRIM(m.exam_type) = TRIM(:exam)
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                          AND s.session = :session
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+                        ORDER BY s.id ASC
+                    """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session})
+                    
+                    if roster_df.empty:
+                        st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
+                    else:
+                        roster_df['Marks'] = roster_df['Marks'].fillna("")
+                        with st.form("bulk_marks_form"):
+                            updated_scores = {}
+                            for idx, row in roster_df.iterrows():
+                                col_s1, col_s2 = st.columns([3, 1])
+                                col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
+                                updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
+                            
+                            if st.form_submit_button("💾 Save Section Marks", type="primary"):
+                                for s_id, score in updated_scores.items():
+                                    execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
+                                    if score.strip() != "":
+                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
+                                st.success("🎉 Section marks matrix saved completely!")
+                                st.rerun()
+                except Exception as e:
+                    st.error(f"Database sync issue: {e}")
                 else:
                     st.warning("🚨 You do not have any active subjects or sections assigned yet.")
                     sel_subject, sel_section = None, None
