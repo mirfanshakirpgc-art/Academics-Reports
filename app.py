@@ -2503,6 +2503,18 @@ elif menu_choice == "Student Management":
             LEFT JOIN master_registry m_sec ON s.section_key = m_sec.item_key AND m_sec.item_type = 'SECTION'
             LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION'
             WHERE s.is_active = TRUE
+       # Ensure the multi-line query string is completely closed here
+        view_query = """
+            SELECT 
+                s.admission_no, 
+                s.student_name, 
+                s.father_name
+            FROM students s
+            LEFT JOIN master_registry m_sess 
+                ON s.session_key = m_sess.item_key 
+                AND m_sess.item_type = 'SESSION'
+            WHERE s.is_active = TRUE
+        """ # <--- This closes the SQL query cleanly so your Python code can run safely below it
         
         params = {}
         if search_term:
