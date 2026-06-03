@@ -223,9 +223,13 @@ However, looking closely at your second screenshot (`image_0ff1ad.png`), the sec
 Let's clean that up completely. Here is the final corrected engine block for **both sub-modules** to fix the dropdown mapping and link everything seamlessly to your SQL engine.
 
 ---
+The error occurs because you have conversational prose text directly pasted inside your `app.py` script file on line 223 without a comment symbol (`#`) or triple quotes (`"""`). Python is trying to compile my previous message text as code, which triggers a `SyntaxError`.
 
-python
+To fix this, open your `app.py` file, navigate to line 223, and delete that spoken text sentence.
 
+Here is the exact, raw python block with **absolutely zero conversational text inside it**. Copy it directly from the code box below and replace your entire dashboard block cleanly:
+
+```python
 # ---------------------------------------------------------
 # 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
 # ---------------------------------------------------------
@@ -393,6 +397,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.info(f"💡 No students found registered in {att_class} ({att_session}), section '{att_section}' for this query selection.")
                 except Exception as e:
                     st.error(f"Attendance sync error: {e}")
+
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
