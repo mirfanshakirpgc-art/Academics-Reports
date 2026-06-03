@@ -2513,7 +2513,7 @@ elif menu_choice == "🎓 Promote Students":
     if source_class == "11th" and "COMMERCE" in disc_upper:
         for sub in base_subjects:
             sub_clean = sub.strip().upper()
-            if "MATH" in sub_clean:
+            if "B_MATH" in sub_clean:
                 available_subjects.append("B_Stats")
             elif "ECONOMIC" in sub_clean:
                 available_subjects.append("Banking")
