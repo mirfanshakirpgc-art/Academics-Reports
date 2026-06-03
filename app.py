@@ -2495,48 +2495,36 @@ elif menu_choice == "Student Management":
         )
         
         params = {}
-      if view_mode == "Summary Ledger":  # Line 2498 (or your specific if statement)
-            # Push this entire block to the right by 4 extra spaces!
+      if view_mode == "Summary Ledger":
             view_query = (
                 "SELECT s.admission_no, s.student_name, s.father_name "
                 "FROM students s "
                 "LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION' "
                 "WHERE s.is_active = TRUE"
             )
-        )
-        
-        # 2. Add search parameters dynamically
-        params = {}
-        if search_term:
-            view_query += " AND (UPPER(s.student_name) LIKE :term OR UPPER(s.admission_no) LIKE :term)"
-            params["term"] = f"%{search_term}%"
             
-        # 3. Add sorting last
-        view_query += " ORDER BY s.admission_no DESC"
-        
-        # 4. Execute and render results safely
-        try:
-            students_df = run_query(view_query, params)
-            if not students_df.empty:
-                st.dataframe(students_df, use_container_width=True)
+            params = {}
+            if search_term:
+                view_query += " AND (UPPER(s.student_name) LIKE :term OR UPPER(s.admission_no) LIKE :term)"
+                params["term"] = f"%{search_term}%"
                 
-                # Management Option: Deactivate a profile entry
-                st.markdown("---")
-                st.subheader("🗑️ Administrative Maintenance")
-                remove_id = st.text_input("Enter Admission Number to remove from active roster:").strip().upper()
-                if st.button("Deactivate Student Profile", type="secondary"):
-                    if remove_id:
-                        execute_db_command("UPDATE students SET is_active = FALSE WHERE admission_no = :adm", {"adm": remove_id})
-                        st.success(f"Student profile {remove_id} marked inactive.")
-                        st.rerun()
-            else:
-                st.info("No matching student profile records found in the database.")
-        except Exception as e:
-            st.error(f"Error displaying student summary ledger: {e}")
-                        execute_db_command("UPDATE students SET is_active = FALSE WHERE admission_no = :adm", {"adm": remove_id})
-                        st.success(f"Student profile {remove_id} marked inactive.")
-                        st.rerun()
-            else:
-                st.info("No matching student profile records found in the database.")
-        except Exception as e:
-            st.error(f"Error displaying student summary ledger: {e}")
+            view_query += " ORDER BY s.admission_no DESC"
+            
+            try:
+                students_df = run_query(view_query, params)
+                if not students_df.empty:
+                    st.dataframe(students_df, use_container_width=True)
+                    
+                    # Management Option: Deactivate a profile entry
+                    st.markdown("---")
+                    st.subheader("🗑️ Administrative Maintenance")
+                    remove_id = st.text_input("Enter Admission Number to remove from active roster:").strip().upper()
+                    if st.button("Deactivate Student Profile", type="secondary"):
+                        if remove_id:
+                            execute_db_command("UPDATE students SET is_active = FALSE WHERE admission_no = :adm", {"adm": remove_id})
+                            st.success(f"Student profile {remove_id} marked inactive.")
+                            st.rerun()
+                else:
+                    st.info("No matching student profile records found in the database.")
+            except Exception as e:
+                st.error(f"Error displaying student summary ledger: {e}")
