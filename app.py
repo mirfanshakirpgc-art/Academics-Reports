@@ -1,6 +1,14 @@
 # =========================================================
 # 🎓 CONCORDIA ACADEMIC DATA MAPPING REFERENCE ENGINE
 # =========================================================
+import streamlit as st
+import pandas as pd
+import numpy as np
+import sqlite3
+import os
+import base64
+from sqlalchemy import create_engine, text
+import streamlit.components.v1 as components
 
 AVAILABLE_DISCIPLINE = [
     "MEDICAL", 
@@ -28,19 +36,11 @@ DISCIPLINE_SUBJECTS_MAP = {
     "COMMERCE": ["ACCOUNTING", "COMMERCE", "ECONOMICS", "B_MATH", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
     "HUMANITIES": ["CIVICS", "HISTORY", "ISLAMIAT_ELECTIVE", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"]
 }
-# ==============================================================================
-# 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
-# ==============================================================================
-import streamlit as st
-import pandas as pd
-import sqlite3
-import os
-import base64
 
+# --- LOGO COMPILATION SUBSYSTEM ---
 logo_filename = "logo.png"
 logo_base64 = ""
 
-# Pre-load and encode logo globally so any module can read it instantly
 if os.path.exists(logo_filename):
     try:
         with open(logo_filename, "rb") as image_file:
@@ -50,31 +50,6 @@ if os.path.exists(logo_filename):
             logo_base64 = f"data:image/{ext};base64,{encoded_string}"
     except Exception:
         pass
-
-# ==============================================================================
-# 2. YOUR REST OF THE CODE CONTINUES BELOW HERE...
-# ==============================================================================
-import os
-import base64
-
-# --- GLOBAL SETTINGS (Prevents NameErrors anywhere in the app) ---
-logo_filename = "logo.png" 
-logo_base64 = ""
-
-if os.path.exists(logo_filename):
-    try:
-        with open(logo_filename, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            if ext == "jpg": ext = "jpeg"
-            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
-    except Exception:
-        pass
-import streamlit as st
-import pandas as pd
-import numpy as np
-from sqlalchemy import create_engine, text
-import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
@@ -97,7 +72,6 @@ if "assigned_subject" not in st.session_state:
 
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
-    # Display the official logo centered or cleanly sized on the login page
     st.image("logo.png", width=120) 
     st.title("Concordia College Kasur")
     
@@ -166,9 +140,8 @@ def run_query(query, params=None):
 def run_update(query, params=None):
     if params is None:
         params = {}
-    # This uses your existing 'engine' and automatically handles COMMITs!
     with engine.begin() as conn:
-        conn.execute(text(query), params)
+        return conn.execute(text(query), params)
 
 def execute_db_command(command, params=None):
     if params is None:
@@ -184,28 +157,6 @@ menu_choice = st.sidebar.radio(
     ["📊 Home Dashboard", "➕ Add Students", "📝 Enter Marks & Attendance", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "Student Management", "👨‍🏫 Teacher Management", "🎓 Promote Students"]
 )
 
-# --- MAP CONFIGURATIONS ---
-DISCIPLINE_SUBJECTS_MAP = {
-    "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "ENGINEERING": ["CHEMISTRY", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "ICS_PHYSICS": ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "ICS_STATS": ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "COMMERCE": ["POA", "POC", "B_MATH", "POE", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "HUMANITIES": ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "INFORMATION_TECHNOLOGY": ["COMPUTER_1", "COMPUTER_2", "COMPUTER_3", "COMPUTER_4", "COMPUTER_5"]
-}
-
-DISCIPLINE_SECTIONS_MAP = {
-    "MEDICAL": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-    "ENGINEERING": ["EG_BLUE", "EB_BLUE"],
-    "ICS_PHYSICS": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
-    "ICS_STATS": ["CG_STATS", "CB_STATS"],
-    "COMMERCE": ["IG", "IB"],
-    "HUMANITIES": ["FB", "FG"],
-    "INFORMATION_TECHNOLOGY": ["DITB", "DITG"]
-}
-
-AVAILABLE_DISCIPLINE = list(DISCIPLINE_SUBJECTS_MAP.keys())
 AVAILABLE_EXAMS = [
     "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
     "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
@@ -246,76 +197,7 @@ elif menu_choice == "➕ Add Students":
                 added_counter += 1
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
-Looking closely at your active dashboard layout screenshots (`image_3bfbc0.png`, `image_0ff1ad.png`, `image_04fdfd.png`) alongside your data roadmap (`image_105ea6.png`), the core missing connection is plain as day.
-
-# =========================================================
-# 🎓 CONCORDIA ACADEMIC DATA MAPPING REFERENCE ENGINE
-# =========================================================
-
-AVAILABLE_DISCIPLINE = [
-    "MEDICAL", 
-    "ENGINEERING", 
-    "ICS_PHYSICS", 
-    "ICS_STATISTICS", 
-    "COMMERCE", 
-    "HUMANITIES"
-]
-
-DISCIPLINE_SECTIONS_MAP = {
-    "MEDICAL": ["MQ1", "MQ2", "MK1"],
-    "ENGINEERING": ["EK1", "EQ1"],
-    "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
-    "ICS_STATISTICS": ["CQ3", "CK3"],
-    "COMMERCE": ["IQ1", "IK1"],
-    "HUMANITIES": ["FQ1", "FK1"]
-}
-
-DISCIPLINE_SUBJECTS_MAP = {
-    "MEDICAL": ["BIOLOGY", "CHEMISTRY", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "ENGINEERING": ["MATHEMATICS", "CHEMISTRY", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "ICS_PHYSICS": ["COMPUTER", "MATHEMATICS", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "ICS_STATISTICS": ["COMPUTER", "MATHEMATICS", "STATISTICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "COMMERCE": ["ACCOUNTING", "COMMERCE", "ECONOMICS", "B_MATH", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "HUMANITIES": ["CIVICS", "HISTORY", "ISLAMIAT_ELECTIVE", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"]
-}
-
-AVAILABLE_DISCIPLINE = [
-    "MEDICAL", 
-    "ENGINEERING", 
-    "ICS_PHYSICS", 
-    "ICS_STATISTICS", 
-    "COMMERCE", 
-    "HUMANITIES"
-]
-
-DISCIPLINE_SECTIONS_MAP = {
-    "MEDICAL": ["MQ1", "MQ2", "MK1"],
-    "ENGINEERING": ["EK1", "EQ1"],
-    "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
-    "ICS_STATISTICS": ["CQ3", "CK3"],
-    "COMMERCE": ["IQ1", "IK1"],
-    "HUMANITIES": ["FQ1", "FK1"]
-}
-
-DISCIPLINE_SUBJECTS_MAP = {
-    "MEDICAL": ["BIOLOGY", "CHEMISTRY", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "ENGINEERING": ["MATHEMATICS", "CHEMISTRY", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "ICS_PHYSICS": ["COMPUTER", "MATHEMATICS", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "ICS_STATISTICS": ["COMPUTER", "MATHEMATICS", "STATISTICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "COMMERCE": ["ACCOUNTING", "COMMERCE", "ECONOMICS", "B_MATH", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
-    "HUMANITIES": ["CIVICS", "HISTORY", "ISLAMIAT_ELECTIVE", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"]
-}
-
-```
-
-### 📋 Clean Intake Module Implementation Code
-
-Once your global mappings are updated at the top, replace your complete data intake dashboard section block down below. This code reads directly from your new mapping architecture so your inputs dynamically adapt based on the selected discipline profile:
-
-```python
-# ---------------------------------------------------------
-# 📝 ENTER MARKS & ATTENDANCE MODULE
-# ---------------------------------------------------------
+# ----------------- 📝 ENTER MARKS & ATTENDANCE MODULE -----------------
 elif menu_choice == "📝 Enter Marks & Attendance":
     st.title("📝 Data Intake Management Dashboard")
     sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
@@ -324,9 +206,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
     current_user_id = st.session_state.get('user_id', None)
     current_role = st.session_state.get('role', st.session_state.get('user_role', 'teacher'))
 
-    # =========================================================
-    # 1. ACADEMIC EXAM MARKS ENTRY SUB-MODULE
-    # =========================================================
     if sub_tab_selection == "📝 Academic Exam Marks Entry":
         entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
         st.markdown("---")
@@ -408,9 +287,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 except Exception as e:
                     st.error(f"Database sync issue: {e}")
 
-    # =========================================================
-    # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE
-    # =========================================================
     elif sub_tab_selection == "📅 Monthly Attendance Entry":
         st.subheader("📅 Monthly Attendance Workspace")
         att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode")
@@ -486,17 +362,14 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 except Exception as e:
                     st.error(f"Attendance sync error: {e}")
 
-# ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
+# ----------------- 📋 SECTION SUMMARY REPORT -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
     col_a, col_b, col_c = st.columns(3)
     with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
     with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
     with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
-
-```
     
-    # Simple dictionary mapping for short-form subject names
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH",
         "COMPUTER SCIENCE": "COMP",
@@ -510,7 +383,6 @@ elif menu_choice == "📋 Section Summary Report":
         "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class" 
         FROM students 
@@ -521,7 +393,6 @@ elif menu_choice == "📋 Section Summary Report":
     if not students_df.empty:
         subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
         
-     # 2. Fetch Marks Entries (Synchronized to exclude LEFT statuses)
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
@@ -532,13 +403,11 @@ elif menu_choice == "📋 Section Summary Report":
         """, {"section": sel_sec, "exam": sel_exam})
         
         if marks_df.empty:
-            st.warning(f"⚠️ No marks data found in the database for Section **{sel_sec}** under Exam Cycle **{sel_exam}**. Please make sure marks have been saved in the 'Enter Marks & Attendance' module.")
+            st.warning(f"⚠️ No marks data found in the database for Section **{sel_sec}** under Exam Cycle **{sel_exam}**.")
             
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
-            
-            # Fetch status safely from row data (defaulting to 'Active')
             s_status = s_row["Status"] if "Status" in s_row and pd.notna(s_row["Status"]) else "Active"
             
             entry = {
@@ -557,7 +426,6 @@ elif menu_choice == "📋 Section Summary Report":
             for sub in subjects:
                 sub_upper = sub.upper().strip()
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
-                
                 sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
                 
                 if not sub_match.empty:
@@ -581,7 +449,6 @@ elif menu_choice == "📋 Section Summary Report":
                 else:
                     entry[short_sub] = "-"
 
-            # Dynamic total calculation rules
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
                 entry["Total Max"] = int(max_total)
@@ -596,23 +463,18 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-      # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
-        # Generate clean short form subject labels without "(Obt)"
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
-        # Dynamic Rows Compilation
         tbody_rows_html = ""
         for _, row in final_report_df.iterrows():
             s_id = row["ID"]
             current_status = row["Status"]
             
-            # Dynamic visual status badge for Re-Active student profiles
             status_badge = ""
             if current_status == "Re-Active":
                 status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
             
-            # Find old/hidden subject marks that aren't part of this student's current layout mapping
             old_marks_badges = []
             hidden_marks_df = marks_df[marks_df["student_id"] == s_id]
             for _, h_row in hidden_marks_df.iterrows():
@@ -623,131 +485,7 @@ elif menu_choice == "📋 Section Summary Report":
             
             history_str = ""
             if old_marks_badges:
-                history_str = f"<br><span style='color: #d35400; font-size: 11px; font-style: italic;'>Dropped ({', '.join(old_marks_badges)})</span>"
-            
-            row_subjects_cells = ""
-            for lbl in short_subject_labels:
-                cell_val = str(row[lbl])
-                cell_style = "color: #e74c3c; font-weight: bold;" if cell_val in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_val == "NC" else "")
-                row_subjects_cells += f'<td style="{cell_style}">{cell_val}</td>'
-            
-            tbody_rows_html += f"""
-            <tr>
-                <td>{row['ID']}</td>
-                <td style="text-align: left; font-weight: bold; padding-left: 12px;">
-                    {row['Student Name']} {status_badge} {history_str}
-                </td>
-                <td>{row['Section']}</td>
-                <td>{row['Class']}</td>
-                {row_subjects_cells}
-                <td style="font-weight: bold; background-color: #fcfcfc;">{row['Total (Obt)']}</td>
-                <td style="font-weight: bold; color: #555; background-color: #fcfcfc;">{row['Total Max']}</td>
-            </tr>
-            """
-            
-        logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-        
-        # HTML Rendering Payload Configuration
-        analytics_html_payload = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-        <style>
-            body {{ font-family: "Segoe UI", Arial, sans-serif; color: #333; background-color: #fff; margin: 0; padding: 10px; }}
-            .report-wrapper-container {{ max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
-            
-            /* TOP ACTION UTILITIES PANEL */
-            .action-panel-bar {{ display: flex; gap: 12px; margin-bottom: 22px; }}
-            .btn-action {{ padding: 10px 22px; font-weight: bold; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }}
-            .btn-print {{ background: #222; color: #fff; }}
-            .btn-image {{ background: #0066cc; color: #fff; }}
-            .btn-action:hover {{ opacity: 0.9; }}
-            
-            /* OFFICIAL BRAND BANNER HEADER */
-            .header-banner {{ display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 20px; }}
-            .header-branding {{ text-align: left; }}
-            .inst-title {{ font-size: 24px; font-weight: 800; color: #111; letter-spacing: 0.5px; margin: 0; }}
-            .doc-subtitle {{ font-size: 15px; color: #555; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
-            .meta-details {{ text-align: right; font-size: 13px; color: #444; line-height: 1.5; }}
-            .brand-logo-img {{ max-height: 55px; width: auto; object-fit: contain; }}
-            
-            /* DATA LEDGER TABLE GRID STRUCTURE */
-            .analytics-grid-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
-            .analytics-grid-table th, .analytics-grid-table td {{ border: 1px solid #dcdcdc; padding: 10px 8px; text-align: center; }}
-            .analytics-grid-table th {{ background-color: #f8f9fa; font-weight: 700; color: #2c3e50; white-space: nowrap; }}
-            .analytics-grid-table tr:nth-child(even) {{ background-color: #fbfbfb; }}
-            .analytics-grid-table tr:hover {{ background-color: #f5f7fa; }}
-            
-            @media print {{
-                .action-panel-bar {{ display: none !important; }}
-                body {{ padding: 0; margin: 0; }}
-                .report-wrapper-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; }}
-            }}
-        </style>
-        </head>
-        <body>
-            <div class="action-panel-bar">
-                <button class="btn-action btn-print" onclick="window.print();">🖨️ Print Summary Ledger</button>
-                <button class="btn-action btn-image" id="capture-summary-trigger">📸 Save Layout As Image</button>
-            </div>
-            
-            <div class="report-wrapper-container" id="printable-summary-target">
-                <div class="header-banner">
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <img class="brand-logo-img" src="{logo_url}" alt="Logo">
-                        <div class="header-branding">
-                            <h1 class="inst-title">CONCORDIA COLLEGE KASUR</h1>
-                            <div class="doc-subtitle">Section Performance Summary Report</div>
-                        </div>
-                    </div>
-                    <div class="meta-details">
-                        <b>Discipline:</b> {sel_disc}<br>
-                        <b>Section Block:</b> {sel_sec}<br>
-                        <b>Exam Phase:</b> {sel_exam}
-                    </div>
-                </div>
-                
-                <table class="analytics-grid-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 7%;">ID</th>
-                            <th style="text-align: left; padding-left: 12px;">Student Name</th>
-                            <th style="width: 9%;">Section</th>
-                            <th style="width: 7%;">Class</th>
-                            {thead_subjects_html}
-                            <th style="background-color: #f1f3f5; width: 10%;">Total (Obt)</th>
-                            <th style="background-color: #f1f3f5; width: 9%;">Total Max</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tbody_rows_html}
-                    </tbody>
-                </table>
-            </div>
-
-            <script>
-                document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
-                    const targetEl = document.getElementById('printable-summary-target');
-                    const filenameStr = "Summary_Report_{sel_sec}_{sel_exam}.png";
-                    
-                    html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
-                        const linkHook = document.createElement('a');
-                        linkHook.download = filenameStr;
-                        linkHook.href = canvas.toDataURL('image/png');
-                        linkHook.click();
-                    }});
-                }});
-            </script>
-        </body>
-        </html>
-        """
-        
-        # Render components safely
-        components.html(analytics_html_payload, height=750, scrolling=True)
-        
-    else:
-        st.info("💡 No active student profiles loaded under this section yet.")
+                history_str = f"<br><span style='color: #d3
 
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
