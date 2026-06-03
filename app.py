@@ -2470,6 +2470,8 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
+    st.markdown("---")
+
     # --- SECTION 2: TARGET ENVIRONMENT CONFIGURATION ---
     st.subheader("🎯 Step 2: Configure Destination Environment")
     
@@ -2479,11 +2481,9 @@ elif menu_choice == "🎓 Promote Students":
     tgt_c1, tgt_c2 = st.columns(2)
     
     with tgt_c2:
-        # Render the discipline dropdown first so it's guaranteed to initialize
         selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
 
     with tgt_c1:
-        # Safely filter sections based on chosen discipline
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
         if "MEDICAL" in disc_upper:
@@ -2509,53 +2509,58 @@ elif menu_choice == "🎓 Promote Students":
 
     # 3️⃣ Fetch baseline subjects
     base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
-    
-    # 🧠 Dynamic Conditional Visibility Framework
-    if source_class == "11th" and "COMMERCE" in disc_upper:
-        transformed_subjects = []
-        
-        # We will iterate by index position to ensure we catch every item safely
+    transformed_subjects = []
+
+    # 🧠 UNIVERSAL 12th GRADE REPLACEMENT ENGINE (Runs for ALL disciplines moving to 12th)
+    if source_class == "11th":
         for idx, sub in enumerate(base_subjects):
             sub_clean = sub.strip().upper().replace(".", "").replace(" ", "")
             
-            # 1. Catch Math (e.g., BMATH, MATH, BUSINESSMATH, BUSMATH)
-            if "MAT" in sub_clean:
-                transformed_subjects.append("B_Stats")
+            # A. Universal Rule: Swap Isl_Eth for Pak. Studies
+            if "ISL" in sub_clean or "ETH" in sub_clean or "RELI" in sub_clean:
+                transformed_subjects.append("Pak. Studies")
                 
-            # 2. Catch Commerce (e.g., POC, COMMERCE, PRINCIPLESOFCOMMERCE)
-            elif "COM" in sub_clean or "POC" in sub_clean:
-                transformed_subjects.append("Geo")
-                
-            # 3. Catch Economics OR treat the 5th/6th slot as Economics if it's an abbreviation
-            elif "ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean or idx >= 3:
-                # If it's already converted by previous slots, don't overwrite generic subjects like English/Urdu
-                if sub_clean in ["ENGLISH", "URDU", "ISLAMIAT", "PAKSTUDIES"]:
-                    transformed_subjects.append(sub)
+            # B. Specific Sub-Rules for Commerce Track
+            elif "COMMERCE" in disc_upper:
+                if "MAT" in sub_clean:
+                    transformed_subjects.append("B_Stats")
+                elif "COM" in sub_clean or "POC" in sub_clean:
+                    transformed_subjects.append("Geo")
+                elif "ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean or idx >= 3:
+                    # Guard generic languages from getting overwritten by index fallbacks
+                    if sub_clean in ["ENGLISH", "URDU"]:
+                        transformed_subjects.append(sub)
+                    else:
+                        transformed_subjects.append("Banking")
                 else:
-                    transformed_subjects.append("Banking")
+                    transformed_subjects.append(sub)
+                    
+            # C. All other disciplines pass through safely with just the Isl_Eth swap applied
             else:
                 transformed_subjects.append(sub)
-
-        # 🚨 EMERGENCY VERIFIER: If 'Banking' was still skipped by the conditions, force it in!
-        if "Banking" not in transformed_subjects:
-            # Swap the first non-standard course or append it directly
+                
+        # Final safety catch to guarantee Banking makes it onto Commerce strings regardless of dictionary indexes
+        if "COMMERCE" in disc_upper and "Banking" not in transformed_subjects:
             transformed_subjects.append("Banking")
+    else:
+        # If already 12th/Alumni, don't alter lists
+        transformed_subjects = base_subjects
 
-        # Show the subject customization dropdown ONLY for Commerce
+    # De-duplicate clean list items
+    final_subjects_list = sorted(list(set(transformed_subjects)))
+
+    # 4️⃣ Dynamic Conditional Visibility Framework
+    if source_class == "11th" and "COMMERCE" in disc_upper:
         st.markdown("#### 📚 Adjust 12th Grade Commerce Curriculum Map")
-        
-        # Print out exactly what your app sees to help us debug visually
-        st.info(f"📋 **Commerce 11th Raw Map detected:** {base_subjects}")
-        
         target_subjects = st.multiselect(
-            "Modify or verify tracking subject mappings for upcoming year:", 
-            list(set(transformed_subjects)), # Unique list item filter
-            default=list(set(transformed_subjects)),
+            "Verify tracking subject mappings for upcoming year:", 
+            final_subjects_list, 
+            default=final_subjects_list,
             key=f"promo_subjects_{source_class}_{selected_discipline.replace(' ', '_')}"
         )
     else:
-        # For all other disciplines, hide the multiselect entirely and assign default subjects automatically
-        target_subjects = base_subjects
+        # Silently process all other groups without throwing rendering blocks on screen
+        target_subjects = final_subjects_list
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
 
