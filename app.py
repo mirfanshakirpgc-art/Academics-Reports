@@ -1955,6 +1955,11 @@ elif menu_choice == "🪪 Student Result Cards":
     elif menu_choice == "Student Management":
     st.title("👥 Student Profile Management & Registration")
     st.info("Register and manage student profiles. Dropdown values are pulled directly from your Configuration Master Module.")
+    
+    # 1. Initialize students database schema safely
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS students (
+...
 
     # 1. Initialize students database schema safely
     execute_db_command("""
