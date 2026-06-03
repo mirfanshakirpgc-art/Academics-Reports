@@ -183,6 +183,9 @@ AVAILABLE_EXAMS = [
 ]
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 
+# --- GLOBAL ACADEMIC CONSTANTS ---
+AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
+
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
     st.title("Concordia College Kasur")
@@ -2408,87 +2411,45 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
-# ---------------------------------------------------------
-# 🎓 STANDALONE STUDENT PROMOTION MODULE
-# ---------------------------------------------------------
-if menu_choice == "🎓 Promote Students":
-    st.title("🎓 Year-End Student Promotion Workspace")
-    st.markdown("This utility shifts an entire class cohort into a new academic year.")
-    st.markdown("---")
-
-    st.subheader("1. Identify Current Cohort")
-    col_s1, col_s2, col_s3 = st.columns(3)
-    with col_s1:
-        current_promo_session = st.selectbox("Current Active Session:", ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], index=1, key="standalone_src_sess")
-    with col_s2:
-        all_flat_sections = sorted(list(set(sum(DISCIPLINE_SECTIONS_MAP.values(), []))))
-        current_promo_sec = st.selectbox("Current Roster Section:", all_flat_sections, key="standalone_src_sec")
-    with col_s3:
-        current_promo_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0, key="standalone_src_class")
-
-    promo_candidates = run_query("""
-        SELECT id AS "Roll No", name AS "Student Name", class AS "Class", section AS "Section", session AS "Session"
-        FROM students
-        WHERE UPPER(TRIM(REPLACE(section, ' ', ''))) = UPPER(TRIM(REPLACE(:sec, ' ', '')))
-          AND REPLACE(UPPER(TRIM(class)), '''', '') IN (UPPER(TRIM(:cls)), UPPER(TRIM(REPLACE(:cls, 'th', ''))))
-          AND UPPER(TRIM(session)) = UPPER(TRIM(:sess))
-          AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
-        ORDER BY id ASC
-    """, {"sec": current_promo_sec, "cls": current_promo_class, "sess": current_promo_session})
-
-    if promo_candidates.empty:
-        st.warning(f"⚠️ No active students found matching Session ({current_promo_session}), Section ({current_promo_sec}), and Class ({current_promo_class}).")
+# ----------------- 🎓 PROMOTE STUDENTS -----------------
+elif menu_choice == "🎓 Promote Students":
+    st.title("🎓 End-of-Year Class Promotion Panel")
+    st.write("Shifting student class levels while preserving their tracking academic intake session lifecycle.")
+    
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        promo_session = st.selectbox("Select Target Session to Promote:", AVAILABLE_SESSIONS, index=1, key="promo_sess")
+    with col_p2:
+        source_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0)
         
-        with st.expander("🔍 Click here to inspect actual data formatting present in your Database"):
-            debug_df = run_query("""
-                SELECT class AS "Class in DB", section AS "Section in DB", session AS "Session in DB", COUNT(*) as "Total Students" 
-                FROM students 
-                GROUP BY class, section, session 
-                LIMIT 15
-            """)
-            if not debug_df.empty:
-                st.dataframe(debug_df, use_container_width=True)
+    # Query to preview who will be affected before pulling the trigger
+    preview_df = run_query(
+        "SELECT id, name, section, class, session FROM students WHERE session = :sess AND class = :cls ORDER BY id ASC",
+        {"sess": promo_session, "cls": source_class}
+    )
+    
+    if preview_df.empty:
+        st.info(f"💡 No active student records found matching **{source_class}** in Session **{promo_session}**.")
     else:
-        st.success(f"📈 Found {len(promo_candidates)} student profiles eligible for promotion processing.")
-        st.dataframe(promo_candidates, use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("2. Configure Promotion Target")
-        col_t1, col_t2, col_t3 = st.columns(3)
-        with col_t1:
-            target_promo_session = st.selectbox(
-                "Next Academic Session:", 
-                ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], 
-                index=["2024-2026", "2025-2027", "2026-2028", "2027-2029"].index(current_promo_session), 
-                key="standalone_tgt_sess"
-            )
-        with col_t2:
-            target_promo_sec = st.selectbox("Target Assignment Section:", all_flat_sections, key="standalone_tgt_sec")
-        with col_t3:
-            target_promo_class = st.selectbox("Target Class Level:", ["12th", "Pass Out"], index=0, key="standalone_tgt_class")
-
-        st.markdown("---")
-        st.subheader("3. Finalize Batch Migration")
-        confirm_gate = st.checkbox("I verify that all academic marks entries for this active cohort are completely recorded and locked.")
-
-        if st.button("🚀 Process Bulk Roster Promotion", type="primary", disabled=not confirm_gate):
-            candidate_ids = promo_candidates["Roll No"].tolist()
-            try:
-                for s_id in candidate_ids:
-                    execute_db_command("""
-                        UPDATE students 
-                        SET class = :next_class, 
-                            section = :next_section, 
-                            session = :next_session
-                        WHERE id = :student_id
-                    """, {
-                        "next_class": target_promo_class,
-                        "next_section": target_promo_sec,
-                        "next_session": target_promo_session,
-                        "student_id": int(s_id)
-                    })
-                st.balloons()
-                st.success(f"🎉 Promotion successful! {len(candidate_ids)} profiles cleanly shifted!")
+        st.dataframe(preview_df, use_container_width=True)
+        st.warning(f"⚠️ **Action Notice:** You are about to modify {len(preview_df)} student profile structures permanently.")
+        
+        if source_class == "11th":
+            confirm_btn = st.button(f"🚀 Mass Promote 11th ➔ 12th ({promo_session})", type="primary")
+            if confirm_btn:
+                execute_db_command(
+                    "UPDATE students SET class = '12th' WHERE session = :sess AND class = '11th'",
+                    {"sess": promo_session}
+                )
+                st.success(f"🎉 Success! All 11th-grade students in Session {promo_session} have been promoted to 12th grade.")
                 st.rerun()
-            except Exception as error:
-                st.error(f"Migration operational failure: {error}")
+                
+        elif source_class == "12th":
+            st.error("❗ Graduation Check: 12th-grade students cannot be promoted higher. Would you like to mark them as Alumni / Left?")
+            if st.button("🎓 Graduate Session / Mark as Left"):
+                execute_db_command(
+                    "UPDATE students SET status = 'LEFT' WHERE session = :sess AND class = '12th'",
+                    {"sess": promo_session}
+                )
+                st.success(f"📦 Session {promo_session} 12th-grade records archived safely as completed.")
+                st.rerun()
