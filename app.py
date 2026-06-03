@@ -2506,29 +2506,35 @@ elif menu_choice == "🎓 Promote Students":
         for sub in base_subjects:
             sub_clean = sub.strip().upper().replace(".", "").replace(" ", "")
             
-            # Universal Change (All tracks): Isl_Eth -> Pak. Studies
+            # Catch Universal Replacement
             if "ISL" in sub_clean or "ETH" in sub_clean:
                 if "Pak. Studies" not in replaced_subjects:
                     replaced_subjects.append("Pak. Studies")
-            
-            # Commerce Track Changes
-            elif "COMMERCE" in disc_upper and ("MAT" in sub_clean or "MATH" in sub_clean):
+                    
+            # Catch Commerce Specific Replacements
+            elif "COMMERCE" in disc_upper and ("MAT" in sub_clean or "MATH" in sub_clean or sub_clean == "BM"):
                 replaced_subjects.append("B_Stats")
-            elif "COMMERCE" in disc_upper and ("ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean):
-                replaced_subjects.append("Banking")
+                
+            # 🎯 FIXED HERE: Added "POE" and "POA" check to catch Principles of Economics / Accounts safely
+            elif "COMMERCE" in disc_upper and ("ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean or "POE" in sub_clean):
+                if "Banking" not in replaced_subjects:
+                    replaced_subjects.append("Banking")
+                    
             elif "COMMERCE" in disc_upper and ("COM" in sub_clean or "POC" in sub_clean):
                 replaced_subjects.append("Geo")
                 
-            # Default: Subject continues unchanged
+            # Otherwise, it stays exactly the same as 11th Grade
             else:
                 fixed_subjects.append(sub)
                 
-        # Structural enforcement row for Commerce tracking values
+        # Commerce safety check to make sure all three replacements are grouped properly
         if "COMMERCE" in disc_upper:
             for forced_sub in ["B_Stats", "Banking", "Geo"]:
                 if forced_sub not in replaced_subjects:
                     replaced_subjects.append(forced_sub)
-            fixed_subjects = [f for f in fixed_subjects if not any(k in f.upper() for k in ["MATH", "ECO", "POC", "COM"])]
+                    
+            # 🎯 FIXED HERE: Cleans out "POE" and "POA" variants from leaking into fixed row layout
+            fixed_subjects = [f for f in fixed_subjects if not any(k in f.upper() for k in ["MATH", "ECO", "POC", "COM", "POE"])]
     else:
         fixed_subjects = base_subjects
 
