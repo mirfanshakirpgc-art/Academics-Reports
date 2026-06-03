@@ -2515,9 +2515,9 @@ elif menu_choice == "🎓 Promote Students":
             sub_clean = sub.strip().upper()
             if "B_MATH" in sub_clean:
                 available_subjects.append("B_Stats")
-            elif "ECONOMIC" in sub_clean:
+            if "ECONOMIC" in sub_clean:
                 available_subjects.append("Banking")
-            elif "COMMERCE" in sub_clean:
+            if "COMMERCE" in sub_clean:
                 available_subjects.append("Geo")
             else:
                 available_subjects.append(sub)
