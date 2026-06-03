@@ -2093,9 +2093,10 @@ elif menu_choice == "🪪 Student Result Cards":
                 st.info("No matching student profile records found in the database.")
         except Exception as e:
             st.error(f"Error displaying student summary ledger: {e}")
+# ---------------------------------------------------------
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
-if menu_choice == "👨‍🏫 Teacher Management":
+elif menu_choice == "👨‍🏫 Teacher Management":
     st.title("👨‍🏫 Teacher Allocation & Performance Engine")
     
     # Safely acquire access credentials
@@ -2109,6 +2110,16 @@ if menu_choice == "👨‍🏫 Teacher Management":
         
     sub_menu = st.sidebar.radio("Navigate Module:", menu_options, key="teacher_sub_menu")
 
+    # Ensure assignments storage index mapping table runs cleanly
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS allocations (
+            id SERIAL PRIMARY KEY,
+            user_id INT NOT NULL,
+            subject VARCHAR(100) NOT NULL,
+            section VARCHAR(100) NOT NULL
+        );
+    """)
+
     # ---------------------------------------------------------
     # SUB-MODULE A: SUBJECT ALLOCATIONS
     # ---------------------------------------------------------
@@ -2120,28 +2131,41 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not teachers_df.empty:
             t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
             
+            # DYNAMIC MASTER UPGRADE: Pull directly from database registries instead of hardcoded maps
+            try:
+                df_subs = get_registry_options("SUBJECT")
+                df_secs = get_registry_options("SECTION")
+            except Exception as e:
+                st.error(f"Failed to load systemic parameters configuration: {e}")
+                st.stop()
+
+            all_subs = sorted(list(df_subs['item_value'].unique())) if not df_subs.empty else ["Math", "English", "Science"]
+            all_secs = sorted(list(df_secs['item_value'].unique())) if not df_secs.empty else ["A", "B", "C"]
+            
+            # Map values back to their original master keys for standard database writes
+            sub_key_map = {r['item_value']: r['item_key'] for _, r in df_subs.iterrows()} if not df_subs.empty else {}
+            sec_key_map = {r['item_value']: r['item_key'] for _, r in df_secs.iterrows()} if not df_secs.empty else {}
+
             col_a1, col_a2, col_a3 = st.columns(3)
             with col_a1: selected_t = st.selectbox("Select Teacher Account:", options=list(t_options.keys()))
-            with col_a2: 
-                all_subs = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs]))) if 'DISCIPLINE_SUBJECTS_MAP' in globals() else ["Math", "English", "Science"]
-                selected_sub = st.selectbox("Select Subject:", options=all_subs)
-            with col_a3:
-                all_secs = sorted(list(set([sec for secs in DISCIPLINE_SECTIONS_MAP.values() for sec in secs]))) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["A", "B", "C"]
-                selected_sec = st.selectbox("Assign Section:", options=all_secs)
+            with col_a2: selected_sub = st.selectbox("Select Subject:", options=all_subs)
+            with col_a3: selected_sec = st.selectbox("Assign Section:", options=all_secs)
                 
             if st.button("🔒 Authorize Data Entry Rights"):
                 target_user_id = int(t_options[selected_t])
+                target_sub_key = sub_key_map.get(selected_sub, selected_sub)
+                target_sec_key = sec_key_map.get(selected_sec, selected_sec)
                 
                 check_dup = run_query("""
                     SELECT id FROM allocations 
                     WHERE user_id = :uid AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-                """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
+                """, {"uid": target_user_id, "sub": target_sub_key, "sec": target_sec_key})
                 
                 if check_dup.empty:
                     execute_db_command("""
                         INSERT INTO allocations (user_id, subject, section) 
                         VALUES (:uid, :sub, :sec)
-                    """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
+                    """, {"uid": target_user_id, "sub": target_sub_key, "sec": target_sec_key})
                     st.success(f"Access granted! {selected_t} can now manage {selected_sub} in Section {selected_sec}.")
                     st.rerun()
                 else:
@@ -2150,9 +2174,11 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.markdown("---")
             st.write("#### Active Institutional Rights Log")
             alloc_log = run_query("""
-                SELECT a.id, u.username as teacher, a.subject, a.section 
+                SELECT a.id, u.username as teacher, m_sub.item_value as subject, m_sec.item_value as section 
                 FROM allocations a
                 JOIN app_users u ON a.user_id = u.id
+                LEFT JOIN master_registry m_sub ON a.subject = m_sub.item_key AND m_sub.item_type = 'SUBJECT'
+                LEFT JOIN master_registry m_sec ON a.section = m_sec.item_key AND m_sec.item_type = 'SECTION'
                 ORDER BY u.username ASC
             """)
             if not alloc_log.empty:
@@ -2176,34 +2202,54 @@ if menu_choice == "👨‍🏫 Teacher Management":
             uid = None
             
         if uid is not None:
-            my_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": uid})
+            my_rights = run_query("""
+                SELECT a.subject as sub_key, m_sub.item_value as sub_val, a.section as sec_key, m_sec.item_value as sec_val
+                FROM allocations a
+                LEFT JOIN master_registry m_sub ON a.subject = m_sub.item_key AND m_sub.item_type = 'SUBJECT'
+                LEFT JOIN master_registry m_sec ON a.section = m_sec.item_key AND m_sec.item_type = 'SECTION'
+                WHERE a.user_id = :uid
+            """, {"uid": uid})
             
             if not my_rights.empty:
                 col_m1, col_m2 = st.columns(2)
-                with col_m1: 
-                    allocated_subs = my_rights['subject'].unique()
-                    sel_sub = st.selectbox("Assigned Subjects:", options=allocated_subs)
-                with col_m2:
-                    allocated_secs = my_rights[my_rights['subject'] == sel_sub]['section'].unique()
-                    sel_sec = st.selectbox("Assigned Sections:", options=allocated_secs)
                 
-                exams_list = AVAILABLE_EXAMS if 'AVAILABLE_EXAMS' in globals() else ["Mid Term", "Final Exam"]
+                sub_opts = {row['sub_val']: row['sub_key'] for _, row in my_rights.iterrows() if row['sub_val']}
+                sec_opts = {row['sec_val']: row['sec_key'] for _, row in my_rights.iterrows() if row['sec_val']}
+                
+                with col_m1: sel_sub_val = st.selectbox("Assigned Subjects:", options=list(sub_opts.keys()))
+                with col_m2: sel_sec_val = st.selectbox("Assigned Sections:", options=list(sec_opts.keys()))
+                
+                sel_sub_key = sub_opts[sel_sub_val]
+                sel_sec_key = sec_opts[sel_sec_val]
+                
+                try:
+                    df_exams = get_registry_options("TEST_TYPE")
+                    exams_list = list(df_exams['item_value'].unique()) if not df_exams.empty else ["Mid Term", "Final Exam"]
+                except Exception:
+                    exams_list = ["Mid Term", "Final Exam"]
+                    
                 sel_exam = st.selectbox("Target Assessment Term Type:", options=exams_list)
                 
-                students = run_query("SELECT id, name FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec)) ORDER BY id ASC", {"sec": sel_sec})
+                # REFACTORED QUERY: Matches against your master student tracking structure
+                students = run_query("""
+                    SELECT student_id, admission_no, student_name FROM students 
+                    WHERE section_key = :sec AND is_active = TRUE 
+                    ORDER BY student_name ASC
+                """, {"sec": sel_sec_key})
                 
                 if not students.empty:
-                    st.info(f"Displaying Roster Table for {sel_sub} — Section: {sel_sec}")
+                    st.info(f"Displaying Roster Table for {sel_sub_val} — Section: {sel_sec_val}")
                     
                     marks_data = []
                     for _, s_row in students.iterrows():
-                        sid = s_row['id']
-                        sname = s_row['name']
+                        sid = s_row['student_id']
+                        sname = s_row['student_name']
+                        sadm = s_row['admission_no']
                         
                         existing = run_query("""
                             SELECT marks_obtained, total_marks FROM marks 
                             WHERE student_id = :sid AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND exam_type = :exam
-                        """, {"sid": sid, "sub": sel_sub, "exam": sel_exam})
+                        """, {"sid": sid, "sub": sel_sub_key, "exam": sel_exam})
                         
                         val_fill = "0"
                         tot_fill = 100
@@ -2212,8 +2258,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             tot_fill = int(existing['total_marks'].iloc[0])
                             
                         c_left, c_right = st.columns([3, 1])
-                        with c_left: m_val = st.text_input(f"ID {sid} — {sname}:", value=val_fill, key=f"m_{sid}_{sel_sub}")
-                        with c_right: t_val = st.number_input("Total Max:", min_value=10, max_value=200, value=tot_fill, key=f"t_{sid}_{sel_sub}")
+                        with c_left: m_val = st.text_input(f"[{sadm}] {sname}:", value=val_fill, key=f"m_{sid}_{sel_sub_key}")
+                        with c_right: t_val = st.number_input("Total Max:", min_value=10, max_value=200, value=tot_fill, key=f"t_{sid}_{sel_sub_key}")
                         
                         marks_data.append({"sid": sid, "obtained": m_val, "total": t_val})
                         
@@ -2222,12 +2268,12 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             execute_db_command("""
                                 DELETE FROM marks WHERE student_id = :sid 
                                 AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND exam_type = :exam
-                            """, {"sid": record['sid'], "sub": sel_sub, "exam": sel_exam})
+                            """, {"sid": record['sid'], "sub": sel_sub_key, "exam": sel_exam})
                             
                             execute_db_command("""
                                 INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
                                 VALUES (:sid, :sub, :exam, :obt, :tot)
-                            """, {"sid": record['sid'], "sub": sel_sub, "exam": sel_exam, "obt": record['obtained'].strip().upper(), "tot": record['total']})
+                            """, {"sid": record['sid'], "sub": sel_sub_key, "exam": sel_exam, "obt": record['obtained'].strip().upper(), "tot": record['total']})
                         st.success("Assessment marks record updated securely!")
                 else:
                     st.error("No students found in this section.")
@@ -2246,20 +2292,27 @@ if menu_choice == "👨‍🏫 Teacher Management":
             selected_t = st.selectbox("Select Teacher Account to Analyze:", options=list(t_options.keys()))
             uid = int(t_options[selected_t])
             
-            allocations = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": uid})
+            allocations = run_query("""
+                SELECT a.subject as sub_key, m_sub.item_value as sub_val, a.section as sec_key, m_sec.item_value as sec_val
+                FROM allocations a
+                LEFT JOIN master_registry m_sub ON a.subject = m_sub.item_key AND m_sub.item_type = 'SUBJECT'
+                LEFT JOIN master_registry m_sec ON a.section = m_sec.item_key AND m_sec.item_type = 'SECTION'
+                WHERE a.user_id = :uid
+            """, {"uid": uid})
             
             if not allocations.empty:
                 summary_metrics = []
                 for _, a_row in allocations.iterrows():
-                    sub = a_row['subject']
-                    sec = a_row['section']
+                    sub_key = a_row['sub_key']
+                    sub_val = a_row['sub_val']
+                    sec_key = a_row['sec_key']
+                    sec_val = a_row['sec_val']
                     
                     performance_data = run_query("""
                         SELECT m.marks_obtained, m.total_marks FROM marks m
-                        JOIN students s ON m.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                        AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:sub))
-                    """, {"sec": sec, "sub": sub})
+                        JOIN students s ON m.student_id = s.student_id
+                        WHERE s.section_key = :sec AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:sub))
+                    """, {"sec": sec_key, "sub": sub_key})
                     
                     if not performance_data.empty:
                         performance_data['num_obt'] = pd.to_numeric(performance_data['marks_obtained'], errors='coerce')
@@ -2271,8 +2324,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             pass_ratio = (pass_count / len(valid_scores)) * 100
                             
                             summary_metrics.append({
-                                "Subject Class": sub,
-                                "Section Group": sec,
+                                "Subject Class": sub_val,
+                                "Section Group": sec_val,
                                 "Evaluated Count": len(valid_scores),
                                 "Average Score": f"{avg_pct:.1f}%",
                                 "Passing KPI Rate": f"{pass_ratio:.1f}%"
@@ -2289,29 +2342,32 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
-    elif sub_menu == "Discipline Analysis" and 'DISCIPLINE_SUBJECTS_MAP' in globals():
+    elif sub_menu == "Discipline Analysis":
         st.subheader("🏢 High-Level Discipline Stream Overview")
         
-        exams_list = AVAILABLE_EXAMS if 'AVAILABLE_EXAMS' in globals() else ["Mid Term", "Final Exam"]
+        try:
+            df_exams = get_registry_options("TEST_TYPE")
+            exams_list = list(df_exams['item_value'].unique()) if not df_exams.empty else ["Mid Term", "Final Exam"]
+            df_disc = get_registry_options("DISCIPLINE")
+        except Exception:
+            exams_list = ["Mid Term", "Final Exam"]
+            df_disc = pd.DataFrame()
+            
         exam_term = st.selectbox("Select Academic Term Focus:", options=exams_list, key="disc_exam_focus")
         
-        discipline_summary = []
-        for disc_name, subjects in DISCIPLINE_SUBJECTS_MAP.items():
-            sections = DISCIPLINE_SECTIONS_MAP.get(disc_name, []) if 'DISCIPLINE_SECTIONS_MAP' in globals() else []
-            
-            if sections:
-                sec_placeholders = ",".join([f"'{s.upper().strip()}'" for s in sections])
-                sub_placeholders = ",".join([f"'{sub.upper().strip()}'" for sub in subjects])
+        if not df_disc.empty:
+            discipline_summary = []
+            for _, d_row in df_disc.iterrows():
+                disc_key = d_row['item_key']
+                disc_name = d_row['item_value']
                 
-                query_str = f"""
+                query_str = """
                     SELECT m.marks_obtained, m.total_marks FROM marks m
-                    JOIN students s ON m.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) IN ({sec_placeholders})
-                    AND UPPER(TRIM(m.subject)) IN ({sub_placeholders})
-                    AND m.exam_type = :exam
+                    JOIN students s ON m.student_id = s.student_id
+                    WHERE s.discipline_key = :disc_key AND m.exam_type = :exam
                 """
                 
-                disc_data = run_query(query_str, {"exam": exam_term})
+                disc_data = run_query(query_str, {"disc_key": disc_key, "exam": exam_term})
                 
                 if not disc_data.empty:
                     disc_data['num_obt'] = pd.to_numeric(disc_data['marks_obtained'], errors='coerce')
@@ -2329,9 +2385,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             "Overall Pass Percentage": f"{disc_pass_ratio:.1f}%"
                         })
                         
-        if discipline_summary:
-            st.write(f"### Comparative Stream Standings — {exam_term}")
-            st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
+            if discipline_summary:
+                st.write(f"### Comparative Stream Standings — {exam_term}")
+                st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
+            else:
+                st.info("No checked metrics recorded for this term focus criteria.")
+        else:
+            st.warning("No disciplines configured in the Master Module database framework.")
 # ---------------------------------------------------------
 # 👥 STUDENT MANAGEMENT MODULE
 # ---------------------------------------------------------
