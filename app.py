@@ -2427,7 +2427,7 @@ elif menu_choice == "🎓 Promote Students":
     with src_c3:
         promo_scope = st.radio("Promotion Scope:", ["📋 Complete Section", "👤 Single Student"], horizontal=True)
 
-    # Clean prefix generator to catch both '2025-27' and '2025-2027' records natively
+    # Wildcard prefix matching ('2025%') to unify 2-digit and 4-digit variations seamlessly
     sess_prefix = promo_session.split('-')[0] + '%' 
     
     selected_section = None
@@ -2460,17 +2460,7 @@ elif menu_choice == "🎓 Promote Students":
             chosen_stu_str = st.selectbox("Search & Select Student:", list(student_options.keys()))
             target_student_id = student_options[chosen_stu_str]
         else:
-            st.warning("⚠️ No matching student rows found matching these configuration targets.")
-
-    st.markdown("---")
-
-    st.markdown("---")
-
-    st.markdown("---")
-
-    st.markdown("---")
-
-    st.markdown("---")
+            st.warning("⚠️ No matching student records found.")
 
     st.markdown("---")
 
@@ -2478,23 +2468,25 @@ elif menu_choice == "🎓 Promote Students":
     st.subheader("🎯 Step 2: Configure Destination Environment")
     
     next_class = "12th" if source_class == "11th" else "Alumni/Left"
-    st.info(f"✨ Target Update: Status shifts from **{source_class} ➔ {next_class}** under lifecycle tracking track **{promo_session}**.")
+    st.info(f"✨ Target Update: Status shifts from **{source_class} ➔ {next_class}** under tracking pool **{promo_session}**.")
     
     tgt_c1, tgt_c2 = st.columns(2)
     
     with tgt_c2:
+        # Render the track selector first to ensure variable availability
         selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
 
     with tgt_c1:
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
+        # Exact 12th Grade dynamic section mapping routing logic
         if "MEDICAL" in disc_upper:
             available_tgt_sections = ["MQ1", "MQ2", "MK"]
         elif "ENGINEERING" in disc_upper:
             available_tgt_sections = ["EQ", "EK"]
-        elif "PHYSICS" in disc_upper:  # ICS Physics
+        elif "PHYSICS" in disc_upper:
             available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"]
-        elif "STATS" in disc_upper:    # ICS Stats
+        elif "STATS" in disc_upper:
             available_tgt_sections = ["CQ3", "CK3"]
         elif "COMMERCE" in disc_upper:
             available_tgt_sections = ["IK", "IQ"]
@@ -2503,69 +2495,54 @@ elif menu_choice == "🎓 Promote Students":
         else:
             available_tgt_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
 
-        target_section = st.selectbox(
-            "Assign to Destination Section:", 
-            available_tgt_sections, 
-            key="promo_tgt_sec"
-        )
+        target_section = st.selectbox("Assign to Destination Section:", available_tgt_sections, key="promo_tgt_sec")
 
-    # 3️⃣ Split Processing Engine: Fixed vs Replaced Curriculum
+    # 🔄 Split Curriculum Processing Engine (Fixed Rows vs Replaced Rows)
     base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
-    
     fixed_subjects = []
     replaced_subjects = []
 
     if source_class == "11th":
-        # Always separate curriculum components dynamically
         for sub in base_subjects:
             sub_clean = sub.strip().upper().replace(".", "").replace(" ", "")
             
-            # Catch Universal Replacement
+            # Universal Change (All tracks): Isl_Eth -> Pak. Studies
             if "ISL" in sub_clean or "ETH" in sub_clean:
                 if "Pak. Studies" not in replaced_subjects:
                     replaced_subjects.append("Pak. Studies")
-                    
-            # Catch Commerce Specific Replacements
-            elif "COMMERCE" in disc_upper and ("MAT" in sub_clean or "MATH" in sub_clean or sub_clean == "BM"):
+            
+            # Commerce Track Changes
+            elif "COMMERCE" in disc_upper and ("MAT" in sub_clean or "MATH" in sub_clean):
                 replaced_subjects.append("B_Stats")
             elif "COMMERCE" in disc_upper and ("ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean):
                 replaced_subjects.append("Banking")
             elif "COMMERCE" in disc_upper and ("COM" in sub_clean or "POC" in sub_clean):
                 replaced_subjects.append("Geo")
                 
-            # Otherwise, it stays exactly the same as 11th Grade
+            # Default: Subject continues unchanged
             else:
                 fixed_subjects.append(sub)
                 
-        # Commerce safety check to make sure all three replacements are grouped properly
+        # Structural enforcement row for Commerce tracking values
         if "COMMERCE" in disc_upper:
             for forced_sub in ["B_Stats", "Banking", "Geo"]:
                 if forced_sub not in replaced_subjects:
                     replaced_subjects.append(forced_sub)
-                    
-            # Double check to prevent 11th commerce core elements from leaking back into fixed view
             fixed_subjects = [f for f in fixed_subjects if not any(k in f.upper() for k in ["MATH", "ECO", "POC", "COM"])]
     else:
         fixed_subjects = base_subjects
 
-    # Ensure list items are unique
     fixed_subjects = sorted(list(set(fixed_subjects)))
     replaced_subjects = sorted(list(set(replaced_subjects)))
-    
-    # Save a clean master combined variable array for the final DB insertion step down in Step 3
-    target_subjects = fixed_subjects + replaced_subjects
 
-    # 4️⃣ Visual Grid Separator Display (Two distinct layout rows on screen)
+    # Display split curriculum visualization tables cleanly on the dashboard
     st.markdown("#### 📚 12th Grade Curriculum Blueprint Mapping")
     
-    # Row A: Fixed Rows Display
     st.markdown("**📌 Continuing/Fixed Core Subjects (Carried over from 11th):**")
-    st.code(" ➔ ".join(fixed_subjects) if fixed_subjects else "None")
+    st.code(" ➔ ".join(fixed_subjects) if fixed_subjects else "None Specified")
     
-    # Row B: Replaced Rows Display
     st.markdown("**🔄 Replaced/Updated New Subjects (For 12th Grade Academic Session):**")
     if "COMMERCE" in disc_upper:
-        # For Commerce, give an explicit interactive checklist control row
         chosen_replacements = st.multiselect(
             "Verify or adjust the specific 12th Commerce replacement package parameters:",
             replaced_subjects,
@@ -2574,8 +2551,11 @@ elif menu_choice == "🎓 Promote Students":
         )
         target_subjects = fixed_subjects + chosen_replacements
     else:
-        # For other fields, simply display the universal replacement status box
-        st.code(" ➔ ".join(replaced_subjects) if replaced_subjects else "None")
+        st.code(" ➔ ".join(replaced_subjects) if replaced_subjects else "None Specified")
+        target_subjects = fixed_subjects + replaced_subjects
+
+    st.markdown("---")
+
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
 
@@ -2592,18 +2572,18 @@ elif menu_choice == "🎓 Promote Students":
         preview_query = "SELECT id, name, section, class, session FROM students WHERE id = :s_id"
         params = {"s_id": target_student_id}
 
+    # Verify parameters are configured before rendering database grid panels
     if (promo_scope == "📋 Complete Section" and selected_section and selected_section != "No Data Found") or (promo_scope == "👤 Single Student" and target_student_id):
         preview_df = run_query(preview_query, params)
         
         if not preview_df.empty:
             st.dataframe(preview_df, use_container_width=True)
-            st.warning(f"⚠️ **Action Scope Notice:** Running promotion updates {len(preview_df)} student matrix lines.")
+            st.warning(f"⚠️ **Action Scope Notice:** Running promotion updates will modify {len(preview_df)} student profiles.")
             
             if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary"):
                 student_ids_to_process = preview_df['id'].tolist()
                 
                 for s_id in student_ids_to_process:
-                    # Update demographic markers 
                     execute_db_command(
                         """
                         UPDATE students 
@@ -2614,7 +2594,7 @@ elif menu_choice == "🎓 Promote Students":
                         {"next_cls": next_class, "next_sec": target_section.strip().upper(), "s_id": int(s_id)}
                     )
                 
-                st.success(f"🎉 Promotion complete! {len(student_ids_to_process)} records re-assigned safely to Class {next_class}.")
+                st.success(f"🎉 Success! {len(student_ids_to_process)} records re-assigned safely to Class {next_class}.")
                 st.rerun()
         else:
-            st.info("💡 No student records matching selected parameters were discovered.")
+            st.info("💡 No student records matching selected parameters were discovered inside the system roster.")
