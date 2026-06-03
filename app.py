@@ -2464,6 +2464,8 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
+    st.markdown("---")
+
     # --- SECTION 2: TARGET ENVIRONMENT CONFIGURATION ---
     st.subheader("🎯 Step 2: Configure Destination Environment")
     
@@ -2472,8 +2474,12 @@ elif menu_choice == "🎓 Promote Students":
     
     tgt_c1, tgt_c2 = st.columns(2)
     
+    with tgt_c2:
+        # 1️⃣ We put the discipline track first so it instantly initializes 'selected_discipline'
+        selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
+
     with tgt_c1:
-        # 🧠 MAP 12th GRADE SECTION NAMES TO THEIR RESPECTIVE DISCIPLINES
+        # 2️⃣ Now 'selected_discipline' is 100% guaranteed to exist before this block runs!
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
         if "MEDICAL" in disc_upper:
@@ -2489,7 +2495,6 @@ elif menu_choice == "🎓 Promote Students":
         elif "HUMANITIES" in disc_upper or "ARTS" in disc_upper:
             available_tgt_sections = ["FK", "FQ"]
         else:
-            # Fallback to general list if no keywords match perfectly
             available_tgt_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
 
         target_section = st.selectbox(
@@ -2497,39 +2502,6 @@ elif menu_choice == "🎓 Promote Students":
             available_tgt_sections, 
             key="promo_tgt_sec"
         )
-        
-    with tgt_c2:
-        selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
-
-    # Dynamic Curriculum Exception Engine logic
-    base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
-    
-    if source_class == "11th":
-        if "COMMERCE" in selected_discipline.upper():
-            available_subjects = []
-            for sub in base_subjects:
-                sub_upper = sub.strip().upper()
-                if "B_MATH" in sub_upper:
-                    available_subjects.append("B_Stats")
-                elif "ECONOMIC" in sub_upper:
-                    available_subjects.append("Banking")
-                elif "COMMERCE" in sub_upper:
-                    available_subjects.append("GEO")
-                else:
-                    available_subjects.append(sub)
-        else:
-            available_subjects = base_subjects
-    else:
-        available_subjects = base_subjects
-
-    target_subjects = st.multiselect(
-        "📚 Core Subjects Allocation (For Next Academic Year):", 
-        available_subjects, 
-        default=available_subjects,
-        key="promo_subjects_multiselect"
-    )
-
-    st.markdown("---")
 
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
