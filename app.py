@@ -2423,8 +2423,15 @@ elif menu_choice == "🎓 Promote Students":
         source_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0)
         
     # Query to preview who will be affected before pulling the trigger
+    # 🔍 Updated with UPPER and TRIM to ensure database case mismatches don't hide your records
     preview_df = run_query(
-        "SELECT id, name, section, class, session FROM students WHERE session = :sess AND class = :cls ORDER BY id ASC",
+        """
+        SELECT id, name, section, class, session 
+        FROM students 
+        WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
+          AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+        ORDER BY id ASC
+        """,
         {"sess": promo_session, "cls": source_class}
     )
     
@@ -2438,7 +2445,12 @@ elif menu_choice == "🎓 Promote Students":
             confirm_btn = st.button(f"🚀 Mass Promote 11th ➔ 12th ({promo_session})", type="primary")
             if confirm_btn:
                 execute_db_command(
-                    "UPDATE students SET class = '12th' WHERE session = :sess AND class = '11th'",
+                    """
+                    UPDATE students 
+                    SET class = '12th' 
+                    WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
+                      AND UPPER(TRIM(class)) = '11TH'
+                    """,
                     {"sess": promo_session}
                 )
                 st.success(f"🎉 Success! All 11th-grade students in Session {promo_session} have been promoted to 12th grade.")
