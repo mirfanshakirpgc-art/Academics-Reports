@@ -133,6 +133,37 @@ def run_query(query, params=None):
     with engine.connect() as conn:
         return pd.read_sql_query(text(query), conn, params=params)
 
+# 🔽 Make sure this line is pushed completely to the left wall!
+def get_registry_options(item_type, parent_key=None):
+    """Dynamically fetches active structural keys and values from the master registry."""
+    from sqlalchemy import text
+    if parent_key:
+        query = """SELECT item_key, item_value FROM master_registry 
+                   WHERE item_type = :type AND parent_key = :parent AND is_active = TRUE 
+                   ORDER BY item_value ASC"""
+        query = """SELECT item_key, item_value FROM master_registry 
+                   WHERE item_type = :type AND parent_key = :parent AND is_active = TRUE 
+                   ORDER BY item_value ASC"""
+        df = run_query(query, {"type": item_type, "parent": parent_key})
+    else:
+        query = """SELECT item_key, item_value FROM master_registry 
+                   WHERE item_type = :type AND is_active = TRUE 
+                   ORDER BY item_value ASC"""
+        df = run_query(query, {"type": item_type})
+        
+    if not df.empty:
+        return dict(zip(df['item_key'], df['item_value']))
+    return {}
+    else:
+        query = """SELECT item_key, item_value FROM master_registry 
+                   WHERE item_type = :type AND is_active = TRUE 
+                   ORDER BY item_value ASC"""
+        df = run_query(query, {"type": item_type})
+        
+    if not df.empty:
+        return dict(zip(df['item_key'], df['item_value']))
+    return {}
+
 def run_update(query, params=None):
     if params is None:
         params = {}
