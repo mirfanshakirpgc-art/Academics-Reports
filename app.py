@@ -2332,9 +2332,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
-# ---------------------------------------------------------
-# 🎓 STANDALONE STUDENT PROMOTION MODULE
-# ---------------------------------------------------------
 elif menu_choice == "Promote Students":
     st.title("🎓 Batch Student Progression & Promotion Panel")
     st.info("Efficiently move groups of students between academic years or configuration blocks.")
@@ -2366,7 +2363,7 @@ elif menu_choice == "Promote Students":
             dest_class = st.selectbox("Target Class (To):", options=list(class_map.keys()), key="promo_dst_cls")
             dest_sess = st.selectbox("Target Destination Session:", options=list(sess_map.keys()), key="promo_dst_ses")
 
-        # Query candidates dynamically using configuration codes matching input keys
+        # --- CRITICAL STRING FIXED HERE ---
         candidates_df = run_query("""
             SELECT student_id, admission_no, student_name, section_key 
             FROM students 
