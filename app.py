@@ -2472,6 +2472,8 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
+    st.markdown("---")
+
     # --- SECTION 2: TARGET ENVIRONMENT CONFIGURATION ---
     st.subheader("🎯 Step 2: Configure Destination Environment")
     
@@ -2507,60 +2509,73 @@ elif menu_choice == "🎓 Promote Students":
             key="promo_tgt_sec"
         )
 
-    # 3️⃣ Fetch baseline subjects
+    # 3️⃣ Split Processing Engine: Fixed vs Replaced Curriculum
     base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
-    transformed_subjects = []
+    
+    fixed_subjects = []
+    replaced_subjects = []
 
-    # 🧠 UNIVERSAL 12th GRADE REPLACEMENT ENGINE (Runs for ALL disciplines moving to 12th)
     if source_class == "11th":
-        for idx, sub in enumerate(base_subjects):
+        # Always separate curriculum components dynamically
+        for sub in base_subjects:
             sub_clean = sub.strip().upper().replace(".", "").replace(" ", "")
             
-            # A. Universal Rule: Swap Isl_Eth for Pak. Studies
-            if "ISL" in sub_clean or "ETH" in sub_clean or "RELI" in sub_clean:
-                transformed_subjects.append("Pak. Studies")
-                
-            # B. Specific Sub-Rules for Commerce Track
-            elif "COMMERCE" in disc_upper:
-                if "MAT" in sub_clean:
-                    transformed_subjects.append("B_Stats")
-                elif "COM" in sub_clean or "POC" in sub_clean:
-                    transformed_subjects.append("Geo")
-                elif "ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean or idx >= 3:
-                    # Guard generic languages from getting overwritten by index fallbacks
-                    if sub_clean in ["ENGLISH", "URDU"]:
-                        transformed_subjects.append(sub)
-                    else:
-                        transformed_subjects.append("Banking")
-                else:
-                    transformed_subjects.append(sub)
+            # Catch Universal Replacement
+            if "ISL" in sub_clean or "ETH" in sub_clean:
+                if "Pak. Studies" not in replaced_subjects:
+                    replaced_subjects.append("Pak. Studies")
                     
-            # C. All other disciplines pass through safely with just the Isl_Eth swap applied
-            else:
-                transformed_subjects.append(sub)
+            # Catch Commerce Specific Replacements
+            elif "COMMERCE" in disc_upper and ("MAT" in sub_clean or "MATH" in sub_clean or sub_clean == "BM"):
+                replaced_subjects.append("B_Stats")
+            elif "COMMERCE" in disc_upper and ("ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean):
+                replaced_subjects.append("Banking")
+            elif "COMMERCE" in disc_upper and ("COM" in sub_clean or "POC" in sub_clean):
+                replaced_subjects.append("Geo")
                 
-        # Final safety catch to guarantee Banking makes it onto Commerce strings regardless of dictionary indexes
-        if "COMMERCE" in disc_upper and "Banking" not in transformed_subjects:
-            transformed_subjects.append("Banking")
+            # Otherwise, it stays exactly the same as 11th Grade
+            else:
+                fixed_subjects.append(sub)
+                
+        # Commerce safety check to make sure all three replacements are grouped properly
+        if "COMMERCE" in disc_upper:
+            for forced_sub in ["B_Stats", "Banking", "Geo"]:
+                if forced_sub not in replaced_subjects:
+                    replaced_subjects.append(forced_sub)
+                    
+            # Double check to prevent 11th commerce core elements from leaking back into fixed view
+            fixed_subjects = [f for f in fixed_subjects if not any(k in f.upper() for k in ["MATH", "ECO", "POC", "COM"])]
     else:
-        # If already 12th/Alumni, don't alter lists
-        transformed_subjects = base_subjects
+        fixed_subjects = base_subjects
 
-    # De-duplicate clean list items
-    final_subjects_list = sorted(list(set(transformed_subjects)))
+    # Ensure list items are unique
+    fixed_subjects = sorted(list(set(fixed_subjects)))
+    replaced_subjects = sorted(list(set(replaced_subjects)))
+    
+    # Save a clean master combined variable array for the final DB insertion step down in Step 3
+    target_subjects = fixed_subjects + replaced_subjects
 
-    # 4️⃣ Dynamic Conditional Visibility Framework
-    if source_class == "11th" and "COMMERCE" in disc_upper:
-        st.markdown("#### 📚 Adjust 12th Grade Commerce Curriculum Map")
-        target_subjects = st.multiselect(
-            "Verify tracking subject mappings for upcoming year:", 
-            final_subjects_list, 
-            default=final_subjects_list,
-            key=f"promo_subjects_{source_class}_{selected_discipline.replace(' ', '_')}"
+    # 4️⃣ Visual Grid Separator Display (Two distinct layout rows on screen)
+    st.markdown("#### 📚 12th Grade Curriculum Blueprint Mapping")
+    
+    # Row A: Fixed Rows Display
+    st.markdown("**📌 Continuing/Fixed Core Subjects (Carried over from 11th):**")
+    st.code(" ➔ ".join(fixed_subjects) if fixed_subjects else "None")
+    
+    # Row B: Replaced Rows Display
+    st.markdown("**🔄 Replaced/Updated New Subjects (For 12th Grade Academic Session):**")
+    if "COMMERCE" in disc_upper:
+        # For Commerce, give an explicit interactive checklist control row
+        chosen_replacements = st.multiselect(
+            "Verify or adjust the specific 12th Commerce replacement package parameters:",
+            replaced_subjects,
+            default=replaced_subjects,
+            key=f"promo_repl_box_{promo_session}"
         )
+        target_subjects = fixed_subjects + chosen_replacements
     else:
-        # Silently process all other groups without throwing rendering blocks on screen
-        target_subjects = final_subjects_list
+        # For other fields, simply display the universal replacement status box
+        st.code(" ➔ ".join(replaced_subjects) if replaced_subjects else "None")
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
 
