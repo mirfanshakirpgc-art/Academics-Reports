@@ -225,6 +225,7 @@ Let's clean that up completely. Here is the final corrected engine block for **b
 ---
 
 python
+
 # ---------------------------------------------------------
 # 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
 # ---------------------------------------------------------
@@ -244,7 +245,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         st.markdown("---")
 
         if entry_mode == "📋 By Complete Section":
-            # Exact layout matching your new 5-column dashboard row!
             c_cls, c_sess, c1, c2, c3 = st.columns([1.2, 1.5, 1.8, 2, 2])
             
             with c_cls:
@@ -266,20 +266,16 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     st.warning("🚨 You do not have any active allocations assigned.")
                     raw_sel_subject, sel_section = None, None
             else:
-                # Admin View: Pulls your exact chart sections (CQ1, MQ1, etc.) dynamically!
                 with c1: 
-                    # Normalize keys to strictly match your dictionary definition
                     normalized_keys = {k.upper().strip(): k for k in DISCIPLINE_SECTIONS_MAP.keys()}
                     selected_display_disc = st.selectbox("Select Discipline:", list(normalized_keys.keys()), key="entry_discipline_selector")
                     sel_discipline = normalized_keys[selected_display_disc]
                 with c2: 
                     raw_sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, []), key="entry_subject_selector")
                 with c3: 
-                    # FIXED: This pulls your true section charts instead of color placeholders!
                     sections_options = DISCIPLINE_SECTIONS_MAP.get(sel_discipline, [])
                     sel_section = st.selectbox("Select Section:", sections_options, key="entry_section_selector")
             
-            # Pure Python dynamic subject transformation for 12th Commerce cohorts
             sel_subject = raw_sel_subject
             if sel_class == "12th" and raw_sel_subject:
                 cleaned_sub = str(raw_sel_subject).strip().upper()
@@ -325,8 +321,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 except Exception as e:
                     st.error(f"Database sync issue: {e}")
 
-        # ... [Single Student & Bulk Import modes remain unchanged] ...
-
     # =========================================================
     # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE
     # =========================================================
@@ -357,7 +351,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     selected_display_disc_att = st.selectbox("Select Discipline Context:", list(normalized_keys_att.keys()), key="att_disc")
                     att_discipline = normalized_keys_att[selected_display_disc_att]
                 with col_as2: 
-                    # FIXED: Correct sections mapped here as well!
                     sections_options = DISCIPLINE_SECTIONS_MAP.get(att_discipline, [])
                     att_section = st.selectbox("Select Target Section:", sections_options, key="att_sec")
                 with col_as3: 
@@ -400,8 +393,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.info(f"💡 No students found registered in {att_class} ({att_session}), section '{att_section}' for this query selection.")
                 except Exception as e:
                     st.error(f"Attendance sync error: {e}")
-
-```
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
