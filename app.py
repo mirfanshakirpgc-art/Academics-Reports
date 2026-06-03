@@ -248,17 +248,6 @@ elif menu_choice == "➕ Add Students":
 
 Looking closely at your active dashboard layout screenshots (`image_3bfbc0.png`, `image_0ff1ad.png`, `image_04fdfd.png`) alongside your data roadmap (`image_105ea6.png`), the core missing connection is plain as day.
 
-When you select `ICS_PHYSICS` as a discipline, your dashboard still pulls general placeholder sections like `CG_WHITE` or `CG_GREEN`. However, your campus allocation structure clearly shows that `ICS_PHYSICS` should only dynamically populate the genuine student cohorts: **`CQ1`**, **`CQ2`**, **`CK1`**, and **`CK2`**.
-
-Because your dropdown maps to placeholder names that don't match your actual database student profiles, your queries return empty result banners stating that no students are registered.
-
----
-
-### 🛠️ The Global Mapping Dictionary Setup
-
-To fix this throughout your entire application workspace seamlessly, navigate to the **very top of your `app.py` script** where your global variables are declared. Replace your existing discipline dictionaries with this real-world structured breakdown:
-
-```python
 # =========================================================
 # 🎓 CONCORDIA ACADEMIC DATA MAPPING REFERENCE ENGINE
 # =========================================================
@@ -290,9 +279,34 @@ DISCIPLINE_SUBJECTS_MAP = {
     "HUMANITIES": ["CIVICS", "HISTORY", "ISLAMIAT_ELECTIVE", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"]
 }
 
-```
+AVAILABLE_DISCIPLINE = [
+    "MEDICAL", 
+    "ENGINEERING", 
+    "ICS_PHYSICS", 
+    "ICS_STATISTICS", 
+    "COMMERCE", 
+    "HUMANITIES"
+]
 
----
+DISCIPLINE_SECTIONS_MAP = {
+    "MEDICAL": ["MQ1", "MQ2", "MK1"],
+    "ENGINEERING": ["EK1", "EQ1"],
+    "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+    "ICS_STATISTICS": ["CQ3", "CK3"],
+    "COMMERCE": ["IQ1", "IK1"],
+    "HUMANITIES": ["FQ1", "FK1"]
+}
+
+DISCIPLINE_SUBJECTS_MAP = {
+    "MEDICAL": ["BIOLOGY", "CHEMISTRY", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
+    "ENGINEERING": ["MATHEMATICS", "CHEMISTRY", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
+    "ICS_PHYSICS": ["COMPUTER", "MATHEMATICS", "PHYSICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
+    "ICS_STATISTICS": ["COMPUTER", "MATHEMATICS", "STATISTICS", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
+    "COMMERCE": ["ACCOUNTING", "COMMERCE", "ECONOMICS", "B_MATH", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"],
+    "HUMANITIES": ["CIVICS", "HISTORY", "ISLAMIAT_ELECTIVE", "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES"]
+}
+
+```
 
 ### 📋 Clean Intake Module Implementation Code
 
