@@ -196,11 +196,15 @@ if menu_choice == "📊 Home Dashboard":
     c2.metric("Total Grade Records Captured", m_count)
 
 # ---------------------------------------------------------
-# ⚙️ MASTER MODULE (STREAMLINED ENTRY version)
+# ⚙️ MASTER MODULE (STICKY DROPDOWN CATEGORY VERSION)
 # ---------------------------------------------------------
 elif menu_choice == "⚙️ Master Module":
     st.title("⚙️ Global Academic Configuration Master Module")
     st.info("Configure your system settings here. This data dynamically populates dropdowns across all reporting sheets.")
+
+    # Initialize a session state variable for the dropdown category if it doesn't exist
+    if "current_category" not in st.session_state:
+        st.session_state.current_category = "DISCIPLINE"
 
     # Automatically ensure the master registry table structure is initialized in PostgreSQL
     execute_db_command("""
@@ -221,13 +225,21 @@ elif menu_choice == "⚙️ Master Module":
     with tab_add:
         st.subheader("Define Global System Dropdown Data")
         
+        # We handle state by calculating the default index for the selectbox dynamically
+        categories = ["DISCIPLINE", "CLASS", "SECTION", "SUBJECT", "TEST_TYPE", "SESSION", "CAMPUS"]
+        try:
+            default_index = categories.index(st.session_state.current_category)
+        except ValueError:
+            default_index = 0
+
         with st.form("master_registry_input_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             
             with col1:
                 item_type = st.selectbox(
                     "Dropdown Type Category:", 
-                    ["DISCIPLINE", "CLASS", "SECTION", "SUBJECT", "TEST_TYPE", "SESSION", "CAMPUS"]
+                    options=categories,
+                    index=default_index
                 )
                 item_value = st.text_input("Display Name Value (e.g., Medical, 11th Class, MG_BLUE):").strip()
                 
@@ -250,8 +262,10 @@ elif menu_choice == "⚙️ Master Module":
                 if not item_value:
                     st.error("The Display Name Value entry is strictly required!")
                 else:
+                    # Save the user's selected category to session state BEFORE reloading
+                    st.session_state.current_category = item_type
+                    
                     # Automatically generate a clean, safe database Key from the Display Name
-                    # Example: "ICS Physics" -> "ICS_PHYSICS"
                     generated_key = item_value.upper().replace(" ", "_").replace("-", "_").replace(".", "")
                     
                     insert_cmd = """
@@ -267,7 +281,7 @@ elif menu_choice == "⚙️ Master Module":
                             "value": item_value,
                             "parent": final_parent_key if final_parent_key != "" else None
                         })
-                        st.success(f"🎉 Core Registry successfully updated: '{item_value}' added!")
+                        st.success(f"🎉 Core Registry successfully updated: '{item_value}' added under '{item_type}'!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Failed to submit to database: {e}")
@@ -276,7 +290,7 @@ elif menu_choice == "⚙️ Master Module":
         st.subheader("Current Active Framework Architecture Registry")
         filter_scope = st.radio(
             "Filter Registry View Schema Scope:", 
-            ["ALL VIEW", "DISCIPLINE", "CLASS", "SECTION", "SUBJECT", "TEST_TYPE", "SESSION", "CAMPUS"], 
+            ["ALL VIEW"] + categories, 
             horizontal=True
         )
         
