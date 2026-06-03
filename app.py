@@ -393,6 +393,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.info(f"💡 No students found registered in {att_class} ({att_session}), section '{att_section}' for this query selection.")
                 except Exception as e:
                     st.error(f"Attendance sync error: {e}")
+                    
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
