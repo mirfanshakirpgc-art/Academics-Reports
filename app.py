@@ -228,7 +228,7 @@ Let's clean that up completely. Here is the final corrected engine block for **b
 
 Replace the entire `📝 Enter Marks & Attendance` block with this updated version:
 
-```python
+python
 # ---------------------------------------------------------
 # 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
 # ---------------------------------------------------------
