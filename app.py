@@ -383,7 +383,40 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     """, {"month": att_month, "section": att_section, "class": att_class, "session": att_session})
                     
                     if not students_att_list.empty:
-                        with st.form
+                        with st.form("bulk_attendance_form"):
+                            saved_att_presents = {}
+                            for idx, row in students_att_list.iterrows():
+                                c_b1, c_b2 = st.columns([3, 1])
+                                c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                                # Fix: safe fallback parsing for existing record days vs global default choice
+                                try:
+                                    init_pres = int(row['present_days']) if (row['present_days'] is not None and str(row['present_days']).strip() != "") else default_days
+                                except:
+                                    init_pres = default_days
+                                    
+                                saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"pres_{row['ID']}")
+                            
+                            if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
+                                for s_id, p_d in saved_att_presents.items():
+                                    execute_db_command("""
+                                        INSERT INTO attendance (student_id, month_name, total_days, present_days)
+                                        VALUES (:s_id, :month, :td, :pd)
+                                        ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
+                                    """, {"s_id": int(s_id), "month": att_month.strip(), "td": default_days, "pd": int(p_d)})
+                                st.success("🎉 Section Attendance saved successfully!")
+                                st.rerun()
+                    else:
+                        st.info(f"💡 No students found registered in {att_class} ({att_session}), section '{att_section}' for this query selection.")
+                except Exception as e:
+                    st.error(f"Attendance sync error: {e}")
+
+# ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
+elif menu_choice == "📋 Section Summary Report":
+    st.title("📋 Section Performance Analytics Report")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
+    with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
+    with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
                     
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
