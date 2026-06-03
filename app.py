@@ -2537,12 +2537,12 @@ elif menu_choice == "🎓 Promote Students":
         key="promo_subjects_multiselect"
     )
 
-    # 4️⃣ Display the multiselect box explicitly
+    # 4️⃣ Display the multiselect box explicitly with a dynamic, unique key
     target_subjects = st.multiselect(
         "📚 Core Subjects Allocation (For Next Academic Year):", 
         available_subjects, 
         default=available_subjects,
-        key="promo_subjects_multiselect"
+        key=f"promo_subjects_{source_class}_{selected_discipline.replace(' ', '_')}"
     )
 
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
