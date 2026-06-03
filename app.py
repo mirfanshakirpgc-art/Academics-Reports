@@ -2422,8 +2422,7 @@ elif menu_choice == "🎓 Promote Students":
     with col_p2:
         source_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0)
         
-    # Query to preview who will be affected before pulling the trigger
-    # 🔍 Updated with UPPER and TRIM to ensure database case mismatches don't hide your records
+    # ✨ FIX: Added UPPER and TRIM here so the 522 records show up in the table preview!
     preview_df = run_query(
         """
         SELECT id, name, section, class, session 
@@ -2460,7 +2459,12 @@ elif menu_choice == "🎓 Promote Students":
             st.error("❗ Graduation Check: 12th-grade students cannot be promoted higher. Would you like to mark them as Alumni / Left?")
             if st.button("🎓 Graduate Session / Mark as Left"):
                 execute_db_command(
-                    "UPDATE students SET status = 'LEFT' WHERE session = :sess AND class = '12th'",
+                    """
+                    UPDATE students 
+                    SET status = 'LEFT' 
+                    WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
+                      AND UPPER(TRIM(class)) = '12TH'
+                    """,
                     {"sess": promo_session}
                 )
                 st.success(f"📦 Session {promo_session} 12th-grade records archived safely as completed.")
