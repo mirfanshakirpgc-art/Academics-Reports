@@ -503,7 +503,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
         
         students_att_list = run_query(query_text, {"month": att_month, "section": att_section})
                 
-                if not students_att_list.empty:
+        if not students_att_list.empty:
                     with st.form("bulk_attendance_form"):
                         saved_att_presents = {}
                         for idx, row in students_att_list.iterrows():
