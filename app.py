@@ -2332,11 +2332,14 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
+# ---------------------------------------------------------
+# 🎓 PROMOTE STUDENTS MODULE
+# ---------------------------------------------------------
 elif menu_choice == "Promote Students":
     st.title("🎓 Batch Student Progression & Promotion Panel")
     st.info("Efficiently move groups of students between academic years or configuration blocks.")
 
-    # Fetch configuration data maps using global helper framework
+    # Fetch configuration data maps using global helper framework safely
     try:
         df_class = get_registry_options("CLASS")
         df_sess = get_registry_options("SESSION")
@@ -2360,56 +2363,4 @@ elif menu_choice == "Promote Students":
         
         with col2:
             st.subheader("🚀 2. Establish Promotion Destination")
-            dest_class = st.selectbox("Target Class (To):", options=list(class_map.keys()), key="promo_dst_cls")
-            dest_sess = st.selectbox("Target Destination Session:", options=list(sess_map.keys()), key="promo_dst_ses")
-
-        # --- CRITICAL STRING FIXED HERE ---
-        candidates_df = run_query("""
-            SELECT student_id, admission_no, student_name, section_key 
-            FROM students 
-            WHERE class_key = :src_cls AND session_key = :src_ses AND is_active = TRUE
-            ORDER BY student_name ASC
-        """, {
-            "src_cls": class_map[source_class],
-            "src_ses": sess_map[source_sess]
-        })
-
-        if candidates_df.empty:
-            st.warning("No active student profiles discovered under the specified parameters.")
-        else:
-            st.write(f"📊 Identified **{len(candidates_df)}** valid student profiles matching this configuration cluster:")
-            st.dataframe(candidates_df[['admission_no', 'student_name', 'section_key']], use_container_width=True)
-
-            st.markdown("---")
-            st.subheader("⚙️ Execute Migration Sequences")
-            keep_sections = st.checkbox("Retain original section mappings during transition tracking", value=True)
-            
-            forced_section_key = None
-            if not keep_sections:
-                chosen_sec = st.selectbox("Reassign all promoted records into this explicit section:", options=list(sec_map.keys()))
-                forced_section_key = sec_map[chosen_sec]
-
-            if st.button("🚀 Process Batch Progression Operation", type="primary"):
-                if class_map[source_class] == class_map[dest_class] and sess_map[source_sess] == sess_map[dest_sess]:
-                    st.error("Operation Aborted: Source parameters cannot match destination targets!")
-                else:
-                    success_logs = 0
-                    for _, row in candidates_df.iterrows():
-                        base_query = "UPDATE students SET class_key = :d_cls, session_key = :d_ses"
-                        query_params = {
-                            "d_cls": class_map[dest_class],
-                            "d_ses": sess_map[dest_sess],
-                            "s_id": int(row['student_id'])
-                        }
-                        
-                        if not keep_sections:
-                            base_query += ", section_key = :d_sec"
-                            query_params["d_sec"] = forced_section_key
-                            
-                        base_query += " WHERE student_id = :s_id"
-                        
-                        execute_db_command(base_query, query_params)
-                        success_logs += 1
-                        
-                    st.success(f"🎉 Operation Successful: Upgraded {success_logs} students into the {dest_class} tracking index ({dest_sess})!")
-                    st.rerun()
+            dest_class = st.selectbox("Target Class (To):", options=list(class_map.keys()), key="
