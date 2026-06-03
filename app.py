@@ -2515,13 +2515,20 @@ elif menu_choice == "🎓 Promote Students":
         # Build modified lists using relaxed keyword rules to capture text records safely
         transformed_subjects = []
         for sub in base_subjects:
-            sub_clean = sub.strip().upper()
+            sub_clean = sub.strip().upper().replace(".", "") # Removes dots to catch "I.E" -> "IE"
+            
+            # 1. Math -> B_Stats
             if "MAT" in sub_clean or "MATH" in sub_clean or sub_clean == "BM":
                 transformed_subjects.append("B_Stats")
-            elif "ECO" in sub_clean or "PRINCIPLES" in sub_clean or sub_clean.startswith("EC") or "IE" in sub_clean:
+                
+            # 2. Economics -> Banking (Catches ECO, PRINCIPLES, IE, I.E, or any standalone 'E' subject)
+            elif "ECO" in sub_clean or "PRINCIPLES" in sub_clean or "IE" in sub_clean or sub_clean == "E" or sub_clean.startswith("EC"):
                 transformed_subjects.append("Banking")
-            elif "COM" in sub_clean or "POC" in sub_clean or "COMM" in sub_clean:
+                
+            # 3. Commerce -> Geo (Catches COMMERCE, POC, P.O.C, C)
+            elif "COM" in sub_clean or "POC" in sub_clean or "COMM" in sub_clean or sub_clean == "C":
                 transformed_subjects.append("Geo")
+                
             else:
                 transformed_subjects.append(sub)
 
