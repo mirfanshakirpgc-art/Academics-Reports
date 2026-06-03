@@ -2466,6 +2466,8 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
+    st.markdown("---")
+
     # --- SECTION 2: TARGET ENVIRONMENT CONFIGURATION ---
     st.subheader("🎯 Step 2: Configure Destination Environment")
     
@@ -2475,20 +2477,20 @@ elif menu_choice == "🎓 Promote Students":
     tgt_c1, tgt_c2 = st.columns(2)
     
     with tgt_c2:
-        # 1️⃣ We put the discipline track first so it instantly initializes 'selected_discipline'
+        # 1️⃣ Render the discipline dropdown first so it's guaranteed to initialize for python
         selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
 
     with tgt_c1:
-        # 2️⃣ Now 'selected_discipline' is 100% guaranteed to exist before this block runs!
+        # 2️⃣ Safely filter sections based on chosen discipline
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
         if "MEDICAL" in disc_upper:
             available_tgt_sections = ["MQ1", "MQ2", "MK"]
         elif "ENGINEERING" in disc_upper:
             available_tgt_sections = ["EQ", "EK"]
-        elif "PHYSICS" in disc_upper:  # For ICS_Physics
+        elif "PHYSICS" in disc_upper:  # ICS Physics
             available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"]
-        elif "STATS" in disc_upper:    # For ICS_Stats
+        elif "STATS" in disc_upper:    # ICS Stats
             available_tgt_sections = ["CQ3", "CK3"]
         elif "COMMERCE" in disc_upper:
             available_tgt_sections = ["IK", "IQ"]
@@ -2502,6 +2504,34 @@ elif menu_choice == "🎓 Promote Students":
             available_tgt_sections, 
             key="promo_tgt_sec"
         )
+
+    # 3️⃣ Fetch baseline subjects safely
+    base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
+    available_subjects = []
+
+    # 🧠 Dynamic Replacement Engine for Commerce
+    if source_class == "11th" and "COMMERCE" in disc_upper:
+        for sub in base_subjects:
+            sub_clean = sub.strip().upper()
+            if "MATH" in sub_clean:
+                available_subjects.append("B_Stats")
+            elif "ECONOMIC" in sub_clean:
+                available_subjects.append("Banking")
+            elif "COMMERCE" in sub_clean:
+                available_subjects.append("Geo")
+            else:
+                available_subjects.append(sub)
+    else:
+        # All other disciplines or 12th graders keep their baseline maps
+        available_subjects = base_subjects
+
+    # 4️⃣ Display the multiselect box explicitly
+    target_subjects = st.multiselect(
+        "📚 Core Subjects Allocation (For Next Academic Year):", 
+        available_subjects, 
+        default=available_subjects,
+        key="promo_subjects_multiselect"
+    )
 
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
