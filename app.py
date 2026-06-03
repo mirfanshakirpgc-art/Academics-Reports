@@ -2543,6 +2543,10 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
+    # Initialize an in-memory session log tracker if it doesn't exist
+    if "promotion_history_log" not in st.session_state:
+        st.session_state.promotion_history_log = []
+
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
 
@@ -2570,22 +2574,28 @@ elif menu_choice == "🎓 Promote Students":
                 student_ids_to_process = preview_df['id'].tolist()
                 
                 for s_id in student_ids_to_process:
-                    # 🔑 Stashing original section inside the existing 'comments' column safely
                     execute_db_command(
                         """
                         UPDATE students 
                         SET class = :next_cls, 
-                            section = :next_sec,
-                            comments = :old_sec
+                            section = :next_sec
                         WHERE id = :s_id
                         """,
                         {
                             "next_cls": next_class, 
                             "next_sec": target_section.strip().upper(), 
-                            "old_sec": f"PROMOTED_FROM_{selected_section}" if promo_scope == "📋 Complete Section" else "SINGLE_PROMO",
                             "s_id": int(s_id)
                         }
                     )
+                
+                # 📝 Log the action tracking data into browser memory safely
+                if promo_scope == "📋 Complete Section":
+                    st.session_state.promotion_history_log.append({
+                        "source_sec": str(selected_section),
+                        "target_sec": target_section.strip().upper(),
+                        "student_count": len(student_ids_to_process),
+                        "session_prefix": sess_prefix
+                    })
                 
                 st.success(f"🎉 Success! {len(student_ids_to_process)} records re-assigned safely to Class {next_class}.")
                 st.rerun()
@@ -2594,54 +2604,41 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
-    # --- 🚨 SECTION 4: PROMOTION HISTORY & SAFETY REVERSAL LOG ---
+    # --- ⏳ SECTION 4: SAFETY REVERSAL LOG (IN-MEMORY) ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
-    st.write("Below are the 12th-grade sections currently tracking inside this session. If a section was promoted by mistake, hit **Undo Promotion** to rollback those records.")
+    st.write("Below are the promotions processed in your current session. Click **Undo Promotion** to instantly reverse any mistakes.")
 
-    # We read from 'comments' and parse out the original section name safely
-    promoted_history_df = run_query(
-        """
-        SELECT section as "12th_sec", 
-               comments as "raw_log", 
-               COUNT(*) as "Total_Students"
-        FROM students 
-        WHERE session LIKE :sess 
-          AND class = '12th' 
-          AND comments LIKE 'PROMOTED_FROM_%'
-        GROUP BY section, comments
-        ORDER BY section
-        """,
-        {"sess": sess_prefix}
-    )
-
-    if not promoted_history_df.empty:
-        for index, row in promoted_history_df.iterrows():
-            sec_12th = row["12th_sec"]
-            raw_log = row["raw_log"]
-            count = row["Total_Students"]
-            
-            # Extract original section name (e.g., "PROMOTED_FROM_MG_BLUE" -> "MG_BLUE")
-            sec_11th = raw_log.replace("PROMOTED_FROM_", "")
+    if st.session_state.promotion_history_log:
+        # Loop backwards through changes to undo the most recent first
+        for index, batch in enumerate(reversed(st.session_state.promotion_history_log)):
+            sec_11th = batch["source_sec"]
+            sec_12th = batch["target_sec"]
+            count = batch["student_count"]
+            p_sess = batch["session_prefix"]
             
             col_info, col_btn = st.columns([3, 1])
             with col_info:
-                st.markdown(f"📦 **Section Matrix:** `11th Grade ({sec_11th})` ➔ promoted to 12th Grade section `({sec_12th})` — **{count} Students**")
+                st.markdown(f"📦 **Section Matrix:** `11th Grade ({sec_11th})` ➔ promoted to `12th Grade ({sec_12th})` — **{count} Students**")
             with col_btn:
-                if st.button(f"🗑️ Undo Promotion", key=f"undo_{sec_12th}_{sec_11th}_{index}"):
+                if st.button(f"🗑️ Undo Promotion", key=f"mem_undo_{sec_12th}_{index}"):
+                    # Roll back the database elements safely
                     execute_db_command(
                         """
                         UPDATE students 
                         SET class = '11th',
-                            section = :old_sec,
-                            comments = NULL
+                            section = :old_sec
                         WHERE class = '12th'
                           AND section = :curr_sec
-                          AND comments = :raw_log
                           AND session LIKE :sess
                         """,
-                        {"old_sec": sec_11th, "curr_sec": sec_12th, "raw_log": raw_log, "sess": sess_prefix}
+                        {"old_sec": sec_11th, "curr_sec": sec_12th, "sess": p_sess}
                     )
+                    
+                    # Pop from state arrays so it clears from the dashboard view
+                    actual_index = len(st.session_state.promotion_history_log) - 1 - index
+                    st.session_state.promotion_history_log.pop(actual_index)
+                    
                     st.success(f"↩️ Successfully reverted section {sec_12th} back to 11th Grade ({sec_11th})!")
                     st.rerun()
     else:
-        st.info("🍃 No mass-promoted 12th-grade sections detected in the current active session logs yet.")
+        st.info("🍃 No promotions processed yet during this active session.")
