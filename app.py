@@ -229,9 +229,6 @@ To fix this, open your `app.py` file, navigate to line 223, and delete that spok
 
 Here is the exact, raw python block with **absolutely zero conversational text inside it**. Copy it directly from the code box below and replace your entire dashboard block cleanly:
 
-# ---------------------------------------------------------
-# 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
-# ---------------------------------------------------------
 elif menu_choice == "📝 Enter Marks & Attendance":
     st.title("📝 Data Intake Management Dashboard")
     sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
@@ -396,7 +393,6 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                         st.info(f"💡 No students found registered in {att_class} ({att_session}), section '{att_section}' for this query selection.")
                 except Exception as e:
                     st.error(f"Attendance sync error: {e}")
-
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
