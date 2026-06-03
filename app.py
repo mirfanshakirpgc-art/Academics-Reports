@@ -2570,19 +2570,19 @@ elif menu_choice == "🎓 Promote Students":
                 student_ids_to_process = preview_df['id'].tolist()
                 
                 for s_id in student_ids_to_process:
-                    # Stash the original section name in a log tracker column if it exists, or just process updates cleanly
+                    # 🔑 Stashing original section inside the existing 'comments' column safely
                     execute_db_command(
                         """
                         UPDATE students 
                         SET class = :next_cls, 
                             section = :next_sec,
-                            prev_promotion_log = :old_sec
+                            comments = :old_sec
                         WHERE id = :s_id
                         """,
                         {
                             "next_cls": next_class, 
                             "next_sec": target_section.strip().upper(), 
-                            "old_sec": str(selected_section) if promo_scope == "📋 Complete Section" else "SINGLE_PROMO",
+                            "old_sec": f"PROMOTED_FROM_{selected_section}" if promo_scope == "📋 Complete Section" else "SINGLE_PROMO",
                             "s_id": int(s_id)
                         }
                     )
@@ -2594,50 +2594,52 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
-    # --- 🚨 NEW SECTION 4: PROMOTION HISTORY & SAFETY REVERSAL LOG ---
+    # --- 🚨 SECTION 4: PROMOTION HISTORY & SAFETY REVERSAL LOG ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     st.write("Below are the 12th-grade sections currently tracking inside this session. If a section was promoted by mistake, hit **Undo Promotion** to rollback those records.")
 
-    # Find active 12th-grade section groupings that have rollback logs available
+    # We read from 'comments' and parse out the original section name safely
     promoted_history_df = run_query(
         """
-        SELECT section as "12th Grade Section", 
-               prev_promotion_log as "Original 11th Section", 
-               COUNT(*) as "Total Students"
+        SELECT section as "12th_sec", 
+               comments as "raw_log", 
+               COUNT(*) as "Total_Students"
         FROM students 
         WHERE session LIKE :sess 
           AND class = '12th' 
-          AND prev_promotion_log IS NOT NULL
-        GROUP BY section, prev_promotion_log
+          AND comments LIKE 'PROMOTED_FROM_%'
+        GROUP BY section, comments
         ORDER BY section
         """,
         {"sess": sess_prefix}
     )
 
     if not promoted_history_df.empty:
-        # Loop through batches to present clear operational action rows
         for index, row in promoted_history_df.iterrows():
-            sec_12th = row["12th Grade Section"]
-            sec_11th = row["Original 11th Section"]
-            count = row["Total Students"]
+            sec_12th = row["12th_sec"]
+            raw_log = row["raw_log"]
+            count = row["Total_Students"]
+            
+            # Extract original section name (e.g., "PROMOTED_FROM_MG_BLUE" -> "MG_BLUE")
+            sec_11th = raw_log.replace("PROMOTED_FROM_", "")
             
             col_info, col_btn = st.columns([3, 1])
             with col_info:
                 st.markdown(f"📦 **Section Matrix:** `11th Grade ({sec_11th})` ➔ promoted to 12th Grade section `({sec_12th})` — **{count} Students**")
             with col_btn:
-                # Unique action keys per dataset batch row to avoid Streamlit state clashes
                 if st.button(f"🗑️ Undo Promotion", key=f"undo_{sec_12th}_{sec_11th}_{index}"):
                     execute_db_command(
                         """
                         UPDATE students 
                         SET class = '11th',
                             section = :old_sec,
-                            prev_promotion_log = NULL
+                            comments = NULL
                         WHERE class = '12th'
                           AND section = :curr_sec
+                          AND comments = :raw_log
                           AND session LIKE :sess
                         """,
-                        {"old_sec": sec_11th, "curr_sec": sec_12th, "sess": sess_prefix}
+                        {"old_sec": sec_11th, "curr_sec": sec_12th, "raw_log": raw_log, "sess": sess_prefix}
                     )
                     st.success(f"↩️ Successfully reverted section {sec_12th} back to 11th Grade ({sec_11th})!")
                     st.rerun()
