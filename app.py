@@ -2509,21 +2509,33 @@ elif menu_choice == "🎓 Promote Students":
     base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
     available_subjects = []
 
-    # 🧠 Dynamic Replacement Engine for Commerce
+    # 🧠 Broad-Match Replacement Engine for Commerce (Handles any casing or variation)
     if source_class == "11th" and "COMMERCE" in disc_upper:
         for sub in base_subjects:
             sub_clean = sub.strip().upper()
-            if "B_MATH" in sub_clean:
+            
+            # Catches: B_Math, Business Math, Math-I, b_math, etc.
+            if "MAT" in sub_clean:
                 available_subjects.append("B_Stats")
-            elif "Economics" in sub_clean:
+            # Catches: Economic, Economics, Eco, ECO-I, etc.
+            elif "ECO" in sub_clean:
                 available_subjects.append("Banking")
-            elif "Comerce" in sub_clean:
+            # Catches: Commerce, Principle of Commerce, POC, etc.
+            elif "COM" in sub_clean or "POC" in sub_clean:
                 available_subjects.append("Geo")
             else:
                 available_subjects.append(sub)
     else:
         # All other disciplines or 12th graders keep their baseline maps
         available_subjects = base_subjects
+
+    # 4️⃣ Display the multiselect box explicitly
+    target_subjects = st.multiselect(
+        "📚 Core Subjects Allocation (For Next Academic Year):", 
+        available_subjects, 
+        default=available_subjects,
+        key="promo_subjects_multiselect"
+    )
 
     # 4️⃣ Display the multiselect box explicitly
     target_subjects = st.multiselect(
