@@ -1959,11 +1959,11 @@ elif menu_choice == "🪪 Student Result Cards":
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
     elif menu_choice == "Student Management":
-    st.title("👥 Student Profile Management & Registration")
-    st.info("Register and manage student profiles. Dropdown values are pulled directly from your Configuration Master Module.")
-    
-    # 1. Initialize students database schema safely
-    execute_db_command("""
+        st.title("👥 Student Profile Management & Registration")
+        st.info("Register and manage student profiles. Dropdown values are pulled directly from your Configuration Master Module.")
+        
+        # 1. Initialize students database schema safely
+        execute_db_command("""
         CREATE TABLE IF NOT EXISTS students (
 ...
 
