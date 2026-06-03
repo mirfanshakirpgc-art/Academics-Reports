@@ -229,7 +229,6 @@ To fix this, open your `app.py` file, navigate to line 223, and delete that spok
 
 Here is the exact, raw python block with **absolutely zero conversational text inside it**. Copy it directly from the code box below and replace your entire dashboard block cleanly:
 
-```python
 # ---------------------------------------------------------
 # 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
 # ---------------------------------------------------------
