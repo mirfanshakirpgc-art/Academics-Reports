@@ -2454,29 +2454,40 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
-    # --- SECTION 2: TARGET OPTIONS ---
-    st.subheader("🎯 Step 2: Configure Destination Environment")
+    # Look up the default 11th-grade list from your global variable map
+    base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
     
-    # Calculate logical text flags for target visualization
-    next_class = "12th" if source_class == "11th" else "Alumni/Left"
-    st.info(f"✨ Students will automatically change Class status from **{source_class} ➔ {next_class}** while keeping Academic Session cycle **{promo_session}**.")
-    
-    tgt_c1, tgt_c2 = st.columns(2)
-    
-    with tgt_c1:
-        # Pull global unique section lists across the app mapping dictionary keys
-        all_possible_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
-        target_section = st.selectbox("Assign to Destination Section:", all_possible_sections, key="promo_tgt_sec")
-        
-    with tgt_c2:
-        # Collect individual disciplines to show subjects dynamically
-        selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
+    # 🧠 EXCEPTION ROUTING ENGINE: Adjust mapping when moving from 11th to 12th
+    if source_class == "11th":
+        if "COMMERCE" in selected_discipline.upper():
+            # Dynamically substitute the specific 12th-grade variants while keeping generic ones (English, Urdu, etc.)
+            available_subjects = []
+            for sub in base_subjects:
+                sub_upper = sub.strip().upper()
+                if "B_MATH" in sub_upper:
+                    available_subjects.append("B_Stats")
+                elif "ECONOMIC" in sub_upper:
+                    available_subjects.append("Banking")
+                elif "COMMERCE" in sub_upper:
+                    available_subjects.append("GEO")
+                else:
+                    available_subjects.append(sub)
+        elif "INFORMATION" in selected_discipline.upper() or "IT" in selected_discipline.upper():
+            # Information Technology exception (retains its 11th-grade subject lineup unchanged)
+            available_subjects = base_subjects
+        else:
+            # All other standard disciplines keep their same subjects
+            available_subjects = base_subjects
+    else:
+        available_subjects = base_subjects
 
-    # Multiselect framework mapping for subjects tracking
-    available_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
-    target_subjects = st.multiselect("📚 Core Subjects Allocation (For Next Academic Year):", available_subjects, default=available_subjects)
-
-    st.markdown("---")
+    # Pre-select the dynamically altered subject list
+    target_subjects = st.multiselect(
+        "📚 Core Subjects Allocation (For Next Academic Year):", 
+        available_subjects, 
+        default=available_subjects,
+        key="promo_subjects_multiselect"
+    )
 
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
