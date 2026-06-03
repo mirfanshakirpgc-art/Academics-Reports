@@ -1964,24 +1964,16 @@ elif menu_choice == "🪪 Student Result Cards":
         
         # 1. Initialize students database schema safely
         execute_db_command("""
-        CREATE TABLE IF NOT EXISTS students (
-...
-
-    # 1. Initialize students database schema safely
-    execute_db_command("""
-        CREATE TABLE IF NOT EXISTS students (
-            student_id SERIAL PRIMARY KEY,
-            admission_no VARCHAR(50) UNIQUE NOT NULL,
-            student_name VARCHAR(150) NOT NULL,
-            father_name VARCHAR(150),
-            discipline_key VARCHAR(100) NOT NULL,
-            class_key VARCHAR(100) NOT NULL,
-            section_key VARCHAR(100) NOT NULL,
-            session_key VARCHAR(100) NOT NULL,
-            is_active BOOLEAN DEFAULT TRUE
-        );
-    """)
-
+            CREATE TABLE IF NOT EXISTS students (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                admission_no VARCHAR(100) UNIQUE,
+                student_name VARCHAR(255),
+                father_name VARCHAR(255),
+                section VARCHAR(100),
+                session_key VARCHAR(100),
+                is_active BOOLEAN DEFAULT TRUE
+            );
+        """)
     # Setup Workspaces: Add Tab and View Tab
     tab_register, tab_directory = st.tabs(["➕ Register New Student", "📋 Student Directory View"])
 
