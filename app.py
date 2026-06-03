@@ -216,30 +216,9 @@ elif menu_choice == "➕ Add Students":
                 added_counter += 1
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
-The layout change looks fantastic! Your **Academic Session** column matches perfectly now.
-
-However, looking closely at your second screenshot (`image_0ff1ad.png`), the section dropdown is still loading the old placeholder colors (`CG_WHITE`, `CG_GREEN`, etc.) instead of the proper chart values (`CQ1`, `CQ2`, etc.) because the dropdown options are still pointing to an old variable mapping or static list.
-
-Let's clean that up completely. Here is the final corrected engine block for **both sub-modules** to fix the dropdown mapping and link everything seamlessly to your SQL engine.
-
----
-The error occurs because you have conversational prose text directly pasted inside your `app.py` script file on line 223 without a comment symbol (`#`) or triple quotes (`"""`). Python is trying to compile my previous message text as code, which triggers a `SyntaxError`.
-
-To fix this, open your `app.py` file, navigate to line 223, and delete that spoken text sentence.
-
-Here is the exact, raw python block with **absolutely zero conversational text inside it**. Copy it directly from the code box below and replace your entire dashboard block cleanly:
-
-elif menu_choice == "📝 Enter Marks & Attendance":
-    st.title("📝 Data Intake Management Dashboard")
-    sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
-    st.markdown("---")
-
-    current_user_id = st.session_state.get('user_id', None)
-    current_role = st.session_state.get('role', st.session_state.get('user_role', 'teacher'))
-
-    # ---------------------------------------------------------
-# 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
-# ---------------------------------------------------------
+# =========================================================
+    # 📝 ENTER MARKS & ATTENDANCE MODULE
+    # =========================================================
 elif menu_choice == "📝 Enter Marks & Attendance":
     st.title("📝 Data Intake Management Dashboard")
     sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
@@ -388,7 +367,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                             for idx, row in students_att_list.iterrows():
                                 c_b1, c_b2 = st.columns([3, 1])
                                 c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                                # Fix: safe fallback parsing for existing record days vs global default choice
+                                
                                 try:
                                     init_pres = int(row['present_days']) if (row['present_days'] is not None and str(row['present_days']).strip() != "") else default_days
                                 except:
@@ -410,6 +389,13 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                 except Exception as e:
                     st.error(f"Attendance sync error: {e}")
 
+# ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
+elif menu_choice == "📋 Section Summary Report":
+    st.title("📋 Section Performance Analytics Report")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
+    with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
+    with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
