@@ -2230,7 +2230,6 @@ elif menu_choice == "👨‍🏫 Teacher Management":
                     
                 sel_exam = st.selectbox("Target Assessment Term Type:", options=exams_list)
                 
-                # REFACTORED QUERY: Matches against your master student tracking structure
                 students = run_query("""
                     SELECT student_id, admission_no, student_name FROM students 
                     WHERE section_key = :sec AND is_active = TRUE 
