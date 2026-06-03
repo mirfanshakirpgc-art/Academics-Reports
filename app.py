@@ -1952,276 +1952,142 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-    # ----------------- STUDENT MANAGEMENT -----------------
-elif menu_choice == "Student Management":
-    st.title("👤 Student Management & Audit Logs")
-    
-    # Sub-navigation tabs for managing vs viewing history
-    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
-    
-    # =========================================================
-    # TAB 1: PROCESS CHANGES (Your existing active management)
-    # =========================================================
-    with manage_tab:
-        st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
-        search_id = st.number_input("Enter Student ID:", min_value=1, step=1, key="manage_search_id")
-        
-        if search_id:
-            student_data = run_query("""
-                SELECT id, name, section, class 
-                FROM students 
-                WHERE id = :id
-            """, {"id": search_id})
-            
-            if not student_data.empty:
-                s_id = int(student_data.iloc[0]["id"])
-                s_name = student_data.iloc[0]["name"]
-                s_sec = student_data.iloc[0]["section"]
-                s_class = student_data.iloc[0]["class"]
-                
-                s_status = "Active"
-                try:
-                    status_check = run_query("SELECT status FROM students WHERE id = :id", {"id": s_id})
-                    if not status_check.empty and pd.notna(status_check.iloc[0]["status"]):
-                        s_status = status_check.iloc[0]["status"]
-                except Exception:
-                    pass
-                
-                st.info(f"""
-                **📍 Student Profile Found:**
-                * **ID:** {s_id}
-                * **Name:** {s_name}
-                * **Class:** {s_class}
-                * **Section:** {s_sec}
-                * **Status:** {s_status}
-                """)
-                
-                st.divider()
-                col_status, col_section = st.columns(2)
-                
-                # --- STATUS MANAGEMENT ---
-                with col_status:
-                    st.subheader("Update Status")
-                    status_options = ["Left", "Re-Active"]
-                    default_idx = status_options.index(s_status) if s_status in status_options else 0
-                    
-                    new_status = st.radio("Select Status:", status_options, index=default_idx)
-                    status_date = st.date_input("Status Change Date:", key="status_date_input")
-                    req_star = " *" if new_status in ["Left", "Re-Active"] else ""
-                    status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder="Required for Left/Re-Active actions", key="status_rem_input")
-                    
-                    if st.button("💾 Save Status", use_container_width=True):
-                        if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
-                            st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
-                        else:
-                            # 1. Ensure the logging table exists first before running updates
-                            try:
-                                run_update("""
-                                    CREATE TABLE IF NOT EXISTS student_logs (
-                                        id SERIAL PRIMARY KEY,
-                                        student_id INT, 
-                                        change_type TEXT, 
-                                        old_value TEXT, 
-                                        new_value TEXT, 
-                                        log_date TEXT, 
-                                        remarks TEXT
-                                    );
-                                """)
-                            except Exception:
-                                pass # If it's already there or handled, keep going
+    elif menu_choice == "Student Management":
+    st.title("👥 Student Profile Management & Registration")
+    st.info("Register and manage student profiles. Dropdown values are pulled directly from your Configuration Master Module.")
 
-                            # 2. Process the status modification
-                            try:
-                                run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                
-                                run_update("""
-                                    INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                    VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)
-                                """, {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
-                                
-                                st.success(f"✅ Successfully updated status to **{new_status}**!")
-                                st.rerun()
-                            except Exception as e:
-                                # Only add the status column if the error explicitly says it's missing
-                                if "column" in str(e).lower() and "status" in str(e).lower() and "not exist" in str(e).lower():
-                                    try:
-                                        run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
-                                        run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                        st.success(f"✅ Database upgraded! Status updated to **{new_status}**.")
-                                        st.rerun()
-                                    except Exception as migration_err:
-                                        st.error(f"Could not add column: {migration_err}")
-                                else:
-                                    st.error(f"Failed to update status: {e}")
-                
-                # --- SECTION CHANGE MANAGEMENT ---
-                with col_section:
-                    st.subheader("Change Section")
-                    all_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
-                    default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
-                    
-                    new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx)
-                    section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
-                    section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
-                    
-                    if st.button("🔄 Change Section", use_container_width=True):
-                        if new_sec == s_sec:
-                            st.warning("⚠️ Student is already assigned to this section.")
-                        elif not section_remarks.strip():
-                            st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
-                        else:
-                            try:
-                                run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
-                                
-                                # Log transfer into history log layout
-                                run_update("""
-                                    INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                    VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
-                                """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
-                                
-                                st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
-                                st.rerun()
-                            except Exception as e:
-                                if "no such table" in str(e).lower():
-                                    try:
-                                        run_update("""
-                                            CREATE TABLE IF NOT EXISTS student_logs (
-                                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT
-                                            );
-                                        """)
-                                        run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
-                                        run_update("""
-                                            INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                            VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
-                                        """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
-                                        st.success(f"✅ Transferred student successfully to **{new_sec}**!")
-                                        st.rerun()
-                                    except Exception as log_err:
-                                        st.error(f"Failed to save record transaction: {log_err}")
-                                else:
-                                    st.error(f"Failed to change section: {e}")
-            else:
-                st.error(f"❌ No student profile found with ID: **{search_id}**")
+    # 1. Initialize students database schema safely
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS students (
+            student_id SERIAL PRIMARY KEY,
+            admission_no VARCHAR(50) UNIQUE NOT NULL,
+            student_name VARCHAR(150) NOT NULL,
+            father_name VARCHAR(150),
+            discipline_key VARCHAR(100) NOT NULL,
+            class_key VARCHAR(100) NOT NULL,
+            section_key VARCHAR(100) NOT NULL,
+            session_key VARCHAR(100) NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE
+        );
+    """)
 
-# =========================================================
-    # TAB 2: AUDIT LOGS VIEW (Inline Row-by-Row Deletion Engine)
-    # =========================================================
-    with logs_tab:
-        st.subheader("📋 Institutional Exit & Section Transfer Logs")
-        st.markdown("Review running logs of all student profile departures and section allocation changes.")
-        
-        filter_view = st.selectbox("Filter Log Matrix By Type:", ["All Historical Actions", "Left Students Master List", "Section Transfer Track Log"])
-        
-        # Pull master references including the true Log ID from log tables
+    # Setup Workspaces: Add Tab and View Tab
+    tab_register, tab_directory = st.tabs(["➕ Register New Student", "📋 Student Directory View"])
+
+    with tab_register:
+        # 2. Leverage your standalone get_registry_options tool to extract configurations
         try:
-            log_data_df = run_query("""
-                SELECT l.id AS "Log ID", l.student_id AS "ID", s.name AS "Student Name", 
-                       l.change_type AS "Action", l.old_value AS "From", 
-                       l.new_value AS "To", l.log_date AS "Date Stamp", 
-                       l.remarks AS "Staff Remarks Context"
-                FROM student_logs l
-                LEFT JOIN students s ON l.student_id = s.id
-                ORDER BY l.id DESC
-            """)
-        except Exception:
-            log_data_df = pd.DataFrame(columns=["Log ID", "ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
-            
-        # Fallback tracking scan for legacy left records
-        try:
-            left_fallback_df = run_query("""
-                SELECT NULL AS "Log ID", id AS "ID", name AS "Student Name", 
-                       'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
-                       UPPER(TRIM(status)) AS "To", 'Legacy Record' AS "Date Stamp", 
-                       'Profile marked left before tracking initialized' AS "Staff Remarks Context"
-                FROM students
-                WHERE UPPER(TRIM(status)) = 'LEFT'
-            """)
-        except Exception:
-            left_fallback_df = pd.DataFrame()
-        
-        if left_fallback_df is not None and not left_fallback_df.empty:
-            existing_logged_ids = log_data_df[log_data_df["To"] == "Left"]["ID"].tolist()
-            filtered_fallback = left_fallback_df[~left_fallback_df["ID"].isin(existing_logged_ids)]
-            log_data_df = pd.concat([log_data_df, filtered_fallback], ignore_index=True)
+            df_disc = get_registry_options("DISCIPLINE")
+            df_class = get_registry_options("CLASS")
+            df_sec = get_registry_options("SECTION")
+            df_sess = get_registry_options("SESSION")
+        except Exception as e:
+            st.error(f"Failed to access Master Module system registries: {e}")
+            st.stop()
 
-        if log_data_df.empty:
-            st.info("💡 No history logs or section adjustments have been recorded yet.")
+        # Create mapping dictionaries: Display Name -> Under-the-hood System Key
+        disc_map = {r['item_value']: r['item_key'] for _, r in df_disc.iterrows()} if not df_disc.empty else {}
+        class_map = {r['item_value']: r['item_key'] for _, r in df_class.iterrows()} if not df_class.empty else {}
+        sec_map = {r['item_value']: r['item_key'] for _, r in df_sec.iterrows()} if not df_sec.empty else {}
+        sess_map = {r['item_value']: r['item_key'] for _, r in df_sess.iterrows()} if not df_sess.empty else {}
+
+        if not (disc_map and class_map and sec_map and sess_map):
+            st.warning("⚠️ Stop: Please configure your active Disciplines, Classes, Sections, and Sessions in the Master Module before registering profiles.")
         else:
-            log_data_df["To_Clean"] = log_data_df["To"].astype(str).str.strip().str.upper()
-            log_data_df["Action_Clean"] = log_data_df["Action"].astype(str).str.strip().str.upper()
+            with st.form("student_profile_entry_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    admission_no = st.text_input("Admission Number (Unique ID Reference):").strip().upper()
+                    student_name = st.text_input("Student Full Name:").strip()
+                    father_name = st.text_input("Father's Name:").strip()
+                    
+                with col2:
+                    selected_disc = st.selectbox("Select Discipline Faculty:", options=list(disc_map.keys()))
+                    selected_class = st.selectbox("Select Academic Placement Year:", options=list(class_map.keys()))
+                    selected_sec = st.selectbox("Select Section Cohort Allocation:", options=list(sec_map.keys()))
+                    selected_sess = st.selectbox("Select Active Operational Session:", options=list(sess_map.keys()))
 
-            if filter_view == "Left Students Master List":
-                filtered_df = log_data_df[log_data_df["To_Clean"] == "LEFT"]
-            elif filter_view == "Section Transfer Track Log":
-                filtered_df = log_data_df[log_data_df["Action_Clean"] == "SECTION_TRANSFER"]
-            else:
-                filtered_df = log_data_df
-                
-            if filtered_df.empty:
-                st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
-            else:
-                # Clean up tracking columns before layout compilation
-                display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
-                
-                # --- EXCEL / CSV DOWNLOAD UTILITY ---
-                try:
-                    export_df = display_df.drop(columns=["Log ID"], errors="ignore")
-                    csv_data = export_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Download Filtered Log Ledger (CSV for Excel)",
-                        data=csv_data,
-                        file_name=f"student_audit_logs_{filter_view.lower().replace(' ', '_')}.csv",
-                        mime="text/csv",
-                        type="secondary"
-                    )
-                except Exception as csv_err:
-                    st.error(f"Export Generator failed: {csv_err}")
-                
-                st.markdown("---")
-                
-                # --- DYNAMIC INLINE ROW RENDERING TABLE HEADER ---
-                th_id, th_name, th_act, th_frm, th_to, th_date, th_rem, th_btn = st.columns([1, 2.5, 1.8, 1.2, 1.2, 1.3, 2, 1])
-                th_id.markdown("**ID**")
-                th_name.markdown("**Student Name**")
-                th_act.markdown("**Action**")
-                th_frm.markdown("**From**")
-                th_to.markdown("**To**")
-                th_date.markdown("**Date**")
-                th_rem.markdown("**Staff Remarks**")
-                th_btn.markdown("**Action**")
-                st.markdown("<hr style='margin: 4px 0px 12px 0px; border-color: rgba(49, 51, 63, 0.2);'>", unsafe_allow_html=True)
-                
-                # --- ITERATE RECORDS FOR INLINE ACTIONS ---
-                for idx, row in display_df.iterrows():
-                    r_id, r_name, r_act, r_frm, r_to, r_date, r_rem = row["ID"], row["Student Name"], row["Action"], row["From"], row["To"], row["Date Stamp"], row["Staff Remarks Context"]
-                    log_id = row["Log ID"]
-                    
-                    # Create matching horizontal grids for data layout alignment
-                    c_id, c_name, c_act, c_frm, c_to, c_date, c_rem, c_btn = st.columns([1, 2.5, 1.8, 1.2, 1.2, 1.3, 2, 1])
-                    
-                    c_id.write(str(r_id))
-                    c_name.write(str(r_name))
-                    c_act.write(str(r_act))
-                    c_frm.write(str(r_frm))
-                    c_to.write(str(r_to))
-                    c_date.write(str(r_date))
-                    c_rem.write(str(r_rem))
-                    
-                    # Display an inline delete button if it has an operational Log ID tracking reference
-                    if pd.notna(log_id):
-                        if c_btn.button("🗑️ Delete", key=f"del_inline_{int(log_id)}", type="primary", use_container_width=True):
-                            try:
-                                run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": int(log_id)})
-                                st.success(f"💥 Purged Log #{int(log_id)}!")
-                                st.rerun()
-                            except Exception as inline_err:
-                                st.error(f"Error: {inline_err}")
+                if st.form_submit_button("🚀 Finalize & Register Student Profile", type="primary"):
+                    if not admission_no or not student_name:
+                        st.error("Admission Number and Student Full Name fields cannot be empty!")
                     else:
-                        c_btn.caption("Legacy")
-                    
-                    # Thin separation line between data rows
-                    st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
+                        insert_query = """
+                            INSERT INTO students (admission_no, student_name, father_name, discipline_key, class_key, section_key, session_key, is_active)
+                            VALUES (:adm, :name, :father, :disc, :class, :sec, :sess, TRUE)
+                            ON CONFLICT (admission_no) DO UPDATE SET
+                                student_name = EXCLUDED.student_name,
+                                father_name = EXCLUDED.father_name,
+                                discipline_key = EXCLUDED.discipline_key,
+                                class_key = EXCLUDED.class_key,
+                                section_key = EXCLUDED.section_key,
+                                session_key = EXCLUDED.session_key,
+                                is_active = TRUE;
+                        """
+                        try:
+                            run_update(insert_query, {
+                                "adm": admission_no,
+                                "name": student_name,
+                                "father": father_name,
+                                "disc": disc_map[selected_disc],
+                                "class": class_map[selected_class],
+                                "sec": sec_map[selected_sec],
+                                "sess": sess_map[selected_sess]
+                            })
+                            st.success(f"🎉 Success: Student record '{student_name}' has been created under ID {admission_no}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Database sync operation failed: {e}")
+
+    with tab_directory:
+        st.subheader("🔍 Filter Active Student Roster")
+        
+        # Simple Search Bar
+        search_term = st.text_input("Search student by name or admission number:").strip().upper()
+        
+        # Fetch data while joining against the master registry to display human-readable names instead of raw code keys
+        view_query = """
+            SELECT 
+                s.admission_no AS "Admission No",
+                s.student_name AS "Student Name",
+                s.father_name AS "Father Name",
+                m_disc.item_value AS "Discipline",
+                m_class.item_value AS "Class",
+                m_sec.item_value AS "Section",
+                m_sess.item_value AS "Session"
+            FROM students s
+            LEFT JOIN master_registry m_disc ON s.discipline_key = m_disc.item_key AND m_disc.item_type = 'DISCIPLINE'
+            LEFT JOIN master_registry m_class ON s.class_key = m_class.item_key AND m_class.item_type = 'CLASS'
+            LEFT JOIN master_registry m_sec ON s.section_key = m_sec.item_key AND m_sec.item_type = 'SECTION'
+            LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION'
+            WHERE s.is_active = TRUE
+        """
+        
+        params = {}
+        if search_term:
+            view_query += " AND (UPPER(s.student_name) LIKE :term OR UPPER(s.admission_no) LIKE :term)"
+            params["term"] = f"%{search_term}%"
+            
+        view_query += " ORDER BY s.admission_no DESC"
+        
+        try:
+            students_df = run_query(view_query, params)
+            if not students_df.empty:
+                st.dataframe(students_df, use_container_width=True)
+                
+                # Management Option: Deactivate a profile entry
+                st.markdown("---")
+                st.subheader("🗑️ Administrative Maintenance")
+                remove_id = st.text_input("Enter Admission Number to remove from active roster:").strip().upper()
+                if st.button("Deactivate Student Profile", type="secondary"):
+                    if remove_id:
+                        execute_db_command("UPDATE students SET is_active = FALSE WHERE admission_no = :adm", {"adm": remove_id})
+                        st.success(f"Student profile {remove_id} marked inactive.")
+                        st.rerun()
+            else:
+                st.info("No matching student profile records found in the database.")
+        except Exception as e:
+            st.error(f"Error displaying student summary ledger: {e}")
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
@@ -2464,84 +2330,84 @@ if menu_choice == "👨‍🏫 Teacher Management":
 # ---------------------------------------------------------
 # 🎓 STANDALONE STUDENT PROMOTION MODULE
 # ---------------------------------------------------------
-if menu_choice == "🎓 Promote Students":
-    st.title("🎓 Year-End Student Promotion Workspace")
-    st.markdown("This utility shifts an entire class cohort into a new academic year.")
-    st.markdown("---")
+elif menu_choice == "Promote Students":
+    st.title("🎓 Batch Student Progression & Promotion Panel")
+    st.info("Efficiently move groups of students between academic years or configuration blocks.")
 
-    st.subheader("1. Identify Current Cohort")
-    col_s1, col_s2, col_s3 = st.columns(3)
-    with col_s1:
-        current_promo_session = st.selectbox("Current Active Session:", ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], index=1, key="standalone_src_sess")
-    with col_s2:
-        all_flat_sections = sorted(list(set(sum(DISCIPLINE_SECTIONS_MAP.values(), []))))
-        current_promo_sec = st.selectbox("Current Roster Section:", all_flat_sections, key="standalone_src_sec")
-    with col_s3:
-        current_promo_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0, key="standalone_src_class")
+    # Fetch configuration data maps using global helper framework
+    try:
+        df_class = get_registry_options("CLASS")
+        df_sess = get_registry_options("SESSION")
+        df_sec = get_registry_options("SECTION")
+    except Exception as e:
+        st.error(f"System tracking arrays offline: {e}")
+        st.stop()
 
-    promo_candidates = run_query("""
-        SELECT id AS "Roll No", name AS "Student Name", class AS "Class", section AS "Section", session AS "Session"
-        FROM students
-        WHERE UPPER(TRIM(REPLACE(section, ' ', ''))) = UPPER(TRIM(REPLACE(:sec, ' ', '')))
-          AND REPLACE(UPPER(TRIM(class)), '''', '') IN (UPPER(TRIM(:cls)), UPPER(TRIM(REPLACE(:cls, 'th', ''))))
-          AND UPPER(TRIM(session)) = UPPER(TRIM(:sess))
-          AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
-        ORDER BY id ASC
-    """, {"sec": current_promo_sec, "cls": current_promo_class, "sess": current_promo_session})
+    class_map = {r['item_value']: r['item_key'] for _, r in df_class.iterrows()} if not df_class.empty else {}
+    sess_map = {r['item_value']: r['item_key'] for _, r in df_sess.iterrows()} if not df_sess.empty else {}
+    sec_map = {r['item_value']: r['item_key'] for _, r in df_sec.iterrows()} if not df_sec.empty else {}
 
-    if promo_candidates.empty:
-        st.warning(f"⚠️ No active students found matching Session ({current_promo_session}), Section ({current_promo_sec}), and Class ({current_promo_class}).")
-        
-        with st.expander("🔍 Click here to inspect actual data formatting present in your Database"):
-            debug_df = run_query("""
-                SELECT class AS "Class in DB", section AS "Section in DB", session AS "Session in DB", COUNT(*) as "Total Students" 
-                FROM students 
-                GROUP BY class, section, session 
-                LIMIT 15
-            """)
-            if not debug_df.empty:
-                st.dataframe(debug_df, use_container_width=True)
+    if not (class_map and sess_map):
+        st.warning("⚠️ Action Required: Setup Classes and Sessions tracking layers in Master Module before promoting files.")
     else:
-        st.success(f"📈 Found {len(promo_candidates)} student profiles eligible for promotion processing.")
-        st.dataframe(promo_candidates, use_container_width=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("🔍 1. Identify Target Batch")
+            source_class = st.selectbox("Current Class (From):", options=list(class_map.keys()), key="promo_src_cls")
+            source_sess = st.selectbox("Current Active Session:", options=list(sess_map.keys()), key="promo_src_ses")
+        
+        with col2:
+            st.subheader("🚀 2. Establish Promotion Destination")
+            dest_class = st.selectbox("Target Class (To):", options=list(class_map.keys()), key="promo_dst_cls")
+            dest_sess = st.selectbox("Target Destination Session:", options=list(sess_map.keys()), key="promo_dst_ses")
 
-        st.markdown("---")
-        st.subheader("2. Configure Promotion Target")
-        col_t1, col_t2, col_t3 = st.columns(3)
-        with col_t1:
-            target_promo_session = st.selectbox(
-                "Next Academic Session:", 
-                ["2024-2026", "2025-2027", "2026-2028", "2027-2029"], 
-                index=["2024-2026", "2025-2027", "2026-2028", "2027-2029"].index(current_promo_session), 
-                key="standalone_tgt_sess"
-            )
-        with col_t2:
-            target_promo_sec = st.selectbox("Target Assignment Section:", all_flat_sections, key="standalone_tgt_sec")
-        with col_t3:
-            target_promo_class = st.selectbox("Target Class Level:", ["12th", "Pass Out"], index=0, key="standalone_tgt_class")
+        # Query candidates dynamically using configuration codes matching input keys
+        candidates_df = run_query("""
+            SELECT student_id, admission_no, student_name, section_key 
+            FROM students 
+            WHERE class_key = :src_cls AND session_key = :src_ses AND is_active = TRUE
+            ORDER BY student_name ASC
+        """, {
+            "src_cls": class_map[source_class],
+            "src_ses": sess_map[source_sess]
+        })
 
-        st.markdown("---")
-        st.subheader("3. Finalize Batch Migration")
-        confirm_gate = st.checkbox("I verify that all academic marks entries for this active cohort are completely recorded and locked.")
+        if candidates_df.empty:
+            st.warning("No active student profiles discovered under the specified parameters.")
+        else:
+            st.write(f"📊 Identified **{len(candidates_df)}** valid student profiles matching this configuration cluster:")
+            st.dataframe(candidates_df[['admission_no', 'student_name', 'section_key']], use_container_width=True)
 
-        if st.button("🚀 Process Bulk Roster Promotion", type="primary", disabled=not confirm_gate):
-            candidate_ids = promo_candidates["Roll No"].tolist()
-            try:
-                for s_id in candidate_ids:
-                    execute_db_command("""
-                        UPDATE students 
-                        SET class = :next_class, 
-                            section = :next_section, 
-                            session = :next_session
-                        WHERE id = :student_id
-                    """, {
-                        "next_class": target_promo_class,
-                        "next_section": target_promo_sec,
-                        "next_session": target_promo_session,
-                        "student_id": int(s_id)
-                    })
-                st.balloons()
-                st.success(f"🎉 Promotion successful! {len(candidate_ids)} profiles cleanly shifted!")
-                st.rerun()
-            except Exception as error:
-                st.error(f"Migration operational failure: {error}")
+            st.markdown("---")
+            st.subheader("⚙️ Execute Migration Sequences")
+            keep_sections = st.checkbox("Retain original section mappings during transition tracking", value=True)
+            
+            forced_section_key = None
+            if not keep_sections:
+                chosen_sec = st.selectbox("Reassign all promoted records into this explicit section:", options=list(sec_map.keys()))
+                forced_section_key = sec_map[chosen_sec]
+
+            if st.button("🚀 Process Batch Progression Operation", type="primary"):
+                if class_map[source_class] == class_map[dest_class] and sess_map[source_sess] == sess_map[dest_sess]:
+                    st.error("Operation Aborted: Source parameters cannot match destination targets!")
+                else:
+                    success_logs = 0
+                    for _, row in candidates_df.iterrows():
+                        base_query = "UPDATE students SET class_key = :d_cls, session_key = :d_ses"
+                        query_params = {
+                            "d_cls": class_map[dest_class],
+                            "d_ses": sess_map[dest_sess],
+                            "s_id": int(row['student_id'])
+                        }
+                        
+                        if not keep_sections:
+                            base_query += ", section_key = :d_sec"
+                            query_params["d_sec"] = forced_section_key
+                            
+                        base_query += " WHERE student_id = :s_id"
+                        
+                        execute_db_command(base_query, query_params)
+                        success_logs += 1
+                        
+                    st.success(f"🎉 Operation Successful: Upgraded {success_logs} students into the {dest_class} tracking index ({dest_sess})!")
+                    st.rerun()
