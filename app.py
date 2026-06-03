@@ -2486,23 +2486,7 @@ elif menu_choice == "Student Management":
         search_term = st.text_input("Search student by name or admission number:").strip().upper()
         
         # Isolated SQL query string to eliminate nested formatting issues
-        view_query = """
-            SELECT 
-                s.admission_no AS "Admission No",
-                s.student_name AS "Student Name",
-                s.father_name AS "Father Name",
-                m_disc.item_value AS "Discipline",
-                m_class.item_value AS "Class",
-                m_sec.item_value AS "Section",
-                m_sess.item_value AS "Session"
-            FROM students s
-            LEFT JOIN master_registry m_disc ON s.discipline_key = m_disc.item_key AND m_disc.item_type = 'DISCIPLINE'
-            LEFT JOIN master_registry m_class ON s.class_key = m_class.item_key AND m_class.item_type = 'CLASS'
-            LEFT JOIN master_registry m_sec ON s.section_key = m_sec.item_key AND m_sec.item_type = 'SECTION'
-            LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION'
-            WHERE s.is_active = TRUE
-       # Ensure the multi-line query string is completely closed here
-        # Defining the base query safely as a single clean string
+        # This replaces everything starting from line 2489
         view_query = (
             "SELECT s.admission_no, s.student_name, s.father_name "
             "FROM students s "
@@ -2512,11 +2496,24 @@ elif menu_choice == "Student Management":
         
         params = {}
         if search_term:
+          # 1. Base query is defined FIRST
+        view_query = (
+            "SELECT s.admission_no, s.student_name, s.father_name "
+            "FROM students s "
+            "LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION' "
+            "WHERE s.is_active = TRUE"
+        )
+        
+        # 2. Add search parameters dynamically
+        params = {}
+        if search_term:
             view_query += " AND (UPPER(s.student_name) LIKE :term OR UPPER(s.admission_no) LIKE :term)"
             params["term"] = f"%{search_term}%"
             
+        # 3. Add sorting last
         view_query += " ORDER BY s.admission_no DESC"
         
+        # 4. Execute and render results safely
         try:
             students_df = run_query(view_query, params)
             if not students_df.empty:
@@ -2528,6 +2525,13 @@ elif menu_choice == "Student Management":
                 remove_id = st.text_input("Enter Admission Number to remove from active roster:").strip().upper()
                 if st.button("Deactivate Student Profile", type="secondary"):
                     if remove_id:
+                        execute_db_command("UPDATE students SET is_active = FALSE WHERE admission_no = :adm", {"adm": remove_id})
+                        st.success(f"Student profile {remove_id} marked inactive.")
+                        st.rerun()
+            else:
+                st.info("No matching student profile records found in the database.")
+        except Exception as e:
+            st.error(f"Error displaying student summary ledger: {e}")
                         execute_db_command("UPDATE students SET is_active = FALSE WHERE admission_no = :adm", {"adm": remove_id})
                         st.success(f"Student profile {remove_id} marked inactive.")
                         st.rerun()
