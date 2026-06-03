@@ -195,26 +195,113 @@ if menu_choice == "📊 Home Dashboard":
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
 
-# ----------------- ➕ ADD STUDENTS -----------------
-elif menu_choice == "➕ Add Students":
-    st.title("➕ Student Profile Registration Portal")
-    import_template = pd.DataFrame([{"ID": "", "Full Name": "", "Section": "", "Class": "11th"} for _ in range(35)])
-    pasted_data = st.data_editor(import_template, use_container_width=True, num_rows="dynamic", key="bulk_paste_grid")
-    
-    if st.button("🚀 Process and Save Bulk Profiles", type="primary"):
-        added_counter = 0
-        for _, row in pasted_data.iterrows():
-            r_id = str(row['ID']).strip()
-            r_name = str(row['Full Name']).strip()
-            r_sec = str(row['Section']).strip().upper()
-            r_class = str(row['Class']).strip()
-            if r_id.isdigit() and r_name != "":
-                execute_db_command(
-                    "INSERT INTO students (id, name, section, class) VALUES (:id, :name, :sec, :class) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, section = EXCLUDED.section, class = EXCLUDED.class",
-                    {"id": int(r_id), "name": r_name, "sec": r_sec, "class": r_class}
+# ---------------------------------------------------------
+# ⚙️ MASTER MODULE (REPLACES ADD STUDENTS MODULE)
+# ---------------------------------------------------------
+elif menu_choice == "⚙️ Master Module":
+    st.title("⚙️ Global Academic Configuration Master Module")
+    st.info("Configure your system settings here. This data dynamically populates dropdowns across all reporting sheets.")
+
+    # Automatically ensure the master registry table structure is initialized in PostgreSQL
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS master_registry (
+            id SERIAL PRIMARY KEY,
+            item_type VARCHAR(50) NOT NULL,
+            item_key VARCHAR(100) NOT NULL,
+            item_value VARCHAR(255) NOT NULL,
+            parent_key VARCHAR(100),
+            is_active BOOLEAN DEFAULT TRUE,
+            UNIQUE(item_type, item_key)
+        );
+    """)
+
+    # Setup specialized workspace workspaces via Tabs
+    tab_add, tab_view = st.tabs(["➕ Add New Configuration Entry", "📋 View & Manage Active Registry"])
+
+    with tab_add:
+        st.subheader("Define Global System Dropdown Data")
+        
+        with st.form("master_registry_input_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                item_type = st.selectbox(
+                    "Dropdown Type Category:", 
+                    ["DISCIPLINE", "CLASS", "SECTION", "SUBJECT", "TEST_TYPE", "SESSION", "CAMPUS"]
                 )
-                added_counter += 1
-        st.success(f"🎉 Successfully imported {added_counter} student profiles!")
+                item_key = st.text_input("Unique System Code Key (e.g., MED, CLASS_11, SEC_A):").strip().upper()
+                
+            with col2:
+                item_value = st.text_input("Display Name Value (e.g., Medical, 11th Class, MG_BLUE):").strip()
+                
+                # Dynamic context assignment: dynamically pulls items to serve as parents if required
+                parent_query = "SELECT item_key, item_value FROM master_registry WHERE is_active = TRUE ORDER BY item_value ASC"
+                try:
+                    p_df = run_query(parent_query)
+                    p_options = {"No Parent Relationship Link": ""}
+                    if not p_df.empty:
+                        for _, r in p_df.iterrows():
+                            p_options[f"[{r['item_key']}] {r['item_value']}"] = r['item_key']
+                except Exception:
+                    p_options = {"No Parent Relationship Link": ""}
+                    
+                parent_selection = st.selectbox("Assign Parent Connection Link (Optional):", options=list(p_options.keys()))
+                final_parent_key = p_options[parent_selection]
+
+            if st.form_submit_button("🚀 Deploy Component Entry into Database", type="primary"):
+                if not item_key or not item_value:
+                    st.error("Both Code Key and Display Name Value entries are strictly required!")
+                else:
+                    insert_cmd = """
+                        INSERT INTO master_registry (item_type, item_key, item_value, parent_key, is_active)
+                        VALUES (:type, :key, :value, :parent, TRUE)
+                        ON CONFLICT (item_type, item_key) 
+                        DO UPDATE SET item_value = EXCLUDED.item_value, parent_key = EXCLUDED.parent_key, is_active = TRUE;
+                    """
+                    try:
+                        run_update(insert_cmd, {
+                            "type": item_type,
+                            "key": item_key,
+                            "value": item_value,
+                            "parent": final_parent_key if final_parent_key != "" else None
+                        })
+                        st.success(f"🎉 Core Registry successfully updated: '{item_value}' assigned under '{item_type}' category context!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to submit to server framework data lines: {e}")
+
+    with tab_view:
+        st.subheader("Current Active Framework Architecture Registry")
+        filter_scope = st.radio(
+            "Filter Registry View Schema Scope:", 
+            ["ALL VIEW", "DISCIPLINE", "CLASS", "SECTION", "SUBJECT", "TEST_TYPE", "SESSION", "CAMPUS"], 
+            horizontal=True
+        )
+        
+        view_query = "SELECT id, item_type, item_key, item_value, parent_key, is_active FROM master_registry"
+        params = {}
+        if filter_scope != "ALL VIEW":
+            view_query += " WHERE item_type = :type"
+            params["type"] = filter_scope
+        view_query += " ORDER BY item_type, item_value ASC"
+        
+        try:
+            df_grid = run_query(view_query, params)
+            if not df_grid.empty:
+                st.dataframe(df_grid, use_container_width=True)
+                
+                # Quick-delete action for data administration maintenance
+                st.markdown("---")
+                delete_target = st.text_input("🎯 Enter Unique Code Key to Remove from System Matrix:")
+                if st.button("🗑️ Deactivate Target Reference Entry", type="secondary"):
+                    if delete_target:
+                        execute_db_command("UPDATE master_registry SET is_active = FALSE WHERE item_key = :key", {"key": delete_target.upper().strip()})
+                        st.success("Target element marked inactive.")
+                        st.rerun()
+            else:
+                st.info("No active registry tracks discovered matching selection variables framework options.")
+        except Exception as e:
+            st.error(f"Error drawing database system tables records summaries grids: {e}")
 
 # ---------------------------------------------------------
 # 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
