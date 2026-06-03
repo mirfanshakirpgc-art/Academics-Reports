@@ -2495,13 +2495,14 @@ elif menu_choice == "Student Management":
         )
         
         params = {}
-        if search_term:
-          # 1. Base query is defined FIRST
-        view_query = (
-            "SELECT s.admission_no, s.student_name, s.father_name "
-            "FROM students s "
-            "LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION' "
-            "WHERE s.is_active = TRUE"
+      if view_mode == "Summary Ledger":  # Line 2498 (or your specific if statement)
+            # Push this entire block to the right by 4 extra spaces!
+            view_query = (
+                "SELECT s.admission_no, s.student_name, s.father_name "
+                "FROM students s "
+                "LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION' "
+                "WHERE s.is_active = TRUE"
+            )
         )
         
         # 2. Add search parameters dynamically
