@@ -2468,6 +2468,8 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
+    st.markdown("---")
+
     # --- SECTION 2: TARGET ENVIRONMENT CONFIGURATION ---
     st.subheader("🎯 Step 2: Configure Destination Environment")
     
@@ -2477,11 +2479,11 @@ elif menu_choice == "🎓 Promote Students":
     tgt_c1, tgt_c2 = st.columns(2)
     
     with tgt_c2:
-        # 1️⃣ Render the discipline dropdown first so it's guaranteed to initialize for python
+        # Render the discipline dropdown first so it's guaranteed to initialize
         selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
 
     with tgt_c1:
-        # 2️⃣ Safely filter sections based on chosen discipline
+        # Safely filter sections based on chosen discipline
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
         if "MEDICAL" in disc_upper:
@@ -2505,46 +2507,35 @@ elif menu_choice == "🎓 Promote Students":
             key="promo_tgt_sec"
         )
 
-    # 3️⃣ Fetch baseline subjects safely
+    # 3️⃣ Fetch baseline subjects
     base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
-    available_subjects = []
-
-    # 🧠 Broad-Match Replacement Engine for Commerce (Handles any casing or variation)
+    
+    # 🧠 Dynamic Conditional Visibility Framework
     if source_class == "11th" and "COMMERCE" in disc_upper:
+        # Build modified lists using relaxed keyword rules to capture text records safely
+        transformed_subjects = []
         for sub in base_subjects:
             sub_clean = sub.strip().upper()
-            
-            # Catches: B_Math, Business Math, Math-I, b_math, etc.
-            if "MAT" in sub_clean:
-                available_subjects.append("B_Stats")
-            # Catches: Economic, Economics, Eco, ECO-I, etc.
-            elif "ECO" in sub_clean:
-                available_subjects.append("Banking")
-            # Catches: Commerce, Principle of Commerce, POC, etc.
-            elif "COM" in sub_clean or "POC" in sub_clean:
-                available_subjects.append("Geo")
+            if "MAT" in sub_clean or "MATH" in sub_clean or sub_clean == "BM":
+                transformed_subjects.append("B_Stats")
+            elif "ECO" in sub_clean or "PRINCIPLES" in sub_clean or sub_clean.startswith("EC") or "IE" in sub_clean:
+                transformed_subjects.append("Banking")
+            elif "COM" in sub_clean or "POC" in sub_clean or "COMM" in sub_clean:
+                transformed_subjects.append("Geo")
             else:
-                available_subjects.append(sub)
+                transformed_subjects.append(sub)
+
+        # Show the subject customization dropdown ONLY for Commerce
+        st.markdown("#### 📚 Adjust 12th Grade Commerce Curriculum Map")
+        target_subjects = st.multiselect(
+            "Modify or verify tracking subject mappings for upcoming year:", 
+            transformed_subjects, 
+            default=transformed_subjects,
+            key=f"promo_subjects_{source_class}_{selected_discipline.replace(' ', '_')}"
+        )
     else:
-        # All other disciplines or 12th graders keep their baseline maps
-        available_subjects = base_subjects
-
-    # 4️⃣ Display the multiselect box explicitly
-    target_subjects = st.multiselect(
-        "📚 Core Subjects Allocation (For Next Academic Year):", 
-        available_subjects, 
-        default=available_subjects,
-        key="promo_subjects_multiselect"
-    )
-
-    # 4️⃣ Display the multiselect box explicitly with a dynamic, unique key
-    target_subjects = st.multiselect(
-        "📚 Core Subjects Allocation (For Next Academic Year):", 
-        available_subjects, 
-        default=available_subjects,
-        key=f"promo_subjects_{source_class}_{selected_discipline.replace(' ', '_')}"
-    )
-
+        # For all other disciplines, hide the multiselect entirely and assign default subjects automatically
+        target_subjects = base_subjects
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
 
