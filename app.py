@@ -219,187 +219,113 @@ elif menu_choice == "➕ Add Students":
                 added_counter += 1
         st.success(f"🎉 Successfully imported {added_counter} student profiles!")
 
-# ---------------------------------------------------------
-# 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
-# ---------------------------------------------------------
-elif menu_choice == "📝 Enter Marks & Attendance":
-    st.title("📝 Data Intake Management Dashboard")
-    sub_tab_selection = st.radio("🎯 Select Workspace Sub-Module Target:", ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], horizontal=True)
-    st.markdown("---")
-
-    # Get active session identity data safely
-    current_user_id = st.session_state.get('user_id', None)
-    current_role = st.session_state.get('role', st.session_state.get('user_role', 'teacher'))
-
-   # =========================================================
-# 1. ACADEMIC EXAM MARKS ENTRY SUB-MODULE
 # =========================================================
-if sub_tab_selection == "📝 Academic Exam Marks Entry":
-    entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
-    st.markdown("---")
+# MAIN MENU NAVIGATION: ENTER MARKS & ATTENDANCE
+# =========================================================
+if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter Marks & Attendance":
+    
+    # 🌟 THIS IS THE LINE THAT WAS MISSING OR ALIGNED WRONGLY:
+    sub_tab_selection = st.segmented_control(
+        "Select Sub-Module:", 
+        ["📝 Academic Exam Marks Entry", "📅 Monthly Attendance Entry"], 
+        default="📝 Academic Exam Marks Entry",
+        key="marks_attendance_sub_tabs"
+    )
+    
+    st.markdown("###")
 
-    if entry_mode == "📋 By Complete Section":
-        # Expand columns structure layout from 3 to 4 to hold parameters cleanly
-        c1, c2, c3, c4 = st.columns(4)
-        
-        if current_role == 'teacher' and current_user_id is not None:
-            teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
-            if not teacher_rights.empty:
-                allowed_subs = sorted(list(teacher_rights['subject'].unique()))
-                allowed_secs = sorted(list(teacher_rights['section'].unique()))
-                with c1: sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_t")
-                with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
-                with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
-                with c4: st.info("🔒 Bound to Allocation Profile")
+    # =========================================================
+    # 1. ACADEMIC EXAM MARKS ENTRY SUB-MODULE
+    # =========================================================
+    if sub_tab_selection == "📝 Academic Exam Marks Entry":
+        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
+        st.markdown("---")
+
+        if entry_mode == "📋 By Complete Section":
+            c1, c2, c3, c4 = st.columns(4)
+            
+            if current_role == 'teacher' and current_user_id is not None:
+                teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
+                if not teacher_rights.empty:
+                    allowed_subs = sorted(list(teacher_rights['subject'].unique()))
+                    allowed_secs = sorted(list(teacher_rights['section'].unique()))
+                    with c1: sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_t")
+                    with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
+                    with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
+                    with c4: st.info("🔒 Bound to Allocation Profile")
+                else:
+                    st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                    sel_subject, sel_section, sel_session = None, None, None
             else:
-                st.warning("🚨 You do not have any active subjects or sections assigned yet.")
-                sel_subject, sel_section, sel_session = None, None, None
-        else:
-            with c1: 
-                sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_a")
-                sess_prefix = sel_session.split('-')[0] + '%'
-            with c2: 
-                sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-            with c3: 
-                sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="entry_class_filter_a")
-            with c4: 
-                disc_secs_raw = DISCIPLINE_SECTIONS_MAP.get(sel_discipline, [])
-                if disc_secs_raw:
-                    active_secs_df = run_query(
-                        """
-                        SELECT DISTINCT section FROM students 
-                        WHERE session LIKE :sess 
-                          AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
-                        ORDER BY section
-                        """,
-                        {"sess": sess_prefix, "cls": sel_class}
-                    )
-                    db_secs = [s.upper().strip() for s in active_secs_df['section'].tolist()] if not active_secs_df.empty else []
-                    valid_sections_list = [s for s in disc_secs_raw if s.upper().strip() in db_secs]
-                else:
-                    valid_sections_list = []
-                    
-                if not valid_sections_list:
-                    valid_sections_list = disc_secs_raw if disc_secs_raw else ["No Active Data"]
-
-                sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
-                
-            sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline], key="entry_sub_filter_a")
-        
-        # Checking variables to protect down-stream roster form loading logic
-        if sel_subject and sel_section and sel_session:
-            row2_1, row2_2 = st.columns(2)
-            with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
-            with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
-            
-            try:
-                roster_df = run_query("""
-                    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-                    FROM students s
-                    LEFT JOIN marks m ON s.id = m.student_id 
-                        AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) 
-                        AND TRIM(m.exam_type) = TRIM(:exam)
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND s.session = :session
-                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-                    ORDER BY s.id ASC
-                """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session})
-                
-                if roster_df.empty:
-                    st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
-                else:
-                    roster_df['Marks'] = roster_df['Marks'].fillna("")
-                    with st.form("bulk_marks_form"):
-                        updated_scores = {}
-                        for idx, row in roster_df.iterrows():
-                            col_s1, col_s2 = st.columns([3, 1])
-                            col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
-                            updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
-                        
-                        if st.form_submit_button("💾 Save Section Marks", type="primary"):
-                            for s_id, score in updated_scores.items():
-                                execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
-                                if score.strip() != "":
-                                    execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
-                            st.success("🎉 Section marks matrix saved completely!")
-                            st.rerun()
-            except Exception as e:
-                st.error(f"Database sync issue: {e}")
-
-        elif entry_mode == "👤 By Single Student Roll Number":
-            target_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id")
-            if target_id and target_id.isdigit():
-                student_info = run_query("""
-    SELECT name, section, class, status 
-    FROM students 
-    WHERE id = :id 
-      AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
-""", {"id": int(target_id)})
-                if student_info.empty:
-                    st.error("❌ This roll number does not exist.")
-                else:
-                    s_name = student_info['name'].iloc[0].upper()
-                    s_section = student_info['section'].iloc[0].upper().strip()
-                    s_class = student_info['class'].iloc[0]
-                    st.info(f"👤 Found: {s_name} | Class: {s_class} | Section: {s_section}")
-                    
-                    matched_disp = "MEDICAL"
-                    for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
-                        if s_section in [x.upper().strip() for x in secs]:
-                            matched_disp = disp
-                            break
-                    
-                    c_sub, c_ex, c_m = st.columns(3)
-                    with c_sub: single_subj = st.selectbox("Choose Subject:", DISCIPLINE_SUBJECTS_MAP[matched_disp], key="single_sub")
-                    with c_ex: single_exam = st.selectbox("Choose Test Term Type:", AVAILABLE_EXAMS, key="single_exam")
-                    with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
-                    
-                    existing_record = run_query("SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
-                    current_val = str(existing_record['marks_obtained'].iloc[0]) if not existing_record.empty else ""
-                    single_score = st.text_input("✏️ Enter Marks Obtained:", value=current_val)
-                    
-                    if st.button("💾 Save Student Record", type="primary"):
-                        execute_db_command("DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
-                        if single_score.strip() != "":
-                            execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(target_id), "sub": single_subj.strip().upper(), "exam": single_exam.strip(), "score": single_score.strip(), "total": single_total})
-                        st.success("🎉 Marks updated successfully!")
-                        st.rerun()
-
-        elif entry_mode == "📤 Bulk Excel/CSV Import":
-            st.subheader("📤 Bulk Marks CSV Document Importer")
-            st.info("📊 Spreadsheet layout must use these lowercase headers: **student_id** and **marks_obtained**")
-            
-            c_xl1, c_xl2, c_xl3 = st.columns(3)
-            all_subjects_flat = sorted(list(set(sum(DISCIPLINE_SUBJECTS_MAP.values(), []))))
-            
-            with c_xl1: xl_subject = st.selectbox("Target Entry Subject:", all_subjects_flat, key="xl_m_sub")
-            with c_xl2: xl_exam = st.selectbox("Target Entry Test Context:", AVAILABLE_EXAMS, key="xl_m_exam")
-            with c_xl3: xl_total = st.number_input("Set Assignment Total Marks Capacity:", value=100, key="xl_m_total")
-            
-            uploaded_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="marks_uploader_widget")
-            if uploaded_file is not None:
-                try:
-                    df = pd.read_csv(uploaded_file)
-                    df.columns = [str(c).lower().strip() for c in df.columns]
-                    
-                    if 'student_id' in df.columns and 'marks_obtained' in df.columns:
-                        st.dataframe(df, use_container_width=True)
-                        if st.button("🚀 Process and Save Bulk Marks", type="primary"):
-                            success_count = 0
-                            for _, row in df.iterrows():
-                                s_id = str(row['student_id']).split('.')[0].strip()
-                                score = str(row['marks_obtained']).strip()
-                                if s_id.isdigit():
-                                    execute_db_command("DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(s_id), "sub": xl_subject, "exam": xl_exam})
-                                    if score != "" and score.lower() != 'nan':
-                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :total)", {"id": int(s_id), "sub": xl_subject.strip().upper(), "exam": xl_exam.strip(), "score": score, "total": xl_total})
-                                        success_count += 1
-                            st.success(f"🎉 Successfully updated {success_count} student grade rows!")
-                            st.rerun()
+                with c1: 
+                    sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_a")
+                    sess_prefix = sel_session.split('-')[0] + '%'
+                with c2: 
+                    sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+                with c3: 
+                    sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="entry_class_filter_a")
+                with c4: 
+                    disc_secs_raw = DISCIPLINE_SECTIONS_MAP.get(sel_discipline, [])
+                    if disc_secs_raw:
+                        active_secs_df = run_query(
+                            """
+                            SELECT DISTINCT section FROM students 
+                            WHERE session LIKE :sess 
+                              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+                            ORDER BY section
+                            """,
+                            {"sess": sess_prefix, "cls": sel_class}
+                        )
+                        db_secs = [s.upper().strip() for s in active_secs_df['section'].tolist()] if not active_secs_df.empty else []
+                        valid_sections_list = [s for s in disc_secs_raw if s.upper().strip() in db_secs]
                     else:
-                        st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'marks_obtained' names exactly.")
+                        valid_sections_list = []
+                        
+                    if not valid_sections_list:
+                        valid_sections_list = disc_secs_raw if disc_secs_raw else ["No Active Data"]
+
+                    sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
+                    
+                sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline], key="entry_sub_filter_a")
+            
+            if sel_subject and sel_section and sel_session:
+                row2_1, row2_2 = st.columns(2)
+                with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
+                with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
+                
+                try:
+                    roster_df = run_query("""
+                        SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                        FROM students s
+                        LEFT JOIN marks m ON s.id = m.student_id 
+                            AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) 
+                            AND TRIM(m.exam_type) = TRIM(:exam)
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                          AND s.session = :session
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+                        ORDER BY s.id ASC
+                    """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session})
+                    
+                    if roster_df.empty:
+                        st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
+                    else:
+                        roster_df['Marks'] = roster_df['Marks'].fillna("")
+                        with st.form("bulk_marks_form"):
+                            updated_scores = {}
+                            for idx, row in roster_df.iterrows():
+                                col_s1, col_s2 = st.columns([3, 1])
+                                col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
+                                updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
+                            
+                            if st.form_submit_button("💾 Save Section Marks", type="primary"):
+                                for s_id, score in updated_scores.items():
+                                    execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
+                                    if score.strip() != "":
+                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
+                                st.success("🎉 Section marks matrix saved completely!")
+                                st.rerun()
                 except Exception as e:
-                    st.error(f"Error handling system processing upload: {e}")
+                    st.error(f"Database sync issue: {e}")
 
     # =========================================================
     # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE
