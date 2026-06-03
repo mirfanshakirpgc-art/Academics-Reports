@@ -254,39 +254,40 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
                     with c4: st.info("🔒 Bound to Allocation Profile")
                 else:
-                    st.warning("🚨 You do not have any active subjects or sections assigned yet.")
-                    sel_subject, sel_section, sel_session = None, None, None
-            else:
-                with c1: 
-                    sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_a")
-                    sess_prefix = sel_session.split('-')[0] + '%'
-                with c2: 
-                    sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
-                with c3: 
-                    sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="entry_class_filter_a")
-                with c4: 
-                    disc_secs_raw = DISCIPLINE_SECTIONS_MAP.get(sel_discipline, [])
-                    if disc_secs_raw:
-                        active_secs_df = run_query(
-                            """
-                            SELECT DISTINCT section FROM students 
-                            WHERE session LIKE :sess 
-                              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
-                            ORDER BY section
-                            """,
-                            {"sess": sess_prefix, "cls": sel_class}
-                        )
-                        db_secs = [s.upper().strip() for s in active_secs_df['section'].tolist()] if not active_secs_df.empty else []
-                        valid_sections_list = [s for s in disc_secs_raw if s.upper().strip() in db_secs]
                     else:
-                        valid_sections_list = []
-                        
-                    if not valid_sections_list:
-                        valid_sections_list = disc_secs_raw if disc_secs_raw else ["No Active Data"]
+            with c1: 
+                sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_a")
+                sess_prefix = sel_session.split('-')[0] + '%'
+            with c2: 
+                sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+            with c3: 
+                sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="entry_class_filter_a")
+            with c4: 
+                # 📊 Dynamic DB lookup prevents NameErrors on missing dictionary mappings
+                active_secs_df = run_query(
+                    """
+                    SELECT DISTINCT section FROM students 
+                    WHERE session LIKE :sess 
+                      AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+                    ORDER BY section
+                    """,
+                    {"sess": sess_prefix, "cls": sel_class}
+                )
+                
+                # Extract sections or use safe defaults if the session has no registrations yet
+                valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
+                if not valid_sections_list:
+                    valid_sections_list = ["IK", "IB", "EQ", "MQ1"]
 
-                    sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
-                    
-                sel_subject = st.selectbox("Select Subject:", DISCIPLINE_SUBJECTS_MAP[sel_discipline], key="entry_sub_filter_a")
+                sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
+                
+            # Safely grab subjects without breaking if global configs aren't available
+            try:
+                available_subjects = DISCIPLINE_SUBJECTS_MAP[sel_discipline]
+            except NameError:
+                available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology", "Pak. Studies", "B_Stats", "Banking", "Geo"]
+                
+            sel_subject = st.selectbox("Select Subject:", available_subjects, key="entry_sub_filter_a")
             
             if sel_subject and sel_section and sel_session:
                 row2_1, row2_2 = st.columns(2)
