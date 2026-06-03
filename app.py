@@ -2333,34 +2333,141 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ---------------------------------------------------------
-# 🎓 PROMOTE STUDENTS MODULE
+# 👥 STUDENT MANAGEMENT MODULE
 # ---------------------------------------------------------
-elif menu_choice == "Promote Students":
-    st.title("🎓 Batch Student Progression & Promotion Panel")
-    st.info("Efficiently move groups of students between academic years or configuration blocks.")
+elif menu_choice == "Student Management":
+    st.title("👥 Student Profile Management & Registration")
+    st.info("Register and manage student profiles. Dropdown values are pulled directly from your Configuration Master Module.")
 
-    # Fetch configuration data maps using global helper framework safely
-    try:
-        df_class = get_registry_options("CLASS")
-        df_sess = get_registry_options("SESSION")
-        df_sec = get_registry_options("SECTION")
-    except Exception as e:
-        st.error(f"System tracking arrays offline: {e}")
-        st.stop()
+    # 1. Initialize students database schema safely
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS students (
+            student_id SERIAL PRIMARY KEY,
+            admission_no VARCHAR(50) UNIQUE NOT NULL,
+            student_name VARCHAR(150) NOT NULL,
+            father_name VARCHAR(150),
+            discipline_key VARCHAR(100) NOT NULL,
+            class_key VARCHAR(100) NOT NULL,
+            section_key VARCHAR(100) NOT NULL,
+            session_key VARCHAR(100) NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE
+        );
+    """)
 
-    class_map = {r['item_value']: r['item_key'] for _, r in df_class.iterrows()} if not df_class.empty else {}
-    sess_map = {r['item_value']: r['item_key'] for _, r in df_sess.iterrows()} if not df_sess.empty else {}
-    sec_map = {r['item_value']: r['item_key'] for _, r in df_sec.iterrows()} if not df_sec.empty else {}
+    # Setup Workspaces: Add Tab and View Tab
+    tab_register, tab_directory = st.tabs(["➕ Register New Student", "📋 Student Directory View"])
 
-    if not (class_map and sess_map):
-        st.warning("⚠️ Action Required: Setup Classes and Sessions tracking layers in Master Module before promoting files.")
-    else:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("🔍 1. Identify Target Batch")
-            source_class = st.selectbox("Current Class (From):", options=list(class_map.keys()), key="promo_src_cls")
-            source_sess = st.selectbox("Current Active Session:", options=list(sess_map.keys()), key="promo_src_ses")
+    with tab_register:
+        # 2. Leverage your standalone get_registry_options tool to extract configurations
+        try:
+            df_disc = get_registry_options("DISCIPLINE")
+            df_class = get_registry_options("CLASS")
+            df_sec = get_registry_options("SECTION")
+            df_sess = get_registry_options("SESSION")
+        except Exception as e:
+            st.error(f"Failed to access Master Module system registries: {e}")
+            st.stop()
+
+        # Create mapping dictionaries: Display Name -> Under-the-hood System Key
+        disc_map = {r['item_value']: r['item_key'] for _, r in df_disc.iterrows()} if not df_disc.empty else {}
+        class_map = {r['item_value']: r['item_key'] for _, r in df_class.iterrows()} if not df_class.empty else {}
+        sec_map = {r['item_value']: r['item_key'] for _, r in df_sec.iterrows()} if not df_sec.empty else {}
+        sess_map = {r['item_value']: r['item_key'] for _, r in df_sess.iterrows()} if not df_sess.empty else {}
+
+        if not (disc_map and class_map and sec_map and sess_map):
+            st.warning("⚠️ Stop: Please configure your active Disciplines, Classes, Sections, and Sessions in the Master Module before registering profiles.")
+        else:
+            with st.form("student_profile_entry_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    admission_no = st.text_input("Admission Number (Unique ID Reference):").strip().upper()
+                    student_name = st.text_input("Student Full Name:").strip()
+                    father_name = st.text_input("Father's Name:").strip()
+                    
+                with col2:
+                    selected_disc = st.selectbox("Select Discipline Faculty:", options=list(disc_map.keys()))
+                    selected_class = st.selectbox("Select Academic Placement Year:", options=list(class_map.keys()))
+                    selected_sec = st.selectbox("Select Section Cohort Allocation:", options=list(sec_map.keys()))
+                    selected_sess = st.selectbox("Select Active Operational Session:", options=list(sess_map.keys()))
+
+                if st.form_submit_button("🚀 Finalize & Register Student Profile", type="primary"):
+                    if not admission_no or not student_name:
+                        st.error("Admission Number and Student Full Name fields cannot be empty!")
+                    else:
+                        insert_query = """
+                            INSERT INTO students (admission_no, student_name, father_name, discipline_key, class_key, section_key, session_key, is_active)
+                            VALUES (:adm, :name, :father, :disc, :class, :sec, :sess, TRUE)
+                            ON CONFLICT (admission_no) DO UPDATE SET
+                                student_name = EXCLUDED.student_name,
+                                father_name = EXCLUDED.father_name,
+                                discipline_key = EXCLUDED.discipline_key,
+                                class_key = EXCLUDED.class_key,
+                                section_key = EXCLUDED.section_key,
+                                session_key = EXCLUDED.session_key,
+                                is_active = TRUE;
+                        """
+                        try:
+                            run_update(insert_query, {
+                                "adm": admission_no,
+                                "name": student_name,
+                                "father": father_name,
+                                "disc": disc_map[selected_disc],
+                                "class": class_map[selected_class],
+                                "sec": sec_map[selected_sec],
+                                "sess": sess_map[selected_sess]
+                            })
+                            st.success(f"🎉 Success: Student record '{student_name}' has been created under ID {admission_no}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Database sync operation failed: {e}")
+
+    with tab_directory:
+        st.subheader("🔍 Filter Active Student Roster")
         
-        with col2:
-            st.subheader("🚀 2. Establish Promotion Destination")
-            dest_class = st.selectbox("Target Class (To):", options=list(class_map.keys()), key="
+        # Simple Search Bar
+        search_term = st.text_input("Search student by name or admission number:").strip().upper()
+        
+        # Isolated SQL query string to eliminate nested formatting issues
+        view_query = """
+            SELECT 
+                s.admission_no AS "Admission No",
+                s.student_name AS "Student Name",
+                s.father_name AS "Father Name",
+                m_disc.item_value AS "Discipline",
+                m_class.item_value AS "Class",
+                m_sec.item_value AS "Section",
+                m_sess.item_value AS "Session"
+            FROM students s
+            LEFT JOIN master_registry m_disc ON s.discipline_key = m_disc.item_key AND m_disc.item_type = 'DISCIPLINE'
+            LEFT JOIN master_registry m_class ON s.class_key = m_class.item_key AND m_class.item_type = 'CLASS'
+            LEFT JOIN master_registry m_sec ON s.section_key = m_sec.item_key AND m_sec.item_type = 'SECTION'
+            LEFT JOIN master_registry m_sess ON s.session_key = m_sess.item_key AND m_sess.item_type = 'SESSION'
+            WHERE s.is_active = TRUE
+        """
+        
+        params = {}
+        if search_term:
+            view_query += " AND (UPPER(s.student_name) LIKE :term OR UPPER(s.admission_no) LIKE :term)"
+            params["term"] = f"%{search_term}%"
+            
+        view_query += " ORDER BY s.admission_no DESC"
+        
+        try:
+            students_df = run_query(view_query, params)
+            if not students_df.empty:
+                st.dataframe(students_df, use_container_width=True)
+                
+                # Management Option: Deactivate a profile entry
+                st.markdown("---")
+                st.subheader("🗑️ Administrative Maintenance")
+                remove_id = st.text_input("Enter Admission Number to remove from active roster:").strip().upper()
+                if st.button("Deactivate Student Profile", type="secondary"):
+                    if remove_id:
+                        execute_db_command("UPDATE students SET is_active = FALSE WHERE admission_no = :adm", {"adm": remove_id})
+                        st.success(f"Student profile {remove_id} marked inactive.")
+                        st.rerun()
+            else:
+                st.info("No matching student profile records found in the database.")
+        except Exception as e:
+            st.error(f"Error displaying student summary ledger: {e}")
