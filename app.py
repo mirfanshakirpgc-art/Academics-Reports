@@ -196,7 +196,7 @@ if menu_choice == "📊 Home Dashboard":
     c2.metric("Total Grade Records Captured", m_count)
 
 # ---------------------------------------------------------
-# ⚙️ MASTER MODULE (REPLACES ADD STUDENTS MODULE)
+# ⚙️ MASTER MODULE (STREAMLINED ENTRY version)
 # ---------------------------------------------------------
 elif menu_choice == "⚙️ Master Module":
     st.title("⚙️ Global Academic Configuration Master Module")
@@ -215,7 +215,7 @@ elif menu_choice == "⚙️ Master Module":
         );
     """)
 
-    # Setup specialized workspace workspaces via Tabs
+    # Setup specialized workspaces via Tabs
     tab_add, tab_view = st.tabs(["➕ Add New Configuration Entry", "📋 View & Manage Active Registry"])
 
     with tab_add:
@@ -229,11 +229,9 @@ elif menu_choice == "⚙️ Master Module":
                     "Dropdown Type Category:", 
                     ["DISCIPLINE", "CLASS", "SECTION", "SUBJECT", "TEST_TYPE", "SESSION", "CAMPUS"]
                 )
-                item_key = st.text_input("Unique System Code Key (e.g., MED, CLASS_11, SEC_A):").strip().upper()
-                
-            with col2:
                 item_value = st.text_input("Display Name Value (e.g., Medical, 11th Class, MG_BLUE):").strip()
                 
+            with col2:
                 # Dynamic context assignment: dynamically pulls items to serve as parents if required
                 parent_query = "SELECT item_key, item_value FROM master_registry WHERE is_active = TRUE ORDER BY item_value ASC"
                 try:
@@ -249,9 +247,13 @@ elif menu_choice == "⚙️ Master Module":
                 final_parent_key = p_options[parent_selection]
 
             if st.form_submit_button("🚀 Deploy Component Entry into Database", type="primary"):
-                if not item_key or not item_value:
-                    st.error("Both Code Key and Display Name Value entries are strictly required!")
+                if not item_value:
+                    st.error("The Display Name Value entry is strictly required!")
                 else:
+                    # Automatically generate a clean, safe database Key from the Display Name
+                    # Example: "ICS Physics" -> "ICS_PHYSICS"
+                    generated_key = item_value.upper().replace(" ", "_").replace("-", "_").replace(".", "")
+                    
                     insert_cmd = """
                         INSERT INTO master_registry (item_type, item_key, item_value, parent_key, is_active)
                         VALUES (:type, :key, :value, :parent, TRUE)
@@ -261,14 +263,14 @@ elif menu_choice == "⚙️ Master Module":
                     try:
                         run_update(insert_cmd, {
                             "type": item_type,
-                            "key": item_key,
+                            "key": generated_key,
                             "value": item_value,
                             "parent": final_parent_key if final_parent_key != "" else None
                         })
-                        st.success(f"🎉 Core Registry successfully updated: '{item_value}' assigned under '{item_type}' category context!")
+                        st.success(f"🎉 Core Registry successfully updated: '{item_value}' added!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Failed to submit to server framework data lines: {e}")
+                        st.error(f"Failed to submit to database: {e}")
 
     with tab_view:
         st.subheader("Current Active Framework Architecture Registry")
@@ -292,7 +294,7 @@ elif menu_choice == "⚙️ Master Module":
                 
                 # Quick-delete action for data administration maintenance
                 st.markdown("---")
-                delete_target = st.text_input("🎯 Enter Unique Code Key to Remove from System Matrix:")
+                delete_target = st.text_input("🎯 Enter Unique Code Key to Remove from System Matrix (See table above):")
                 if st.button("🗑️ Deactivate Target Reference Entry", type="secondary"):
                     if delete_target:
                         execute_db_command("UPDATE master_registry SET is_active = FALSE WHERE item_key = :key", {"key": delete_target.upper().strip()})
@@ -302,7 +304,6 @@ elif menu_choice == "⚙️ Master Module":
                 st.info("No active registry tracks discovered matching selection variables framework options.")
         except Exception as e:
             st.error(f"Error drawing database system tables records summaries grids: {e}")
-
 # ---------------------------------------------------------
 # 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
 # ---------------------------------------------------------
