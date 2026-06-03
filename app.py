@@ -2411,7 +2411,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
-# ----------------- 🎓 PROMOTE STUDENTS -----------------
+# ----------------- 🎓 ADVANCED PROMOTE STUDENTS -----------------
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or individual students while managing their target sections and subject mappings.")
@@ -2427,7 +2427,9 @@ elif menu_choice == "🎓 Promote Students":
     with src_c3:
         promo_scope = st.radio("Promotion Scope:", ["📋 Complete Section", "👤 Single Student"], horizontal=True)
 
-    # Contextual routing variables initialization
+    # Clean prefix generator to catch both '2025-27' and '2025-2027' records natively
+    sess_prefix = promo_session.split('-')[0] + '%' 
+    
     selected_section = None
     target_student_id = None
     
@@ -2435,11 +2437,11 @@ elif menu_choice == "🎓 Promote Students":
         sections_df = run_query(
             """
             SELECT DISTINCT section FROM students 
-            WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
+            WHERE session LIKE :sess 
               AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
             ORDER BY section
             """,
-            {"sess": promo_session, "cls": source_class}
+            {"sess": sess_prefix, "cls": source_class}
         )
         available_src_sections = sections_df['section'].tolist() if not sections_df.empty else []
         selected_section = st.selectbox("Select Source Section to Promote:", available_src_sections if available_src_sections else ["No Data Found"])
@@ -2447,26 +2449,26 @@ elif menu_choice == "🎓 Promote Students":
         students_roster_df = run_query(
             """
             SELECT id, name FROM students 
-            WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
+            WHERE session LIKE :sess 
               AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
             ORDER BY name
             """,
-            {"sess": promo_session, "cls": source_class}
+            {"sess": sess_prefix, "cls": source_class}
         )
         if not students_roster_df.empty:
             student_options = {f"{row['id']} - {row['name']}": row['id'] for _, row in students_roster_df.iterrows()}
             chosen_stu_str = st.selectbox("Search & Select Student:", list(student_options.keys()))
             target_student_id = student_options[chosen_stu_str]
         else:
-            st.warning("⚠️ No matching student rows found.")
+            st.warning("⚠️ No matching student rows found matching these configuration targets.")
 
     st.markdown("---")
 
-    # --- SECTION 2: TARGET OPTIONS ---
+    # --- SECTION 2: TARGET ENVIRONMENT CONFIGURATION ---
     st.subheader("🎯 Step 2: Configure Destination Environment")
     
     next_class = "12th" if source_class == "11th" else "Alumni/Left"
-    st.info(f"✨ Students will automatically change Class status from **{source_class} ➔ {next_class}** while keeping Academic Session cycle **{promo_session}**.")
+    st.info(f"✨ Target Update: Status shifts from **{source_class} ➔ {next_class}** under lifecycle tracking track **{promo_session}**.")
     
     tgt_c1, tgt_c2 = st.columns(2)
     
@@ -2475,13 +2477,11 @@ elif menu_choice == "🎓 Promote Students":
         target_section = st.selectbox("Assign to Destination Section:", all_possible_sections, key="promo_tgt_sec")
         
     with tgt_c2:
-        # 🔑 This is now guaranteed to run and initialize for BOTH single student and section modes!
         selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
 
-    # Look up the default 11th-grade list from your global variable map safely
+    # Dynamic Curriculum Exception Engine logic
     base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
     
-    # 🧠 EXCEPTION ROUTING ENGINE: Adjust mapping when moving from 11th to 12th
     if source_class == "11th":
         if "COMMERCE" in selected_discipline.upper():
             available_subjects = []
@@ -2496,15 +2496,58 @@ elif menu_choice == "🎓 Promote Students":
                 else:
                     available_subjects.append(sub)
         else:
-            # Information Technology and all other standard disciplines keep their lineup unchanged
             available_subjects = base_subjects
     else:
         available_subjects = base_subjects
 
-    # Pre-select the dynamically altered subject list
     target_subjects = st.multiselect(
         "📚 Core Subjects Allocation (For Next Academic Year):", 
         available_subjects, 
         default=available_subjects,
         key="promo_subjects_multiselect"
     )
+
+    st.markdown("---")
+
+    # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
+    st.subheader("📊 Step 3: Roster Execution Preview")
+
+    if promo_scope == "📋 Complete Section":
+        preview_query = """
+            SELECT id, name, section, class, session FROM students 
+            WHERE session LIKE :sess 
+              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+              AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
+            ORDER BY id ASC
+        """
+        params = {"sess": sess_prefix, "cls": source_class, "sec": str(selected_section)}
+    else:
+        preview_query = "SELECT id, name, section, class, session FROM students WHERE id = :s_id"
+        params = {"s_id": target_student_id}
+
+    if (promo_scope == "📋 Complete Section" and selected_section and selected_section != "No Data Found") or (promo_scope == "👤 Single Student" and target_student_id):
+        preview_df = run_query(preview_query, params)
+        
+        if not preview_df.empty:
+            st.dataframe(preview_df, use_container_width=True)
+            st.warning(f"⚠️ **Action Scope Notice:** Running promotion updates {len(preview_df)} student matrix lines.")
+            
+            if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary"):
+                student_ids_to_process = preview_df['id'].tolist()
+                
+                for s_id in student_ids_to_process:
+                    # Update demographic markers 
+                    execute_db_command(
+                        """
+                        UPDATE students 
+                        SET class = :next_cls, 
+                            section = :next_sec
+                        WHERE id = :s_id
+                        """,
+                        {"next_cls": next_class, "next_sec": target_section.strip().upper(), "s_id": int(s_id)}
+                    )
+                
+                st.success(f"🎉 Promotion complete! {len(student_ids_to_process)} records re-assigned safely to Class {next_class}.")
+                st.rerun()
+        else:
+            st.info("💡 No student records matching selected parameters were discovered.")
