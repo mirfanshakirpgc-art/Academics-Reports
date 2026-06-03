@@ -2414,15 +2414,27 @@ if menu_choice == "👨‍🏫 Teacher Management":
 # ----------------- 🎓 PROMOTE STUDENTS -----------------
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 End-of-Year Class Promotion Panel")
-    st.write("Shifting student class levels while preserving their tracking academic intake session lifecycle.")
     
+    # 🕵️‍♂️ FORCE DIAGNOSTIC VIEW (Unfiltered Raw Database Check)
+    st.subheader("⚙️ Live Database Roster State Check")
+    raw_check_df = run_query("SELECT id, name, class, session FROM students LIMIT 8")
+    
+    if raw_check_df.empty:
+        st.error("🚨 Critical Alert: The application returned 0 student profiles from your database table.")
+    else:
+        st.info("📊 Below are the literal rows currently stored inside your database:")
+        st.dataframe(raw_check_df, use_container_width=True)
+        
+    st.markdown("---")
+    
+    # Promotion Interface Controls
     col_p1, col_p2 = st.columns(2)
     with col_p1:
         promo_session = st.selectbox("Select Target Session to Promote:", AVAILABLE_SESSIONS, index=1, key="promo_sess")
     with col_p2:
         source_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0)
         
-    # ✨ FIX: Added UPPER and TRIM here so the 522 records show up in the table preview!
+    # Query using precise parameters
     preview_df = run_query(
         """
         SELECT id, name, section, class, session 
@@ -2434,15 +2446,12 @@ elif menu_choice == "🎓 Promote Students":
         {"sess": promo_session, "cls": source_class}
     )
     
-    if preview_df.empty:
-        st.info(f"💡 No active student records found matching **{source_class}** in Session **{promo_session}**.")
-    else:
+    if not preview_df.empty:
+        st.subheader("👥 Target Profiles Found")
         st.dataframe(preview_df, use_container_width=True)
-        st.warning(f"⚠️ **Action Notice:** You are about to modify {len(preview_df)} student profile structures permanently.")
         
         if source_class == "11th":
-            confirm_btn = st.button(f"🚀 Mass Promote 11th ➔ 12th ({promo_session})", type="primary")
-            if confirm_btn:
+            if st.button(f"🚀 Mass Promote 11th ➔ 12th ({promo_session})", type="primary"):
                 execute_db_command(
                     """
                     UPDATE students 
@@ -2453,19 +2462,4 @@ elif menu_choice == "🎓 Promote Students":
                     {"sess": promo_session}
                 )
                 st.success(f"🎉 Success! All 11th-grade students in Session {promo_session} have been promoted to 12th grade.")
-                st.rerun()
-                
-        elif source_class == "12th":
-            st.error("❗ Graduation Check: 12th-grade students cannot be promoted higher. Would you like to mark them as Alumni / Left?")
-            if st.button("🎓 Graduate Session / Mark as Left"):
-                execute_db_command(
-                    """
-                    UPDATE students 
-                    SET status = 'LEFT' 
-                    WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
-                      AND UPPER(TRIM(class)) = '12TH'
-                    """,
-                    {"sess": promo_session}
-                )
-                st.success(f"📦 Session {promo_session} 12th-grade records archived safely as completed.")
                 st.rerun()
