@@ -420,7 +420,7 @@ elif menu_choice == "📝 Enter Marks & Attendance":
                     with c_m: single_total = st.number_input("Total Marks Assigned:", value=100, key="single_max")
                     
                     existing_record = run_query("SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(exam_type) = TRIM(:exam)", {"id": int(target_id), "sub": single_subj, "exam": single_exam})
-                    current_val = str(existing_record['marks_obtained'].iloc[0]) if not existing_record.empty else ""
+                    current_val = str(existing_record['marks_obtained'].iloc[0]) if not existing_record.empty else """
                     single_score = st.text_input("✏️ Enter Marks Obtained:", value=current_val)
                     
                     if st.button("💾 Save Student Record", type="primary"):
