@@ -224,10 +224,6 @@ Let's clean that up completely. Here is the final corrected engine block for **b
 
 ---
 
-### 🛠️ Complete Upgraded Code Fix
-
-Replace the entire `📝 Enter Marks & Attendance` block with this updated version:
-
 python
 # ---------------------------------------------------------
 # 📝 ENTER MARKS & ATTENDANCE MODULE (COMPLETE UPGRADED ENGINE)
