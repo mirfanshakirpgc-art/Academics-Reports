@@ -2473,8 +2473,30 @@ elif menu_choice == "🎓 Promote Students":
     tgt_c1, tgt_c2 = st.columns(2)
     
     with tgt_c1:
-        all_possible_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
-        target_section = st.selectbox("Assign to Destination Section:", all_possible_sections, key="promo_tgt_sec")
+        # 🧠 MAP 12th GRADE SECTION NAMES TO THEIR RESPECTIVE DISCIPLINES
+        disc_upper = selected_discipline.upper() if selected_discipline else ""
+        
+        if "MEDICAL" in disc_upper:
+            available_tgt_sections = ["MQ1", "MQ2", "MK"]
+        elif "ENGINEERING" in disc_upper:
+            available_tgt_sections = ["EQ", "EK"]
+        elif "PHYSICS" in disc_upper:  # For ICS_Physics
+            available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"]
+        elif "STATS" in disc_upper:    # For ICS_Stats
+            available_tgt_sections = ["CQ3", "CK3"]
+        elif "COMMERCE" in disc_upper:
+            available_tgt_sections = ["IK", "IQ"]
+        elif "HUMANITIES" in disc_upper or "ARTS" in disc_upper:
+            available_tgt_sections = ["FK", "FQ"]
+        else:
+            # Fallback to general list if no keywords match perfectly
+            available_tgt_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
+
+        target_section = st.selectbox(
+            "Assign to Destination Section:", 
+            available_tgt_sections, 
+            key="promo_tgt_sec"
+        )
         
     with tgt_c2:
         selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
