@@ -456,6 +456,72 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                         st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'present_days' names exactly.")
                 except Exception as e:
                     st.error(f"Error handling system processing upload: {e}")
+                    else:
+                        st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'present_days' names exactly.")
+                except Exception as e:
+                    st.error(f"Error handling system processing upload: {e}")
+
+        # =========================================================
+        # WORKFLOW MODE 2: BULK EXCEL/CSV IMPORT
+        # =========================================================
+        elif entry_mode == "📤 Bulk Excel/CSV Import":
+            st.subheader("📤 Bulk Upload Exam Marks Matrix")
+            st.info("💡 **Instructions:** Upload an Excel (.xlsx) or CSV (.csv) file. The file **must** contain an `ID` column and a `Marks` column.")
+            
+            col_b1, col_b2, col_b3 = st.columns(3)
+            with col_b1: bulk_session = st.selectbox("Select Session for Import:", AVAILABLE_SESSIONS, index=1, key="bulk_sess")
+            with col_b2: bulk_exam = st.selectbox("Select Test Type for Import:", AVAILABLE_EXAMS, key="bulk_exam")
+            with col_b3: bulk_total_marks = st.number_input("Total Marks Assigned:", value=100, key="bulk_total")
+            
+            uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
+            
+            if uploaded_file is not None:
+                try:
+                    import pandas as pd
+                    if uploaded_file.name.endswith('.csv'):
+                        import_df = pd.read_csv(uploaded_file)
+                    else:
+                        import_df = pd.read_excel(uploaded_file)
+                        
+                    import_df.columns = [str(c).strip().upper() for c in import_df.columns]
+                    
+                    if 'ID' not in import_df.columns or 'MARKS' not in import_df.columns:
+                        st.error("🚨 Missing columns! Your file must have headers named exactly **ID** and **Marks**.")
+                    else:
+                        st.success(f"📊 Found data matrix for {len(import_df)} student rows cleanly read!")
+                        st.dataframe(import_df.head(10))
+                        
+                        if st.button("🚀 Process and Save Bulk Marks to Database", type="primary"):
+                            success_count = 0
+                            for idx, row in import_df.iterrows():
+                                student_id = str(row['ID']).strip()
+                                score_val = str(row['MARKS']).strip() if pd.notna(row['MARKS']) else ""
+                                
+                                if student_id:
+                                    # Convert potential floats (like 1024.0) to clean integers
+                                    clean_id = int(float(student_id))
+                                    execute_db_command(
+                                        "DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", 
+                                        {"s_id": clean_id, "subject": sel_subject, "exam": bulk_exam}
+                                    )
+                                    if score_val != "":
+                                        execute_db_command(
+                                            "INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
+                                            {"s_id": clean_id, "subject": sel_subject.strip().upper(), "exam": bulk_exam.strip(), "score": score_val, "total": bulk_total_marks}
+                                        )
+                                    success_count += 1
+                                    
+                            st.success(f"🎉 Successfully imported and synced marks for {success_count} students dynamically!")
+                            st.rerun()
+                            
+                except Exception as e:
+                    st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
+
+# ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
+elif menu_choice == "📋 Section Summary Report":
+    st.title("📋 Section Performance Analytics Report")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
