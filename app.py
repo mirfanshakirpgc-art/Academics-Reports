@@ -202,7 +202,7 @@ if menu_choice == "📊 Home Dashboard":
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
-    # 📋 1. Setup Options Lists
+    # 📋 1. Setup Input Context Option Matrix
     try:
         session_options = AVAILABLE_SESSIONS
     except NameError:
@@ -213,36 +213,16 @@ elif menu_choice == "➕ Add Students":
     except NameError:
         discipline_options = ["Pre-Engineering", "Pre-Medical", "ICS (Physics)", "ICS (Stats)", "I.Com", "General Science"]
 
-    # 🛠️ Main Filter Row with Dynamic Section Dropdown
+    # 🛠️ Main Filter Row
     c1, c2, c3, c4 = st.columns(4)
     with c1: selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=1, key="add_stu_sess")
     with c2: selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
     with c3: selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
-    with c4: 
-        # Extract prefix context cleanly for wildcard queries
-        sess_prefix = selected_session.split('-')[0] + '%' if selected_session else '%'
-        
-        # 🔍 Fetch only sections linked to the selected class & session
-        active_secs_df = run_query(
-            """
-            SELECT DISTINCT section FROM students 
-            WHERE session LIKE :sess 
-              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
-            ORDER BY section
-            """,
-            {"sess": sess_prefix, "cls": selected_class}
-        )
-        
-        # Format list and inject fallbacks if no data exists yet
-        valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
-        if not valid_sections_list:
-            valid_sections_list = ["IK", "IB", "EQ", "MQ1", "CK2", "CB_WHITE"]
-            
-        selected_section = st.selectbox("📋 4. Target Linked Section:", valid_sections_list, key="add_stu_sec")
+    with c4: selected_section = st.text_input("📋 4. Enter Target Section:", value="CK2", key="add_stu_sec").strip().upper()
 
     st.markdown("---")
 
-    # 👤 5. Choose Registration Entry Strategy Mode
+    # 👤 5. Select Registration Entry Strategy Mode Layout Toggle
     entry_strategy = st.radio(
         "🛠️ 5. Choose Registration Mode Layout:", 
         ["👤 Single Student Card Entry", "📋 Complete Section Batch Paste Grid"], 
@@ -268,9 +248,11 @@ elif menu_choice == "➕ Add Students":
 
             if st.form_submit_button("🚀 Register Student to Ledger", type="primary"):
                 if not single_id.isdigit():
-                    st.error("❌ The Student Roll Number must be numeric digits only.")
+                    st.error("❌ The Student Roll Number identity code value must be numeric digits only.")
                 elif not single_name.strip():
-                    st.error("❌ Please provide a valid student name.")
+                    st.error("❌ Please provide a valid student record name profile description.")
+                elif not selected_section:
+                    st.error("❌ Target section designation parameter configuration cannot be empty.")
                 else:
                     existing_check = run_query("SELECT id FROM students WHERE id = :id", {"id": int(single_id)})
                     if not existing_check.empty:
@@ -298,8 +280,9 @@ elif menu_choice == "➕ Add Students":
     # --------------------------------------------
     elif entry_strategy == "📋 Complete Section Batch Paste Grid":
         st.subheader(f"📋 Grid Ledger Workspace: Section {selected_section} ({selected_class})")
-        st.caption("💡 Tip: Enter or paste your student records directly inside the data spreadsheet editor below.")
+        st.caption("💡 Tip: Enter or paste your student roster records directly inside the data spreadsheet editor rows down below.")
         
+        # Generates matrix workspace structure pre-binding columns class data layouts 
         import_template = pd.DataFrame([{"ID": "", "Full Name": ""} for _ in range(40)])
         pasted_data = st.data_editor(import_template, use_container_width=True, num_rows="dynamic", key="bulk_paste_grid_matrix")
         
@@ -331,10 +314,10 @@ elif menu_choice == "➕ Add Students":
                     added_counter += 1
                     
             if added_counter > 0:
-                st.success(f"🎉 Successfully registered profiles for {added_counter} students inside Session {selected_session}!")
+                st.success(f"🎉 Successfully registered section matrix array ledger log tracking data profiles for {added_counter} students inside Session {selected_session}!")
                 st.rerun()
             else:
-                st.warning("⚠️ No valid structural rows with data were found inside the entry grid.")
+                st.warning("⚠️ No valid structural rows with matching data were found inside the active tracking editor block.")
 # MAIN MENU NAVIGATION: ENTER MARKS & ATTENDANCE
 # =========================================================
 if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter Marks & Attendance":
