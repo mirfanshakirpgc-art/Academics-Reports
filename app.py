@@ -668,16 +668,25 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 # ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
-    col_a, col_b, col_c = st.columns(3)
-    with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
-# ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
-elif menu_choice == "📋 Section Summary Report":
-    st.title("📋 Section Performance Analytics Report")
-    col_a, col_b, col_c = st.columns(3)
-    with col_a: sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
-    with col_b: sel_sec = st.selectbox("Select Section:", DISCIPLINE_SECTIONS_MAP[sel_disc], key="summary_sec")
-    with col_c: sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
     
+    col_a, col_b, col_c = st.columns(3)
+    with col_a: 
+        sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
+    with col_b: 
+        # Safe lookup with fallback arrays if mappings are empty
+        try:
+            sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc]
+        except (NameError, KeyError):
+            disc_lower = sel_disc.lower()
+            if "medical" in disc_lower: sec_options = ["MQ1", "MQ2", "MD1"]
+            elif "engineering" in disc_lower: sec_options = ["EQ1", "EQ2", "ENG1"]
+            elif "ics" in disc_lower: sec_options = ["ICS1", "ICS2", "CS1"]
+            else: sec_options = ["IK", "IB", "CK2", "CB_WHITE"]
+        sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
+        
+    with col_c: 
+        sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
+        
     # Simple dictionary mapping for short-form subject names
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH",
@@ -692,18 +701,24 @@ elif menu_choice == "📋 Section Summary Report":
         "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students
+    # 1. Fetch Students (🛠️ FIXED: Added status column explicitly to query)
     students_df = run_query("""
-        SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class" 
+        SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+          AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
     """, {"section": sel_sec})
     
-    if not students_df.empty:
-        subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
-        
-     # 2. Fetch Marks Entries (Synchronized to exclude LEFT statuses)
+    if students_df.empty:
+        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' right now.")
+    else:
+        try:
+            subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
+        except (NameError, KeyError):
+            subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+            
+        # 2. Fetch Marks Entries (Synchronized to exclude LEFT statuses)
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
@@ -714,14 +729,12 @@ elif menu_choice == "📋 Section Summary Report":
         """, {"section": sel_sec, "exam": sel_exam})
         
         if marks_df.empty:
-            st.warning(f"⚠️ No marks data found in the database for Section **{sel_sec}** under Exam Cycle **{sel_exam}**. Please make sure marks have been saved in the 'Enter Marks & Attendance' module.")
+            st.warning(f"⚠️ No marks data found in the database for Section {sel_sec} under Exam Cycle {sel_exam}. Fill out ledger entry tables first.")
             
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
-            
-            # Fetch status safely from row data (defaulting to 'Active')
-            s_status = s_row["Status"] if "Status" in s_row and pd.notna(s_row["Status"]) else "Active"
+            s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
             
             entry = {
                 "ID": s_id, 
@@ -740,7 +753,10 @@ elif menu_choice == "📋 Section Summary Report":
                 sub_upper = sub.upper().strip()
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
                 
-                sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
+                if not marks_df.empty:
+                    sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
+                else:
+                    sub_match = pd.DataFrame()
                 
                 if not sub_match.empty:
                     val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
@@ -777,6 +793,10 @@ elif menu_choice == "📋 Section Summary Report":
             summary_rows.append(entry)
             
         final_report_df = pd.DataFrame(summary_rows)
+        
+        # Display the built table summary cleanly inside Streamlit
+        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec}")
+        st.dataframe(final_report_df, use_container_width=True, hide_index=True)
         
       # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
         # Generate clean short form subject labels without "(Obt)"
