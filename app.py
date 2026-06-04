@@ -676,43 +676,55 @@ elif menu_choice == "📋 Section Summary Report":
         session_options = ["2024-26", "2025-27", "2026-28"]
 
     # 🛠️ 5-Column layout to include Session and Class Level history controls
+    # 🛠️ 5-Column layout to include Session and Class Level history controls
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     with col_sess:
+        try:
+            session_options = AVAILABLE_SESSIONS
+        except NameError:
+            session_options = ["2024-26", "2025-27", "2026-28"]
         selected_session = st.selectbox("Select Session:", session_options, index=1, key="summary_session")
+        
     with col_class:
         selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
+        
     with col_a: 
-        sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
-    with col_b: 
-        # Safe lookup with fallback arrays if mappings are empty
         try:
-            sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc]
-        except (NameError, KeyError):
-            disc_lower = sel_disc.lower()
-            if "medical" in disc_lower: sec_options = ["MQ1", "MQ2", "MD1"]
-            elif "engineering" in disc_lower: sec_options = ["EQ1", "EQ2", "ENG1"]
-            elif "ics" in disc_lower: sec_options = ["ICS1", "ICS2", "CS1"]
-            else: sec_options = ["IK", "IB", "CK2", "CB_WHITE"]
+            disc_options = AVAILABLE_DISCIPLINE
+        except NameError:
+            disc_options = ["MEDICAL", "ENGINEERING", "ICS", "COMMERCE", "ARTS"]
+        sel_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
+        
+    with col_b: 
+        # Bulletproof fallback mapping to prevent layout crashes
+        try:
+            sec_options = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
+            if not sec_options:
+                disc_lower = sel_disc.lower()
+                if "medical" in disc_lower: sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
+                elif "engineering" in disc_lower: sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
+                elif "ics" in disc_lower: sec_options = ["ICS1", "ICS2", "CS1"]
+                else: sec_options = ["IK", "IB", "CK2", "CB_WHITE"]
+        except NameError:
+            sec_options = ["MQ1", "EQ1", "EG_BLUE", "MG_WHITE"]
+            
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
         
     with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", AVAILABLE_EXAMS, key="summary_exam")
+        try:
+            exam_options = AVAILABLE_EXAMS
+        except NameError:
+            exam_options = ["MT_1", "MT_2", "PRE_BOARD"]
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
         
     # Simple dictionary mapping for short-form subject names
     SHORT_SUBJECTS_MAP = {
-        "MATHEMATICS": "MATH",
-        "COMPUTER SCIENCE": "COMP",
-        "COMPUTER": "COMP",
-        "PHYSICS": "PHY",
-        "CHEMISTRY": "CHEM",
-        "BIOLOGY": "BIO",
-        "ENGLISH": "ENG",
-        "URDU": "URDU",
-        "ISLAMIAT": "ISL",
-        "PAKISTAN STUDIES": "PAK.ST"
+        "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
+        "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO",
+        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students based on Session & Section (Omits Class constraint so historical students stay linked)
+    # 1. Fetch Students based on Session & Section
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -726,11 +738,11 @@ elif menu_choice == "📋 Section Summary Report":
         st.info(f"💡 No student profiles registered under Section '{sel_sec}' inside Session {selected_session}.")
     else:
         try:
-            subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
-        except (NameError, KeyError):
+            subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_disc, ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"])
+        except NameError:
             subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
             
-        # 2. Fetch Marks explicitly matching the target history class level chosen in your selector
+        # 2. Fetch Marks explicitly matching the target history class level chosen
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks, m.class AS "Exam Class"
             FROM marks m 
@@ -746,72 +758,6 @@ elif menu_choice == "📋 Section Summary Report":
             st.warning(f"⚠️ No marks data found in the database for Section {sel_sec} ({selected_class} - {selected_session}) under Exam Cycle {sel_exam}.")
             
         summary_rows = []
-        for _, s_row in students_df.iterrows():
-            s_id = s_row["ID"]
-            s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
-            
-            entry = {
-                "ID": s_id, 
-                "Student Name": s_row["Student Name"], 
-                "Section": s_row["Section"], 
-                "Class": s_row["Current Class"],
-                "Status": s_status
-            }
-            
-            obtained_total = 0.0
-            max_total = 0.0
-            has_valid_scores = False  
-            has_explicit_nc = False
-            
-            for sub in subjects:
-                sub_upper = sub.upper().strip()
-                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
-                
-                if not marks_df.empty:
-                    sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
-                else:
-                    sub_match = pd.DataFrame()
-                
-                if not sub_match.empty:
-                    val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
-                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
-                    
-                    if val == "NC":
-                        entry[short_sub] = "NC"
-                        has_explicit_nc = True
-                    elif val == "A":
-                        entry[short_sub] = "A"
-                        max_total += tot       
-                        has_valid_scores = True
-                    elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        entry[short_sub] = float(val)
-                        obtained_total += float(val)
-                        max_total += tot       
-                        has_valid_scores = True
-                    else:
-                        entry[short_sub] = val
-                else:
-                    entry[short_sub] = "-"
-
-            # Dynamic total calculation rules
-            if has_valid_scores:
-                entry["Total (Obt)"] = int(obtained_total)
-                entry["Total Max"] = int(max_total)
-            elif has_explicit_nc:
-                entry["Total (Obt)"] = "NC"
-                entry["Total Max"] = "NC"
-            else:
-                entry["Total (Obt)"] = "-"
-                entry["Total Max"] = "-"
-                
-            summary_rows.append(entry)
-            
-        final_report_df = pd.DataFrame(summary_rows)
-        
-        # Display the built table summary cleanly inside Streamlit
-        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_class} - {selected_session})")
-        st.dataframe(final_report_df, use_container_width=True, hide_index=True)
-        
         # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
