@@ -685,7 +685,7 @@ try:
 except Exception as e:
     st.error(f"Diagnostic failed: {e}")
     # --- 1. SAFE PARAMETERS SETUP ---
-    session_options = ["2024-26", "2025-27", "2026-28"]
+    session_options = ["2024-2026", "2025-2027", "2026-2028"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
         session_options = AVAILABLE_SESSIONS
 
