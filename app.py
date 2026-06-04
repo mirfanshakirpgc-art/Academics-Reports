@@ -302,44 +302,44 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     # Recalculate prefix locally to handle different session formats ('2025' vs '2025-27')
                     sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
                     
+                    try:
+                    sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
+                    
+                    # 🛠️ FIXED: Query without a.subject
                     roster_df = run_query("""
-                        SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                        SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
                         FROM students s
-                        LEFT JOIN marks m ON s.id = m.student_id 
-                            AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) 
-                            AND TRIM(m.exam_type) = TRIM(:exam)
+                        LEFT JOIN attendance a ON s.id = a.student_id 
+                            AND TRIM(a.month) = TRIM(:month)
                         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
                           AND (s.session LIKE :sess_prefix OR s.session = :session)
                           AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                         ORDER BY s.id ASC
                     """, {
-                        "subject": sel_subject, 
-                        "exam": sel_exam, 
+                        "month": sel_month, 
                         "section": sel_section, 
-                        "session": sel_session,
+                        "session": sel_session, 
                         "sess_prefix": sess_prefix
                     })
                     
                     if roster_df.empty:
                         st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
                     else:
-                        roster_df['Marks'] = roster_df['Marks'].fillna("")
-                        with st.form("bulk_marks_form"):
-                            updated_scores = {}
+                        roster_df['Present'] = roster_df['Present'].fillna(total_days)
+                        with st.form("bulk_attendance_form"):
+                            updated_attendance = {}
                             for idx, row in roster_df.iterrows():
                                 col_s1, col_s2 = st.columns([3, 1])
-                                col_s1.write(f"🏷️ **{row['ID']}** — {row['Student Name']}")
-                                updated_scores[row['ID']] = col_s2.text_input("Score", value=str(row['Marks']), key=f"sec_{row['ID']}", label_visibility="collapsed")
+                                col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                                updated_attendance[row['ID']] = col_s2.number_input("Days Present", min_value=0, max_value=int(total_days), value=int(float(row['Present'])), key=f"pres_{row['ID']}", label_visibility="collapsed")
                             
-                            if st.form_submit_button("💾 Save Section Marks", type="primary"):
-                                for s_id, score in updated_scores.items():
-                                    execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(exam_type) = TRIM(:exam)", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
-                                    if score.strip() != "":
-                                        execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip(), "score": score.strip(), "total": total_marks})
-                                st.success("🎉 Section marks matrix saved completely!")
+                            # 🛠️ FIXED: Save logic without the subject column
+                            if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
+                                for s_id, p_days in updated_attendance.items():
+                                    execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND TRIM(month) = TRIM(:month)", {"s_id": int(s_id), "month": sel_month})
+                                    execute_db_command("INSERT INTO attendance (student_id, month, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": int(s_id), "month": sel_month.strip(), "p_days": int(p_days), "t_days": int(total_days)})
+                                st.success("🎉 Section Attendance saved successfully!")
                                 st.rerun()
-                except Exception as e:
-                    st.error(f"Database sync issue: {e}")
 
     # =========================================================
     # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE
