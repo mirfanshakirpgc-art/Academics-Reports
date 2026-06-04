@@ -728,20 +728,20 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (RE-ENGINEERED FOR HISTORICAL ROSTER TRACKING) ---
-    # Fetch students who have exam records matching this explicit Class Level, Section, and Session
+    # --- 4. DATABASE QUERIES (CORRECTED RELATIONSHIP LINKS) ---
+    # Fetch students who have exam marks matching this specific Class Level, Section, and Session
     students_df = run_query("""
         SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
         FROM students s
         JOIN marks m ON s.id = m.student_id
-        WHERE UPPER(TRIM(m.section)) = UPPER(TRIM(:section)) 
-          AND UPPER(TRIM(m.session)) = UPPER(TRIM(:session))
+        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
+          AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
           AND UPPER(TRIM(m.class)) = UPPER(TRIM(:class))
           AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
         ORDER BY s.id ASC
     """, {"section": sel_sec, "session": selected_session, "class": selected_class})
     
-    # Fallback: If no historical exam records are found yet, pull the current active roster from the student master table
+    # Fallback: If no historical records show up, fetch right from the core active students table
     if students_df.empty:
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -772,8 +772,8 @@ elif menu_choice == "📋 Section Summary Report":
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks, m.class AS "Exam Class"
             FROM marks m 
             JOIN students s ON m.student_id = s.id
-            WHERE UPPER(TRIM(m.section)) = UPPER(TRIM(:section)) 
-              AND UPPER(TRIM(m.session)) = UPPER(TRIM(:session))
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
+              AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
               AND UPPER(TRIM(m.class)) = UPPER(TRIM(:class))
               AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
