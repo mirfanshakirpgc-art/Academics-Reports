@@ -743,11 +743,11 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (ADAPTIVE CROSS-YEAR ENGINE) ---
+    # --- 4. DATABASE QUERIES (SAFE EMPTY-MARKS ENGINE) ---
     session_clean = str(selected_session).strip() if selected_session else "2025-27"
     sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
 
-    # Always fetch the actual current section roster first
+    # Always pull the student directory profile roster first
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -758,7 +758,7 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "class": selected_class})
     
-    # Roster Fallback (Checks global session pool if class-level structure is out of sync)
+    # Fallback to look up profiles across generic class barriers if needed
     if students_df.empty:
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -772,7 +772,6 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
-        # Determine subject mappings dynamically
         subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
         if "DISCIPLINE_SUBJECTS_MAP" in globals() and DISCIPLINE_SUBJECTS_MAP:
             try:
@@ -783,28 +782,17 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Extract a tuple of student IDs from our roster to query marks directly by student identity
-        student_ids_tuple = tuple(students_df["ID"].tolist())
-        
-        # Smart Marks Lookup: Fetches scores directly by student identity to bypass promotion section mismatches
-        if len(student_ids_tuple) == 1:
+        # Safe Try-Catch block to read marks from Supabase
+        try:
             marks_df = run_query("""
                 SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
                 FROM marks 
-                WHERE student_id = :sid 
-                  AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-            """, {"sid": student_ids_tuple[0], "exam": sel_exam})
-        elif len(student_ids_tuple) > 1:
-            marks_df = run_query(f"""
-                SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
-                FROM marks 
-                WHERE student_id IN {student_ids_tuple} 
-                  AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
             """, {"exam": sel_exam})
-        else:
-            marks_df = pd.DataFrame()
-            
-        # --- 5. BUILD PERFORMANCE MATRIX GRID ---
+        except Exception:
+            marks_df = pd.DataFrame() # Fallback safely to empty dataframe if table structural reads fail
+
+        # --- 5. BUILD PERFORMANCE MATRIX GRID (FALLBACK SECURED) ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
@@ -821,13 +809,13 @@ elif menu_choice == "📋 Section Summary Report":
             obtained_total = 0.0
             max_total = 0.0
             has_valid_scores = False  
-            has_explicit_nc = False
             
             for sub in subjects:
                 sub_upper = sub.upper().strip()
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
                 
-                if marks_df is not None and not marks_df.empty:
+                # Check if marks dataframe actually contains records for this student
+                if marks_df is not None and not marks_df.empty and "student_id" in marks_df.columns:
                     sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
                 else:
                     sub_match = pd.DataFrame()
@@ -838,7 +826,6 @@ elif menu_choice == "📋 Section Summary Report":
                     
                     if val == "NC":
                         entry[short_sub] = "NC"
-                        has_explicit_nc = True
                     elif val == "A":
                         entry[short_sub] = "A"
                         max_total += tot       
@@ -851,14 +838,11 @@ elif menu_choice == "📋 Section Summary Report":
                     else:
                         entry[short_sub] = val
                 else:
-                    entry[short_sub] = "-"
+                    entry[short_sub] = "-" # Fill with clean dash marks if no marks row is present in Supabase yet
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
                 entry["Total Max"] = int(max_total)
-            elif has_explicit_nc:
-                entry["Total (Obt)"] = "NC"
-                entry["Total Max"] = "NC"
             else:
                 entry["Total (Obt)"] = "-"
                 entry["Total Max"] = "-"
@@ -866,9 +850,6 @@ elif menu_choice == "📋 Section Summary Report":
             summary_rows.append(entry)
             
         final_report_df = pd.DataFrame(summary_rows)
-        
-        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_class} - {selected_session})")
-        st.dataframe(final_report_df, use_container_width=True, hide_index=True)
         
         # --- 6. HTML PRINT & IMAGE CAPTURE EMBED ---
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
