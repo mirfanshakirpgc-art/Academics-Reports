@@ -665,18 +665,26 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                 except Exception as e:
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
-# ----------------- 📋 SECTION SUMMARY REPORT (OPTIMIZED) -----------------
+# ----------------- 📋 SECTION SUMMARY REPORT (BUILT-IN FALLBACKS) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
     
-    # Setup Option Core Parameters for Session
-    try:
+    # --- 1. SAFE PARAMETERS SETUP ---
+    session_options = ["2024-26", "2025-27", "2026-28"]
+    if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
         session_options = AVAILABLE_SESSIONS
-    except NameError:
-        session_options = ["2024-26", "2025-27", "2026-28"]
 
-    # 🛠️ 5-Column layout to include Session and Class Level history controls
+    disc_options = ["MEDICAL", "ENGINEERING", "ICS", "COMMERCE", "ARTS"]
+    if "AVAILABLE_DISCIPLINE" in globals() and AVAILABLE_DISCIPLINE:
+        disc_options = AVAILABLE_DISCIPLINE
+
+    exam_options = ["MT_1", "MT_2", "PRE_BOARD"]
+    if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
+        exam_options = AVAILABLE_EXAMS
+
+    # --- 2. LAYOUT GENERATION (5 COLUMNS) ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
+    
     with col_sess:
         selected_session = st.selectbox("Select Session:", session_options, index=1, key="summary_session")
         
@@ -684,47 +692,44 @@ elif menu_choice == "📋 Section Summary Report":
         selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
         
     with col_a: 
-        try:
-            disc_options = AVAILABLE_DISCIPLINE
-        except NameError:
-            disc_options = ["MEDICAL", "ENGINEERING", "ICS", "COMMERCE", "ARTS"]
-        # Normalize incoming selection string to standard uppercase
         raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        # Bulletproof fallback mapping to prevent layout crashes when switching disciplines
-        sec_options = []
-        try:
-            # Handle dictionary lookup with both lowercase and uppercase fallbacks
-            if "DISCIPLINE_SECTIONS_MAP" in globals():
-                sec_options = DISCIPLINE_SECTIONS_MAP.get(sel_disc, DISCIPLINE_SECTIONS_MAP.get(sel_disc.title(), []))
+        # Hardcoded local protection mappings to prevent any cross-key lookup crashes
+        if "MEDICAL" in sel_disc:
+            sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
+        elif "ENGINEERING" in sel_disc:
+            sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
+        elif "ICS" in sel_disc:
+            sec_options = ["ICS1", "ICS2", "CS1"]
+        else:
+            sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
             
-            if not sec_options:
-                if "MEDICAL" in sel_disc: sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
-                elif "ENGINEERING" in sel_disc: sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
-                elif "ICS" in sel_disc: sec_options = ["ICS1", "ICS2", "CS1"]
-                else: sec_options = ["IK", "IB", "CK2", "CB_WHITE"]
-        except Exception:
-            sec_options = ["MQ1", "EQ1", "EG_BLUE", "MG_WHITE"]
+        # Override with global dictionary ONLY if the key explicitly exists
+        if "DISCIPLINE_SECTIONS_MAP" in globals():
+            try:
+                if sel_disc in DISCIPLINE_SECTIONS_MAP:
+                    sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc]
+                elif sel_disc.title() in DISCIPLINE_SECTIONS_MAP:
+                    sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc.title()]
+            except Exception:
+                pass # Silently fallback to our local arrays above
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
         
     with col_c: 
-        try:
-            exam_options = AVAILABLE_EXAMS
-        except NameError:
-            exam_options = ["MT_1", "MT_2", "PRE_BOARD"]
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
         
-    # Dictionary mapping for short-form subject names
+    # --- 3. SUBJECT MAPPING ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO",
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students based on Session & Section (Excludes class string restriction to catch promoted students)
+    # --- 4. DATABASE QUERIES ---
+    # Fetch Students based on Session & Section (Matches tracking rules across 11th & 12th)
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -737,12 +742,18 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No student profiles registered under Section '{sel_sec}' inside Session {selected_session}.")
     else:
-        # Load custom subjects configuration dynamically with a safe default list fallback
+        # Determine target list subjects safely
         subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
         if "DISCIPLINE_SUBJECTS_MAP" in globals():
-            subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_disc, DISCIPLINE_SUBJECTS_MAP.get(sel_disc.title(), subjects))
+            try:
+                if sel_disc in DISCIPLINE_SUBJECTS_MAP:
+                    subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
+                elif sel_disc.title() in DISCIPLINE_SUBJECTS_MAP:
+                    subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc.title()]
+            except Exception:
+                pass
             
-        # 2. Fetch Marks explicitly matching the historical target class level chosen
+        # Fetch Marks explicitly matching history tracking variables
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks, m.class AS "Exam Class"
             FROM marks m 
@@ -757,6 +768,7 @@ elif menu_choice == "📋 Section Summary Report":
         if marks_df.empty:
             st.warning(f"⚠️ No marks records located inside the database for Section {sel_sec} ({selected_class} - {selected_session}) under Exam Cycle {sel_exam}.")
             
+        # --- 5. BUILD PERFORMANCE MATRIX ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
@@ -805,7 +817,6 @@ elif menu_choice == "📋 Section Summary Report":
                 else:
                     entry[short_sub] = "-"
 
-            # Dynamic total calculation rules
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
                 entry["Total Max"] = int(max_total)
@@ -824,7 +835,7 @@ elif menu_choice == "📋 Section Summary Report":
         st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_class} - {selected_session})")
         st.dataframe(final_report_df, use_container_width=True, hide_index=True)
         
-        # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
+        # --- 6. HTML OUTPUT GENERATION ---
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
@@ -960,7 +971,7 @@ elif menu_choice == "📋 Section Summary Report":
         </body>
         </html>
         """
-        
+        import streamlit.components.v1 as components
         components.html(analytics_html_payload, height=750, scrolling=True)
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
