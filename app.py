@@ -213,7 +213,7 @@ elif menu_choice == "➕ Add Students":
     except NameError:
         discipline_options = ["Pre-Engineering", "Pre-Medical", "ICS (Physics)", "ICS (Stats)", "I.Com", "General Science"]
 
-    # 🛠️ Main Filter Row with Interactive Session, Class & Discipline Section Lookups
+    # 🛠️ Main Filter Row with Safe Discipline-Aware Tracking Logic
     c1, c2, c3, c4 = st.columns(4)
     with c1: selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=1, key="add_stu_sess")
     with c2: selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
@@ -222,24 +222,36 @@ elif menu_choice == "➕ Add Students":
         # Extract prefix context cleanly for wildcard query matches
         sess_prefix = selected_session.split('-')[0] + '%' if selected_session else '%'
         
-        # 🔍 Dynamic Query matching session, class, AND discipline values 
+        # Determine section search prefix pattern based on selected discipline string
+        disc_lower = selected_discipline.lower()
+        if "medical" in disc_lower:
+            sec_search = "M%"
+        elif "engineering" in disc_lower:
+            sec_search = "E%"
+        elif "ics" in disc_lower:
+            sec_search = "ICS%"
+        elif "i.com" in disc_lower or "commerce" in disc_lower:
+            sec_search = "ICOM%"
+        else:
+            sec_search = "%"
+
+        # 🔍 SAFE QUERY: Uses existing database layout columns (session, class, section)
         active_secs_df = run_query(
             """
             SELECT DISTINCT section FROM students 
             WHERE session LIKE :sess 
               AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
-              AND UPPER(TRIM(discipline)) = UPPER(TRIM(:disc))
+              AND UPPER(TRIM(section)) LIKE UPPER(TRIM(:sec_search))
             ORDER BY section
             """,
-            {"sess": sess_prefix, "cls": selected_class, "disc": selected_discipline}
+            {"sess": sess_prefix, "cls": selected_class, "sec_search": sec_search}
         )
         
         # Format dataset list array based on returned database rows
         valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
         
-        # 💡 SMART FALLBACKS: Automatically inject corresponding specific defaults if records are fresh
+        # 💡 SMART FALLBACKS: Automatically inject clean defaults if records are fresh
         if not valid_sections_list:
-            disc_lower = selected_discipline.lower()
             if "medical" in disc_lower:
                 valid_sections_list = ["MQ1", "MQ2", "MD1"]
             elif "engineering" in disc_lower:
@@ -249,7 +261,7 @@ elif menu_choice == "➕ Add Students":
             elif "i.com" in disc_lower or "commerce" in disc_lower:
                 valid_sections_list = ["ICOM1", "ICOM2"]
             else:
-                valid_sections_list = ["IK", "IB", "EQ", "MQ1", "CK2", "CB_WHITE"]
+                valid_sections_list = ["IK", "IB", "CK2", "CB_WHITE"]
             
         selected_section = st.selectbox("📋 4. Target Linked Section:", valid_sections_list, key="add_stu_sec")
 
@@ -289,11 +301,11 @@ elif menu_choice == "➕ Add Students":
                     if not existing_check.empty:
                         st.error(f"⚠️ Roll Number '{single_id}' is already assigned to a registered profile.")
                     else:
-                        # ✅ Saves profile including discipline assignments
+                        # ✅ Safe database save omitting non-existent discipline column field
                         execute_db_command(
                             """
-                            INSERT INTO students (id, name, section, class, session, discipline, status) 
-                            VALUES (:id, :name, :sec, :class, :session, :discipline, :status)
+                            INSERT INTO students (id, name, section, class, session, status) 
+                            VALUES (:id, :name, :sec, :class, :session, :status)
                             """,
                             {
                                 "id": int(single_id),
@@ -301,7 +313,6 @@ elif menu_choice == "➕ Add Students":
                                 "sec": selected_section,
                                 "class": selected_class,
                                 "session": selected_session,
-                                "discipline": selected_discipline,
                                 "status": single_status
                             }
                         )
@@ -325,25 +336,23 @@ elif menu_choice == "➕ Add Students":
                 r_name = str(row['Full Name']).strip()
                 
                 if r_id.isdigit() and r_name != "":
-                    # ✅ Upserts batch logs binding tracking metrics and discipline profiles globally
+                    # ✅ Safe Upsert batch processing using verified database structure layout
                     execute_db_command(
                         """
-                        INSERT INTO students (id, name, section, class, session, discipline, status) 
-                        VALUES (:id, :name, :sec, :class, :session, :discipline, 'ACTIVE') 
+                        INSERT INTO students (id, name, section, class, session, status) 
+                        VALUES (:id, :name, :sec, :class, :session, 'ACTIVE') 
                         ON CONFLICT (id) DO UPDATE SET 
                             name = EXCLUDED.name, 
                             section = EXCLUDED.section, 
                             class = EXCLUDED.class,
-                            session = EXCLUDED.session,
-                            discipline = EXCLUDED.discipline
+                            session = EXCLUDED.session
                         """,
                         {
                             "id": int(r_id), 
                             "name": r_name.upper(), 
                             "sec": selected_section, 
                             "class": selected_class,
-                            "session": selected_session,
-                            "discipline": selected_discipline
+                            "session": selected_session
                         }
                     )
                     added_counter += 1
