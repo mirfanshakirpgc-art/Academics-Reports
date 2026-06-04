@@ -750,8 +750,19 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (DIRECT PRECISION ENGINE) ---
-    # Primary Precision Check: Look for exact matches on class, section, and translated session string
+    # --- 4. SUBJECT DEFINITION (UNIVERSAL SCOPE INITIALIZATION) ---
+    # This guarantees 'subjects' is defined before any queries execute
+    subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+    if "DISCIPLINE_SUBJECTS_MAP" in globals() and DISCIPLINE_SUBJECTS_MAP:
+        try:
+            if sel_disc in DISCIPLINE_SUBJECTS_MAP:
+                subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
+            elif sel_disc.title() in DISCIPLINE_SUBJECTS_MAP:
+                subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc.title()]
+        except Exception:
+            pass
+
+    # --- 5. DATABASE QUERIES (DIRECT MATCH ENGINE) ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -762,7 +773,7 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
-    # Absolute Fallback: Relax class boundaries if your promotion log didn't finish syncing completely
+    # Fallback to look up profiles across generic class barriers if primary is empty
     if students_df.empty:
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -772,7 +783,21 @@ elif menu_choice == "📋 Section Summary Report":
               AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
             ORDER BY id ASC
         """, {"section": sel_sec, "session_str": db_session_string})
-        # --- 5. BUILD PERFORMANCE MATRIX GRID (FALLBACK SECURED) ---
+    
+    if students_df.empty:
+        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
+    else:
+        # Safe Try-Catch block to read marks from Supabase
+        try:
+            marks_df = run_query("""
+                SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
+                FROM marks 
+                WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+            """, {"exam": sel_exam})
+        except Exception:
+            marks_df = pd.DataFrame()
+
+        # --- 6. BUILD PERFORMANCE MATRIX GRID ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
@@ -794,7 +819,6 @@ elif menu_choice == "📋 Section Summary Report":
                 sub_upper = sub.upper().strip()
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
                 
-                # Check if marks dataframe actually contains records for this student
                 if marks_df is not None and not marks_df.empty and "student_id" in marks_df.columns:
                     sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
                 else:
@@ -818,7 +842,7 @@ elif menu_choice == "📋 Section Summary Report":
                     else:
                         entry[short_sub] = val
                 else:
-                    entry[short_sub] = "-" # Fill with clean dash marks if no marks row is present in Supabase yet
+                    entry[short_sub] = "-"
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
