@@ -299,6 +299,9 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                 with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
                 
                 try:
+                    # Recalculate prefix locally to handle different session formats ('2025' vs '2025-27')
+                    sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
+                    
                     roster_df = run_query("""
                         SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                         FROM students s
@@ -306,10 +309,16 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                             AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject)) 
                             AND TRIM(m.exam_type) = TRIM(:exam)
                         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                          AND s.session = :session
+                          AND (s.session LIKE :sess_prefix OR s.session = :session)
                           AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                         ORDER BY s.id ASC
-                    """, {"subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session})
+                    """, {
+                        "subject": sel_subject, 
+                        "exam": sel_exam, 
+                        "section": sel_section, 
+                        "session": sel_session,
+                        "sess_prefix": sess_prefix
+                    })
                     
                     if roster_df.empty:
                         st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
