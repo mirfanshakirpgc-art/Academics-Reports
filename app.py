@@ -682,7 +682,7 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = AVAILABLE_EXAMS
 
-    # --- 2. LAYOUT GENERATION (ALL VARIABLE INITS SECURED IN ORDER) ---
+    # --- 2. LAYOUT GENERATION (ALL DROPDOWNS SET FIRST) ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     
     with col_sess:
@@ -696,11 +696,10 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        # 1. Check your global map first if it exists, but add safety measures
+        # Check global map for class-specific overrides first
         has_global_map = False
         if "DISCIPLINE_SECTIONS_MAP" in globals():
             try:
-                # Look for class-specific overrides first (e.g., '12th_MEDICAL')
                 class_disc_key = f"{selected_class}_{sel_disc}"
                 if class_disc_key in DISCIPLINE_SECTIONS_MAP:
                     sec_options = DISCIPLINE_SECTIONS_MAP[class_disc_key]
@@ -711,7 +710,7 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
 
-        # 2. Hardcoded fallback blocks run ONLY if a global map didn't already handle the class level split
+        # Fallback sections mapping if no global dict overrides it
         if not has_global_map:
             if selected_class == "11th":
                 if "MEDICAL" in sel_disc:
@@ -723,7 +722,7 @@ elif menu_choice == "📋 Section Summary Report":
                 else:
                     sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
             else:  
-                # 🎯 12th Class Destinations from your Promotion panel blueprint
+                # 12th Class: Matches your exact promotion destinations!
                 if "MEDICAL" in sel_disc:
                     sec_options = ["MQ1", "MQ2", "MK"]
                 elif "ENGINEERING" in sel_disc:
@@ -734,14 +733,13 @@ elif menu_choice == "📋 Section Summary Report":
                     sec_options = ["IK", "IQ", "FK", "FQ"]
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
+        
+    with col_c: 
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
-    # --- 3. BACKGROUND FORMAT TRANSLATION & DICTIONARIES ---
-    SESSION_DB_MAP = {
-        "2024-26": "2024-2026",
-        "2025-27": "2025-2027",
-        "2026-28": "2026-2028"
-    }
-    db_session = SESSION_DB_MAP.get(selected_session, selected_session)
+    # --- 3. BACKGROUND FORMAT TRANSLATION ---
+    session_clean = str(selected_session).strip()
+    sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
         
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
@@ -749,12 +747,8 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (PROFILE-FIRST ENGINE) ---
-    # Wildcard prefix helper for sessions
-    session_clean = str(selected_session).strip()
-    sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
-
-    # CRITICAL CHANGE: Always fetch the actual promoted roster directly from student directory first!
+    # --- 4. DATABASE QUERIES (PROFILE-FIRST BALANCED ENGINE) ---
+    # Fetch student listings directly from target directory
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -765,7 +759,7 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "class": selected_class})
     
-    # Absolute Fallback: Only check historical marks logs if the primary class assignment directory is missing entirely
+    # Absolute Roster Fallback matching historical elements
     if students_df.empty:
         students_df = run_query("""
             SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
@@ -790,7 +784,7 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Fetch Marks without limiting the students dataframe row assignments
+        # Fetch score rows matching current selections
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
@@ -799,211 +793,6 @@ elif menu_choice == "📋 Section Summary Report":
               AND s.session LIKE :sess_wildcard
               AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
         """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "exam": sel_exam})
-            
-        # --- 5. BUILD PERFORMANCE MATRIX GRID ---
-        summary_rows = []
-        for _, s_row in students_df.iterrows():
-            s_id = s_row["ID"]
-            s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
-            
-            entry = {
-                "ID": s_id, 
-                "Student Name": s_row["Student Name"], 
-                "Section": s_row["Section"], 
-                "Class": s_row["Current Class"],
-                "Status": s_status
-            }
-            
-            obtained_total = 0.0
-            max_total = 0.0
-            has_valid_scores = False  
-            has_explicit_nc = False
-            
-            for sub in subjects:
-                sub_upper = sub.upper().strip()
-                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
-                
-                if not marks_df.empty:
-                    sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
-                else:
-                    sub_match = pd.DataFrame()
-                
-                if not sub_match.empty:
-                    val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
-                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
-                    
-                    if val == "NC":
-                        entry[short_sub] = "NC"
-                        has_explicit_nc = True
-                    elif val == "A":
-                        entry[short_sub] = "A"
-                        max_total += tot       
-                        has_valid_scores = True
-                    elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        entry[short_sub] = float(val)
-                        obtained_total += float(val)
-                        max_total += tot       
-                        has_valid_scores = True
-                    else:
-                        entry[short_sub] = val
-                else:
-                    entry[short_sub] = "-"
-
-            if has_valid_scores:
-                entry["Total (Obt)"] = int(obtained_total)
-                entry["Total Max"] = int(max_total)
-            elif has_explicit_nc:
-                entry["Total (Obt)"] = "NC"
-                entry["Total Max"] = "NC"
-            else:
-                entry["Total (Obt)"] = "-"
-                entry["Total Max"] = "-"
-                
-            summary_rows.append(entry)
-            
-        final_report_df = pd.DataFrame(summary_rows)
-        
-        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_class} - {selected_session})")
-        st.dataframe(final_report_df, use_container_width=True, hide_index=True)
-        
-        # --- 6. HTML PRINT & IMAGE CAPTURE EMBED ---
-        short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
-        thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
-        
-        tbody_rows_html = ""
-        for _, row in final_report_df.iterrows():
-            s_id = row["ID"]
-            current_status = row["Status"]
-            
-            status_badge = ""
-            if current_status == "Re-Active":
-                status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
-            
-            old_marks_badges = []
-            hidden_marks_df = marks_df[marks_df["student_id"] == s_id] if not marks_df.empty else pd.DataFrame()
-            for _, h_row in hidden_marks_df.iterrows():
-                h_sub = h_row["subject"]
-                if h_sub not in [sub.upper().strip() for sub in subjects]:
-                    short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub)
-                    old_marks_badges.append(f"{short_h_sub}: {h_row['marks_obtained']}")
-            
-            history_str = ""
-            if old_marks_badges:
-                history_str = f"<br><span style='color: #d35400; font-size: 11px; font-style: italic;'>Dropped ({', '.join(old_marks_badges)})</span>"
-            
-            row_subjects_cells = ""
-            for lbl in short_subject_labels:
-                cell_val = str(row[lbl])
-                cell_style = "color: #e74c3c; font-weight: bold;" if cell_val in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_val == "NC" else "")
-                row_subjects_cells += f'<td style="{cell_style}">{cell_val}</td>'
-            
-            tbody_rows_html += f"""
-            <tr>
-                <td>{row['ID']}</td>
-                <td style="text-align: left; font-weight: bold; padding-left: 12px;">
-                    {row['Student Name']} {status_badge} {history_str}
-                </td>
-                <td>{row['Section']}</td>
-                <td>{row['Class']}</td>
-                {row_subjects_cells}
-                <td style="font-weight: bold; background-color: #fcfcfc;">{row['Total (Obt)']}</td>
-                <td style="font-weight: bold; color: #555; background-color: #fcfcfc;">{row['Total Max']}</td>
-            </tr>
-            """
-            
-        logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-        
-        analytics_html_payload = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-        <style>
-            body {{ font-family: "Segoe UI", Arial, sans-serif; color: #333; background-color: #fff; margin: 0; padding: 10px; }}
-            .report-wrapper-container {{ max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
-            .action-panel-bar {{ display: flex; gap: 12px; margin-bottom: 22px; }}
-            .btn-action {{ padding: 10px 22px; font-weight: bold; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }}
-            .btn-print {{ background: #222; color: #fff; }}
-            .btn-image {{ background: #0066cc; color: #fff; }}
-            .btn-action:hover {{ opacity: 0.9; }}
-            .header-banner {{ display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 20px; }}
-            .header-branding {{ text-align: left; }}
-            .inst-title {{ font-size: 24px; font-weight: 800; color: #111; letter-spacing: 0.5px; margin: 0; }}
-            .doc-subtitle {{ font-size: 15px; color: #555; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
-            .meta-details {{ text-align: right; font-size: 13px; color: #444; line-height: 1.5; }}
-            .brand-logo-img {{ max-height: 55px; width: auto; object-fit: contain; }}
-            .analytics-grid-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
-            .analytics-grid-table th, .analytics-grid-table td {{ border: 1px solid #dcdcdc; padding: 10px 8px; text-align: center; }}
-            .analytics-grid-table th {{ background-color: #f8f9fa; font-weight: 700; color: #2c3e50; white-space: nowrap; }}
-            .analytics-grid-table tr:nth-child(even) {{ background-color: #fbfbfb; }}
-            .analytics-grid-table tr:hover {{ background-color: #f5f7fa; }}
-            @media print {{
-                .action-panel-bar {{ display: none !important; }}
-                body {{ padding: 0; margin: 0; }}
-                .report-wrapper-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; }}
-            }}
-        </style>
-        </head>
-        <body>
-            <div class="action-panel-bar">
-                <button class="btn-action btn-print" onclick="window.print();">🖨️ Print Summary Ledger</button>
-                <button class="btn-action btn-image" id="capture-summary-trigger">📸 Save Layout As Image</button>
-            </div>
-            
-            <div class="report-wrapper-container" id="printable-summary-target">
-                <div class="header-banner">
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <img class="brand-logo-img" src="{logo_url}" alt="Logo">
-                        <div class="header-branding">
-                            <h1 class="inst-title">CONCORDIA COLLEGE KASUR</h1>
-                            <div class="doc-subtitle">Section Performance Summary Report</div>
-                        </div>
-                    </div>
-                    <div class="meta-details">
-                        <b>Session:</b> {selected_session}<br>
-                        <b>Class Level History Scope:</b> {selected_class}<br>
-                        <b>Discipline:</b> {sel_disc}<br>
-                        <b>Section Block:</b> {sel_sec}<br>
-                        <b>Exam Phase:</b> {sel_exam}
-                    </div>
-                </div>
-                
-                <table class="analytics-grid-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 7%;">ID</th>
-                            <th style="text-align: left; padding-left: 12px;">Student Name</th>
-                            <th style="width: 9%;">Section</th>
-                            <th style="width: 7%;">Class</th>
-                            {thead_subjects_html}
-                            <th style="background-color: #f1f3f5; width: 10%;">Total (Obt)</th>
-                            <th style="background-color: #f1f3f5; width: 9%;">Total Max</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tbody_rows_html}
-                    </tbody>
-                </table>
-            </div>
-
-            <script>
-                document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
-                    const targetEl = document.getElementById('printable-summary-target');
-                    const filenameStr = "Summary_Report_{sel_sec}_{selected_class}_{selected_session}_{sel_exam}.png";
-                    
-                    html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
-                        const linkHook = document.createElement('a');
-                        linkHook.download = filenameStr;
-                        linkHook.href = canvas.toDataURL('image/png');
-                        linkHook.click();
-                    }});
-                }});
-            </script>
-        </body>
-        </html>
-        """
-        import streamlit.components.v1 as components
-        components.html(analytics_html_payload, height=750, scrolling=True)
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
