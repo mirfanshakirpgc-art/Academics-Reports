@@ -328,13 +328,14 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                                 col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
                                 updated_attendance[row['ID']] = col_s2.number_input("Days Present", min_value=0, max_value=int(total_days), value=int(float(row['Present'])), key=f"pres_{row['ID']}", label_visibility="collapsed")
                             
-                            # 🛠️ FIXED: Save logic without the subject column
                             if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
                                 for s_id, p_days in updated_attendance.items():
                                     execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND TRIM(month) = TRIM(:month)", {"s_id": int(s_id), "month": sel_month})
                                     execute_db_command("INSERT INTO attendance (student_id, month, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": int(s_id), "month": sel_month.strip(), "p_days": int(p_days), "t_days": int(total_days)})
                                 st.success("🎉 Section Attendance saved successfully!")
                                 st.rerun()
+                except Exception as e:
+                    st.error(f"Database sync issue: {e}")
 
     # =========================================================
     # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE
