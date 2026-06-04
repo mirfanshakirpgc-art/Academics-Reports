@@ -783,7 +783,7 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Extract a tuple of student IDs from our roster to query marks directly by student identity rather than section code
+        # Extract a tuple of student IDs from our roster to query marks directly by student identity
         student_ids_tuple = tuple(students_df["ID"].tolist())
         
         # Smart Marks Lookup: Fetches scores directly by student identity to bypass promotion section mismatches
