@@ -669,7 +669,16 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
     
-    col_a, col_b, col_c = st.columns(3)
+    # Setup Option Core Parameters for Session
+    try:
+        session_options = AVAILABLE_SESSIONS
+    except NameError:
+        session_options = ["2024-26", "2025-27", "2026-28"]
+
+    # 🛠️ Expanded Filter Columns (4 Columns layout to include Session Selection)
+    col_sess, col_a, col_b, col_c = st.columns(4)
+    with col_sess:
+        selected_session = st.selectbox("Select Session:", session_options, index=1, key="summary_session")
     with col_a: 
         sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
     with col_b: 
@@ -701,35 +710,37 @@ elif menu_choice == "📋 Section Summary Report":
         "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students (🛠️ FIXED: Added status column explicitly to query)
+    # 1. Fetch Students (🛠️ FIXED: Synchronized with session matching logic constraint)
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+          AND session = :session
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {"section": sel_sec})
+    """, {"section": sel_sec, "session": selected_session})
     
     if students_df.empty:
-        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' right now.")
+        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' inside Session {selected_session} right now.")
     else:
         try:
             subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
         except (NameError, KeyError):
             subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
             
-        # 2. Fetch Marks Entries (Synchronized to exclude LEFT statuses)
+        # 2. Fetch Marks Entries (Synchronized to match session scope structure context)
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
             JOIN students s ON m.student_id = s.id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
+              AND s.session = :session
               AND TRIM(m.exam_type) = TRIM(:exam)
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-        """, {"section": sel_sec, "exam": sel_exam})
+        """, {"section": sel_sec, "session": selected_session, "exam": sel_exam})
         
         if marks_df.empty:
-            st.warning(f"⚠️ No marks data found in the database for Section {sel_sec} under Exam Cycle {sel_exam}. Fill out ledger entry tables first.")
+            st.warning(f"⚠️ No marks data found in the database for Section {sel_sec} ({selected_session}) under Exam Cycle {sel_exam}.")
             
         summary_rows = []
         for _, s_row in students_df.iterrows():
@@ -795,26 +806,22 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         
         # Display the built table summary cleanly inside Streamlit
-        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec}")
+        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_session})")
         st.dataframe(final_report_df, use_container_width=True, hide_index=True)
         
         # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
-        # Generate clean short form subject labels without "(Obt)"
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
-        # Dynamic Rows Compilation
         tbody_rows_html = ""
         for _, row in final_report_df.iterrows():
             s_id = row["ID"]
             current_status = row["Status"]
             
-            # Dynamic visual status badge for Re-Active student profiles
             status_badge = ""
             if current_status == "Re-Active":
                 status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
             
-            # Find old/hidden subject marks that aren't part of this student's current layout mapping
             old_marks_badges = []
             hidden_marks_df = marks_df[marks_df["student_id"] == s_id] if not marks_df.empty else pd.DataFrame()
             for _, h_row in hidden_marks_df.iterrows():
@@ -849,7 +856,6 @@ elif menu_choice == "📋 Section Summary Report":
             
         logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
         
-        # HTML Rendering Payload Configuration
         analytics_html_payload = f"""
         <!DOCTYPE html>
         <html>
@@ -858,29 +864,22 @@ elif menu_choice == "📋 Section Summary Report":
         <style>
             body {{ font-family: "Segoe UI", Arial, sans-serif; color: #333; background-color: #fff; margin: 0; padding: 10px; }}
             .report-wrapper-container {{ max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
-            
-            /* TOP ACTION UTILITIES PANEL */
             .action-panel-bar {{ display: flex; gap: 12px; margin-bottom: 22px; }}
             .btn-action {{ padding: 10px 22px; font-weight: bold; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }}
             .btn-print {{ background: #222; color: #fff; }}
             .btn-image {{ background: #0066cc; color: #fff; }}
             .btn-action:hover {{ opacity: 0.9; }}
-            
-            /* OFFICIAL BRAND BANNER HEADER */
             .header-banner {{ display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 20px; }}
             .header-branding {{ text-align: left; }}
             .inst-title {{ font-size: 24px; font-weight: 800; color: #111; letter-spacing: 0.5px; margin: 0; }}
             .doc-subtitle {{ font-size: 15px; color: #555; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
             .meta-details {{ text-align: right; font-size: 13px; color: #444; line-height: 1.5; }}
             .brand-logo-img {{ max-height: 55px; width: auto; object-fit: contain; }}
-            
-            /* DATA LEDGER TABLE GRID STRUCTURE */
             .analytics-grid-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
             .analytics-grid-table th, .analytics-grid-table td {{ border: 1px solid #dcdcdc; padding: 10px 8px; text-align: center; }}
             .analytics-grid-table th {{ background-color: #f8f9fa; font-weight: 700; color: #2c3e50; white-space: nowrap; }}
             .analytics-grid-table tr:nth-child(even) {{ background-color: #fbfbfb; }}
             .analytics-grid-table tr:hover {{ background-color: #f5f7fa; }}
-            
             @media print {{
                 .action-panel-bar {{ display: none !important; }}
                 body {{ padding: 0; margin: 0; }}
@@ -904,6 +903,7 @@ elif menu_choice == "📋 Section Summary Report":
                         </div>
                     </div>
                     <div class="meta-details">
+                        <b>Session:</b> {selected_session}<br>
                         <b>Discipline:</b> {sel_disc}<br>
                         <b>Section Block:</b> {sel_sec}<br>
                         <b>Exam Phase:</b> {sel_exam}
@@ -931,7 +931,7 @@ elif menu_choice == "📋 Section Summary Report":
             <script>
                 document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
                     const targetEl = document.getElementById('printable-summary-target');
-                    const filenameStr = "Summary_Report_{sel_sec}_{sel_exam}.png";
+                    const filenameStr = "Summary_Report_{sel_sec}_{selected_session}_{sel_exam}.png";
                     
                     html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
                         const linkHook = document.createElement('a');
@@ -945,9 +945,7 @@ elif menu_choice == "📋 Section Summary Report":
         </html>
         """
         
-        # Render components safely inside the correct structural scope level
         components.html(analytics_html_payload, height=750, scrolling=True)
-
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
