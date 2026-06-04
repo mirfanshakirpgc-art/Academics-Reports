@@ -295,17 +295,12 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
             # This handles student roster rendering after parameters match runtime state
             if sel_subject and sel_section and sel_session:
                 row2_1, row2_2 = st.columns(2)
-                with row2_1: sel_exam = st.selectbox("Test Type:", AVAILABLE_EXAMS)
-                with row2_2: total_marks = st.number_input("Total Marks Assigned:", value=100)
+                with row2_1: sel_month = st.selectbox("Select Attendance Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="att_month_sel")
+                with row2_2: total_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
                 
                 try:
-                    # Recalculate prefix locally to handle different session formats ('2025' vs '2025-27')
                     sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
                     
-                    try:
-                    sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
-                    
-                    # 🛠️ FIXED: Standardized 20-space indentation for code within the try block
                     roster_df = run_query("""
                         SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
                         FROM students s
