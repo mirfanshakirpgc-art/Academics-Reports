@@ -688,19 +688,24 @@ elif menu_choice == "📋 Section Summary Report":
             disc_options = AVAILABLE_DISCIPLINE
         except NameError:
             disc_options = ["MEDICAL", "ENGINEERING", "ICS", "COMMERCE", "ARTS"]
-        sel_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
+        # Normalize incoming selection string to standard uppercase
+        raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
+        sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        # Bulletproof fallback mapping to prevent layout crashes when switching discipline
+        # Bulletproof fallback mapping to prevent layout crashes when switching disciplines
+        sec_options = []
         try:
-            sec_options = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
+            # Handle dictionary lookup with both lowercase and uppercase fallbacks
+            if "DISCIPLINE_SECTIONS_MAP" in globals():
+                sec_options = DISCIPLINE_SECTIONS_MAP.get(sel_disc, DISCIPLINE_SECTIONS_MAP.get(sel_disc.title(), []))
+            
             if not sec_options:
-                disc_lower = sel_disc.lower()
-                if "medical" in disc_lower: sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
-                elif "engineering" in disc_lower: sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
-                elif "ics" in disc_lower: sec_options = ["ICS1", "ICS2", "CS1"]
+                if "MEDICAL" in sel_disc: sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
+                elif "ENGINEERING" in sel_disc: sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
+                elif "ICS" in sel_disc: sec_options = ["ICS1", "ICS2", "CS1"]
                 else: sec_options = ["IK", "IB", "CK2", "CB_WHITE"]
-        except NameError:
+        except Exception:
             sec_options = ["MQ1", "EQ1", "EG_BLUE", "MG_WHITE"]
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
@@ -712,14 +717,14 @@ elif menu_choice == "📋 Section Summary Report":
             exam_options = ["MT_1", "MT_2", "PRE_BOARD"]
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
         
-    # Simple dictionary mapping for short-form subject names
+    # Dictionary mapping for short-form subject names
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO",
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students based on Session & Section (Excludes current class string restriction)
+    # 1. Fetch Students based on Session & Section (Excludes class string restriction to catch promoted students)
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -732,12 +737,12 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No student profiles registered under Section '{sel_sec}' inside Session {selected_session}.")
     else:
-        try:
-            subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_disc, ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"])
-        except NameError:
-            subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+        # Load custom subjects configuration dynamically with a safe default list fallback
+        subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+        if "DISCIPLINE_SUBJECTS_MAP" in globals():
+            subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_disc, DISCIPLINE_SUBJECTS_MAP.get(sel_disc.title(), subjects))
             
-        # 2. Fetch Marks explicitly matching the target history class level chosen
+        # 2. Fetch Marks explicitly matching the historical target class level chosen
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks, m.class AS "Exam Class"
             FROM marks m 
@@ -750,7 +755,7 @@ elif menu_choice == "📋 Section Summary Report":
         """, {"section": sel_sec, "session": selected_session, "class": selected_class, "exam": sel_exam})
         
         if marks_df.empty:
-            st.warning(f"⚠️ No marks data found in the database for Section {sel_sec} ({selected_class} - {selected_session}) under Exam Cycle {sel_exam}.")
+            st.warning(f"⚠️ No marks records located inside the database for Section {sel_sec} ({selected_class} - {selected_session}) under Exam Cycle {sel_exam}.")
             
         summary_rows = []
         for _, s_row in students_df.iterrows():
