@@ -696,39 +696,44 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        if selected_class == "11th":
-            if "MEDICAL" in sel_disc:
-                sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE", "MG_BLUE"]
-            elif "ENGINEERING" in sel_disc:
-                sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
-            elif "ICS" in sel_disc:
-                sec_options = ["ICS1", "ICS2", "CS1"]
-            else:
-                sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
-        else:  
-            # 12th Grade: Synchronized directly with your Promotion Blueprint Destinations
-            if "MEDICAL" in sel_disc:
-                sec_options = ["MQ1", "MQ2", "MK"]
-            elif "ENGINEERING" in sel_disc:
-                sec_options = ["EQ", "EK"]
-            elif "ICS" in sel_disc or "PHYSICS" in sel_disc:
-                sec_options = ["CQ1", "CQ2", "CK1", "CK2"]
-            else:
-                sec_options = ["IK", "IQ", "FK", "FQ"]
-            
+        # 1. Check your global map first if it exists, but add safety measures
+        has_global_map = False
         if "DISCIPLINE_SECTIONS_MAP" in globals():
             try:
-                if sel_disc in DISCIPLINE_SECTIONS_MAP:
+                # Look for class-specific overrides first (e.g., '12th_MEDICAL')
+                class_disc_key = f"{selected_class}_{sel_disc}"
+                if class_disc_key in DISCIPLINE_SECTIONS_MAP:
+                    sec_options = DISCIPLINE_SECTIONS_MAP[class_disc_key]
+                    has_global_map = True
+                elif not has_global_map and selected_class == "11th" and sel_disc in DISCIPLINE_SECTIONS_MAP:
                     sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc]
-                elif sel_disc.title() in DISCIPLINE_SECTIONS_MAP:
-                    sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc.title()]
+                    has_global_map = True
             except Exception:
                 pass
+
+        # 2. Hardcoded fallback blocks run ONLY if a global map didn't already handle the class level split
+        if not has_global_map:
+            if selected_class == "11th":
+                if "MEDICAL" in sel_disc:
+                    sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE", "MG_BLUE"]
+                elif "ENGINEERING" in sel_disc:
+                    sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
+                elif "ICS" in sel_disc:
+                    sec_options = ["ICS1", "ICS2", "CS1"]
+                else:
+                    sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
+            else:  
+                # 🎯 12th Class Destinations from your Promotion panel blueprint
+                if "MEDICAL" in sel_disc:
+                    sec_options = ["MQ1", "MQ2", "MK"]
+                elif "ENGINEERING" in sel_disc:
+                    sec_options = ["EQ", "EK"]
+                elif "ICS" in sel_disc or "PHYSICS" in sel_disc:
+                    sec_options = ["CQ1", "CQ2", "CK1", "CK2"]
+                else:
+                    sec_options = ["IK", "IQ", "FK", "FQ"]
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
-        
-    with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
     # --- 3. BACKGROUND FORMAT TRANSLATION & DICTIONARIES ---
     SESSION_DB_MAP = {
