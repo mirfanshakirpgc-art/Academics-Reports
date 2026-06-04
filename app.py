@@ -675,7 +675,7 @@ elif menu_choice == "📋 Section Summary Report":
     except NameError:
         session_options = ["2024-26", "2025-27", "2026-28"]
 
-    # 🛠️ Expanded Filter Columns (5 Columns layout to include Session and Class Selection)
+    # 🛠️ 5-Column layout to include Session and Class Level history controls
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     with col_sess:
         selected_session = st.selectbox("Select Session:", session_options, index=1, key="summary_session")
@@ -712,34 +712,33 @@ elif menu_choice == "📋 Section Summary Report":
         "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students (🛠️ FIXED: Synchronized with session and class matching logic context constraints)
+    # 1. Fetch Students based on Session & Section (Omits Class constraint so historical students stay linked)
     students_df = run_query("""
-        SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class", status AS "Status"
+        SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-          AND session = :session
-          AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
+          AND UPPER(TRIM(session)) = UPPER(TRIM(:session))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {"section": sel_sec, "session": selected_session, "class": selected_class})
+    """, {"section": sel_sec, "session": selected_session})
     
     if students_df.empty:
-        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session} right now.")
+        st.info(f"💡 No student profiles registered under Section '{sel_sec}' inside Session {selected_session}.")
     else:
         try:
             subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
         except (NameError, KeyError):
             subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
             
-        # 2. Fetch Marks Entries (Synchronized to match target session and class scope context structure)
+        # 2. Fetch Marks explicitly matching the target history class level chosen in your selector
         marks_df = run_query("""
-            SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
+            SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks, m.class AS "Exam Class"
             FROM marks m 
             JOIN students s ON m.student_id = s.id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
-              AND s.session = :session
-              AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class))
-              AND TRIM(m.exam_type) = TRIM(:exam)
+              AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+              AND UPPER(TRIM(m.class)) = UPPER(TRIM(:class))
+              AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
         """, {"section": sel_sec, "session": selected_session, "class": selected_class, "exam": sel_exam})
         
@@ -755,7 +754,7 @@ elif menu_choice == "📋 Section Summary Report":
                 "ID": s_id, 
                 "Student Name": s_row["Student Name"], 
                 "Section": s_row["Section"], 
-                "Class": s_row["Class"],
+                "Class": s_row["Current Class"],
                 "Status": s_status
             }
             
@@ -908,7 +907,7 @@ elif menu_choice == "📋 Section Summary Report":
                     </div>
                     <div class="meta-details">
                         <b>Session:</b> {selected_session}<br>
-                        <b>Class Level:</b> {selected_class}<br>
+                        <b>Class Level History Scope:</b> {selected_class}<br>
                         <b>Discipline:</b> {sel_disc}<br>
                         <b>Section Block:</b> {sel_sec}<br>
                         <b>Exam Phase:</b> {sel_exam}
