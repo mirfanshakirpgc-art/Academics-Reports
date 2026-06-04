@@ -302,6 +302,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
                     
                     # 🛠️ FIXED: Accessing the correct database column name (month_name)
+                    # The query MUST look like this with 'a.month_name'
                     roster_df = run_query("""
                         SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
                         FROM students s
