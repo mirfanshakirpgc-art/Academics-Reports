@@ -668,7 +668,19 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 # ----------------- 📋 SECTION SUMMARY REPORT (FINAL BULLETPROOF VERSION) -----------------
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Summary Report")
-    
+
+    # 🧪 TEMPORARY DIAGNOSTIC TOOL (Delete or comment out after checking)
+    st.write("### 🧪 Database Diagnostic Preview (12th Grade Sample Records)")
+    debug_df = run_query("""
+        SELECT id, name, section, class, session 
+        FROM students 
+        WHERE UPPER(TRIM(class)) = '12TH' 
+        LIMIT 5
+    """)
+    if debug_df.empty:
+        st.error("❌ The database has ZERO students marked as '12th'!")
+    else:
+        st.dataframe(debug_df)
     # --- 1. SAFE PARAMETERS CONFIG (DEFAULTS GUARANTEED) ---
     session_options = ["2024-26", "2025-27", "2026-28"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
