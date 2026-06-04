@@ -798,7 +798,7 @@ elif menu_choice == "📋 Section Summary Report":
         st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec}")
         st.dataframe(final_report_df, use_container_width=True, hide_index=True)
         
-      # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
+        # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
         # Generate clean short form subject labels without "(Obt)"
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
@@ -816,7 +816,7 @@ elif menu_choice == "📋 Section Summary Report":
             
             # Find old/hidden subject marks that aren't part of this student's current layout mapping
             old_marks_badges = []
-            hidden_marks_df = marks_df[marks_df["student_id"] == s_id]
+            hidden_marks_df = marks_df[marks_df["student_id"] == s_id] if not marks_df.empty else pd.DataFrame()
             for _, h_row in hidden_marks_df.iterrows():
                 h_sub = h_row["subject"]
                 if h_sub not in [sub.upper().strip() for sub in subjects]:
@@ -945,11 +945,8 @@ elif menu_choice == "📋 Section Summary Report":
         </html>
         """
         
-        # Render components safely
+        # Render components safely inside the correct structural scope level
         components.html(analytics_html_payload, height=750, scrolling=True)
-        
-    else:
-        st.info("💡 No active student profiles loaded under this section yet.")
 
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
