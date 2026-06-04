@@ -669,21 +669,6 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
 
-    st.write("### 🛠️ Database Diagnostic Check")
-try:
-    # Check distinct sessions stored
-    sess_debug = run_query("SELECT DISTINCT session FROM students")
-    st.write("**Sessions found in database:**", sess_debug.to_dict(orient='list'))
-    
-    # Check distinct sections stored
-    sec_debug = run_query("SELECT DISTINCT section FROM students LIMIT 10")
-    st.write("**Sample Sections found in database:**", sec_debug.to_dict(orient='list'))
-    
-    # Check distinct classes stored
-    class_debug = run_query("SELECT DISTINCT class FROM students")
-    st.write("**Classes found in database:**", class_debug.to_dict(orient='list'))
-except Exception as e:
-    st.error(f"Diagnostic failed: {e}")
     # --- 1. SAFE PARAMETERS SETUP ---
     session_options = ["2024-2026", "2025-2027", "2026-2028"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
