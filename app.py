@@ -696,7 +696,7 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        if selected_class == "11th":
+        if selected_class == "12th":
             if "MEDICAL" in sel_disc:
                 sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
             elif "ENGINEERING" in sel_disc:
