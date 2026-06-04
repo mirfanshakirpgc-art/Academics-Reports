@@ -696,19 +696,30 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        # Hardcoded local protection mappings to prevent any cross-key lookup crashes
-        if "MEDICAL" in sel_disc:
-            sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
-        elif "ENGINEERING" in sel_disc:
-            sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
-        elif "ICS" in sel_disc:
-            sec_options = ["ICS1", "ICS2", "CS1"]
-        else:
-            sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
-            
-        # Override with global dictionary ONLY if the key explicitly exists
+        # 1. Start with robust local fallback options based on Class + Discipline
+        if selected_class == "11th":
+            if "MEDICAL" in sel_disc:
+                sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
+            elif "ENGINEERING" in sel_disc:
+                sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
+            elif "ICS" in sel_disc:
+                sec_options = ["ICS1", "ICS2", "CS1"]
+            else:
+                sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
+        else:  # 12th Class Sections
+            if "MEDICAL" in sel_disc:
+                sec_options = ["2M1", "2M2", "2MD", "2MG_WHITE"] # Update these to match your actual 12th sections
+            elif "ENGINEERING" in sel_disc:
+                sec_options = ["2E1", "2E2", "2ENG", "2EG_BLUE"] # Update these to match your actual 12th sections
+            elif "ICS" in sel_disc:
+                sec_options = ["2ICS1", "2ICS2", "2CS1"]
+            else:
+                sec_options = ["2IK", "2IB", "2CK2", "2CB_WHITE"]
+
+        # 2. Override using global settings dictionary if available
         if "DISCIPLINE_SECTIONS_MAP" in globals():
             try:
+                # If your map is structured by class, use it, or customize keys here
                 if sel_disc in DISCIPLINE_SECTIONS_MAP:
                     sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc]
                 elif sel_disc.title() in DISCIPLINE_SECTIONS_MAP:
@@ -717,9 +728,6 @@ elif menu_choice == "📋 Section Summary Report":
                 pass
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
-        
-    with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
     # --- NEW: BACKGROUND FORMAT MAPPER ---
     SESSION_DB_MAP = {
