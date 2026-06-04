@@ -349,7 +349,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
         att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode")
         st.markdown("---")
         
-        # Pull global session variables safely
+        # 🌟 FIX: Fetch authorization details safely at the top of the attendance sub-tab layer
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
         
