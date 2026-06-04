@@ -749,42 +749,33 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (ADAPTIVE PROMOTED MATCHING) ---
-    # Try fetching based on direct student profile records first (Checks current 12th roster status)
+    # --- 4. DATABASE QUERIES (RELAXED SESSION EXTRACTION FOR PROMOTED STUDENTS) ---
+    # Construct a flexible session wildcard prefix (e.g., "2025%") to catch any variant format
+    session_clean = str(selected_session).strip()
+    sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
+
+    # Primary check: Look directly for your assigned 12th grade students
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-          AND UPPER(TRIM(session)) = UPPER(TRIM(:session))
+          AND session LIKE :sess_wildcard
           AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {"section": sel_sec, "session": db_session, "class": selected_class})
+    """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "class": selected_class})
     
-    # Fallback: If no direct active profile matches, look up records via historical exam logs
+    # Fallback: Look up based on historical logs if active status records aren't fully synchronized
     if students_df.empty:
-        if selected_class == "11th":
-            students_df = run_query("""
-                SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
-                FROM students s
-                JOIN marks m ON s.id = m.student_id
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
-                  AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
-                  AND UPPER(TRIM(s.class)) = '11TH'
-                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-                ORDER BY s.id ASC
-            """, {"section": sel_sec, "session": db_session})
-        else:
-            # For 12th Class: Find students currently assigned to this 12th section, even if marks are historical
-            students_df = run_query("""
-                SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
-                FROM students s
-                JOIN marks m ON s.id = m.student_id
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
-                  AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
-                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-                ORDER BY s.id ASC
-            """, {"section": sel_sec, "session": db_session})
+        students_df = run_query("""
+            SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
+            FROM students s
+            JOIN marks m ON s.id = m.student_id
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
+              AND s.session LIKE :sess_wildcard
+              AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+            ORDER BY s.id ASC
+        """, {"section": sel_sec, "sess_wildcard": sess_wildcard})
     
     if students_df.empty:
         st.info(f"💡 No student profiles or exam history logs registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
@@ -800,16 +791,16 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Fetch Marks safely using clean table scoping
+        # Fetch Marks matching the wildcard session parameters
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
             JOIN students s ON m.student_id = s.id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
-              AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+              AND s.session LIKE :sess_wildcard
               AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-        """, {"section": sel_sec, "session": db_session, "exam": sel_exam})
+        """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "exam": sel_exam})
             
         # --- 5. BUILD PERFORMANCE MATRIX GRID ---
         summary_rows = []
