@@ -665,10 +665,10 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                 except Exception as e:
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
-# ----------------- 📋 SECTION SUMMARY REPORT (FULL UPDATED VERSION) -----------------
+# ----------------- 📋 SECTION SUMMARY REPORT (COMPLETELY ASSEMBLED FIXED VERSION) -----------------
 elif menu_choice == "📋 Section Summary Report":
-    st.title("📋 Section Performance Analytics Report")
-
+    st.title("📋 Section Summary Report")
+    
     # --- 1. SAFE PARAMETERS SETUP ---
     session_options = ["2024-26", "2025-27", "2026-28"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
@@ -682,7 +682,7 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = AVAILABLE_EXAMS
 
-    # --- 2. LAYOUT GENERATION (ALL 5 COLUMNS INTIALIZED FIRST) ---
+    # --- 2. LAYOUT GENERATION (ALL VARIABLE INITS SECURED IN ORDER) ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     
     with col_sess:
@@ -696,10 +696,9 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        # Harmonize report selections to look for BOTH 11th and promoted 12th section codes
         if selected_class == "11th":
             if "MEDICAL" in sel_disc:
-                sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
+                sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE", "MG_BLUE"]
             elif "ENGINEERING" in sel_disc:
                 sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
             elif "ICS" in sel_disc:
@@ -707,17 +706,16 @@ elif menu_choice == "📋 Section Summary Report":
             else:
                 sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
         else:  
-            # 🎯 12th Class: These match the exact destination arrays from your promotion engine!
+            # 12th Grade: Synchronized directly with your Promotion Blueprint Destinations
             if "MEDICAL" in sel_disc:
                 sec_options = ["MQ1", "MQ2", "MK"]
             elif "ENGINEERING" in sel_disc:
-                sec_options = ["EQ", "EK"]  # Matches your promotion destination exactly!
+                sec_options = ["EQ", "EK"]
             elif "ICS" in sel_disc or "PHYSICS" in sel_disc:
                 sec_options = ["CQ1", "CQ2", "CK1", "CK2"]
             else:
                 sec_options = ["IK", "IQ", "FK", "FQ"]
             
-        # Override with global dictionary if explicitly defined
         if "DISCIPLINE_SECTIONS_MAP" in globals():
             try:
                 if sel_disc in DISCIPLINE_SECTIONS_MAP:
@@ -728,6 +726,9 @@ elif menu_choice == "📋 Section Summary Report":
                 pass
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
+        
+    with col_c: 
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
     # --- 3. BACKGROUND FORMAT TRANSLATION & DICTIONARIES ---
     SESSION_DB_MAP = {
@@ -743,7 +744,7 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (SAFE & SYNCHRONIZED) ---
+    # --- 4. DATABASE QUERIES (SAFE & SCOPED BY STUDENT CLASS) ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -769,6 +770,7 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No student profiles or exam history logs registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
+        # Determine target list subjects safely
         subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
         if "DISCIPLINE_SUBJECTS_MAP" in globals():
             try:
@@ -853,7 +855,6 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # Display the built table summary cleanly inside Streamlit
         st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_class} - {selected_session})")
         st.dataframe(final_report_df, use_container_width=True, hide_index=True)
         
