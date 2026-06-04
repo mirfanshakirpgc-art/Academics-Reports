@@ -728,7 +728,7 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (CORRECTED RELATIONSHIP LINKS) ---
+    # --- 4. DATABASE QUERIES (EXPLICT TABLE ALIASES) ---
     # Fetch students who have exam marks matching this specific Class Level, Section, and Session
     students_df = run_query("""
         SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
@@ -741,7 +741,7 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY s.id ASC
     """, {"section": sel_sec, "session": selected_session, "class": selected_class})
     
-    # Fallback: If no historical records show up, fetch right from the core active students table
+    # Fallback: If no records match the join, grab right from the student base profiles
     if students_df.empty:
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -781,6 +781,69 @@ elif menu_choice == "📋 Section Summary Report":
         
         if marks_df.empty:
             st.warning(f"⚠️ No marks records located inside the database for Section {sel_sec} ({selected_class} - {selected_session}) under Exam Cycle {sel_exam}.")
+            
+        # --- 5. BUILD PERFORMANCE MATRIX ---
+        summary_rows = []
+        for _, s_row in students_df.iterrows():
+            s_id = s_row["ID"]
+            s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
+            
+            entry = {
+                "ID": s_id, 
+                "Student Name": s_row["Student Name"], 
+                "Section": s_row["Section"], 
+                "Class": s_row["Current Class"],
+                "Status": s_status
+            }
+            
+            obtained_total = 0.0
+            max_total = 0.0
+            has_valid_scores = False  
+            has_explicit_nc = False
+            
+            for sub in subjects:
+                sub_upper = sub.upper().strip()
+                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
+                
+                if not marks_df.empty:
+                    sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
+                else:
+                    sub_match = pd.DataFrame()
+                
+                if not sub_match.empty:
+                    val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
+                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
+                    
+                    if val == "NC":
+                        entry[short_sub] = "NC"
+                        has_explicit_nc = True
+                    elif val == "A":
+                        entry[short_sub] = "A"
+                        max_total += tot       
+                        has_valid_scores = True
+                    elif val.replace('.', '', 1).isdigit() or val.isdigit():
+                        entry[short_sub] = float(val)
+                        obtained_total += float(val)
+                        max_total += tot       
+                        has_valid_scores = True
+                    else:
+                        entry[short_sub] = val
+                else:
+                    entry[short_sub] = "-"
+
+            if has_valid_scores:
+                entry["Total (Obt)"] = int(obtained_total)
+                entry["Total Max"] = int(max_total)
+            elif has_explicit_nc:
+                entry["Total (Obt)"] = "NC"
+                entry["Total Max"] = "NC"
+            else:
+                entry["Total (Obt)"] = "-"
+                entry["Total Max"] = "-"
+                
+            summary_rows.append(entry)
+            
+        final_report_df = pd.DataFrame(summary_rows)
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
