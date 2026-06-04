@@ -749,12 +749,12 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (RELAXED SESSION EXTRACTION FOR PROMOTED STUDENTS) ---
-    # Construct a flexible session wildcard prefix (e.g., "2025%") to catch any variant format
+    # --- 4. DATABASE QUERIES (PROFILE-FIRST ENGINE) ---
+    # Wildcard prefix helper for sessions
     session_clean = str(selected_session).strip()
     sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
 
-    # Primary check: Look directly for your assigned 12th grade students
+    # CRITICAL CHANGE: Always fetch the actual promoted roster directly from student directory first!
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -765,12 +765,11 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "class": selected_class})
     
-    # Fallback: Look up based on historical logs if active status records aren't fully synchronized
+    # Absolute Fallback: Only check historical marks logs if the primary class assignment directory is missing entirely
     if students_df.empty:
         students_df = run_query("""
             SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
             FROM students s
-            JOIN marks m ON s.id = m.student_id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
               AND s.session LIKE :sess_wildcard
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
@@ -791,7 +790,7 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Fetch Marks matching the wildcard session parameters
+        # Fetch Marks without limiting the students dataframe row assignments
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
@@ -799,7 +798,6 @@ elif menu_choice == "📋 Section Summary Report":
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
               AND s.session LIKE :sess_wildcard
               AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
-              AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
         """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "exam": sel_exam})
             
         # --- 5. BUILD PERFORMANCE MATRIX GRID ---
