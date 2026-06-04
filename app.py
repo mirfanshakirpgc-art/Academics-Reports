@@ -305,7 +305,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     try:
                     sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
                     
-                    # 🛠️ FIXED: Query without a.subject
+                    # 🛠️ FIXED: Standardized 20-space indentation for code within the try block
                     roster_df = run_query("""
                         SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
                         FROM students s
