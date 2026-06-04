@@ -395,6 +395,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology", "Pak. Studies", "B_Stats", "Banking", "Geo"]
                 sel_subject = st.selectbox("Select Subject:", available_subjects, key="att_sub_filter_a")
             
+            # 🟢 This is the rendering block that now safely uses month_name
             if sel_subject and sel_section and sel_session:
                 row2_1, row2_2 = st.columns(2)
                 with row2_1: sel_month = st.selectbox("Select Attendance Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="att_month_sel")
@@ -402,16 +403,23 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                 
                 try:
                     sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
+                    
+                    # ✅ FIXED GLOBAL QUERY: month_name is used universally here
                     roster_df = run_query("""
                         SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
                         FROM students s
                         LEFT JOIN attendance a ON s.id = a.student_id 
-                            AND TRIM(a.month) = TRIM(:month)
+                            AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
                         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
                           AND (s.session LIKE :sess_prefix OR s.session = :session)
                           AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                         ORDER BY s.id ASC
-                    """, {"month": sel_month, "section": sel_section, "session": sel_session, "sess_prefix": sess_prefix})
+                    """, {
+                        "month": sel_month, 
+                        "section": sel_section, 
+                        "session": sel_session, 
+                        "sess_prefix": sess_prefix
+                    })
                     
                     if roster_df.empty:
                         st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
@@ -424,10 +432,11 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                                 col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
                                 updated_attendance[row['ID']] = col_s2.number_input("Days Present", min_value=0, max_value=int(total_days), value=int(float(row['Present'])), key=f"pres_{row['ID']}", label_visibility="collapsed")
                             
+                            # ✅ FIXED SAVE COMMANDS: targeted to month_name
                             if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
                                 for s_id, p_days in updated_attendance.items():
-                                    execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND TRIM(month) = TRIM(:month)", {"s_id": int(s_id), "month": sel_month})
-                                    execute_db_command("INSERT INTO attendance (student_id, month, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": int(s_id), "month": sel_month.strip(), "p_days": int(p_days), "t_days": int(total_days)})
+                                    execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": int(s_id), "month": sel_month})
+                                    execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": int(s_id), "month": sel_month.strip(), "p_days": int(p_days), "t_days": int(total_days)})
                                 st.success("🎉 Section Attendance saved successfully!")
                                 st.rerun()
                 except Exception as e:
