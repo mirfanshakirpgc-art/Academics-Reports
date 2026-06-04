@@ -667,6 +667,10 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 
 # ----------------- 📋 SECTION SUMMARY REPORT (FINAL BULLETPROOF VERSION) -----------------
 elif menu_choice == "📋 Section Summary Report":
+    import streamlit as st
+    import pandas as pd
+    import streamlit.components.v1 as components
+
     st.title("📋 Section Summary Report")
 
     # --- 1. SAFE PARAMETERS CONFIG (DEFAULTS GUARANTEED) ---
@@ -855,7 +859,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # --- 6. HTML PRINT & IMAGE CAPTURE EMBED ---
+        # --- 7. HTML PRINT & IMAGE CAPTURE EMBED ---
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
@@ -991,7 +995,6 @@ elif menu_choice == "📋 Section Summary Report":
         </body>
         </html>
         """
-        import streamlit.components.v1 as components
         components.html(analytics_html_payload, height=750, scrolling=True)
 # ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
