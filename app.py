@@ -669,8 +669,8 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
 
-    # --- 1. SAFE PARAMETERS SETUP ---
-    session_options = ["2024-2026", "2025-2027", "2026-2028"]
+    # --- 1. SAFE PARAMETERS SETUP (CLEAN DISPLAY FORMAT) ---
+    session_options = ["2024-26", "2025-27", "2026-28"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
         session_options = AVAILABLE_SESSIONS
 
@@ -720,6 +720,14 @@ elif menu_choice == "📋 Section Summary Report":
         
     with col_c: 
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
+
+    # --- NEW: BACKGROUND FORMAT MAPPER ---
+    SESSION_DB_MAP = {
+        "2024-26": "2024-2026",
+        "2025-27": "2025-2027",
+        "2026-28": "2026-2028"
+    }
+    db_session = SESSION_DB_MAP.get(selected_session, selected_session)
         
     # --- 3. SUBJECT NAMES DICTIONARY MAPPING ---
     SHORT_SUBJECTS_MAP = {
@@ -728,7 +736,7 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (STABLE & CRASH-TESTED) ---
+    # --- 4. DATABASE QUERIES (UPDATED TO USE db_session) ---
     # Try fetching based on direct student profile records first
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -738,7 +746,7 @@ elif menu_choice == "📋 Section Summary Report":
           AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {"section": sel_sec, "session": selected_session, "class": selected_class})
+    """, {"section": sel_sec, "session": db_session, "class": selected_class})
     
     # Fallback: If no direct records match, grab right from core student base via soft mapping
     if students_df.empty:
@@ -750,7 +758,7 @@ elif menu_choice == "📋 Section Summary Report":
               AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
             ORDER BY s.id ASC
-        """, {"section": sel_sec, "session": selected_session})
+        """, {"section": sel_sec, "session": db_session})
     
     if students_df.empty:
         st.info(f"💡 No student profiles or exam history logs registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
@@ -775,7 +783,7 @@ elif menu_choice == "📋 Section Summary Report":
               AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
               AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-        """, {"section": sel_sec, "session": selected_session, "exam": sel_exam})
+        """, {"section": sel_sec, "session": db_session, "exam": sel_exam})
             
         # --- 5. BUILD PERFORMANCE MATRIX GRID ---
         summary_rows = []
