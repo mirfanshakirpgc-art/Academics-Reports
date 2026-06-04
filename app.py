@@ -669,7 +669,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Performance Analytics Report")
 
-    # --- 1. SAFE PARAMETERS SETUP (CLEAN DISPLAY FORMAT) ---
+    # --- 1. SAFE PARAMETERS SETUP ---
     session_options = ["2024-26", "2025-27", "2026-28"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
         session_options = AVAILABLE_SESSIONS
@@ -682,7 +682,7 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = AVAILABLE_EXAMS
 
-    # --- 2. LAYOUT GENERATION (5 COLUMNS) ---
+    # --- 2. LAYOUT GENERATION (ALL 5 COLUMNS INTIALIZED FIRST) ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     
     with col_sess:
@@ -696,7 +696,6 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        # 1. Start with robust local fallback options based on Class + Discipline
         if selected_class == "11th":
             if "MEDICAL" in sel_disc:
                 sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
@@ -706,20 +705,18 @@ elif menu_choice == "📋 Section Summary Report":
                 sec_options = ["ICS1", "ICS2", "CS1"]
             else:
                 sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
-        else:  # 12th Class Sections
+        else:
             if "MEDICAL" in sel_disc:
-                sec_options = ["2M1", "2M2", "2MD", "2MG_WHITE"] # Update these to match your actual 12th sections
+                sec_options = ["2M1", "2M2", "2MD", "2MG_WHITE"]
             elif "ENGINEERING" in sel_disc:
-                sec_options = ["2E1", "2E2", "2ENG", "2EG_BLUE"] # Update these to match your actual 12th sections
+                sec_options = ["2E1", "2E2", "2ENG", "2EG_BLUE"]
             elif "ICS" in sel_disc:
                 sec_options = ["2ICS1", "2ICS2", "2CS1"]
             else:
                 sec_options = ["2IK", "2IB", "2CK2", "2CB_WHITE"]
-
-        # 2. Override using global settings dictionary if available
+            
         if "DISCIPLINE_SECTIONS_MAP" in globals():
             try:
-                # If your map is structured by class, use it, or customize keys here
                 if sel_disc in DISCIPLINE_SECTIONS_MAP:
                     sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc]
                 elif sel_disc.title() in DISCIPLINE_SECTIONS_MAP:
@@ -728,8 +725,11 @@ elif menu_choice == "📋 Section Summary Report":
                 pass
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
+        
+    with col_c: 
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
-    # --- NEW: BACKGROUND FORMAT MAPPER ---
+    # --- 3. BACKGROUND FORMAT TRANSLATION & DICTIONARIES ---
     SESSION_DB_MAP = {
         "2024-26": "2024-2026",
         "2025-27": "2025-2027",
@@ -737,15 +737,13 @@ elif menu_choice == "📋 Section Summary Report":
     }
     db_session = SESSION_DB_MAP.get(selected_session, selected_session)
         
-    # --- 3. SUBJECT NAMES DICTIONARY MAPPING ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO",
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (FIXED CLASS FILTERING) ---
-    # Try fetching based on direct student profile records first
+    # --- 4. DATABASE QUERIES (SAFE & SYNCHRONIZED) ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -756,7 +754,6 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "session": db_session, "class": selected_class})
     
-    # Fallback: Check if they have marks history, but strictly enforce the selected student class (s.class)
     if students_df.empty:
         students_df = run_query("""
             SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
@@ -772,7 +769,6 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No student profiles or exam history logs registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
-        # Determine target list subjects safely
         subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
         if "DISCIPLINE_SUBJECTS_MAP" in globals():
             try:
@@ -783,7 +779,6 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Fetch Marks safely matching the student's class profile
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
