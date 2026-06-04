@@ -669,18 +669,6 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Summary Report")
 
-    # 🧪 TEMPORARY DIAGNOSTIC TOOL (Delete or comment out after checking)
-    st.write("### 🧪 Database Diagnostic Preview (12th Grade Sample Records)")
-    debug_df = run_query("""
-        SELECT id, name, section, class, session 
-        FROM students 
-        WHERE UPPER(TRIM(class)) = '12TH' 
-        LIMIT 5
-    """)
-    if debug_df.empty:
-        st.error("❌ The database has ZERO students marked as '12th'!")
-    else:
-        st.dataframe(debug_df)
     # --- 1. SAFE PARAMETERS CONFIG (DEFAULTS GUARANTEED) ---
     session_options = ["2024-26", "2025-27", "2026-28"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
@@ -755,7 +743,11 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (PROFILE-FIRST ENGINE) ---
+    # --- 4. DATABASE QUERIES (ADAPTIVE CROSS-YEAR ENGINE) ---
+    session_clean = str(selected_session).strip() if selected_session else "2025-27"
+    sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
+
+    # Always fetch the actual current section roster first
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -766,7 +758,7 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "class": selected_class})
     
-    # Global fallback catch
+    # Roster Fallback (Checks global session pool if class-level structure is out of sync)
     if students_df.empty:
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -780,7 +772,7 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
-        # Determine target list subjects safely
+        # Determine subject mappings dynamically
         subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
         if "DISCIPLINE_SUBJECTS_MAP" in globals() and DISCIPLINE_SUBJECTS_MAP:
             try:
@@ -791,15 +783,26 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Fetch Marks safely matching current selections
-        marks_df = run_query("""
-            SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
-            FROM marks m 
-            JOIN students s ON m.student_id = s.id
-            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
-              AND s.session LIKE :sess_wildcard
-              AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
-        """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "exam": sel_exam})
+        # Extract a tuple of student IDs from our roster to query marks directly by student identity rather than section code
+        student_ids_tuple = tuple(students_df["ID"].tolist())
+        
+        # Smart Marks Lookup: Fetches scores directly by student identity to bypass promotion section mismatches
+        if len(student_ids_tuple) == 1:
+            marks_df = run_query("""
+                SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
+                FROM marks 
+                WHERE student_id = :sid 
+                  AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+            """, {"sid": student_ids_tuple[0], "exam": sel_exam})
+        elif len(student_ids_tuple) > 1:
+            marks_df = run_query(f"""
+                SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
+                FROM marks 
+                WHERE student_id IN {student_ids_tuple} 
+                  AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+            """, {"exam": sel_exam})
+        else:
+            marks_df = pd.DataFrame()
             
         # --- 5. BUILD PERFORMANCE MATRIX GRID ---
         summary_rows = []
