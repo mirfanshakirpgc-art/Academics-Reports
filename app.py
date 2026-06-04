@@ -696,7 +696,8 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper()
         
     with col_b: 
-        if selected_class == "12th":
+        # Harmonize report selections to look for BOTH 11th and promoted 12th section codes
+        if selected_class == "11th":
             if "MEDICAL" in sel_disc:
                 sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE"]
             elif "ENGINEERING" in sel_disc:
@@ -705,16 +706,18 @@ elif menu_choice == "📋 Section Summary Report":
                 sec_options = ["ICS1", "ICS2", "CS1"]
             else:
                 sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
-        else:
+        else:  
+            # 🎯 12th Class: These match the exact destination arrays from your promotion engine!
             if "MEDICAL" in sel_disc:
-                sec_options = ["2M1", "2M2", "2MD", "2MG_WHITE"]
+                sec_options = ["MQ1", "MQ2", "MK"]
             elif "ENGINEERING" in sel_disc:
-                sec_options = ["2E1", "2E2", "2ENG", "2EG_BLUE"]
-            elif "ICS" in sel_disc:
-                sec_options = ["2ICS1", "2ICS2", "2CS1"]
+                sec_options = ["EQ", "EK"]  # Matches your promotion destination exactly!
+            elif "ICS" in sel_disc or "PHYSICS" in sel_disc:
+                sec_options = ["CQ1", "CQ2", "CK1", "CK2"]
             else:
-                sec_options = ["2IK", "2IB", "2CK2", "2CB_WHITE"]
+                sec_options = ["IK", "IQ", "FK", "FQ"]
             
+        # Override with global dictionary if explicitly defined
         if "DISCIPLINE_SECTIONS_MAP" in globals():
             try:
                 if sel_disc in DISCIPLINE_SECTIONS_MAP:
@@ -725,9 +728,6 @@ elif menu_choice == "📋 Section Summary Report":
                 pass
             
         sel_sec = st.selectbox("Select Section:", sec_options, key="summary_sec")
-        
-    with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
     # --- 3. BACKGROUND FORMAT TRANSLATION & DICTIONARIES ---
     SESSION_DB_MAP = {
