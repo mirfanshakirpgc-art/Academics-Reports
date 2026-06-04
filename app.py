@@ -675,10 +675,12 @@ elif menu_choice == "📋 Section Summary Report":
     except NameError:
         session_options = ["2024-26", "2025-27", "2026-28"]
 
-    # 🛠️ Expanded Filter Columns (4 Columns layout to include Session Selection)
-    col_sess, col_a, col_b, col_c = st.columns(4)
+    # 🛠️ Expanded Filter Columns (5 Columns layout to include Session and Class Selection)
+    col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     with col_sess:
         selected_session = st.selectbox("Select Session:", session_options, index=1, key="summary_session")
+    with col_class:
+        selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
     with col_a: 
         sel_disc = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE, key="summary_disc")
     with col_b: 
@@ -710,37 +712,39 @@ elif menu_choice == "📋 Section Summary Report":
         "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # 1. Fetch Students (🛠️ FIXED: Synchronized with session matching logic constraint)
+    # 1. Fetch Students (🛠️ FIXED: Synchronized with session and class matching logic context constraints)
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
           AND session = :session
+          AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {"section": sel_sec, "session": selected_session})
+    """, {"section": sel_sec, "session": selected_session, "class": selected_class})
     
     if students_df.empty:
-        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' inside Session {selected_session} right now.")
+        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session} right now.")
     else:
         try:
             subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
         except (NameError, KeyError):
             subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
             
-        # 2. Fetch Marks Entries (Synchronized to match session scope structure context)
+        # 2. Fetch Marks Entries (Synchronized to match target session and class scope context structure)
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
             JOIN students s ON m.student_id = s.id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
               AND s.session = :session
+              AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class))
               AND TRIM(m.exam_type) = TRIM(:exam)
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-        """, {"section": sel_sec, "session": selected_session, "exam": sel_exam})
+        """, {"section": sel_sec, "session": selected_session, "class": selected_class, "exam": sel_exam})
         
         if marks_df.empty:
-            st.warning(f"⚠️ No marks data found in the database for Section {sel_sec} ({selected_session}) under Exam Cycle {sel_exam}.")
+            st.warning(f"⚠️ No marks data found in the database for Section {sel_sec} ({selected_class} - {selected_session}) under Exam Cycle {sel_exam}.")
             
         summary_rows = []
         for _, s_row in students_df.iterrows():
@@ -806,7 +810,7 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         
         # Display the built table summary cleanly inside Streamlit
-        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_session})")
+        st.markdown(f"### 📊 Performance Roster Matrix: Section {sel_sec} ({selected_class} - {selected_session})")
         st.dataframe(final_report_df, use_container_width=True, hide_index=True)
         
         # ----------------- RE-ENGINEERED HTML PRINT EMBED -----------------
@@ -904,6 +908,7 @@ elif menu_choice == "📋 Section Summary Report":
                     </div>
                     <div class="meta-details">
                         <b>Session:</b> {selected_session}<br>
+                        <b>Class Level:</b> {selected_class}<br>
                         <b>Discipline:</b> {sel_disc}<br>
                         <b>Section Block:</b> {sel_sec}<br>
                         <b>Exam Phase:</b> {sel_exam}
@@ -931,7 +936,7 @@ elif menu_choice == "📋 Section Summary Report":
             <script>
                 document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
                     const targetEl = document.getElementById('printable-summary-target');
-                    const filenameStr = "Summary_Report_{sel_sec}_{selected_session}_{sel_exam}.png";
+                    const filenameStr = "Summary_Report_{sel_sec}_{selected_class}_{selected_session}_{sel_exam}.png";
                     
                     html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
                         const linkHook = document.createElement('a');
