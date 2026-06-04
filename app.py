@@ -456,10 +456,6 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                         st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'present_days' names exactly.")
                 except Exception as e:
                     st.error(f"Error handling system processing upload: {e}")
-                    else:
-                        st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'present_days' names exactly.")
-                except Exception as e:
-                    st.error(f"Error handling system processing upload: {e}")
 
         # =========================================================
         # WORKFLOW MODE 2: BULK EXCEL/CSV IMPORT
