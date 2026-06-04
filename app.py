@@ -349,7 +349,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
         att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode")
         st.markdown("---")
         
-        # 🌟 FIX: Fetch authorization details safely at the top of the attendance sub-tab layer
+        # Pull global session variables safely
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
         
@@ -404,7 +404,6 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                 
                 try:
                     sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
-                    
                     roster_df = run_query("""
                         SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
                         FROM students s
@@ -414,12 +413,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                           AND (s.session LIKE :sess_prefix OR s.session = :session)
                           AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                         ORDER BY s.id ASC
-                    """, {
-                        "month": sel_month, 
-                        "section": sel_section, 
-                        "session": sel_session, 
-                        "sess_prefix": sess_prefix
-                    })
+                    """, {"month": sel_month, "section": sel_section, "session": sel_session, "sess_prefix": sess_prefix})
                     
                     if roster_df.empty:
                         st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
