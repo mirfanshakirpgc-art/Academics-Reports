@@ -733,9 +733,16 @@ elif menu_choice == "📋 Section Summary Report":
     with col_c: 
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
-    # --- 3. BACKGROUND FORMAT TRANSLATION ---
+    # --- 3. BACKGROUND FORMAT TRANSLATION (STRICT DATABASE MATCHING) ---
     session_clean = str(selected_session).strip() if selected_session else "2025-27"
-    sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
+    
+    # Direct dictionary map to match your Supabase data perfectly
+    SESSION_DB_MAP = {
+        "2024-26": "2024-2026",
+        "2025-27": "2025-2027",
+        "2026-28": "2026-2028"
+    }
+    db_session_string = SESSION_DB_MAP.get(session_clean, session_clean)
         
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
@@ -743,55 +750,28 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (SAFE EMPTY-MARKS ENGINE) ---
-    session_clean = str(selected_session).strip() if selected_session else "2025-27"
-    sess_wildcard = session_clean.split('-')[0] + '%' if '-' in session_clean else session_clean + '%'
-
-    # Always pull the student directory profile roster first
+    # --- 4. DATABASE QUERIES (DIRECT PRECISION ENGINE) ---
+    # Primary Precision Check: Look for exact matches on class, section, and translated session string
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-          AND session LIKE :sess_wildcard
+          AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
           AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {"section": sel_sec, "sess_wildcard": sess_wildcard, "class": selected_class})
+    """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
-    # Fallback to look up profiles across generic class barriers if needed
+    # Absolute Fallback: Relax class boundaries if your promotion log didn't finish syncing completely
     if students_df.empty:
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
             FROM students 
             WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-              AND session LIKE :sess_wildcard
+              AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
               AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
             ORDER BY id ASC
-        """, {"section": sel_sec, "sess_wildcard": sess_wildcard})
-    
-    if students_df.empty:
-        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
-    else:
-        subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
-        if "DISCIPLINE_SUBJECTS_MAP" in globals() and DISCIPLINE_SUBJECTS_MAP:
-            try:
-                if sel_disc in DISCIPLINE_SUBJECTS_MAP:
-                    subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
-                elif sel_disc.title() in DISCIPLINE_SUBJECTS_MAP:
-                    subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc.title()]
-            except Exception:
-                pass
-            
-        # Safe Try-Catch block to read marks from Supabase
-        try:
-            marks_df = run_query("""
-                SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
-                FROM marks 
-                WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-            """, {"exam": sel_exam})
-        except Exception:
-            marks_df = pd.DataFrame() # Fallback safely to empty dataframe if table structural reads fail
-
+        """, {"section": sel_sec, "session_str": db_session_string})
         # --- 5. BUILD PERFORMANCE MATRIX GRID (FALLBACK SECURED) ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
