@@ -349,114 +349,162 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
         att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode")
         st.markdown("---")
         
+        # Pull global session variables safely
+        current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
+        current_user_id = st.session_state.get('user_id', None)
+        
         if att_flow_mode == "📋 By Complete Section":
-            col_as1, col_as2, col_as3 = st.columns(3)
-            if current_role == 'teacher' and current_user_id is not None:
-                teacher_rights = run_query("SELECT section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
-                allowed_secs = sorted(list(teacher_rights['section'].unique())) if not teacher_rights.empty else []
-                with col_as1: st.info("🔒 Logged Teacher Roster View")
-                with col_as2: att_section = st.selectbox("Select Target Section:", allowed_secs, key="att_sec")
-                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
-            else:
-                with col_as1: att_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc")
-                with col_as2: att_section = st.selectbox("Select Target Section:", DISCIPLINE_SECTIONS_MAP[att_discipline], key="att_sec")
-                with col_as3: att_month = st.selectbox("Select Attendance Month:", AVAILABLE_MONTHS, key="att_month")
+            c1, c2, c3, c4 = st.columns(4)
             
-            if att_section:
-                default_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
-                students_att_list = run_query("""
-                    SELECT s.id AS "ID", s.name AS "Student Name", a.present_days
-                    FROM students s
-                    LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                    ORDER BY s.id ASC
-                """, {"month": att_month, "section": att_section})
+            if current_role == 'teacher' and current_user_id is not None:
+                teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
+                if not teacher_rights.empty:
+                    allowed_subs = sorted(list(teacher_rights['subject'].unique()))
+                    allowed_secs = sorted(list(teacher_rights['section'].unique()))
+                    with c1: sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="att_sess_t")
+                    with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="att_sub_t")
+                    with c3: sel_section = st.selectbox("Select Section:", allowed_secs, key="att_sec_t")
+                    with c4: st.info("🔒 Bound to Allocation Profile")
+                else:
+                    st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                    sel_subject, sel_section, sel_session = None, None, None
+            else:
+                with c1: 
+                    sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="att_sess_a")
+                    sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
+                with c2: 
+                    sel_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc_a")
+                with c3: 
+                    sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="att_class_filter_a")
+                with c4: 
+                    active_secs_df = run_query(
+                        """
+                        SELECT DISTINCT section FROM students 
+                        WHERE session LIKE :sess 
+                          AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+                        ORDER BY section
+                        """,
+                        {"sess": sess_prefix, "cls": sel_class}
+                    )
+                    valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
+                    if not valid_sections_list:
+                        valid_sections_list = ["IK", "IB", "EQ", "MQ1"]
+                    sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="att_sec_filter_a")
+                    
+                try:
+                    available_subjects = DISCIPLINE_SUBJECTS_MAP[sel_discipline]
+                except NameError:
+                    available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology", "Pak. Studies", "B_Stats", "Banking", "Geo"]
+                sel_subject = st.selectbox("Select Subject:", available_subjects, key="att_sub_filter_a")
+            
+            if sel_subject and sel_section and sel_session:
+                row2_1, row2_2 = st.columns(2)
+                with row2_1: sel_month = st.selectbox("Select Attendance Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="att_month_sel")
+                with row2_2: total_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
                 
-                if not students_att_list.empty:
-                    with st.form("bulk_attendance_form"):
-                        saved_att_presents = {}
-                        for idx, row in students_att_list.iterrows():
-                            c_b1, c_b2 = st.columns([3, 1])
-                            c_b1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                            init_pres = int(row['present_days']) if pd.notna(row['present_days']) else default_days
-                            saved_att_presents[row['ID']] = c_b2.number_input("Days Present", min_value=0, max_value=int(default_days), value=min(int(init_pres), int(default_days)), key=f"pres_{row['ID']}")
-                        
-                        if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
-                            for s_id, p_d in saved_att_presents.items():
-                                execute_db_command("""
-                                    INSERT INTO attendance (student_id, month_name, total_days, present_days)
-                                    VALUES (:s_id, :month, :td, :pd)
-                                    ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
-                                """, {"s_id": int(s_id), "month": att_month.strip(), "td": default_days, "pd": int(p_d)})
-                            st.success("🎉 Section Attendance saved successfully!")
-                            st.rerun()
+                try:
+                    sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
+                    roster_df = run_query("""
+                        SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
+                        FROM students s
+                        LEFT JOIN attendance a ON s.id = a.student_id 
+                            AND UPPER(TRIM(a.subject)) = UPPER(TRIM(:subject)) 
+                            AND TRIM(a.month) = TRIM(:month)
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                          AND (s.session LIKE :sess_prefix OR s.session = :session)
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+                        ORDER BY s.id ASC
+                    """, {"subject": sel_subject, "month": sel_month, "section": sel_section, "session": sel_session, "sess_prefix": sess_prefix})
+                    
+                    if roster_df.empty:
+                        st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
+                    else:
+                        roster_df['Present'] = roster_df['Present'].fillna(total_days)
+                        with st.form("bulk_attendance_form"):
+                            updated_attendance = {}
+                            for idx, row in roster_df.iterrows():
+                                col_s1, col_s2 = st.columns([3, 1])
+                                col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                                updated_attendance[row['ID']] = col_s2.number_input("Days Present", min_value=0, max_value=int(total_days), value=int(float(row['Present'])), key=f"pres_{row['ID']}", label_visibility="collapsed")
+                            
+                            if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
+                                for s_id, p_days in updated_attendance.items():
+                                    execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND TRIM(month) = TRIM(:month)", {"s_id": int(s_id), "subject": sel_subject, "month": sel_month})
+                                    execute_db_command("INSERT INTO attendance (student_id, subject, month, present_days, total_days) VALUES (:s_id, :subject, :month, :p_days, :t_days)", {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "month": sel_month.strip(), "p_days": int(p_days), "t_days": int(total_days)})
+                                st.success("🎉 Section Attendance saved successfully!")
+                                st.rerun()
+                except Exception as e:
+                    st.error(f"Database sync issue: {e}")
 
         elif att_flow_mode == "👤 By Single Student Roll Number":
             st.subheader("👤 Single Student Attendance Record Manager")
             single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
             
             if single_att_id and single_att_id.isdigit():
-                student_info = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(single_att_id)})
+                student_info = run_query("SELECT name, section, session FROM students WHERE id = :id", {"id": int(single_att_id)})
                 if student_info.empty:
                     st.error("❌ This roll number does not exist.")
                 else:
                     s_name = student_info['name'].iloc[0].upper()
                     s_section = student_info['section'].iloc[0].upper().strip()
-                    st.info(f"👤 Found Student: {s_name} | Current Section: {s_section}")
+                    s_session = student_info['session'].iloc[0]
+                    st.info(f"👤 Found Student: {s_name} | Section: {s_section} | Session: {s_session}")
                     
-                    c_at1, c_at2, c_at3 = st.columns(3)
-                    with c_at1: single_att_month = st.selectbox("Select Target Month:", AVAILABLE_MONTHS, key="s_att_m")
-                    with c_at2: single_att_total = st.number_input("Total Tracked Days:", min_value=1, max_value=31, value=24, key="s_att_tot")
+                    c_at1, c_at2, c_at3, c_at4 = st.columns(4)
+                    with c_at1: single_att_sub = st.text_input("Subject:", value="COMPUTER", key="s_att_sub_val")
+                    with c_at2: single_att_month = st.selectbox("Select Target Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="s_att_m")
+                    with c_at3: single_att_total = st.number_input("Total Tracked Days:", min_value=1, max_value=31, value=24, key="s_att_tot")
                     
-                    existing_att = run_query("SELECT present_days FROM attendance WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"id": int(single_att_id), "month": single_att_month})
+                    existing_att = run_query("SELECT present_days FROM attendance WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(month) = TRIM(:month)", {"id": int(single_att_id), "sub": single_att_sub, "month": single_att_month})
                     init_present_val = int(existing_att['present_days'].iloc[0]) if not existing_att.empty else int(single_att_total)
                     
-                    with c_at3: single_att_present = st.number_input("Days Attended:", min_value=0, max_value=int(single_att_total), value=min(int(init_present_val), int(single_att_total)), key="s_att_pres")
+                    with c_at4: single_att_present = st.number_input("Days Attended:", min_value=0, max_value=int(single_att_total), value=min(int(init_present_val), int(single_att_total)), key="s_att_pres")
                     
                     if st.button("💾 Save Individual Attendance Record", type="primary"):
-                        execute_db_command("""
-                            INSERT INTO attendance (student_id, month_name, total_days, present_days)
-                            VALUES (:s_id, :month, :td, :pd)
-                            ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
-                        """, {"s_id": int(single_att_id), "month": single_att_month.strip(), "td": single_att_total, "pd": single_att_present})
+                        execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(month) = TRIM(:month)", {"s_id": int(single_att_id), "sub": single_att_sub, "month": single_att_month})
+                        execute_db_command("INSERT INTO attendance (student_id, subject, month, present_days, total_days) VALUES (:s_id, :subject, :month, :p_days, :t_days)", {"s_id": int(single_att_id), "subject": single_att_sub.strip().upper(), "month": single_att_month.strip(), "p_days": int(single_att_present), "t_days": int(single_att_total)})
                         st.success(f"🎉 Attendance updated successfully for {s_name}!")
                         st.rerun()
 
         elif att_flow_mode == "📤 Bulk Excel/CSV Import":
             st.subheader("📤 Bulk Attendance CSV Document Importer")
-            st.info("📊 Spreadsheet layout must use these lowercase headers: **student_id** and **present_days**")
+            st.info("📊 Spreadsheet layout must use these headers: **ID** and **Present**")
             
-            c_ax1, c_ax2 = st.columns(2)
-            with c_ax1: xl_month = st.selectbox("Target Log Target Month:", AVAILABLE_MONTHS, key="xl_a_month")
-            with c_ax2: xl_total_days = st.number_input("Total Monthly Accountable Days:", min_value=1, max_value=31, value=24, key="xl_a_td")
+            c_ax1, c_ax2, c_ax3 = st.columns(3)
+            with c_ax1: xl_sub = st.text_input("Subject Identity:", value="COMPUTER", key="xl_a_sub")
+            with c_ax2: xl_month = st.selectbox("Target Log Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="xl_a_month")
+            with c_ax3: xl_total_days = st.number_input("Total Monthly Accountable Days:", min_value=1, max_value=31, value=24, key="xl_a_td")
             
-            uploaded_att_file = st.file_uploader("Choose CSV Sheet file to import:", type=['csv'], key="att_uploader_widget")
+            uploaded_att_file = st.file_uploader("Choose CSV or Excel Sheet file to import:", type=['csv', 'xlsx'], key="att_uploader_widget")
             if uploaded_att_file is not None:
                 try:
-                    df = pd.read_csv(uploaded_att_file)
-                    df.columns = [str(c).lower().strip() for c in df.columns]
+                    import pandas as pd
+                    if uploaded_att_file.name.endswith('.csv'):
+                        df = pd.read_csv(uploaded_att_file)
+                    else:
+                        df = pd.read_excel(uploaded_att_file)
+                        
+                    df.columns = [str(c).strip().upper() for c in df.columns]
                     
-                    if 'student_id' in df.columns and 'present_days' in df.columns:
+                    if 'ID' in df.columns and 'PRESENT' in df.columns:
                         st.dataframe(df, use_container_width=True)
                         if st.button("🚀 Process and Save Bulk Attendance", type="primary"):
                             success_count = 0
                             for _, row in df.iterrows():
-                                s_id = str(row['student_id']).split('.')[0].strip()
-                                p_days = str(row['present_days']).split('.')[0].strip()
-                                if s_id.isdigit() and p_days.isdigit():
-                                    execute_db_command("""
-                                        INSERT INTO attendance (student_id, month_name, total_days, present_days)
-                                        VALUES (:s_id, :month, :td, :pd)
-                                        ON CONFLICT (student_id, month_name) DO UPDATE SET total_days = EXCLUDED.total_days, present_days = EXCLUDED.present_days
-                                    """, {"s_id": int(s_id), "month": xl_month.strip(), "td": xl_total_days, "pd": int(p_days)})
+                                s_id = str(row['ID']).split('.')[0].strip()
+                                p_days = str(row['PRESENT']).split('.')[0].strip() if pd.notna(row['PRESENT']) else ""
+                                
+                                if s_id.isdigit() and p_days != "":
+                                    clean_id = int(s_id)
+                                    execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND TRIM(month) = TRIM(:month)", {"s_id": clean_id, "sub": xl_sub, "month": xl_month})
+                                    execute_db_command("INSERT INTO attendance (student_id, subject, month, present_days, total_days) VALUES (:s_id, :subject, :month, :p_days, :t_days)", {"s_id": clean_id, "subject": xl_sub.strip().upper(), "month": xl_month.strip(), "p_days": int(p_days), "t_days": int(xl_total_days)})
                                     success_count += 1
                             st.success(f"🎉 Successfully imported attendance logs for {success_count} students!")
                             st.rerun()
                     else:
-                        st.error("❌ Heading processing mistake! Confirm column tags match 'student_id' and 'present_days' names exactly.")
+                        st.error("❌ Heading processing mistake! Confirm column tags match 'ID' and 'Present' exactly.")
                 except Exception as e:
                     st.error(f"Error handling system processing upload: {e}")
-
         # =========================================================
         # WORKFLOW MODE 2: BULK EXCEL/CSV IMPORT
         # =========================================================
