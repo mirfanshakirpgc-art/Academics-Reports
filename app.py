@@ -736,7 +736,7 @@ elif menu_choice == "📋 Section Summary Report":
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
     }
     
-    # --- 4. DATABASE QUERIES (UPDATED TO USE db_session) ---
+    # --- 4. DATABASE QUERIES (UPDATED TO FORCE SELECTED CLASS) ---
     # Try fetching based on direct student profile records first
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -748,7 +748,7 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "session": db_session, "class": selected_class})
     
-    # Fallback: If no direct records match, grab right from core student base via soft mapping
+    # Fallback: Explicitly filter on m.class to guarantee we only get 12th graders if 12th is selected
     if students_df.empty:
         students_df = run_query("""
             SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", s.section AS "Section", s.class AS "Current Class", s.status AS "Status"
@@ -756,9 +756,10 @@ elif menu_choice == "📋 Section Summary Report":
             JOIN marks m ON s.id = m.student_id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
               AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+              AND UPPER(TRIM(m.class)) = UPPER(TRIM(:class))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
             ORDER BY s.id ASC
-        """, {"section": sel_sec, "session": db_session})
+        """, {"section": sel_sec, "session": db_session, "class": selected_class})
     
     if students_df.empty:
         st.info(f"💡 No student profiles or exam history logs registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
@@ -774,16 +775,17 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        # Fetch Marks safely using clean table scoping
+        # Fetch Marks safely using clean table scoping & explicit class filtering
         marks_df = run_query("""
             SELECT m.student_id, UPPER(TRIM(m.subject)) as subject, m.marks_obtained, m.total_marks
             FROM marks m 
             JOIN students s ON m.student_id = s.id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
               AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+              AND UPPER(TRIM(m.class)) = UPPER(TRIM(:class))
               AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-        """, {"section": sel_sec, "session": db_session, "exam": sel_exam})
+        """, {"section": sel_sec, "session": db_session, "class": selected_class, "exam": sel_exam})
             
         # --- 5. BUILD PERFORMANCE MATRIX GRID ---
         summary_rows = []
