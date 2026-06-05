@@ -714,7 +714,7 @@ elif menu_choice == "📋 Section Summary Report":
                 "HUMANITIES": ["FQ1", "FK1"]
             },
             "11TH": {
-                "MEDICAL": ["MG_BLUE", "MG_WHITE"],
+                "MEDICAL": ["MG_BLUE", "MG_WHITE",MB_BLUE],
                 "ENGINEERING": ["EG_BLUE"],
                 "ICS_PHYSICS": ["CG_GREEN", "CG_WHITE"],
                 "ICS_STATS": ["CB_WHITE"],
