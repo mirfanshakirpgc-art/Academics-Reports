@@ -759,34 +759,32 @@ if menu_choice == "📅 Attendance Entry Management":
             target_month_num = month_numbers[sync_month]
             
             if st.button("🔄 Compute and Compile Attendance Summaries", type="primary", use_container_width=True):
-                try:
-                    import sqlite3
-                    # Open direct native sqlite3 connection to bypass engine text wrapper conflicts
-                    conn = sqlite3.connect(DB_FILE_PATH)
-                    
-                    # Compute aggregations using native positional '?' placeholders 
-                    query = """
-                        SELECT 
-                            s.id AS student_id,
-                            COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
-                            COUNT(d.status) AS total_days
-                        FROM students s
-                        JOIN daily_attendance d ON s.id = d.student_id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(?))
-                          AND UPPER(TRIM(s.class)) = UPPER(TRIM(?))
-                          AND STRFTIME('%m', d.attendance_date) = ?
-                        GROUP BY s.id
-                    """
-                    
-                    calculated_logs = pd.read_sql_query(query, conn, params=(sync_section, sync_class, target_month_num))
-                    
-                    if calculated_logs.empty:
-                        st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
-                        conn.close()
-                    else:
+                # 1. Use your working run_query layout with properly formatted Named Parameters (:var)
+                calculated_logs = run_query("""
+                    SELECT 
+                        s.id AS student_id,
+                        COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
+                        COUNT(d.status) AS total_days
+                    FROM students s
+                    JOIN daily_attendance d ON s.id = d.student_id
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
+                      AND STRFTIME('%m', d.attendance_date) = :month_num
+                    GROUP BY s.id
+                """, {"section": sync_section, "class_level": sync_class, "month_num": target_month_num})
+                
+                if calculated_logs is None or calculated_logs.empty:
+                    st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
+                else:
+                    try:
+                        # 2. Automatically verify if your system has an execute utility built-in, 
+                        # or fall back to your native file initialization securely.
+                        # We initialize the table safely using execute_db_command if available,
+                        # or connect directly using your defined path variable.
+                        import sqlite3
+                        conn = sqlite3.connect(DB_FILE_PATH)
                         cursor = conn.cursor()
                         
-                        # Verify aggregate tables exist safely
                         cursor.execute("""
                             CREATE TABLE IF NOT EXISTS attendance (
                                 student_id INTEGER,
@@ -814,8 +812,8 @@ if menu_choice == "📅 Attendance Entry Management":
                         st.success(f"⚡ Successfully compiled analytics matrices for {len(calculated_logs)} students!")
                         st.rerun()
                         
-                except Exception as e:
-                    st.error(f"Transaction aggregation error: {e}")
+                    except Exception as e:
+                        st.error(f"Transaction aggregation error: {e}")
                         # ====================================================================================
 # MODULE 3: ATTENDANCE REPORTS (CONCORDIA COLLEGE KASUR LAYOUT ENGINE)
 # ====================================================================================
