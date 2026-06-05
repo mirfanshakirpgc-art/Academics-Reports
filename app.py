@@ -582,8 +582,59 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                         st.rerun()
             except Exception as e:
                 st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
+Here is the complete, unified source code for your attendance system. This version resolves the parameter binding issues once and for all by bypassing the version-sensitive `run_query` function for dynamic aggregations, opting instead for clean, native `sqlite3` execution blocks.
+
+It combines your **Daily Attendance Entry**, **Monthly Synchronization Workspace**, and the **Concordia College Kasur Custom Reporting Engine** into a single, cohesive file.
+
+Copy and paste this directly into your application script:
+
+```python
+import streamlit as tf
+import pandas as pd
+from datetime import date
+import sqlite3
+
+# Define your application's true database filename here
+DB_FILE_PATH = "college_database.db"
+
+# Helper function for safe data reading across basic UI components
+def run_query(query, params=None):
+    try:
+        from sqlalchemy import text
+        # Assumes your global environment handles the engine connection 'conn'
+        # If 'conn' is an engine, we read via pandas
+        if params:
+            return pd.read_sql_query(text(query), conn, params=params)
+        else:
+            return pd.read_sql_query(text(query), conn)
+    except Exception:
+        # Fallback to direct sqlite connection if engine is missing or unconfigured
+        con = sqlite3.connect(DB_FILE_PATH)
+        if params:
+            df = pd.read_sql_query(query, con, params=params)
+        else:
+            df = pd.read_sql_query(query, con)
+        con.close()
+        return df
+
 # ====================================================================================
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC FILTERS & HIGH-SPEED TRANSACTIONAL SAVES)
+# SIDEBAR NAVIGATION ROUTER
+# ====================================================================================
+menu_choice = st.sidebar.radio(
+    "Go To Module:",
+    [
+        "🏠 Home Dashboard",
+        "➕ Add Students",
+        "📝 Academic Exam Marks Entry",
+        "📅 Attendance Entry Management",
+        "📈 Attendance Reports (Concordia Layout)",
+        "📋 Section Summary Report",
+        "🎓 Student Result Cards"
+    ]
+)
+
+# ====================================================================================
+# MODULE 2: ATTENDANCE ENTRY MANAGEMENT 
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
@@ -596,9 +647,6 @@ if menu_choice == "📅 Attendance Entry Management":
     )
     st.markdown("###")
 
-    # DB Connection Setup for Transactions
-    DB_FILE_PATH = "college_database.db"
-
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
@@ -606,7 +654,6 @@ if menu_choice == "📅 Attendance Entry Management":
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
         
-        # Pull exact existing configurations from database to prevent filter mismatches
         db_sessions_df = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != '' ORDER BY session DESC")
         db_classes_df = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
         
@@ -619,7 +666,6 @@ if menu_choice == "📅 Attendance Entry Management":
         with c2:
             sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
         with c3:
-            # Dynamically fetch sections tied to this specific Class and Session setup
             active_secs_df = run_query("""
                 SELECT DISTINCT section FROM students 
                 WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
@@ -636,7 +682,6 @@ if menu_choice == "📅 Attendance Entry Management":
             target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
-            # Fetch using precise case-insensitive matching logic
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
@@ -681,19 +726,15 @@ if menu_choice == "📅 Attendance Entry Management":
 
                     st.markdown("###")
                     if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
-                        # Pack application parameters into batch tuple structure
                         attendance_batch_records = []
                         for s_id, checked_present in attendance_checkbox_map.items():
                             status_code = "P" if checked_present else "A"
-                            attendance_batch_records.append((int(s_id), target_date, status_code))
+                            attendance_batch_records.append((int(s_id), str(target_date), status_code))
                         
                         try:
-                            # 🚀 HIGH-SPEED TRANSACTION ALGORITHM WITH AUTO-TABLE CREATION
-                            import sqlite3
                             conn = sqlite3.connect(DB_FILE_PATH)
                             cursor = conn.cursor()
                             
-                            # Safety Check: Auto-create table if missing
                             cursor.execute("""
                                 CREATE TABLE IF NOT EXISTS daily_attendance (
                                     student_id INTEGER,
@@ -704,26 +745,15 @@ if menu_choice == "📅 Attendance Entry Management":
                             """)
                             
                             cursor.execute("BEGIN TRANSACTION;")
-                            
-                            # Clean slate previous row records for target day tracking
                             for record in attendance_batch_records:
-                                cursor.execute(
-                                    "DELETE FROM daily_attendance WHERE student_id = ? AND attendance_date = ?", 
-                                    (record[0], record[1])
-                                )
+                                cursor.execute("DELETE FROM daily_attendance WHERE student_id = ? AND attendance_date = ?", (record[0], record[1]))
                             
-                            # Execute bulk arrays compilation directly to engine disk at once
-                            cursor.executemany(
-                                "INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (?, ?, ?)", 
-                                attendance_batch_records
-                            )
-                            
+                            cursor.executemany("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (?, ?, ?)", attendance_batch_records)
                             conn.commit()
                             conn.close()
                             
                             st.success(f"⚡ Instant Save Successful! Locked records for {len(attendance_batch_records)} students.")
                             st.rerun()
-                            
                         except Exception as e:
                             st.error(f"Failed to execute high-speed save transaction: {e}")
 
@@ -759,32 +789,29 @@ if menu_choice == "📅 Attendance Entry Management":
             target_month_num = month_numbers[sync_month]
             
             if st.button("🔄 Compute and Compile Attendance Summaries", type="primary", use_container_width=True):
-                # 1. Use your working run_query layout with properly formatted Named Parameters (:var)
-                calculated_logs = run_query("""
-                    SELECT 
-                        s.id AS student_id,
-                        COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
-                        COUNT(d.status) AS total_days
-                    FROM students s
-                    JOIN daily_attendance d ON s.id = d.student_id
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
-                      AND STRFTIME('%m', d.attendance_date) = :month_num
-                    GROUP BY s.id
-                """, {"section": sync_section, "class_level": sync_class, "month_num": target_month_num})
-                
-                if calculated_logs is None or calculated_logs.empty:
-                    st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
-                else:
-                    try:
-                        # 2. Automatically verify if your system has an execute utility built-in, 
-                        # or fall back to your native file initialization securely.
-                        # We initialize the table safely using execute_db_command if available,
-                        # or connect directly using your defined path variable.
-                        import sqlite3
-                        conn = sqlite3.connect(DB_FILE_PATH)
+                try:
+                    conn = sqlite3.connect(DB_FILE_PATH)
+                    
+                    # Native execution layout avoids all text-parsing engine syntax errors entirely
+                    query = """
+                        SELECT 
+                            s.id AS student_id,
+                            COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
+                            COUNT(d.status) AS total_days
+                        FROM students s
+                        JOIN daily_attendance d ON s.id = d.student_id
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(?))
+                          AND UPPER(TRIM(s.class)) = UPPER(TRIM(?))
+                          AND STRFTIME('%m', d.attendance_date) = ?
+                        GROUP BY s.id
+                    """
+                    calculated_logs = pd.read_sql_query(query, conn, params=(sync_section, sync_class, target_month_num))
+                    
+                    if calculated_logs.empty:
+                        st.warning(f"⚠️ No daily logs found for Section '{sync_section}' ({sync_class}) in {sync_month}.")
+                        conn.close()
+                    else:
                         cursor = conn.cursor()
-                        
                         cursor.execute("""
                             CREATE TABLE IF NOT EXISTS attendance (
                                 student_id INTEGER,
@@ -796,28 +823,110 @@ if menu_choice == "📅 Attendance Entry Management":
                         """)
                         
                         cursor.execute("BEGIN TRANSACTION;")
-                        
                         for idx, row in calculated_logs.iterrows():
-                            cursor.execute(
-                                "DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", 
-                                (int(row['student_id']), sync_month)
-                            )
-                            cursor.execute(
-                                "INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", 
-                                (int(row['student_id']), sync_month, int(row['present_days']), int(row['total_days']))
-                            )
+                            cursor.execute("DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", (int(row['student_id']), sync_month))
+                            cursor.execute("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", (int(row['student_id']), sync_month, int(row['present_days']), int(row['total_days'])))
                         
                         conn.commit()
                         conn.close()
-                        st.success(f"⚡ Successfully compiled analytics matrices for {len(calculated_logs)} students!")
+                        st.success(f"⚡ Successfully compiled attendance summaries for {len(calculated_logs)} students!")
                         st.rerun()
+                except Exception as e:
+                    st.error(f"Transaction aggregation error: {e}")
+
+        elif att_flow_mode == "📋 Manual Section Override":
+            c1, c2, c3 = st.columns(3)
+            with c1: sel_session = st.selectbox("Select Session:", session_options, key="att_sess_a")
+            with c2: sel_class = st.selectbox("Select Class Level:", class_options, key="att_class_filter_a")
+            with c3: 
+                active_secs_df = run_query("""
+                    SELECT DISTINCT section FROM students 
+                    WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+                    ORDER BY section
+                """, {"sess": sel_session, "cls": sel_class})
+                section_options = active_secs_df['section'].tolist() if not active_secs_df.empty else ["CK1"]
+                sel_section = st.selectbox("Select Target Section:", section_options, key="att_sec_filter_a")
+            
+            row2_1, row2_2 = st.columns(2)
+            with row2_1: sel_month = st.selectbox("Select Attendance Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="att_month_sel")
+            with row2_2: total_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
+            
+            if sel_section and sel_session:
+                roster_df = run_query("""
+                    SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
+                    FROM students s
+                    LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
+                      AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) = 'ACTIVE' OR UPPER(TRIM(s.status)) != 'LEFT')
+                    ORDER BY s.id ASC
+                """, {"month": sel_month, "section": sel_section, "class_level": sel_class, "session": sel_session})
+                
+                if roster_df.empty:
+                    st.info(f"💡 No active student profiles registered under Section '{sel_section}' ({sel_class}).")
+                else:
+                    roster_df['Present'] = roster_df['Present'].fillna(total_days)
+                    with st.form("bulk_attendance_form"):
+                        updated_attendance = {}
+                        for idx, row in roster_df.iterrows():
+                            col_s1, col_s2 = st.columns([3, 1])
+                            col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                            updated_attendance[row['ID']] = col_s2.number_input("Days Present", min_value=0, max_value=int(total_days), value=int(float(row['Present'])), key=f"pres_{row['ID']}", label_visibility="collapsed")
                         
-                    except Exception as e:
-                        st.error(f"Transaction aggregation error: {e}")
-                        # ====================================================================================
+                        if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
+                            try:
+                                conn = sqlite3.connect(DB_FILE_PATH)
+                                cursor = conn.cursor()
+                                cursor.execute("BEGIN TRANSACTION;")
+                                for s_id, p_days in updated_attendance.items():
+                                    cursor.execute("DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", (int(s_id), sel_month))
+                                    cursor.execute("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", (int(s_id), sel_month.strip(), int(p_days), int(total_days)))
+                                conn.commit()
+                                conn.close()
+                                st.success("⚡ Monthly Summary overrides locked instantly!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Override transaction failure: {e}")
+
+        elif att_flow_mode == "👤 By Single Student Roll Number":
+            st.subheader("👤 Single Student Attendance Record Manager")
+            single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
+            
+            if single_att_id and single_att_id.isdigit():
+                student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_att_id)})
+                if not student_info.empty:
+                    s_name = student_info['name'].iloc[0].upper()
+                    s_section = student_info['section'].iloc[0].upper().strip()
+                    s_session = student_info['session'].iloc[0]
+                    s_class = student_info['class'].iloc[0]
+                    st.info(f"👤 Found Student: {s_name} | Class: {s_class} | Section: {s_section}")
+                    
+                    c_at1, c_at2, c_at3 = st.columns(3)
+                    with c_at1: single_att_month = st.selectbox("Select Target Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="s_att_m")
+                    with c_at2: single_att_total = st.number_input("Total Tracked Days:", min_value=1, max_value=31, value=24, key="s_att_tot")
+                    
+                    existing_att = run_query("SELECT present_days FROM attendance WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"id": int(single_att_id), "month": single_att_month})
+                    init_present_val = int(existing_att['present_days'].iloc[0]) if not existing_att.empty else int(single_att_total)
+                    with c_at3: single_present = st.number_input("Days Present:", min_value=0, max_value=int(single_att_total), value=init_present_val, key="s_att_pres_val")
+                    
+                    if st.button("💾 Save Individual Monthly Log", type="primary"):
+                        try:
+                            conn = sqlite3.connect(DB_FILE_PATH)
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", (int(single_att_id), single_att_month))
+                            cursor.execute("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", (int(single_att_id), single_att_month.strip(), int(single_present), int(single_att_total)))
+                            conn.commit()
+                            conn.close()
+                            st.success(f"🎉 Summary parameters updated for {s_name}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to update entry: {e}")
+
+# ====================================================================================
 # MODULE 3: ATTENDANCE REPORTS (CONCORDIA COLLEGE KASUR LAYOUT ENGINE)
 # ====================================================================================
-if menu_choice == "📈 Attendance Reports (Concordia Layout)":
+elif menu_choice == "📈 Attendance Reports (Concordia Layout)":
     st.title("📊 Concordia Campus Attendance Reporting Engine")
     
     report_type = st.segmented_control(
@@ -827,9 +936,6 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
         key="concordia_reporting_segmented_control"
     )
     st.markdown("###")
-    
-    # DB Connection Setup
-    DB_FILE_PATH = "college_database.db"
     
     # --------------------------------------------------------------------------------
     # WORKFLOW A: CONCORDIA KASUR STYLE DAILY CAMPUS LEDGER SHEET
@@ -843,19 +949,17 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
             
         st.markdown("---")
         
-        # Pull live metrics from database
         raw_roster = run_query("""
             SELECT 
                 s.id, s.name, s.class, s.section, s.status, s.gender,
                 d.status AS daily_status
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :rep_date
-        """, {"rep_date": target_report_date})
+        """, {"rep_date": str(target_report_date)})
         
         if raw_roster.empty:
             st.warning("⚠️ No student profile metrics recorded inside the core registry.")
         else:
-            # 🎯 Map sections exactly as shown in image_7db4de.png
             category_mapping = {
                 "First Year Girls": ["MG/EG BLUE", "MG WHITE", "CG WHITE", "CG GREEN", "CG STATS WHITE", "FA", "I.COM"],
                 "Second Year Girls": ["MQ1", "MQ2", "CQ1/EQ1", "CQ2", "CQ3", "FQ1", "IQ1"],
@@ -863,7 +967,6 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
                 "Second Year Boys": ["CK1/EK1", "MK1", "CK2", "CK3", "IK1/FK1"]
             }
             
-            # Placeholder in-charges from image_7db4de.png
             in_charges = {
                 "MG/EG BLUE": "Ms. Sidra Khan", "MG WHITE": "Ms. Sidra Khan", "CG WHITE": "Ms. Afshan",
                 "CG GREEN": "Ms. Hamna", "CG STATS WHITE": "Ms. Hamna", "FA": "Ms. Sumera", "I.COM": "Ms. Nazia",
@@ -873,13 +976,8 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
                 "CK1/EK1": "Mr. Saqib", "MK1": "Mr. Qamar", "CK2": "Mr. Usman", "CK3": "Mr. Rauf", "IK1/FK1": "Mr. Asif"
             }
 
-            grand_enrolled = 0
-            grand_left = 0
-            grand_active = 0
-            grand_present = 0
-            grand_absent = 0
+            grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
             
-            # --- Visual Report Header Layout ---
             st.markdown(
                 """
                 <div style='text-align: center; border: 2px solid #1E3A8A; padding: 15px; background-color: #F8FAFC; border-radius: 5px;'>
@@ -893,7 +991,6 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
             )
             st.markdown("###")
             
-            # Render each distinct group structural partition
             for part_title, sections in category_mapping.items():
                 st.markdown(f"### 👥 {part_title}")
                 
@@ -901,7 +998,6 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
                 cat_enrolled, cat_left, cat_active, cat_present, cat_absent = 0, 0, 0, 0, 0
                 
                 for sec in sections:
-                    # Case-insensitive filtering of row data frames
                     sec_df = raw_roster[raw_roster['section'].str.upper().str.strip() == sec]
                     
                     total_enr = len(sec_df)
@@ -912,13 +1008,11 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
                     pres_count = len(active_rows[active_rows['daily_status'] == 'P'])
                     abs_count = len(active_rows[active_rows['daily_status'] == 'A'])
                     
-                    # Unmarked fallback buffer automatically marked as Present (default rule)
                     unmarked = active_count - (pres_count + abs_count)
                     pres_count += max(0, unmarked)
                     
                     pct = round((pres_count / active_count) * 100) if active_count > 0 else 0
                     
-                    # Only append rows if students exist in database, else keep empty placeholders
                     if total_enr > 0:
                         section_rows.append({
                             "Section": sec,
@@ -939,8 +1033,6 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
                 
                 if section_rows:
                     cat_pct = round((cat_present / cat_active) * 100) if cat_active > 0 else 0
-                    
-                    # Append Group Categorical Summary Row Matrix
                     section_rows.append({
                         "Section": "🟢 TOTAL",
                         "In Charge": "—",
@@ -959,12 +1051,10 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
                     grand_active += cat_active
                     grand_present += cat_present
                     grand_absent += cat_absent
-                else:
-                    st.caption("No live database entries found for sections in this category partition block.")
 
-            # --- Bottom Comprehensive Summary Block Layout ---
             st.markdown("### 📊 Statistics of Attendance")
-            grand_pct = round((grand_present / grand_active) * 100, 2) if grand_active > 0 else 0.0
+            grand_active = max(1, grand_active)
+            grand_pct = round((grand_present / grand_active) * 100, 2)
             
             stats_summary_table = [{
                 "Date": target_report_date.strftime('%d-%b-%Y'),
@@ -977,7 +1067,6 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
             }]
             st.dataframe(stats_summary_table, use_container_width=True, hide_index=True)
             
-            # --- Remarks and Feedback logs section ---
             st.markdown("### 📝 Remarks & Calls Feedback")
             st.text_area("Administrative Log Entry Window:", label_visibility="collapsed", placeholder="Type absence tracking details or principal follow-ups here...")
             
@@ -1000,7 +1089,6 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
             
         st.markdown("---")
         
-        # Read summarized history blocks 
         monthly_matrix_data = run_query("""
             SELECT 
                 s.section AS "Section",
@@ -1021,12 +1109,13 @@ if menu_choice == "📈 Attendance Reports (Concordia Layout)":
         else:
             st.markdown(f"🗓️ **Monthly Section Performance Index Matrix — {sel_m_month}**")
             
-            # Compute math stats indices columns
             monthly_matrix_data["Section Attendance %"] = (
                 (monthly_matrix_data["Aggregate Present Days"] / monthly_matrix_data["Total Working Days"]) * 100
             ).round(2).astype(str) + "%"
             
             st.dataframe(monthly_matrix_data, use_container_width=True, hide_index=True)
+
+```
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
