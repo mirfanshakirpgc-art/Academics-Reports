@@ -766,22 +766,23 @@ elif menu_choice == "📋 Section Summary Report":
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
         try:
+            # FIX: Pull ALL marks for the exam cycle so we can match them flexibly
             marks_df = run_query("""
-                SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
+                SELECT TRIM(student_id)::text as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
                 FROM marks 
                 WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
             """, {"exam": sel_exam})
         except Exception:
             marks_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER ---
+        # --- 6. PERFORMANCE GRID COMPILER (RECOVERY MATCHING) ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
-            s_id = s_row["ID"]
+            s_id = str(s_row["ID"]).strip()
             s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
             
             entry = {
-                "ID": s_id, 
+                "ID": s_row["ID"], 
                 "Student Name": s_row["Student Name"], 
                 "Section": s_row["Section"], 
                 "Class": s_row["Current Class"],
@@ -796,8 +797,19 @@ elif menu_choice == "📋 Section Summary Report":
                 sub_upper = sub.upper().strip()
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
                 
-                if marks_df is not None and not marks_df.empty and "student_id" in marks_df.columns:
-                    sub_match = marks_df[(marks_df["student_id"] == s_id) & (marks_df["subject"] == sub_upper)]
+                # Create fallback list for matching (e.g., if looking for STATS, also look for STATISTICS or PHYSICS)
+                alias_list = [sub_upper]
+                if "STAT" in sub_upper:
+                    alias_list.extend(["STATISTICS", "STATS"])
+                elif "COMP" in sub_upper:
+                    alias_list.extend(["COMPUTER SCIENCE", "COMPUTER"])
+                
+                # Filter marks with full alias list support
+                if marks_df is not None and not marks_df.empty:
+                    sub_match = marks_df[
+                        (marks_df["student_key"] == s_id) & 
+                        (marks_df["subject_name"].isin(alias_list))
+                    ]
                 else:
                     sub_match = pd.DataFrame()
                 
