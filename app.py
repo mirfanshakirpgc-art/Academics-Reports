@@ -1109,7 +1109,6 @@ elif menu_choice == "📈 Attendance Reports (Concordia Layout)":
             
             st.dataframe(monthly_matrix_data, use_container_width=True, hide_index=True)
 
-```
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
