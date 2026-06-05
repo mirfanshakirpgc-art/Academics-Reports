@@ -583,7 +583,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 # ====================================================================================
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC DATABASE INTEGRATION)
+# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC FILTERS & HIGH-SPEED TRANSACTIONAL SAVES)
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
@@ -596,18 +596,21 @@ if menu_choice == "📅 Attendance Entry Management":
     )
     st.markdown("###")
 
+    # DB Connection Setup for Transactions
+    # NOTE: Adjust 'college_database.db' if your database filename differs
+    DB_FILE_PATH = "college_database.db"
+
     # --------------------------------------------------------------------------------
-    # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET (LIVE INJECTION LOGIC)
+    # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
     if att_sub_type == "📅 Daily Attendance Entry":
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
         
-        # 1. Dynamically read active configurations straight from the Database
+        # Pull exact existing configurations from database to prevent filter mismatches
         db_sessions_df = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != '' ORDER BY session DESC")
         db_classes_df = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
         
-        # Fallbacks just in case database is connection-locked during runtime init
         session_options = db_sessions_df['session'].tolist() if not db_sessions_df.empty else ["2025-27", "2024-26"]
         class_options = db_classes_df['class'].tolist() if not db_classes_df.empty else ["12th", "11th"]
 
@@ -617,7 +620,7 @@ if menu_choice == "📅 Attendance Entry Management":
         with c2:
             sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
         with c3:
-            # Dynamically look up ONLY sections that exist for this specific selected Class and Session combo
+            # Dynamically fetch sections tied to this specific Class and Session setup
             active_secs_df = run_query("""
                 SELECT DISTINCT section FROM students 
                 WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
@@ -634,7 +637,7 @@ if menu_choice == "📅 Attendance Entry Management":
             target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
-            # Fetch using precise text matching while ignoring active string case variances
+            # Fetch using precise case-insensitive matching logic
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
@@ -679,24 +682,50 @@ if menu_choice == "📅 Attendance Entry Management":
 
                     st.markdown("###")
                     if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
-                        success_count = 0
+                        # Pack application parameters into batch tuple structure
+                        attendance_batch_records = []
                         for s_id, checked_present in attendance_checkbox_map.items():
                             status_code = "P" if checked_present else "A"
-                            execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", {"s_id": int(s_id), "att_date": target_date})
-                            execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", {"s_id": int(s_id), "att_date": target_date, "status": status_code})
-                            success_count += 1
-                        st.success(f"🎉 Daily Attendance locked for {success_count} students dynamically!")
-                        st.rerun()
+                            attendance_batch_records.append((int(s_id), target_date, status_code))
+                        
+                        try:
+                            # 🚀 HIGH-SPEED TRANSACTION ALGORITHM
+                            import sqlite3
+                            conn = sqlite3.connect(DB_FILE_PATH)
+                            cursor = conn.cursor()
+                            
+                            cursor.execute("BEGIN TRANSACTION;")
+                            
+                            # Clean slate previous row records for target day tracking
+                            for record in attendance_batch_records:
+                                cursor.execute(
+                                    "DELETE FROM daily_attendance WHERE student_id = ? AND attendance_date = ?", 
+                                    (record[0], record[1])
+                                )
+                            
+                            # Execute bulk arrays compilation directly to engine disk at once
+                            cursor.executemany(
+                                "INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (?, ?, ?)", 
+                                attendance_batch_records
+                            )
+                            
+                            conn.commit()
+                            conn.close()
+                            
+                            st.success(f"⚡ Instant Save Successful! Locked records for {len(attendance_batch_records)} students.")
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Failed to execute high-speed save transaction: {e}")
 
     # --------------------------------------------------------------------------------
-    # WORKFLOW 2: MONTHLY ATTENDANCE SYNC WORKSPACE (DYNAMIC REAL-TIME LOOKUP)
+    # WORKFLOW 2: MONTHLY ATTENDANCE SYNC WORKSPACE
     # --------------------------------------------------------------------------------
     elif att_sub_type == "📊 Monthly Attendance Sync Workspace":
         st.subheader("🔮 Monthly Summary Aggregation Sync Workspace")
         att_flow_mode = st.radio("Select Entry Mode:", ["🔄 Sync from Daily Logs", "📋 Manual Section Override", "👤 By Single Student Roll Number"], horizontal=True, key="monthly_att_flow_mode")
         st.markdown("---")
 
-        # Re-verify dynamic selection items
         db_sessions_df = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != '' ORDER BY session DESC")
         db_classes_df = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
         session_options = db_sessions_df['session'].tolist() if not db_sessions_df.empty else ["2025-27", "2024-26"]
@@ -737,13 +766,22 @@ if menu_choice == "📅 Attendance Entry Management":
                 if calculated_logs.empty:
                     st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
                 else:
-                    for idx, row in calculated_logs.iterrows():
-                        execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": int(row['student_id']), "month": sync_month})
-                        execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {
-                            "s_id": int(row['student_id']), "month": sync_month, "p_days": int(row['present_days']), "t_days": int(row['total_days'])
-                        })
-                    st.success(f"🎉 Successfully aggregated and locked attendance matrices for {len(calculated_logs)} students!")
-                    st.rerun()
+                    try:
+                        import sqlite3
+                        conn = sqlite3.connect(DB_FILE_PATH)
+                        cursor = conn.cursor()
+                        cursor.execute("BEGIN TRANSACTION;")
+                        
+                        for idx, row in calculated_logs.iterrows():
+                            cursor.execute("DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", (int(row['student_id']), sync_month))
+                            cursor.execute("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", (int(row['student_id']), sync_month, int(row['present_days']), int(row['total_days'])))
+                        
+                        conn.commit()
+                        conn.close()
+                        st.success(f"⚡ Successfully compiled analytics matrices for {len(calculated_logs)} students!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Transaction aggregation error: {e}")
 
         elif att_flow_mode == "📋 Manual Section Override":
             c1, c2, c3 = st.columns(3)
@@ -786,11 +824,23 @@ if menu_choice == "📅 Attendance Entry Management":
                             updated_attendance[row['ID']] = col_s2.number_input("Days Present", min_value=0, max_value=int(total_days), value=int(float(row['Present'])), key=f"pres_{row['ID']}", label_visibility="collapsed")
                         
                         if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
-                            for s_id, p_days in updated_attendance.items():
-                                execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": int(s_id), "month": sel_month})
-                                execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": int(s_id), "month": sel_month.strip(), "p_days": int(p_days), "t_days": int(total_days)})
-                            st.success("🎉 Monthly Summary Matrix overrides locked successfully!")
-                            st.rerun()
+                            try:
+                                # 🚀 BATCH TRANSACTION WRITER FOR SECTION OVERRIDES
+                                import sqlite3
+                                conn = sqlite3.connect(DB_FILE_PATH)
+                                cursor = conn.cursor()
+                                cursor.execute("BEGIN TRANSACTION;")
+                                
+                                for s_id, p_days in updated_attendance.items():
+                                    cursor.execute("DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", (int(s_id), sel_month))
+                                    cursor.execute("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", (int(s_id), sel_month.strip(), int(p_days), int(total_days)))
+                                    
+                                conn.commit()
+                                conn.close()
+                                st.success("⚡ Monthly Summary overrides locked instantly!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Override transaction failure: {e}")
 
         elif att_flow_mode == "👤 By Single Student Roll Number":
             st.subheader("👤 Single Student Attendance Record Manager")
