@@ -582,7 +582,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                         st.rerun()
             except Exception as e:
                 st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
-Here is the complete, unified source code for your attendance system. This version resolves the parameter binding issues once and for all by bypassing the version-sensitive `run_query` function for dynamic aggregations, opting instead for clean, native `sqlite3` execution blocks.
 
 It combines your **Daily Attendance Entry**, **Monthly Synchronization Workspace**, and the **Concordia College Kasur Custom Reporting Engine** into a single, cohesive file.
 
