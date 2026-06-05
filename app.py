@@ -703,7 +703,9 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_PHYSICS"
         
     with col_b: 
-        # LIVE SYSTEM DISCOVERY: Query whatever real sections exist right now to bypass hardcoded UI limits
+        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
+        
+        # 1. Fetch all real sections from the database first for maximum safety
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -713,27 +715,50 @@ elif menu_choice == "📋 Section Summary Report":
                 ORDER BY section_name ASC
             """, {"class_val": selected_class, "sess_val": db_session_string})
             
-            if not sec_lookup_df.empty:
-                sec_options = sec_lookup_df["section_name"].dropna().tolist()
-            else:
-                sec_options = ["CK2", "CK3", "CQ3", "MQ1"]
+            db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
         except Exception:
-            sec_options = ["CK2", "CK3", "CQ3", "MQ1"]
+            db_sections = []
 
-        # Intelligent routing to naturally snap onto your targets (like CK3/CQ3 for Stats)
+        # Fallback list if the database query comes up empty
+        if not db_sections:
+            db_sections = ["CK2", "CK3", "CQ3", "MQ1", "MQ2", "MK", "EQ", "EK", "IK"]
+
+        # 2. Filter the database sections on the fly based on the chosen Discipline prefix
+        if "STATS" in sel_disc:
+            # Stats sections usually contain '3' or explicitly map to stats identifiers
+            sec_options = [s for s in db_sections if "3" in s or "STATS" in s.upper()]
+            if not sec_options: # Fallback if no specific stats section is found in DB
+                sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()] or ["CK3", "CQ3"]
+        
+        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+            # ICS Physics sections usually end in 1 or 2 (e.g., CK1, CK2, CQ1)
+            sec_options = [s for s in db_sections if ("1" in s or "2" in s) and ("CK" in s.upper() or "CQ" in s.upper())]
+            if not sec_options:
+                sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()] or ["CK2"]
+        
+        elif "MEDICAL" in sel_disc:
+            sec_options = [s for s in db_sections if "M" in s.upper() or "MED" in s.upper()] or ["MQ1", "MQ2", "MK"]
+        
+        elif "ENGINEERING" in sel_disc:
+            sec_options = [s for s in db_sections if "E" in s.upper() or "ENG" in s.upper()] or ["EQ", "EK"]
+        
+        else:
+            # If it's Commerce, Arts, or anything else, show all available rows
+            sec_options = db_sections
+
+        # Final safety check to make sure the options list isn't empty
+        if not sec_options:
+            sec_options = db_sections
+
+        # 3. Handle smart default index positioning so you don't get index errors
         default_idx = 0
         if "STATS" in sel_disc:
-            if "CK3" in sec_options:
-                default_idx = sec_options.index("CK3")
-            elif "CQ3" in sec_options:
-                default_idx = sec_options.index("CQ3")
+            if "CK3" in sec_options: default_idx = sec_options.index("CK3")
+            elif "CQ3" in sec_options: default_idx = sec_options.index("CQ3")
         elif "PHYSICS" in sel_disc and "CK2" in sec_options:
             default_idx = sec_options.index("CK2")
 
         sel_sec = st.selectbox("Select Section:", sec_options, index=default_idx if default_idx < len(sec_options) else 0, key="summary_sec")
-        
-    with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
     # --- 3. SUBJECT TRANSLATION GLOSSARY (STRICT UPPERCASE CONVERTER) ---
     SHORT_SUBJECTS_MAP = {
