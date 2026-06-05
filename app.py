@@ -666,7 +666,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
 # ====================================================================================
-# MODULE: 📋 SECTION SUMMARY REPORT (TOTAL APP INTEGRATION)
+# MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
@@ -682,11 +682,13 @@ elif menu_choice == "📋 Section Summary Report":
 
     disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
 
-    exam_options = ["MT_1", "MT_2", "PRE_BOARD"]
+    exam_options = ["MT_1", "MT_2", "PRE_BOARD", "MATRIC"]
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = list(AVAILABLE_EXAMS)
+    if "MATRIC" not in exam_options:
+        exam_options.append("MATRIC")
 
-    # --- 2. LAYOUT GENERATION & STRUCTURED DICTIONARY ROUTING ---
+    # --- 2. LAYOUT GENERATION & DISCIPLINE ROUTING ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     
     with col_sess:
@@ -694,50 +696,74 @@ elif menu_choice == "📋 Section Summary Report":
         db_session_string = str(selected_session).strip() if selected_session else "2025-27"
         
     with col_class:
-        selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], index=1, key="summary_class")
+        selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="summary_class")
         
     with col_a: 
         raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
-        sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_PHYSICS"
+        sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_STATS"
         
     with col_b: 
-        # --- FIXED SYSTEM MAPPING MATRIX ---
-        # 12th Grade mapped exactly from image_c1780d.png
-        # 11th Grade mapped exactly from image_c3ba3f.png
-        SECTIONS_ROUTING_MAP = {
-            "12TH": {
-                "MEDICAL": ["MQ1", "MQ2", "MK1"],
-                "ENGINEERING": ["EK1", "EQ1"],
-                "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
-                "ICS_STATS": ["CQ3", "CK3"],
-                "COMMERCE": ["IQ1", "IK1"],
-                "HUMANITIES": ["FQ1", "FK1"]
-            },
-            "11TH": {
-                "MEDICAL": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-                "ENGINEERING": ["EG_BLUE", "EB_BLUE"],
-                "ICS_PHYSICS": ["CG_GREEN", "CG_WHITE", "CB_GREEN", "CB_WHITE"],
-                "ICS_STATS": ["CB_STATS", "CG_STATS"],
-                "COMMERCE": ["IB", "IG"],
-                "HUMANITIES": ["FG", "FB"]
-            }
-        }
+        # LIVE DATABASE ROUTING: Query actual sections existing in the database for this specific class/session
+        try:
+            sec_lookup_df = run_query("""
+                SELECT DISTINCT TRIM(section) as section_name 
+                FROM students 
+                WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
+                  AND UPPER(TRIM(session)) = UPPER(TRIM(:sess_val))
+                ORDER BY section_name ASC
+            """, {"class_val": selected_class, "sess_val": db_session_string})
+            
+            db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
+        except Exception:
+            db_sections = []
 
-        # Safe parsing for current class level key string
-        current_class_key = "11TH" if "11" in selected_class else "12TH"
-        
-        # Pull arrays from hardcoded matrix mapping rules
-        sec_options = SECTIONS_ROUTING_MAP[current_class_key].get(sel_disc, [])
-        
-        # Absolute system layout fallbacks if configurations get mixed up
-        if not sec_options:
-            if current_class_key == "11TH":
-                sec_options = ["CB_WHITE", "CG_GREEN", "CG_WHITE", "EG_BLUE", "MG_BLUE", "MG_WHITE"]
+        # If the database returns records, apply smart filters based on the selected Discipline keyword
+        if db_sections:
+            if "STATS" in sel_disc:
+                sec_options = [s for s in db_sections if "STATS" in s.upper() or "WHITE" in s.upper() or "3" in s]
+            elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+                sec_options = [s for s in db_sections if "PHYS" in s.upper() or "GREEN" in s.upper() or "1" in s or "2" in s]
+            elif "MEDICAL" in sel_disc:
+                sec_options = [s for s in db_sections if "MED" in s.upper() or "M" in s.upper() or "BLUE" in s.upper()]
+            elif "ENGINEERING" in sel_disc:
+                sec_options = [s for s in db_sections if "ENG" in s.upper() or "E" in s.upper()]
+            elif "COMMERCE" in sel_disc:
+                sec_options = [s for s in db_sections if "COM" in s.upper() or "I" in s.upper()]
             else:
-                sec_options = ["MQ1", "MQ2", "MK1", "EK1", "EQ1", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IQ1", "IK1", "FQ1", "FK1"]
+                sec_options = db_sections
+                
+            # If our smart filter left the list empty, use all sections found for this class
+            if not sec_options:
+                sec_options = db_sections
+        else:
+            # --- BACKUP STATIC DICTIONARY FALLBACK (If database query returned nothing) ---
+            SECTIONS_ROUTING_MAP = {
+                "12TH": {
+                    "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                    "ENGINEERING": ["EK1", "EQ1"],
+                    "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                    "ICS_STATS": ["CQ3", "CK3"],
+                    "COMMERCE": ["IQ1", "IK1"],
+                    "HUMANITIES": ["FQ1", "FK1"]
+                },
+                "11TH": {
+                    "MEDICAL": ["MG_BLUE", "MG_WHITE"],
+                    "ENGINEERING": ["EG_BLUE"],
+                    "ICS_PHYSICS": ["CG_GREEN", "CG_WHITE"],
+                    "ICS_STATS": ["CG_STATS", "CB_WHITE"],
+                    "COMMERCE": ["CB_WHITE"],
+                    "HUMANITIES": ["CB_WHITE"]
+                }
+            }
+            current_class_key = "11TH" if "11" in selected_class else "12TH"
+            sec_options = SECTIONS_ROUTING_MAP[current_class_key].get(sel_disc, [])
 
-        # Dynamic structural key to instantly wipe old cross-widget persistent caches
-        dynamic_widget_key = f"summary_sec_fixed_{selected_class}_{sel_disc}_{db_session_string}"
+        # Final layout safety backup
+        if not sec_options:
+            sec_options = ["CG_STATS", "CB_WHITE"] if "11" in selected_class else ["CK1", "CK2"]
+
+        # Dynamic state key to reset component memory when filters switch
+        dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}"
         
         sel_sec = st.selectbox(
             "Select Section:", 
@@ -770,7 +796,6 @@ elif menu_choice == "📋 Section Summary Report":
     elif "COMMERCE" in sel_disc:
         subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"]
     else:
-        # Humanities / Arts Setup
         subjects = ["ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
 
     # --- 5. DATABASE INTEGRATION ENGINE ---
