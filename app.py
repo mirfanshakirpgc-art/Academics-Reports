@@ -583,10 +583,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
-It combines your **Daily Attendance Entry**, **Monthly Synchronization Workspace**, and the **Concordia College Kasur Custom Reporting Engine** into a single, cohesive file.
-
-Copy and paste this directly into your application script:
-
 ```python
 import streamlit as tf
 import pandas as pd
