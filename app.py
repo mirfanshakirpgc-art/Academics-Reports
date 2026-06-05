@@ -597,13 +597,89 @@ if menu_choice == "📅 Attendance Entry Management":
     st.markdown("###")
 
     # DB Connection Setup for Transactions
-    # NOTE: Adjust 'college_database.db' if your database filename differs
     DB_FILE_PATH = "college_database.db"
 
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
-    st.markdown("###")
+    if att_sub_type == "📅 Daily Attendance Entry":
+        st.subheader("📅 Daily Attendance Roster Sheet")
+        st.markdown("---")
+        
+        # Pull exact existing configurations from database to prevent filter mismatches
+        db_sessions_df = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != '' ORDER BY session DESC")
+        db_classes_df = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
+        
+        session_options = db_sessions_df['session'].tolist() if not db_sessions_df.empty else ["2025-27", "2024-26"]
+        class_options = db_classes_df['class'].tolist() if not db_classes_df.empty else ["12th", "11th"]
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            sel_session = st.selectbox("Select Session:", session_options, key="daily_att_sess")
+        with c2:
+            sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
+        with c3:
+            # Dynamically fetch sections tied to this specific Class and Session setup
+            active_secs_df = run_query("""
+                SELECT DISTINCT section FROM students 
+                WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
+                  AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+                  AND section IS NOT NULL AND section != ''
+                ORDER BY section
+            """, {"sess": sel_session, "cls": sel_class})
+            
+            section_options = active_secs_df['section'].tolist() if not active_secs_df.empty else ["CK1", "CK2", "IK", "IQ"]
+            sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
+
+        row_date_1, _ = st.columns([1, 3])
+        with row_date_1:
+            target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
+
+        if sel_section and sel_session:
+            # Fetch using precise case-insensitive matching logic
+            roster_df = run_query("""
+                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+                FROM students s
+                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                  AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
+                  AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) = 'ACTIVE' OR UPPER(TRIM(s.status)) != 'LEFT')
+                ORDER BY s.id ASC
+            """, {
+                "att_date": target_date, 
+                "section": sel_section, 
+                "class_level": sel_class, 
+                "session": sel_session
+            })
+
+            if roster_df.empty:
+                st.warning(f"⚠️ No active student profiles registered under Section '{sel_section}' ({sel_class}) inside Session {sel_session}.")
+            else:
+                st.markdown(f"🔬 **Roster Grid Active:** Section {sel_section} — {target_date.strftime('%d-%b-%Y')}")
+                action_box_col, info_box_col = st.columns([2, 3])
+                with action_box_col:
+                    master_attendance_toggle = st.checkbox("🟢 Check All as Present (Default)", value=True, key="master_att_switch")
+                with info_box_col:
+                    st.caption("💡 Leave checked for **Present**. Uncheck boxes to issue an **Absent (A)** mark.")
+
+                with st.form("interactive_daily_attendance_form"):
+                    attendance_checkbox_map = {}
+                    h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
+                    h_col1.markdown("**Roll No / ID**")
+                    h_col2.markdown("**Student Name**")
+                    h_col3.markdown("**Is Present?**")
+                    st.markdown("<hr style='margin:0px; padding:0px; margin-bottom:10px;' />", unsafe_allow_html=True)
+
+                    for idx, row in roster_df.iterrows():
+                        col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
+                        col_s1.write(f"🆔 `{row['ID']}`")
+                        col_s2.write(f"👤 **{row['Student Name']}**")
+                        
+                        initial_checkbox_state = (row['SavedStatus'] == 'P') if row['SavedStatus'] is not None else master_attendance_toggle
+                        attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_checkbox_state, key=f"chk_student_{row['ID']}", label_visibility="collapsed")
+
+                    st.markdown("###")
                     if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
                         # Pack application parameters into batch tuple structure
                         attendance_batch_records = []
@@ -617,7 +693,7 @@ if menu_choice == "📅 Attendance Entry Management":
                             conn = sqlite3.connect(DB_FILE_PATH)
                             cursor = conn.cursor()
                             
-                            # SAFETY CHECK: Automatically create the daily_attendance table if it doesn't exist
+                            # Safety Check: Auto-create table if missing
                             cursor.execute("""
                                 CREATE TABLE IF NOT EXISTS daily_attendance (
                                     student_id INTEGER,
@@ -758,7 +834,6 @@ if menu_choice == "📅 Attendance Entry Management":
                         
                         if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
                             try:
-                                # 🚀 BATCH TRANSACTION WRITER FOR SECTION OVERRIDES
                                 import sqlite3
                                 conn = sqlite3.connect(DB_FILE_PATH)
                                 cursor = conn.cursor()
