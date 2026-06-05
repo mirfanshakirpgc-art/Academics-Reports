@@ -665,8 +665,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                 except Exception as e:
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
-# ----------------- 📋 SECTION SUMMARY REPORT (FINAL BULLETPROOF VERSION) -----------------
-# ----------------- 📋 SECTION SUMMARY REPORT (UPDATED DATABASE LINE-MATCHING) -----------------
+# ----------------- 📋 SECTION SUMMARY REPORT (DYNAMIC SUBJECTS & SECTIONS) -----------------
 elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
     import pandas as pd
@@ -679,7 +678,7 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
         session_options = list(AVAILABLE_SESSIONS)
 
-    disc_options = ["MEDICAL", "ENGINEERING", "ICS", "ICS_PHYSICS", "COMMERCE", "ARTS"]
+    disc_options = ["ICS_PHYSICS", "ICS_STATS", "MEDICAL", "ENGINEERING", "COMMERCE", "ARTS"]
     if "AVAILABLE_DISCIPLINE" in globals() and AVAILABLE_DISCIPLINE:
         disc_options = list(AVAILABLE_DISCIPLINE)
 
@@ -687,7 +686,7 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = list(AVAILABLE_EXAMS)
 
-    # --- 2. LAYOUT GENERATION (COMPLETELY SAFE SELECTIONS) ---
+    # --- 2. LAYOUT GENERATION (LIVE DATABASE MATCHING) ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     
     with col_sess:
@@ -697,61 +696,62 @@ elif menu_choice == "📋 Section Summary Report":
         selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], index=1, key="summary_class")
         
     with col_a: 
-        raw_disc = st.selectbox("Select Discipline:", disc_options, index=3 if "ICS_PHYSICS" in disc_options else 2, key="summary_disc")
+        raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
         sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_PHYSICS"
         
     with col_b: 
-        if selected_class == "11th":
-            if "MEDICAL" in sel_disc:
-                sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE", "MG_BLUE"]
-            elif "ENGINEERING" in sel_disc:
-                sec_options = ["EQ1", "EQ2", "ENG1", "EG_BLUE"]
-            elif "ICS" in sel_disc:
-                sec_options = ["ICS1", "ICS2", "CS1"]
-            else:
-                sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
-        else:  
-            if "MEDICAL" in sel_disc:
-                sec_options = ["MQ1", "MQ2", "MK"]
-            elif "ENGINEERING" in sel_disc:
-                sec_options = ["EQ", "EK"]
-            elif "ICS" in sel_disc or "PHYSICS" in sel_disc:
-                sec_options = ["CQ1", "CQ2", "CK1", "CK2"]
-            else:
-                sec_options = ["IK", "IQ", "FK", "FQ"]
-
-        if "DISCIPLINE_SECTIONS_MAP" in globals() and DISCIPLINE_SECTIONS_MAP:
-            try:
-                class_disc_key = f"{selected_class}_{sel_disc}"
-                if class_disc_key in DISCIPLINE_SECTIONS_MAP:
-                    sec_options = DISCIPLINE_SECTIONS_MAP[class_disc_key]
-                elif selected_class == "11th" and sel_disc in DISCIPLINE_SECTIONS_MAP:
-                    sec_options = DISCIPLINE_SECTIONS_MAP[sel_disc]
-            except Exception:
-                pass
+        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
+        
+        # Live Database Scan: Fetch ONLY the real sections present in your system right now
+        try:
+            sec_lookup_df = run_query("""
+                SELECT DISTINCT TRIM(section) as section_name 
+                FROM students 
+                WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
+                  AND UPPER(TRIM(session)) = UPPER(TRIM(:sess_val))
+                ORDER BY section_name ASC
+            """, {"class_val": selected_class, "sess_val": db_session_string})
             
-        sel_sec = st.selectbox("Select Section:", sec_options if sec_options else ["CK2"], index=sec_options.index("CK2") if "CK2" in sec_options else 0, key="summary_sec")
+            if not sec_lookup_df.empty:
+                sec_options = sec_lookup_df["section_name"].dropna().tolist()
+            else:
+                sec_options = ["CK2", "CK3", "CQ3", "MQ1", "MG_BLUE"]
+        except Exception:
+            sec_options = ["CK2", "CK3", "CQ3", "MQ1", "MG_BLUE"]
+
+        # Ensure smart default positioning based on selection
+        default_idx = 0
+        if "STATS" in sel_disc and "CK3" in sec_options:
+            default_idx = sec_options.index("CK3")
+        elif "PHYSICS" in sel_disc and "CK2" in sec_options:
+            default_idx = sec_options.index("CK2")
+
+        sel_sec = st.selectbox("Select Section:", sec_options, index=default_idx if default_idx < len(sec_options) else 0, key="summary_sec")
         
     with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, index=1 if "MT_2" in exam_options else 0, key="summary_exam")
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
-    # --- 3. DIRECT PASSTHROUGH TO SHORT DATA ENTRIES ---
-    db_session_string = str(selected_session).strip() if selected_session else "2025-27"
-        
+    # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
-        "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO",
+        "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST",
         "ISL_ETH": "ISL", "T_QURAN": "QURAN"
     }
     
-    # --- 4. SUBJECT DEFINITION (MATCHING INDIVIDUAL TRANSCRIPTS) ---
-    if "ICS" in sel_disc or "PHYSICS" in sel_disc:
+    # --- 4. INTELLIGENT ROUTING MATRIX ---
+    # Automatically tracks whether it should output Physics or Statistics columns based on section choice!
+    normalized_sec = str(sel_sec).upper().strip()
+    if "STATS" in sel_disc or "CK3" in normalized_sec or "CQ3" in normalized_sec:
+        subjects = ["English", "Urdu", "Statistics", "Computer", "Mathematics", "Isl_Eth", "T_Quran"]
+    elif "ICS" in sel_disc or "PHYSICS" in sel_disc or "CK" in normalized_sec or "CQ" in normalized_sec:
         subjects = ["English", "Urdu", "Physics", "Computer", "Mathematics", "Isl_Eth", "T_Quran"]
+    elif "MEDICAL" in sel_disc or "MQ" in normalized_sec:
+        subjects = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Isl_Eth", "T_Quran"]
     else:
-        subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+        subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Isl_Eth", "T_Quran"]
 
-    # --- 5. DATABASE QUERIES (DIRECT MATCH ENGINE WITH FIELD TRIMMING) ---
+    # --- 5. DATABASE INTEGRATION ENGINE ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -761,16 +761,6 @@ elif menu_choice == "📋 Section Summary Report":
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
     """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
-    
-    if students_df.empty:
-        students_df = run_query("""
-            SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
-            FROM students 
-            WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-              AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
-              AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
-            ORDER BY id ASC
-        """, {"section": sel_sec, "session_str": db_session_string})
     
     if students_df.empty:
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
@@ -784,7 +774,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             marks_df = pd.DataFrame()
 
-        # --- 6. BUILD PERFORMANCE MATRIX GRID ---
+        # --- 6. PERFORMANCE GRID COMPILER ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = s_row["ID"]
@@ -842,7 +832,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # --- 7. HTML PRINT & IMAGE CAPTURE EMBED ---
+        # --- 7. HTML INTERFACE GENERATOR ---
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
