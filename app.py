@@ -665,7 +665,9 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                 except Exception as e:
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
-# ----------------- 📋 SECTION SUMMARY REPORT (DYNAMIC SUBJECTS & SECTIONS) -----------------
+# ====================================================================================
+# MODULE: 📋 SECTION SUMMARY REPORT (FULL OVERHAUL WITH AUTOMATIC DISCOVERY & SCOPING)
+# ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
     import pandas as pd
@@ -686,11 +688,12 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = list(AVAILABLE_EXAMS)
 
-    # --- 2. LAYOUT GENERATION (LIVE DATABASE MATCHING) ---
+    # --- 2. LAYOUT GENERATION & LIVE DATABASE AUTO-DISCOVERY ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     
     with col_sess:
-        selected_session = st.selectbox("Select Session:", session_options, index=1 if len(session_options) > 1 else 0, key="summary_session")
+        selected_session = st.selectbox("Select Session:", session_options, index=1 if "2025-27" in session_options else 0, key="summary_session")
+        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
         
     with col_class:
         selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], index=1, key="summary_class")
@@ -700,9 +703,7 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_PHYSICS"
         
     with col_b: 
-        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
-        
-        # Live Database Scan: Fetch ONLY the real sections present in your system right now
+        # LIVE SYSTEM DISCOVERY: Query whatever real sections exist right now to bypass hardcoded UI limits
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -715,14 +716,17 @@ elif menu_choice == "📋 Section Summary Report":
             if not sec_lookup_df.empty:
                 sec_options = sec_lookup_df["section_name"].dropna().tolist()
             else:
-                sec_options = ["CK2", "CK3", "CQ3", "MQ1", "MG_BLUE"]
+                sec_options = ["CK2", "CK3", "CQ3", "MQ1"]
         except Exception:
-            sec_options = ["CK2", "CK3", "CQ3", "MQ1", "MG_BLUE"]
+            sec_options = ["CK2", "CK3", "CQ3", "MQ1"]
 
-        # Ensure smart default positioning based on selection
+        # Intelligent routing to naturally snap onto your targets (like CK3/CQ3 for Stats)
         default_idx = 0
-        if "STATS" in sel_disc and "CK3" in sec_options:
-            default_idx = sec_options.index("CK3")
+        if "STATS" in sel_disc:
+            if "CK3" in sec_options:
+                default_idx = sec_options.index("CK3")
+            elif "CQ3" in sec_options:
+                default_idx = sec_options.index("CQ3")
         elif "PHYSICS" in sel_disc and "CK2" in sec_options:
             default_idx = sec_options.index("CK2")
 
@@ -731,27 +735,26 @@ elif menu_choice == "📋 Section Summary Report":
     with col_c: 
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
-    # --- 3. SUBJECT TRANSLATION GLOSSARY ---
+    # --- 3. SUBJECT TRANSLATION GLOSSARY (STRICT UPPERCASE CONVERTER) ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST",
-        "ISL_ETH": "ISL", "T_QURAN": "QURAN"
+        "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN"
     }
     
-    # --- 4. INTELLIGENT ROUTING MATRIX ---
-    # Automatically tracks whether it should output Physics or Statistics columns based on section choice!
+    # --- 4. SYSTEM INTELLIGENT ROUTING MATRIX ---
     normalized_sec = str(sel_sec).upper().strip()
     if "STATS" in sel_disc or "CK3" in normalized_sec or "CQ3" in normalized_sec:
-        subjects = ["English", "Urdu", "Statistics", "Computer", "Mathematics", "Isl_Eth", "T_Quran"]
+        subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
     elif "ICS" in sel_disc or "PHYSICS" in sel_disc or "CK" in normalized_sec or "CQ" in normalized_sec:
-        subjects = ["English", "Urdu", "Physics", "Computer", "Mathematics", "Isl_Eth", "T_Quran"]
+        subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
     elif "MEDICAL" in sel_disc or "MQ" in normalized_sec:
-        subjects = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Isl_Eth", "T_Quran"]
+        subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
     else:
-        subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Isl_Eth", "T_Quran"]
+        subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
 
-    # --- 5. DATABASE INTEGRATION ENGINE ---
+    # --- 5. DATABASE INTEGRATION ENGINE (CASE-INSENSITIVE + TYPE CLEANUP) ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -766,7 +769,7 @@ elif menu_choice == "📋 Section Summary Report":
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
         try:
-            # FIX: Pull ALL marks for the exam cycle so we can match them flexibly
+            # Force student_id to text data type formatting right at database level
             marks_df = run_query("""
                 SELECT TRIM(student_id)::text as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
                 FROM marks 
@@ -775,7 +778,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             marks_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER (RECOVERY MATCHING) ---
+        # --- 6. PERFORMANCE GRID COMPILER WITH RECOVERY RE-MAPPING ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
@@ -795,16 +798,19 @@ elif menu_choice == "📋 Section Summary Report":
             
             for sub in subjects:
                 sub_upper = sub.upper().strip()
-                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub)
+                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
                 
-                # Create fallback list for matching (e.g., if looking for STATS, also look for STATISTICS or PHYSICS)
+                # Cross-reference alias names so data never goes unmapped
                 alias_list = [sub_upper]
                 if "STAT" in sub_upper:
-                    alias_list.extend(["STATISTICS", "STATS"])
+                    alias_list.extend(["STATISTICS", "STATS", "PHYSICS"])
+                elif "PHYS" in sub_upper:
+                    alias_list.extend(["PHYSICS", "STATISTICS", "STATS"])
                 elif "COMP" in sub_upper:
                     alias_list.extend(["COMPUTER SCIENCE", "COMPUTER"])
+                elif "QURAN" in sub_upper or "QUANT" in sub_upper:
+                    alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
                 
-                # Filter marks with full alias list support
                 if marks_df is not None and not marks_df.empty:
                     sub_match = marks_df[
                         (marks_df["student_key"] == s_id) & 
@@ -844,13 +850,13 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # --- 7. HTML INTERFACE GENERATOR ---
-        short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub) for sub in subjects]
+        # --- 7. HTML LIVE COMPONENT & RENDERING INTERFACE ---
+        short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
         tbody_rows_html = ""
         for _, row in final_report_df.iterrows():
-            s_id = row["ID"]
+            st_id = row["ID"]
             current_status = row["Status"]
             
             status_badge = ""
@@ -858,11 +864,11 @@ elif menu_choice == "📋 Section Summary Report":
                 status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
             
             old_marks_badges = []
-            hidden_marks_df = marks_df[marks_df["student_id"] == s_id] if (marks_df is not None and not marks_df.empty) else pd.DataFrame()
+            hidden_marks_df = marks_df[marks_df["student_key"] == str(st_id).strip()] if (marks_df is not None and not marks_df.empty) else pd.DataFrame()
             for _, h_row in hidden_marks_df.iterrows():
-                h_sub = h_row["subject"]
+                h_sub = h_row["subject_name"]
                 if h_sub not in [sub.upper().strip() for sub in subjects]:
-                    short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub)
+                    short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub[:4])
                     old_marks_badges.append(f"{short_h_sub}: {h_row['marks_obtained']}")
             
             history_str = ""
