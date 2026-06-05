@@ -583,7 +583,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
-```python
 import streamlit as tf
 import pandas as pd
 from datetime import date
