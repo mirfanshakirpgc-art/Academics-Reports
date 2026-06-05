@@ -666,6 +666,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
 # ----------------- 📋 SECTION SUMMARY REPORT (FINAL BULLETPROOF VERSION) -----------------
+# ----------------- 📋 SECTION SUMMARY REPORT (UPDATED DATABASE LINE-MATCHING) -----------------
 elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
     import pandas as pd
@@ -678,7 +679,7 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
         session_options = list(AVAILABLE_SESSIONS)
 
-    disc_options = ["MEDICAL", "ENGINEERING", "ICS", "COMMERCE", "ARTS"]
+    disc_options = ["MEDICAL", "ENGINEERING", "ICS", "ICS_PHYSICS", "COMMERCE", "ARTS"]
     if "AVAILABLE_DISCIPLINE" in globals() and AVAILABLE_DISCIPLINE:
         disc_options = list(AVAILABLE_DISCIPLINE)
 
@@ -693,14 +694,13 @@ elif menu_choice == "📋 Section Summary Report":
         selected_session = st.selectbox("Select Session:", session_options, index=1 if len(session_options) > 1 else 0, key="summary_session")
         
     with col_class:
-        selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
+        selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], index=1, key="summary_class")
         
     with col_a: 
-        raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
-        sel_disc = str(raw_disc).strip().upper() if raw_disc else "MEDICAL"
+        raw_disc = st.selectbox("Select Discipline:", disc_options, index=3 if "ICS_PHYSICS" in disc_options else 2, key="summary_disc")
+        sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_PHYSICS"
         
     with col_b: 
-        # Baseline safe fallback options
         if selected_class == "11th":
             if "MEDICAL" in sel_disc:
                 sec_options = ["MQ1", "MQ2", "MD1", "MG_WHITE", "MG_BLUE"]
@@ -711,7 +711,6 @@ elif menu_choice == "📋 Section Summary Report":
             else:
                 sec_options = ["IK", "IB", "CK2", "CB_WHITE", "CG_WHITE"]
         else:  
-            # 12th Class Destinations matching your Promotion panel mapping
             if "MEDICAL" in sel_disc:
                 sec_options = ["MQ1", "MQ2", "MK"]
             elif "ENGINEERING" in sel_disc:
@@ -721,7 +720,6 @@ elif menu_choice == "📋 Section Summary Report":
             else:
                 sec_options = ["IK", "IQ", "FK", "FQ"]
 
-        # Apply global map overrides ONLY if they match the selected class rules
         if "DISCIPLINE_SECTIONS_MAP" in globals() and DISCIPLINE_SECTIONS_MAP:
             try:
                 class_disc_key = f"{selected_class}_{sel_disc}"
@@ -732,41 +730,28 @@ elif menu_choice == "📋 Section Summary Report":
             except Exception:
                 pass
             
-        sel_sec = st.selectbox("Select Section:", sec_options if sec_options else ["Default"], key="summary_sec")
+        sel_sec = st.selectbox("Select Section:", sec_options if sec_options else ["CK2"], index=sec_options.index("CK2") if "CK2" in sec_options else 0, key="summary_sec")
         
     with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, index=1 if "MT_2" in exam_options else 0, key="summary_exam")
 
-    # --- 3. BACKGROUND FORMAT TRANSLATION (STRICT DATABASE MATCHING) ---
-    session_clean = str(selected_session).strip() if selected_session else "2025-27"
-    
-    # Direct dictionary map to match your Supabase data perfectly
-    SESSION_DB_MAP = {
-        "2024-26": "2024-2026",
-        "2025-27": "2025-2027",
-        "2026-28": "2026-2028"
-    }
-    db_session_string = SESSION_DB_MAP.get(session_clean, session_clean)
+    # --- 3. DIRECT PASSTHROUGH TO SHORT DATA ENTRIES ---
+    db_session_string = str(selected_session).strip() if selected_session else "2025-27"
         
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO",
-        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST"
+        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST",
+        "ISL_ETH": "ISL", "T_QURAN": "QURAN"
     }
     
-    # --- 4. SUBJECT DEFINITION (UNIVERSAL SCOPE INITIALIZATION) ---
-    # This guarantees 'subjects' is defined before any queries execute
-    subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
-    if "DISCIPLINE_SUBJECTS_MAP" in globals() and DISCIPLINE_SUBJECTS_MAP:
-        try:
-            if sel_disc in DISCIPLINE_SUBJECTS_MAP:
-                subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc]
-            elif sel_disc.title() in DISCIPLINE_SUBJECTS_MAP:
-                subjects = DISCIPLINE_SUBJECTS_MAP[sel_disc.title()]
-        except Exception:
-            pass
+    # --- 4. SUBJECT DEFINITION (MATCHING INDIVIDUAL TRANSCRIPTS) ---
+    if "ICS" in sel_disc or "PHYSICS" in sel_disc:
+        subjects = ["English", "Urdu", "Physics", "Computer", "Mathematics", "Isl_Eth", "T_Quran"]
+    else:
+        subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
 
-    # --- 5. DATABASE QUERIES (DIRECT MATCH ENGINE) ---
+    # --- 5. DATABASE QUERIES (DIRECT MATCH ENGINE WITH FIELD TRIMMING) ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -777,7 +762,6 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
-    # Fallback to look up profiles across generic class barriers if primary is empty
     if students_df.empty:
         students_df = run_query("""
             SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -791,7 +775,6 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
-        # Safe Try-Catch block to read marks from Supabase
         try:
             marks_df = run_query("""
                 SELECT student_id, UPPER(TRIM(subject)) as subject, marks_obtained, total_marks
@@ -923,7 +906,6 @@ elif menu_choice == "📋 Section Summary Report":
             .header-branding {{ text-align: left; }}
             .inst-title {{ font-size: 24px; font-weight: 800; color: #111; letter-spacing: 0.5px; margin: 0; }}
             .doc-subtitle {{ font-size: 15px; color: #555; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
-            .meta-details {{ text-align: right; font-size: 13px; color: #444; line-height: 1.5; }}
             .brand-logo-img {{ max-height: 55px; width: auto; object-fit: contain; }}
             .analytics-grid-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
             .analytics-grid-table th, .analytics-grid-table td {{ border: 1px solid #dcdcdc; padding: 10px 8px; text-align: center; }}
