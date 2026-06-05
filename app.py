@@ -715,11 +715,11 @@ elif menu_choice == "📋 Section Summary Report":
             },
             "11TH": {
                 "MEDICAL": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-                "ENGINEERING": ["EG_BLUE"],
-                "ICS_PHYSICS": ["CG_GREEN", "CG_WHITE"],
-                "ICS_STATS": ["CB_WHITE"],
-                "COMMERCE": ["CB_WHITE"],
-                "HUMANITIES": ["CB_WHITE"]
+                "ENGINEERING": ["EG_BLUE", "EB_BLUE"],
+                "ICS_PHYSICS": ["CG_GREEN", "CG_WHITE", "CB_GREEN", "CB_WHITE"],
+                "ICS_STATS": ["CB_STATS", "CG_STATS"],
+                "COMMERCE": ["IB", "IG"],
+                "HUMANITIES": ["FG", "FB"]
             }
         }
 
