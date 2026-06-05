@@ -146,12 +146,30 @@ def execute_db_command(command, params=None):
     with engine.begin() as conn:
         conn.execute(text(command), params)
 
+import streamlit as st
+import pandas as pd
+from datetime import date
+
+# ====================================================================================
 # --- NAVIGATION SIDEBAR ---
+# ====================================================================================
 st.sidebar.image("logo.png", use_container_width=True)
 st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
+
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
-    ["📊 Home Dashboard", "➕ Add Students", "📝 Academic Exam Marks Entry", "📅 Attendance Entry Management", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards", "Student Management", "👨‍🏫 Teacher Management", "🎓 Promote Students"]
+    [
+        "📊 Home Dashboard", 
+        "➕ Add Students", 
+        "📝 Academic Exam Marks Entry",      # Standalone Module 1
+        "📅 Attendance Entry Management",    # Standalone Module 2
+        "📋 Section Summary Report", 
+        "📈 Multi-Test Progress Report", 
+        "🪪 Student Result Cards", 
+        "Student Management", 
+        "👨‍🏫 Teacher Management", 
+        "🎓 Promote Students"
+    ]
 )
 
 # --- MAP CONFIGURATIONS ---
@@ -322,7 +340,7 @@ elif menu_choice == "➕ Add Students":
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
 if menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry")
+    st.title("📝 Academic Exam Marks Entry Workspace")
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
@@ -349,7 +367,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_a")
                 sess_prefix = sel_session.split('-')[0] + '%'
             with c2: 
-                sel_discipline = st.selectbox("Select Discipline:", AVAILABLE_DISCIPLINE)
+                sel_discipline = st.selectbox("Select Discipline:", ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"], key="marks_disc_sel")
             with c3: 
                 sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="entry_class_filter_a")
             with c4: 
@@ -365,7 +383,15 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 
                 valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
                 if not valid_sections_list:
-                    valid_sections_list = ["CG_STATS", "CB_WHITE", "MQ1", "EQ1"]
+                    fallback_map = {
+                        "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                        "ENGINEERING": ["EK1", "EQ1"],
+                        "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                        "ICS_STATISTICS": ["CQ3", "CK3"],
+                        "COMMERCE": ["IQ1", "IK1"],
+                        "HUMANITIES": ["FQ1", "FK1"]
+                    }
+                    valid_sections_list = fallback_map.get(sel_discipline, ["MQ1"])
 
                 sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
                 
@@ -379,7 +405,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
-                sel_exam = st.selectbox("Select Academic Exam Cycle:", AVAILABLE_EXAMS if 'AVAILABLE_EXAMS' in globals() else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"], key="entry_exam_sel")
+                sel_exam = st.selectbox("Select Academic Exam Cycle:", ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"], key="entry_exam_sel")
             with row2_2: 
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
@@ -393,6 +419,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                         AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
                         AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
                       AND (s.session LIKE :sess_prefix OR s.session = :session)
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                     ORDER BY s.id ASC
@@ -400,12 +427,13 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     "subject": sel_subject, 
                     "exam": sel_exam,
                     "section": sel_section, 
+                    "class_level": sel_class,
                     "session": sel_session, 
                     "sess_prefix": sess_prefix
                 })
                 
                 if roster_df.empty:
-                    st.info(f"💡 No active students found registered in section '{sel_section}' under Session '{sel_session}'.")
+                    st.info(f"💡 No active student profiles registered under Section '{sel_section}' ({sel_class}) inside Session {sel_session}.")
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     st.caption("ℹ️ Tip: Type 'A' for Absent or 'NC' for Not Conducted.")
@@ -456,14 +484,15 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
         
         if single_id and single_id.isdigit():
-            student_info = run_query("SELECT name, section, session FROM students WHERE id = :id", {"id": int(single_id)})
+            student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_id)})
             if student_info.empty:
                 st.error("❌ This roll number does not exist.")
             else:
                 s_name = student_info['name'].iloc[0].upper()
                 s_section = student_info['section'].iloc[0].upper().strip()
                 s_session = student_info['session'].iloc[0]
-                st.info(f"👤 Student: {s_name} | Section: {s_section} | Session: {s_session}")
+                s_class = student_info['class'].iloc[0]
+                st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
                 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
                 with c_m1: single_sub = st.text_input("Subject Identity:", value="STATISTICS", key="s_sub_val")
@@ -553,39 +582,35 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                         st.rerun()
             except Exception as e:
                 st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
-    # ====================================================================================
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DAILY & MONTHLY COMBINED)
+# ====================================================================================
+# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DAILY & MONTHLY SYNC INTEGRATED)
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
-    st.title("📅 Attendance Entry Management")
+    st.title("📅 Attendance Entry Management Panel")
     
     att_sub_type = st.segmented_control(
         "Select Attendance Interval Mode:",
-        ["📅 Daily Attendance Entry", "📊 Monthly Summary Entry"],
+        ["📅 Daily Attendance Entry", "📊 Monthly Attendance Sync Workspace"],
         default="📅 Daily Attendance Entry",
         key="attendance_interval_segmented_control"
     )
     st.markdown("###")
 
     # --------------------------------------------------------------------------------
-    # WORKFLOW 1: DAILY ATTENDANCE ENTRY
+    # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET (FIXED CLASS COUPLING)
     # --------------------------------------------------------------------------------
     if att_sub_type == "📅 Daily Attendance Entry":
-        from datetime import date
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
         
-        current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
-        current_user_id = st.session_state.get('user_id', None)
-        
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS if 'AVAILABLE_SESSIONS' in globals() else ["2025-27", "2024-26"], key="daily_att_sess")
+            sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS if 'AVAILABLE_SESSIONS' in globals() else ["2024-26", "2025-27"], key="daily_att_sess")
             sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
         with c2:
             sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="daily_att_class")
         with c3:
-            sel_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE if 'AVAILABLE_DISCIPLINE' in globals() else ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"], key="daily_att_disc")
+            sel_discipline = st.selectbox("Select Discipline Context:", ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"], key="daily_att_disc")
         with c4:
             active_secs_df = run_query("""
                 SELECT DISTINCT section FROM students 
@@ -596,7 +621,14 @@ if menu_choice == "📅 Attendance Entry Management":
             
             valid_sections = active_secs_df['section'].tolist() if not active_secs_df.empty else []
             if not valid_sections:
-                fallback_map = {"MEDICAL": ["MQ1"], "ENGINEERING": ["EQ1"], "ICS_PHYSICS": ["CQ1"]}
+                fallback_map = {
+                    "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                    "ENGINEERING": ["EK1", "EQ1"],
+                    "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                    "ICS_STATISTICS": ["CQ3", "CK3"],
+                    "COMMERCE": ["IQ1", "IK1"],
+                    "HUMANITIES": ["FQ1", "FK1"]
+                }
                 valid_sections = fallback_map.get(sel_discipline, ["MQ1"])
                 
             sel_section = st.selectbox("Select Target Section:", valid_sections, key="daily_att_sec")
@@ -606,24 +638,33 @@ if menu_choice == "📅 Attendance Entry Management":
             target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
+            # Query explicitly tracking against Class level AND Section boundaries
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
                 LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
                 WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                  AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
                   AND (s.session LIKE :sess_prefix OR s.session = :session)
                   AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                 ORDER BY s.id ASC
-            """, {"att_date": target_date, "section": sel_section, "session": sel_session, "sess_prefix": sess_prefix})
+            """, {
+                "att_date": target_date, 
+                "section": sel_section, 
+                "class_level": sel_class, 
+                "session": sel_session, 
+                "sess_prefix": sess_prefix
+            })
 
             if roster_df.empty:
-                st.warning(f"⚠️ No active student profiles registered under Section '{sel_section}'.")
+                st.warning(f"⚠️ No active student profiles registered under Section '{sel_section}' ({sel_class}) inside Session {sel_session}.")
             else:
+                st.markdown(f"🔬 **Roster Grid Active:** Section {sel_section} — {target_date.strftime('%d-%b-%Y')}")
                 action_box_col, info_box_col = st.columns([2, 3])
                 with action_box_col:
                     master_attendance_toggle = st.checkbox("🟢 Check All as Present (Default)", value=True, key="master_att_switch")
                 with info_box_col:
-                    st.caption("💡 Uncheck individual boxes to mark a student **Absent (A)**.")
+                    st.caption("💡 Leave checked for **Present**. Uncheck boxes to issue an **Absent (A)** mark.")
 
                 with st.form("interactive_daily_attendance_form"):
                     attendance_checkbox_map = {}
@@ -641,6 +682,7 @@ if menu_choice == "📅 Attendance Entry Management":
                         initial_checkbox_state = (row['SavedStatus'] == 'P') if row['SavedStatus'] is not None else master_attendance_toggle
                         attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_checkbox_state, key=f"chk_student_{row['ID']}", label_visibility="collapsed")
 
+                    st.markdown("###")
                     if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
                         success_count = 0
                         for s_id, checked_present in attendance_checkbox_map.items():
@@ -648,21 +690,73 @@ if menu_choice == "📅 Attendance Entry Management":
                             execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", {"s_id": int(s_id), "att_date": target_date})
                             execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", {"s_id": int(s_id), "att_date": target_date, "status": status_code})
                             success_count += 1
-                        st.success(f"🎉 Daily Attendance locked for {success_count} students!")
+                        st.success(f"🎉 Daily Attendance locked for {success_count} students dynamically!")
                         st.rerun()
 
     # --------------------------------------------------------------------------------
-    # WORKFLOW 2: MONTHLY SUMMARY PERFORMANCE ENTRY
+    # WORKFLOW 2: MONTHLY ATTENDANCE SYNC WORKSPACE (WITH LOG AGGREGATION ENGINE)
     # --------------------------------------------------------------------------------
-    elif att_sub_type == "📊 Monthly Summary Entry":
-        st.subheader("📊 Monthly Summary Performance Sheet")
-        att_flow_mode = st.radio("Select Workflow Entry Mode:", ["📋 Manual Section Override", "👤 By Single Student Roll Number"], horizontal=True, key="monthly_att_flow_mode")
+    elif att_sub_type == "📊 Monthly Attendance Sync Workspace":
+        st.subheader("🔮 Monthly Summary Aggregation Sync Workspace")
+        att_flow_mode = st.radio("Select Entry Mode:", ["🔄 Sync from Daily Logs", "📋 Manual Section Override", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="monthly_att_flow_mode")
         st.markdown("---")
 
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
 
-        if att_flow_mode == "📋 Manual Section Override":
+        if att_flow_mode == "🔄 Sync from Daily Logs":
+            st.markdown("#### 🚀 Aggregate and Lock Monthly Records from Daily Tracker")
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: sync_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS if 'AVAILABLE_SESSIONS' in globals() else ["2024-26", "2025-27"], key="sync_sess")
+            with c2: sync_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="sync_class")
+            
+            sess_prefix = sync_session.split('-')[0] + '%'
+            active_secs_df = run_query("SELECT DISTINCT section FROM students WHERE session LIKE :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) ORDER BY section", {"sess": sess_prefix, "cls": sync_class})
+            
+            valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else ["MQ1", "CQ1", "CK1"]
+            
+            with c3: sync_section = st.selectbox("Select Section:", valid_sections_list, key="sync_sec")
+            with c4: sync_month = st.selectbox("Select Target Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="sync_month")
+            
+            month_numbers = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06", "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
+            target_month_num = month_numbers[sync_month]
+            
+            if st.button("🔄 Compute and Compile Attendance Summaries", type="primary", use_container_width=True):
+                calculated_logs = run_query("""
+                    SELECT 
+                        s.id AS student_id,
+                        COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
+                        COUNT(d.status) AS total_days
+                    FROM students s
+                    JOIN daily_attendance d ON s.id = d.student_id
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
+                      AND STRFTIME('%m', d.attendance_date) = :month_num
+                    GROUP BY s.id
+                """, {"section": sync_section, "class_level": sync_class, "month_num": target_month_num})
+                
+                if calculated_logs.empty:
+                    st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
+                else:
+                    for idx, row in calculated_logs.iterrows():
+                        execute_db_command("""
+                            DELETE FROM attendance 
+                            WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))
+                        """, {"s_id": int(row['student_id']), "month": sync_month})
+                        
+                        execute_db_command("""
+                            INSERT INTO attendance (student_id, month_name, present_days, total_days)
+                            VALUES (:s_id, :month, :p_days, :t_days)
+                        """, {
+                            "s_id": int(row['student_id']),
+                            "month": sync_month,
+                            "p_days": int(row['present_days']),
+                            "t_days": int(row['total_days'])
+                        })
+                    st.success(f"🎉 Successfully aggregated and locked attendance matrices for {len(calculated_logs)} students!")
+                    st.rerun()
+
+        elif att_flow_mode == "📋 Manual Section Override":
             c1, c2, c3, c4 = st.columns(4)
             if current_role == 'teacher' and current_user_id is not None:
                 teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
@@ -681,12 +775,22 @@ if menu_choice == "📅 Attendance Entry Management":
                     sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="att_sess_a")
                     sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
                 with c2: 
-                    sel_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="att_disc_a")
+                    sel_discipline = st.selectbox("Select Discipline Context:", ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"], key="att_disc_a")
                 with c3: 
                     sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="att_class_filter_a")
                 with c4: 
                     active_secs_df = run_query("SELECT DISTINCT section FROM students WHERE session LIKE :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) ORDER BY section", {"sess": sess_prefix, "cls": sel_class})
-                    valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else ["MQ1"]
+                    valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
+                    if not valid_sections_list:
+                        fallback_map = {
+                            "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                            "ENGINEERING": ["EK1", "EQ1"],
+                            "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                            "ICS_STATISTICS": ["CQ3", "CK3"],
+                            "COMMERCE": ["IQ1", "IK1"],
+                            "HUMANITIES": ["FQ1", "FK1"]
+                        }
+                        valid_sections_list = fallback_map.get(sel_discipline, ["MQ1"])
                     sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="att_sec_filter_a")
                     
                 try: available_subjects = DISCIPLINE_SUBJECTS_MAP[sel_discipline]
@@ -705,12 +809,15 @@ if menu_choice == "📅 Attendance Entry Management":
                         FROM students s
                         LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
                         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                          AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
                           AND (s.session LIKE :sess_prefix OR s.session = :session)
                           AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                         ORDER BY s.id ASC
-                    """, {"month": sel_month, "section": sel_section, "session": sel_session, "sess_prefix": sess_prefix})
+                    """, {"month": sel_month, "section": sel_section, "class_level": sel_class, "session": sel_session, "sess_prefix": sess_prefix})
                     
-                    if not roster_df.empty:
+                    if roster_df.empty:
+                        st.info(f"💡 No active student profiles registered under Section '{sel_section}' ({sel_class}).")
+                    else:
                         roster_df['Present'] = roster_df['Present'].fillna(total_days)
                         with st.form("bulk_attendance_form"):
                             updated_attendance = {}
@@ -723,7 +830,7 @@ if menu_choice == "📅 Attendance Entry Management":
                                 for s_id, p_days in updated_attendance.items():
                                     execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": int(s_id), "month": sel_month})
                                     execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": int(s_id), "month": sel_month.strip(), "p_days": int(p_days), "t_days": int(total_days)})
-                                st.success("🎉 Monthly Summary Matrix locked successfully!")
+                                st.success("🎉 Monthly Summary Matrix overrides locked successfully!")
                                 st.rerun()
                 except Exception as e:
                     st.error(f"Database sync issue: {e}")
@@ -733,12 +840,13 @@ if menu_choice == "📅 Attendance Entry Management":
             single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
             
             if single_att_id and single_att_id.isdigit():
-                student_info = run_query("SELECT name, section, session FROM students WHERE id = :id", {"id": int(single_att_id)})
+                student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_att_id)})
                 if not student_info.empty:
                     s_name = student_info['name'].iloc[0].upper()
                     s_section = student_info['section'].iloc[0].upper().strip()
                     s_session = student_info['session'].iloc[0]
-                    st.info(f"👤 Found Student: {s_name} | Section: {s_section}")
+                    s_class = student_info['class'].iloc[0]
+                    st.info(f"👤 Found Student: {s_name} | Class: {s_class} | Section: {s_section}")
                     
                     c_at1, c_at2, c_at3, c_at4 = st.columns(4)
                     with c_at1: single_att_sub = st.text_input("Subject:", value="COMPUTER", key="s_att_sub_val")
@@ -754,6 +862,11 @@ if menu_choice == "📅 Attendance Entry Management":
                         execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:id, :month, :p_days, :t_days)", {"id": int(single_att_id), "month": single_att_month.strip(), "p_days": int(single_present), "t_days": int(single_att_total)})
                         st.success(f"🎉 Summary parameters optimized for {s_name}!")
                         st.rerun()
+
+        elif att_flow_mode == "📤 Bulk Excel/CSV Import":
+            st.markdown("#### 📤 Upload Bulk Monthly Aggregated Metrics")
+            st.info("ℹ️ File structure context demands: `ID` and `Present_Days` headers to run calculations.")
+            st.file_uploader("Upload Summary Ledger Document File", type=["csv", "xlsx"], key="bulk_monthly_uploader")
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
