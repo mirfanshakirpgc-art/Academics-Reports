@@ -666,7 +666,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
 # ====================================================================================
-# MODULE: 📋 SECTION SUMMARY REPORT (FULL OVERHAUL WITH AUTOMATIC DISCOVERY & SCOPING)
+# MODULE: 📋 SECTION SUMMARY REPORT (FULL REPAIRED RE-ARCHITECTURE)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
@@ -688,7 +688,14 @@ elif menu_choice == "📋 Section Summary Report":
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = list(AVAILABLE_EXAMS)
 
-    # --- 2. LAYOUT GENERATION & LIVE DATABASE AUTO-DISCOVERY ---
+    # CRITICAL: Pre-initialize all configuration variables to eliminate NameError risks
+    db_session_string = "2025-27"
+    selected_class = "12th"
+    sel_disc = "ICS_PHYSICS"
+    sel_sec = ""
+    sel_exam = exam_options[0] if exam_options else "MT_1"
+
+    # --- 2. LAYOUT GENERATION & DISCIPLINE-COUPLED AUTO-DISCOVERY ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
     
     with col_sess:
@@ -703,9 +710,7 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_PHYSICS"
         
     with col_b: 
-        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
-        
-        # 1. Fetch all real sections from the database first for maximum safety
+        # LIVE SYSTEM DISCOVERY: Grab all database rows matched to Session and Class
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -719,38 +724,34 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # Fallback list if the database query comes up empty
+        # Fallback inventory if query drops out completely
         if not db_sections:
-            db_sections = ["CK2", "CK3", "CQ3", "MQ1", "MQ2", "MK", "EQ", "EK", "IK"]
+            db_sections = ["CK1", "CK2", "CK3", "CQ1", "CQ2", "CQ3", "MQ1", "MQ2", "EQ", "EK"]
 
-        # 2. Filter the database sections on the fly based on the chosen Discipline prefix
+        # LIVE DROPDOWN FILTERING: Extract sections based on selected Discipline
         if "STATS" in sel_disc:
-            # Stats sections usually contain '3' or explicitly map to stats identifiers
             sec_options = [s for s in db_sections if "3" in s or "STATS" in s.upper()]
-            if not sec_options: # Fallback if no specific stats section is found in DB
+            if not sec_options:
                 sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()] or ["CK3", "CQ3"]
         
         elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-            # ICS Physics sections usually end in 1 or 2 (e.g., CK1, CK2, CQ1)
             sec_options = [s for s in db_sections if ("1" in s or "2" in s) and ("CK" in s.upper() or "CQ" in s.upper())]
             if not sec_options:
                 sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()] or ["CK2"]
         
         elif "MEDICAL" in sel_disc:
-            sec_options = [s for s in db_sections if "M" in s.upper() or "MED" in s.upper()] or ["MQ1", "MQ2", "MK"]
+            sec_options = [s for s in db_sections if "M" in s.upper() or "MED" in s.upper()] or ["MQ1", "MQ2"]
         
         elif "ENGINEERING" in sel_disc:
             sec_options = [s for s in db_sections if "E" in s.upper() or "ENG" in s.upper()] or ["EQ", "EK"]
         
         else:
-            # If it's Commerce, Arts, or anything else, show all available rows
             sec_options = db_sections
 
-        # Final safety check to make sure the options list isn't empty
         if not sec_options:
             sec_options = db_sections
 
-        # 3. Handle smart default index positioning so you don't get index errors
+        # Compute optimal starting select layout
         default_idx = 0
         if "STATS" in sel_disc:
             if "CK3" in sec_options: default_idx = sec_options.index("CK3")
@@ -759,8 +760,11 @@ elif menu_choice == "📋 Section Summary Report":
             default_idx = sec_options.index("CK2")
 
         sel_sec = st.selectbox("Select Section:", sec_options, index=default_idx if default_idx < len(sec_options) else 0, key="summary_sec")
+        
+    with col_c: 
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
-    # --- 3. SUBJECT TRANSLATION GLOSSARY (STRICT UPPERCASE CONVERTER) ---
+    # --- 3. SUBJECT TRANSLATION GLOSSARY (STRICT UPPERCASE KEYWORDS) ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
@@ -794,7 +798,7 @@ elif menu_choice == "📋 Section Summary Report":
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
         try:
-            # Force student_id to text data type formatting right at database level
+            # Force student_id casting to transparent text types right at the SQL layer
             marks_df = run_query("""
                 SELECT TRIM(student_id)::text as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
                 FROM marks 
@@ -803,7 +807,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             marks_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER WITH RECOVERY RE-MAPPING ---
+        # --- 6. PERFORMANCE GRID COMPILER WITH ALIAS RECOVERY MATCHING ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
@@ -825,7 +829,7 @@ elif menu_choice == "📋 Section Summary Report":
                 sub_upper = sub.upper().strip()
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
                 
-                # Cross-reference alias names so data never goes unmapped
+                # Cross-reference tracking definitions across columns dynamically
                 alias_list = [sub_upper]
                 if "STAT" in sub_upper:
                     alias_list.extend(["STATISTICS", "STATS", "PHYSICS"])
@@ -875,7 +879,7 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # --- 7. HTML LIVE COMPONENT & RENDERING INTERFACE ---
+        # --- 7. HTML LIVE COMPONENT INTERFACE GENERATOR ---
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
