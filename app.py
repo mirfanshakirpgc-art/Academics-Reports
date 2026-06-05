@@ -666,7 +666,7 @@ if menu_choice == "📂 Enter Marks & Attendance" or menu_choice == "📝 Enter 
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
 # ====================================================================================
-# MODULE: 📋 SECTION SUMMARY REPORT (FULL REPAIRED RE-ARCHITECTURE)
+# MODULE: 📋 SECTION SUMMARY REPORT (FINAL REPAIRED VERSION WITH STATE RESET)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
@@ -675,7 +675,7 @@ elif menu_choice == "📋 Section Summary Report":
 
     st.title("📋 Section Summary Report")
 
-    # --- 1. SAFE PARAMETERS CONFIG (DEFAULTS GUARANTEED) ---
+    # --- 1. PARAMETERS CONFIGURATION ---
     session_options = ["2024-26", "2025-27", "2026-28"]
     if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
         session_options = list(AVAILABLE_SESSIONS)
@@ -687,13 +687,6 @@ elif menu_choice == "📋 Section Summary Report":
     exam_options = ["MT_1", "MT_2", "PRE_BOARD"]
     if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
         exam_options = list(AVAILABLE_EXAMS)
-
-    # CRITICAL: Pre-initialize all configuration variables to eliminate NameError risks
-    db_session_string = "2025-27"
-    selected_class = "12th"
-    sel_disc = "ICS_PHYSICS"
-    sel_sec = ""
-    sel_exam = exam_options[0] if exam_options else "MT_1"
 
     # --- 2. LAYOUT GENERATION & DISCIPLINE-COUPLED AUTO-DISCOVERY ---
     col_sess, col_class, col_a, col_b, col_c = st.columns(5)
@@ -710,7 +703,7 @@ elif menu_choice == "📋 Section Summary Report":
         sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_PHYSICS"
         
     with col_b: 
-        # LIVE SYSTEM DISCOVERY: Grab all database rows matched to Session and Class
+        # LIVE SYSTEM DISCOVERY: Query real sections from the database
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -724,47 +717,79 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # Fallback inventory if query drops out completely
+        # CRITICAL FIX: Base the fallback on the selected class *before* filtering to stop 12th-grade leaks
         if not db_sections:
-            db_sections = ["CK1", "CK2", "CK3", "CQ1", "CQ2", "CQ3", "MQ1", "MQ2", "EQ", "EK"]
+            if selected_class == "11th":
+                db_sections = ["CB_WHITE", "CB_GREEN", "CG_WHITE", "EG_BLUE", "MG_BLUE", "MG_WHITE"]
+            else:
+                db_sections = ["CK1", "CK2", "CK3", "CQ1", "CQ2", "CQ3", "MQ1", "MQ2", "EQ", "EK"]
 
-        # LIVE DROPDOWN FILTERING: Extract sections based on selected Discipline
-        if "STATS" in sel_disc:
-            sec_options = [s for s in db_sections if "3" in s or "STATS" in s.upper()]
-            if not sec_options:
-                sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()] or ["CK3", "CQ3"]
-        
-        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-            sec_options = [s for s in db_sections if ("1" in s or "2" in s) and ("CK" in s.upper() or "CQ" in s.upper())]
-            if not sec_options:
-                sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()] or ["CK2"]
-        
-        elif "MEDICAL" in sel_disc:
-            sec_options = [s for s in db_sections if "M" in s.upper() or "MED" in s.upper()] or ["MQ1", "MQ2"]
-        
-        elif "ENGINEERING" in sel_disc:
-            sec_options = [s for s in db_sections if "E" in s.upper() or "ENG" in s.upper()] or ["EQ", "EK"]
-        
+        # LIVE DROPDOWN FILTERING: Cross-reference Class + Discipline matching rules
+        sec_options = []
+
+        if selected_class == "11th":
+            # --- 11th Grade Color-Coded Matching Logic ---
+            if "STATS" in sel_disc:
+                sec_options = [s for s in db_sections if "WHITE" in s.upper() and ("CB" in s.upper() or "CG" in s.upper())]
+                if not sec_options:
+                    sec_options = [s for s in db_sections if "CB" in s.upper() or "CG" in s.upper()]
+            elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+                sec_options = [s for s in db_sections if "CB" in s.upper() or "CG" in s.upper()]
+            elif "MEDICAL" in sel_disc:
+                sec_options = [s for s in db_sections if "MG" in s.upper() or "MD" in s.upper()]
+            elif "ENGINEERING" in sel_disc:
+                sec_options = [s for s in db_sections if "EG" in s.upper() or "EN" in s.upper()]
+            else:
+                sec_options = db_sections
         else:
-            sec_options = db_sections
+            # --- 12th Grade Alpha-Numeric Standard Matching Logic ---
+            if "STATS" in sel_disc:
+                sec_options = [s for s in db_sections if "3" in s or "STATS" in s.upper()]
+                if not sec_options:
+                    sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()]
+            elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+                sec_options = [s for s in db_sections if ("1" in s or "2" in s) and ("CK" in s.upper() or "CQ" in s.upper())]
+                if not sec_options:
+                    sec_options = [s for s in db_sections if "CK" in s.upper() or "CQ" in s.upper()]
+            elif "MEDICAL" in sel_disc:
+                sec_options = [s for s in db_sections if "MQ" in s.upper() or "MK" in s.upper() or "M" in s.upper()]
+            elif "ENGINEERING" in sel_disc:
+                sec_options = [s for s in db_sections if "EQ" in s.upper() or "EK" in s.upper() or "E" in s.upper()]
+            else:
+                sec_options = db_sections
 
+        # Final safety fallback
         if not sec_options:
             sec_options = db_sections
 
-        # Compute optimal starting select layout
+        # Compute optimal default starting index positions
         default_idx = 0
-        if "STATS" in sel_disc:
-            if "CK3" in sec_options: default_idx = sec_options.index("CK3")
-            elif "CQ3" in sec_options: default_idx = sec_options.index("CQ3")
-        elif "PHYSICS" in sel_disc and "CK2" in sec_options:
-            default_idx = sec_options.index("CK2")
+        if selected_class == "11th":
+            if "PHYSICS" in sel_disc and "CB_GREEN" in sec_options:
+                default_idx = sec_options.index("CB_GREEN")
+            elif "STATS" in sel_disc and "CB_WHITE" in sec_options:
+                default_idx = sec_options.index("CB_WHITE")
+        else:
+            if "STATS" in sel_disc:
+                if "CK3" in sec_options: default_idx = sec_options.index("CK3")
+                elif "CQ3" in sec_options: default_idx = sec_options.index("CQ3")
+            elif "PHYSICS" in sel_disc and "CK2" in sec_options:
+                default_idx = sec_options.index("CK2")
 
-        sel_sec = st.selectbox("Select Section:", sec_options, index=default_idx if default_idx < len(sec_options) else 0, key="summary_sec")
+        # CRITICAL FIX: The dynamic selectbox key prevents Streamlit from misremembering 12th-grade layouts
+        dynamic_widget_key = f"summary_sec_{selected_class}_{sel_disc}_{db_session_string}"
+        
+        sel_sec = st.selectbox(
+            "Select Section:", 
+            sec_options, 
+            index=default_idx if default_idx < len(sec_options) else 0, 
+            key=dynamic_widget_key
+        )
         
     with col_c: 
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
-    # --- 3. SUBJECT TRANSLATION GLOSSARY (STRICT UPPERCASE KEYWORDS) ---
+    # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
@@ -774,16 +799,16 @@ elif menu_choice == "📋 Section Summary Report":
     
     # --- 4. SYSTEM INTELLIGENT ROUTING MATRIX ---
     normalized_sec = str(sel_sec).upper().strip()
-    if "STATS" in sel_disc or "CK3" in normalized_sec or "CQ3" in normalized_sec:
+    if "STATS" in sel_disc or "CK3" in normalized_sec or "CQ3" in normalized_sec or "WHITE" in normalized_sec:
         subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-    elif "ICS" in sel_disc or "PHYSICS" in sel_disc or "CK" in normalized_sec or "CQ" in normalized_sec:
+    elif "ICS" in sel_disc or "PHYSICS" in sel_disc or "CK" in normalized_sec or "CQ" in normalized_sec or "GREEN" in normalized_sec:
         subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-    elif "MEDICAL" in sel_disc or "MQ" in normalized_sec:
+    elif "MEDICAL" in sel_disc or "MQ" in normalized_sec or "MG" in normalized_sec:
         subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
     else:
         subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
 
-    # --- 5. DATABASE INTEGRATION ENGINE (CASE-INSENSITIVE + TYPE CLEANUP) ---
+    # --- 5. DATABASE INTEGRATION ENGINE ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -798,7 +823,6 @@ elif menu_choice == "📋 Section Summary Report":
         st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
     else:
         try:
-            # Force student_id casting to transparent text types right at the SQL layer
             marks_df = run_query("""
                 SELECT TRIM(student_id)::text as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
                 FROM marks 
@@ -807,7 +831,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             marks_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER WITH ALIAS RECOVERY MATCHING ---
+        # --- 6. PERFORMANCE GRID COMPILER ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
@@ -829,7 +853,6 @@ elif menu_choice == "📋 Section Summary Report":
                 sub_upper = sub.upper().strip()
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
                 
-                # Cross-reference tracking definitions across columns dynamically
                 alias_list = [sub_upper]
                 if "STAT" in sub_upper:
                     alias_list.extend(["STATISTICS", "STATS", "PHYSICS"])
