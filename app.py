@@ -876,6 +876,219 @@ if menu_choice == "📅 Attendance Entry Management":
                         execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:id, :month, :p_days, :t_days)", {"id": int(single_att_id), "month": single_att_month.strip(), "p_days": int(single_present), "t_days": int(single_att_total)})
                         st.success(f"🎉 Summary parameters optimized for {s_name}!")
                         st.rerun()
+                        # ====================================================================================
+# MODULE 3: ATTENDANCE REPORTS (CONCORDIA COLLEGE KASUR LAYOUT ENGINE)
+# ====================================================================================
+if menu_choice == "📈 Attendance Reports (Concordia Layout)":
+    st.title("📊 Concordia Campus Attendance Reporting Engine")
+    
+    report_type = st.segmented_control(
+        "Select Reporting Workspace Type:",
+        ["📆 Daily Campus Attendance Ledger", "📊 Section-Wise Monthly Summary Grid"],
+        default="📆 Daily Campus Attendance Ledger",
+        key="concordia_reporting_segmented_control"
+    )
+    st.markdown("###")
+    
+    # DB Connection Setup
+    DB_FILE_PATH = "college_database.db"
+    
+    # --------------------------------------------------------------------------------
+    # WORKFLOW A: CONCORDIA KASUR STYLE DAILY CAMPUS LEDGER SHEET
+    # --------------------------------------------------------------------------------
+    if report_type == "📆 Daily Campus Attendance Ledger":
+        st.subheader("📋 Concordia College Kasur — Daily Campus Roster Sheet")
+        
+        c_hdr1, _ = st.columns([1, 3])
+        with c_hdr1:
+            target_report_date = st.date_input("Select Target Report Date:", value=date.today(), key="conc_daily_rep_date")
+            
+        st.markdown("---")
+        
+        # Pull live metrics from database
+        raw_roster = run_query("""
+            SELECT 
+                s.id, s.name, s.class, s.section, s.status, s.gender,
+                d.status AS daily_status
+            FROM students s
+            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :rep_date
+        """, {"rep_date": target_report_date})
+        
+        if raw_roster.empty:
+            st.warning("⚠️ No student profile metrics recorded inside the core registry.")
+        else:
+            # 🎯 Map sections exactly as shown in image_7db4de.png
+            category_mapping = {
+                "First Year Girls": ["MG/EG BLUE", "MG WHITE", "CG WHITE", "CG GREEN", "CG STATS WHITE", "FA", "I.COM"],
+                "Second Year Girls": ["MQ1", "MQ2", "CQ1/EQ1", "CQ2", "CQ3", "FQ1", "IQ1"],
+                "First Year Boys": ["MB/EB BLUE", "CB WHITE", "CB STATS/CB GREEN", "I.COM", "FA"],
+                "Second Year Boys": ["CK1/EK1", "MK1", "CK2", "CK3", "IK1/FK1"]
+            }
+            
+            # Placeholder in-charges from image_7db4de.png
+            in_charges = {
+                "MG/EG BLUE": "Ms. Sidra Khan", "MG WHITE": "Ms. Sidra Khan", "CG WHITE": "Ms. Afshan",
+                "CG GREEN": "Ms. Hamna", "CG STATS WHITE": "Ms. Hamna", "FA": "Ms. Sumera", "I.COM": "Ms. Nazia",
+                "MQ1": "Ms. Hina", "MQ2": "Ms. Samra Batool", "CQ1/EQ1": "Ms. Afshan", "CQ2": "Ms. Hina",
+                "CQ3": "Ms. Samra Batool", "FQ1": "Ms. Faria", "IQ1": "Ms. Nazia",
+                "MB/EB BLUE": "Mr. Qamar", "CB WHITE": "Mr. Saad Jamali", "CB STATS/CB GREEN": "Mr. Tanseer",
+                "CK1/EK1": "Mr. Saqib", "MK1": "Mr. Qamar", "CK2": "Mr. Usman", "CK3": "Mr. Rauf", "IK1/FK1": "Mr. Asif"
+            }
+
+            grand_enrolled = 0
+            grand_left = 0
+            grand_active = 0
+            grand_present = 0
+            grand_absent = 0
+            
+            # --- Visual Report Header Layout ---
+            st.markdown(
+                """
+                <div style='text-align: center; border: 2px solid #1E3A8A; padding: 15px; background-color: #F8FAFC; border-radius: 5px;'>
+                    <h1 style='color: #1E3A8A; margin: 0;'>Concordia College Kasur</h1>
+                    <h3 style='margin: 5px 0; color: #475569;'>Attendance Report</h3>
+                    <h5 style='margin: 0; color: #64748B;'>F.Sc / ICS / I.COM / FA</h5>
+                    <h4 style='text-align: right; margin: 0; color: #1E3A8A;'>📆 {0}</h4>
+                </div>
+                """.format(target_report_date.strftime('%A, %B %d, %Y')), 
+                unsafe_allow_html=True
+            )
+            st.markdown("###")
+            
+            # Render each distinct group structural partition
+            for part_title, sections in category_mapping.items():
+                st.markdown(f"### 👥 {part_title}")
+                
+                section_rows = []
+                cat_enrolled, cat_left, cat_active, cat_present, cat_absent = 0, 0, 0, 0, 0
+                
+                for sec in sections:
+                    # Case-insensitive filtering of row data frames
+                    sec_df = raw_roster[raw_roster['section'].str.upper().str.strip() == sec]
+                    
+                    total_enr = len(sec_df)
+                    left_count = len(sec_df[sec_df['status'].str.upper().str.strip() == 'LEFT'])
+                    active_count = total_enr - left_count
+                    
+                    active_rows = sec_df[sec_df['status'].str.upper().str.strip() != 'LEFT']
+                    pres_count = len(active_rows[active_rows['daily_status'] == 'P'])
+                    abs_count = len(active_rows[active_rows['daily_status'] == 'A'])
+                    
+                    # Unmarked fallback buffer automatically marked as Present (default rule)
+                    unmarked = active_count - (pres_count + abs_count)
+                    pres_count += max(0, unmarked)
+                    
+                    pct = round((pres_count / active_count) * 100) if active_count > 0 else 0
+                    
+                    # Only append rows if students exist in database, else keep empty placeholders
+                    if total_enr > 0:
+                        section_rows.append({
+                            "Section": sec,
+                            "In Charge": in_charges.get(sec, "N/A"),
+                            "Total Enrolled": total_enr,
+                            "Left": left_count,
+                            "Total Active": active_count,
+                            "Present": pres_count,
+                            "Absent": abs_count,
+                            "%age": f"{pct}%"
+                        })
+                        
+                        cat_enrolled += total_enr
+                        cat_left += left_count
+                        cat_active += active_count
+                        cat_present += pres_count
+                        cat_absent += abs_count
+                
+                if section_rows:
+                    cat_pct = round((cat_present / cat_active) * 100) if cat_active > 0 else 0
+                    
+                    # Append Group Categorical Summary Row Matrix
+                    section_rows.append({
+                        "Section": "🟢 TOTAL",
+                        "In Charge": "—",
+                        "Total Enrolled": cat_enrolled,
+                        "Left": cat_left,
+                        "Total Active": cat_active,
+                        "Present": cat_present,
+                        "Absent": cat_absent,
+                        "%age": f"{cat_pct}%"
+                    })
+                    
+                    st.table(section_rows)
+                    
+                    grand_enrolled += cat_enrolled
+                    grand_left += cat_left
+                    grand_active += cat_active
+                    grand_present += cat_present
+                    grand_absent += cat_absent
+                else:
+                    st.caption("No live database entries found for sections in this category partition block.")
+
+            # --- Bottom Comprehensive Summary Block Layout ---
+            st.markdown("### 📊 Statistics of Attendance")
+            grand_pct = round((grand_present / grand_active) * 100, 2) if grand_active > 0 else 0.0
+            
+            stats_summary_table = [{
+                "Date": target_report_date.strftime('%d-%b-%Y'),
+                "Total Enrolled": grand_enrolled,
+                "Left": grand_left,
+                "Total Active": grand_active,
+                "Total Present": grand_present,
+                "Total Absent": grand_absent,
+                "Grand Percentage": f"{grand_pct}%"
+            }]
+            st.dataframe(stats_summary_table, use_container_width=True, hide_index=True)
+            
+            # --- Remarks and Feedback logs section ---
+            st.markdown("### 📝 Remarks & Calls Feedback")
+            st.text_area("Administrative Log Entry Window:", label_visibility="collapsed", placeholder="Type absence tracking details or principal follow-ups here...")
+            
+            st.markdown("###")
+            st.markdown("<p style='text-align: right; font-weight: bold; font-size: 16px; text-decoration: underline; padding-right: 60px;'>Principal</p>", unsafe_allow_html=True)
+
+    # --------------------------------------------------------------------------------
+    # WORKFLOW B: SECTION-WISE MONTHLY SUMMARY GRID LEDGER
+    # --------------------------------------------------------------------------------
+    elif report_type == "📊 Section-Wise Monthly Summary Grid":
+        st.subheader("📊 Section-Wise Monthly Summary Metrics")
+        
+        c_m1, c_m2, c_m3 = st.columns(3)
+        with c_m1:
+            sel_m_year = st.selectbox("Select Session Target:", ["2025-27", "2024-26"], key="m_rep_sess")
+        with c_m2:
+            sel_m_class = st.selectbox("Select Class Level Filter:", ["12th", "11th"], key="m_rep_class")
+        with c_m3:
+            sel_m_month = st.selectbox("Select Target Analytics Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="m_rep_month")
+            
+        st.markdown("---")
+        
+        # Read summarized history blocks 
+        monthly_matrix_data = run_query("""
+            SELECT 
+                s.section AS "Section",
+                COUNT(DISTINCT s.id) AS "Students Enrolled",
+                SUM(a.present_days) AS "Aggregate Present Days",
+                SUM(a.total_days) AS "Total Working Days"
+            FROM students s
+            JOIN attendance a ON s.id = a.student_id
+            WHERE UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+              AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
+              AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
+            GROUP BY s.section
+            ORDER BY s.section ASC
+        """, {"session": sel_m_year, "class_level": sel_m_class, "month": sel_m_month})
+        
+        if monthly_matrix_data.empty:
+            st.info(f"💡 No frozen monthly data found for Session {sel_m_year} ({sel_m_class}) in {sel_m_month}. Compile daily data loops first.")
+        else:
+            st.markdown(f"🗓️ **Monthly Section Performance Index Matrix — {sel_m_month}**")
+            
+            # Compute math stats indices columns
+            monthly_matrix_data["Section Attendance %"] = (
+                (monthly_matrix_data["Aggregate Present Days"] / monthly_matrix_data["Total Working Days"]) * 100
+            ).round(2).astype(str) + "%"
+            
+            st.dataframe(monthly_matrix_data, use_container_width=True, hide_index=True)
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
