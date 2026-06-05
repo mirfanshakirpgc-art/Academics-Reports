@@ -585,6 +585,12 @@ if menu_choice == "📝 Academic Exam Marks Entry":
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DAILY & MONTHLY SYNC INTEGRATED)
 # ====================================================================================
+st.write("### 🔍 Live Database Diagnoser")
+try:
+    test_data = run_query("SELECT id, name, class, session, section, status FROM students LIMIT 5")
+    st.dataframe(test_data)
+except Exception as e:
+    st.error(f"Could not read student columns: {e}")
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
     
