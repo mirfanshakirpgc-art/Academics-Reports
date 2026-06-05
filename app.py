@@ -1,3 +1,62 @@
+import streamlit as st
+import pandas as pd
+from datetime import date
+import sqlite3
+
+DB_FILE_PATH = "college_database.db"
+
+def run_query(query, params=None):
+    """
+    Executes a query and safely returns a DataFrame. 
+    Ensures core tables are initialized to prevent 'no such table' crashes.
+    """
+    # 1. Establish a direct connection to guarantee setup
+    con = sqlite3.connect(DB_FILE_PATH)
+    cursor = con.cursor()
+    
+    # 2. Run self-healing schema setup before executing any queries
+    cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            class TEXT,
+            section TEXT,
+            session TEXT,
+            status TEXT DEFAULT 'ACTIVE',
+            gender TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS daily_attendance (
+            student_id INTEGER,
+            attendance_date TEXT,
+            status TEXT,
+            PRIMARY KEY (student_id, attendance_date)
+        );
+        
+        CREATE TABLE IF NOT EXISTS attendance (
+            student_id INTEGER,
+            month_name TEXT,
+            present_days INTEGER,
+            total_days INTEGER,
+            PRIMARY KEY (student_id, month_name)
+        );
+    """)
+    con.commit()
+    
+    # 3. Safe parameter mapping translation for pandas
+    try:
+        if params:
+            # Standardize names from :sess style to dict keys cleanly
+            cleaned_params = {k.replace(':', ''): v for k, v in params.items()}
+            df = pd.read_sql_query(query, con, params=cleaned_params)
+        else:
+            df = pd.read_sql_query(query, con)
+        return df
+    except Exception as e:
+        st.error(f"⚠️ SQL Query processing failure: {e}")
+        return pd.DataFrame()
+    finally:
+        con.close()
 # ==============================================================================
 # 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
 # ==============================================================================
