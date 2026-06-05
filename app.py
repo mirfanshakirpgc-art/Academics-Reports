@@ -569,98 +569,142 @@ if menu_choice in ["📂 Enter Marks & Attendance", "📝 Enter Marks & Attendan
                 except Exception as e:
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
-    # ================================================================================
-    # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE (AUTOMATED FROM DAILY LOGS)
-    # ================================================================================
-    elif sub_tab_selection == "📅 Monthly Attendance Entry":
-        st.subheader("📅 Monthly Attendance Sync Workspace")
-        
-        att_flow_mode = st.radio(
-            "Select Entry Mode:", 
-            ["🔄 Sync from Daily Logs", "📋 Manual Section Override", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], 
-            horizontal=True, 
-            key="attendance_workflow_mode"
-        )
-        st.markdown("---")
-        
-        current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
-        current_user_id = st.session_state.get('user_id', None)
+    # ====================================================================================
+# MODULE: 📅 DAILY ATTENDANCE ENTRY WORKSPACE
+# ====================================================================================
+elif sub_tab_selection == "📅 Daily Attendance Entry":
+    import streamlit as st
+    import pandas as pd
+    from datetime import date
 
-        # ----------------------------------------------------------------------------
-        # MODE 1: AUTOMATED SYNC FROM DAILY LOGS (RECOMMENDED)
-        # ----------------------------------------------------------------------------
-        if att_flow_mode == "🔄 Sync from Daily Logs":
-            st.markdown("##### 🚀 Aggregate and Lock Monthly Records from Daily Tracker")
+    st.subheader("📅 Daily Attendance Roster Sheet")
+    st.markdown("---")
+    
+    current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
+    current_user_id = st.session_state.get('user_id', None)
+    
+    # --- 1. SELECTION FILTERS WITH DISCIPLINE MATCHING ---
+    c1, c2, c3, c4 = st.columns(4)
+    
+    with c1:
+        sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS if 'AVAILABLE_SESSIONS' in globals() else ["2025-27", "2024-26"], key="daily_att_sess")
+        sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
+    with c2:
+        sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="daily_att_class")
+    with c3:
+        # Added Discipline Filter so database queries map sections correctly matching image layout
+        sel_discipline = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE if 'AVAILABLE_DISCIPLINE' in globals() else ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"], key="daily_att_disc")
+    with c4:
+        # Fetch sections matching the specific discipline context and class criteria
+        active_secs_df = run_query("""
+            SELECT DISTINCT section FROM students 
+            WHERE session LIKE :sess 
+              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+            ORDER BY section
+        """, {"sess": sess_prefix, "cls": sel_class})
+        
+        # Fallback to hardcoded structures if database mapping yields zero matches
+        valid_sections = active_secs_df['section'].tolist() if not active_secs_df.empty else []
+        if not valid_sections:
+            fallback_map = {
+                "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                "ENGINEERING": ["EK1", "EQ1"],
+                "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                "ICS_STATISTICS": ["CQ3", "CK3"],
+                "COMMERCE": ["IQ1", "IK1"],
+                "HUMANITIES": ["FQ1", "FK1"]
+            }
+            valid_sections = fallback_map.get(sel_discipline, ["CK1", "CK2", "MQ1"])
             
-            sc1, sc2, sc3, sc4 = st.columns(4)
-            with sc1:
-                sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="sync_att_sess")
-                sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
-            with sc2:
-                sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="sync_att_class")
-            with sc3:
-                # Find active sections dynamically
-                sync_secs_df = run_query("""
-                    SELECT DISTINCT section FROM students 
-                    WHERE session LIKE :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
-                    ORDER BY section
-                """, {"sess": sess_prefix, "cls": sel_class})
-                valid_sync_sections = sync_secs_df['section'].tolist() if not sync_secs_df.empty else ["CG_STATS", "CB_WHITE", "MQ1"]
-                sel_section = st.selectbox("Select Section:", valid_sync_sections, key="sync_att_sec")
-            with sc4:
-                sel_month = st.selectbox("Select Target Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="sync_att_month")
+        sel_section = st.selectbox("Select Target Section:", valid_sections, key="daily_att_sec")
 
-            # Map English month strings to SQL extraction integers
-            month_map = {"January":1, "February":2, "March":3, "April":4, "May":5, "June":6, "July":7, "August":8, "September":9, "October":10, "November":11, "December":12}
-            target_month_num = month_map[sel_month]
+    # Date Selection row
+    row_date_1, row_date_2 = st.columns([1, 3])
+    with row_date_1:
+        target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
 
-            if sel_section and sel_session:
-                # Query calculates total unique days marked for this section and sums up presents for each student
-                computed_roster_df = run_query("""
-                    WITH total_working_days AS (
-                        SELECT COUNT(DISTINCT d.attendance_date) as active_days
-                        FROM daily_attendance d
-                        JOIN students s ON d.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                          AND EXTRACT(MONTH FROM d.attendance_date) = :month_num
+    st.markdown("###")
+
+    # --- 2. ROSTER RENDERING & INTERACTIVE CHECKBOXES ---
+    if sel_section and sel_session:
+        # Fetching all active student profiles matching section parameters
+        roster_df = run_query("""
+            SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+            FROM students s
+            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+              AND (s.session LIKE :sess_prefix OR s.session = :session)
+              AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+            ORDER BY s.id ASC
+        """, {"att_date": target_date, "section": sel_section, "session": sel_session, "sess_prefix": sess_prefix})
+
+        if roster_df.empty:
+            st.warning(f"⚠️ No active student profiles registered under Section '{sel_section}' ({sel_class}) inside Session {sel_session}.")
+        else:
+            st.markdown(f"🔬 **Roster Control Grid:** {sel_section} — {target_date.strftime('%d-%b-%Y')}")
+            
+            # --- QUICK ACTION UTILITY BAR ---
+            action_box_col, info_box_col = st.columns([2, 3])
+            with action_box_col:
+                # Master toggle button logic
+                master_attendance_toggle = st.checkbox("🟢 Check All as Present (Default)", value=True, key="master_att_switch")
+            with info_box_col:
+                st.caption("💡 Tip: Leave checked for **Present**. Uncheck individual checkboxes manually to mark a student **Absent**.")
+
+            # Form structure containing interactive checkboxes
+            with st.form("interactive_daily_attendance_form"):
+                attendance_checkbox_map = {}
+                
+                # Table column layout descriptors
+                h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
+                h_col1.markdown("**Roll No / ID**")
+                h_col2.markdown("**Student Name Name**")
+                h_col3.markdown("**Is Present?**")
+                st.markdown("<hr style='margin:0px; padding:0px; margin-bottom:10px;' />", unsafe_allow_html=True)
+
+                for idx, row in roster_df.iterrows():
+                    col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
+                    
+                    col_s1.write(f"🆔 `{row['ID']}`")
+                    col_s2.write(f"👤 **{row['Student Name']}**")
+                    
+                    # Compute check value rule: Saved database parameters take priority over Master override switches
+                    if row['SavedStatus'] is not None:
+                        initial_checkbox_state = True if row['SavedStatus'] == 'P' else False
+                    else:
+                        initial_checkbox_state = master_attendance_toggle
+
+                    # Render sleek standard check boxes
+                    attendance_checkbox_map[row['ID']] = col_s3.checkbox(
+                        "Present", 
+                        value=initial_checkbox_state, 
+                        key=f"chk_student_{row['ID']}", 
+                        label_visibility="collapsed"
                     )
-                    SELECT 
-                        s.id AS "ID", 
-                        s.name AS "Student Name",
-                        COALESCE((SELECT active_days FROM total_working_days), 0) AS "Total Tracked Days",
-                        COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS "Calculated Presents"
-                    FROM students s
-                    LEFT JOIN daily_attendance d ON s.id = d.student_id AND EXTRACT(MONTH FROM d.attendance_date) = :month_num
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND (s.session LIKE :sess_prefix OR s.session = :session)
-                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-                    GROUP BY s.id, s.name
-                    ORDER BY s.id ASC
-                """, {"section": sel_section, "month_num": target_month_num, "session": sel_session, "sess_prefix": sess_prefix})
 
-                if computed_roster_df.empty or computed_roster_df["Total Tracked Days"].max() == 0:
-                    st.warning(f"⚠️ No daily attendance tracking logs found for {sel_section} in {sel_month}.")
-                else:
-                    total_computed_days = int(computed_roster_df["Total Tracked Days"].max())
-                    st.info(f"📅 System calculated **{total_computed_days} working days** recorded for **{sel_section}** during **{sel_month}**.")
-                    
-                    # Present preview layout
-                    st.dataframe(computed_roster_df[["ID", "Student Name", "Total Tracked Days", "Calculated Presents"]], use_container_width=True, hide_index=True)
-                    
-                    if st.button("🔄 Synchronize & Save Daily Records to Monthly Ledger", type="primary", use_container_width=True):
-                        try:
-                            for idx, row in computed_roster_df.iterrows():
-                                s_id = int(row["ID"])
-                                p_days = int(row["Calculated Presents"])
-                                
-                                # Purge and write to legacy table structure
-                                execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": s_id, "month": sel_month})
-                                execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": s_id, "month": sel_month.strip(), "p_days": p_days, "t_days": total_computed_days})
-                            
-                            st.success(f"🎉 Successfully locked daily metrics down into monthly ledger profiles for {len(computed_roster_df)} students!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Sync Execution Error: {e}")
+                st.markdown("---")
+                
+                # Form submission mechanics processing values to relational data stores
+                if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
+                    success_count = 0
+                    for s_id, checked_present in attendance_checkbox_map.items():
+                        # Determine letter string status code mapping standard structures
+                        status_code = "P" if checked_present else "A"
+                        
+                        # Atomically clean historical logs for day before re-writing updated values
+                        execute_db_command("""
+                            DELETE FROM daily_attendance 
+                            WHERE student_id = :s_id AND attendance_date = :att_date
+                        """, {"s_id": int(s_id), "att_date": target_date})
+                        
+                        execute_db_command("""
+                            INSERT INTO daily_attendance (student_id, attendance_date, status) 
+                            VALUES (:s_id, :att_date, :status)
+                        """, {"s_id": int(s_id), "att_date": target_date, "status": status_code})
+                        success_count += 1
+                        
+                    st.success(f"🎉 Attendance successfully updated and locked for {success_count} students!")
+                    st.rerun()
 
         # ----------------------------------------------------------------------------
         # MODE 2: ORIGINAL MANUAL SECTION ENTRY (PRESERVED AS AN OVERRIDE)
