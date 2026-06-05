@@ -570,17 +570,102 @@ if menu_choice in ["📂 Enter Marks & Attendance", "📝 Enter Marks & Attendan
                     st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 
     # ================================================================================
-    # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE
+    # 2. MONTHLY ATTENDANCE ENTRY SUB-MODULE (AUTOMATED FROM DAILY LOGS)
     # ================================================================================
     elif sub_tab_selection == "📅 Monthly Attendance Entry":
-        st.subheader("📅 Monthly Attendance Workspace")
-        att_flow_mode = st.radio("Select Entry Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="attendance_workflow_mode")
+        st.subheader("📅 Monthly Attendance Sync Workspace")
+        
+        att_flow_mode = st.radio(
+            "Select Entry Mode:", 
+            ["🔄 Sync from Daily Logs", "📋 Manual Section Override", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], 
+            horizontal=True, 
+            key="attendance_workflow_mode"
+        )
         st.markdown("---")
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
-        
-        if att_flow_mode == "📋 By Complete Section":
+
+        # ----------------------------------------------------------------------------
+        # MODE 1: AUTOMATED SYNC FROM DAILY LOGS (RECOMMENDED)
+        # ----------------------------------------------------------------------------
+        if att_flow_mode == "🔄 Sync from Daily Logs":
+            st.markdown("##### 🚀 Aggregate and Lock Monthly Records from Daily Tracker")
+            
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            with sc1:
+                sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="sync_att_sess")
+                sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
+            with sc2:
+                sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="sync_att_class")
+            with sc3:
+                # Find active sections dynamically
+                sync_secs_df = run_query("""
+                    SELECT DISTINCT section FROM students 
+                    WHERE session LIKE :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+                    ORDER BY section
+                """, {"sess": sess_prefix, "cls": sel_class})
+                valid_sync_sections = sync_secs_df['section'].tolist() if not sync_secs_df.empty else ["CG_STATS", "CB_WHITE", "MQ1"]
+                sel_section = st.selectbox("Select Section:", valid_sync_sections, key="sync_att_sec")
+            with sc4:
+                sel_month = st.selectbox("Select Target Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="sync_att_month")
+
+            # Map English month strings to SQL extraction integers
+            month_map = {"January":1, "February":2, "March":3, "April":4, "May":5, "June":6, "July":7, "August":8, "September":9, "October":10, "November":11, "December":12}
+            target_month_num = month_map[sel_month]
+
+            if sel_section and sel_session:
+                # Query calculates total unique days marked for this section and sums up presents for each student
+                computed_roster_df = run_query("""
+                    WITH total_working_days AS (
+                        SELECT COUNT(DISTINCT d.attendance_date) as active_days
+                        FROM daily_attendance d
+                        JOIN students s ON d.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                          AND EXTRACT(MONTH FROM d.attendance_date) = :month_num
+                    )
+                    SELECT 
+                        s.id AS "ID", 
+                        s.name AS "Student Name",
+                        COALESCE((SELECT active_days FROM total_working_days), 0) AS "Total Tracked Days",
+                        COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS "Calculated Presents"
+                    FROM students s
+                    LEFT JOIN daily_attendance d ON s.id = d.student_id AND EXTRACT(MONTH FROM d.attendance_date) = :month_num
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                      AND (s.session LIKE :sess_prefix OR s.session = :session)
+                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+                    GROUP BY s.id, s.name
+                    ORDER BY s.id ASC
+                """, {"section": sel_section, "month_num": target_month_num, "session": sel_session, "sess_prefix": sess_prefix})
+
+                if computed_roster_df.empty or computed_roster_df["Total Tracked Days"].max() == 0:
+                    st.warning(f"⚠️ No daily attendance tracking logs found for {sel_section} in {sel_month}.")
+                else:
+                    total_computed_days = int(computed_roster_df["Total Tracked Days"].max())
+                    st.info(f"📅 System calculated **{total_computed_days} working days** recorded for **{sel_section}** during **{sel_month}**.")
+                    
+                    # Present preview layout
+                    st.dataframe(computed_roster_df[["ID", "Student Name", "Total Tracked Days", "Calculated Presents"]], use_container_width=True, hide_index=True)
+                    
+                    if st.button("🔄 Synchronize & Save Daily Records to Monthly Ledger", type="primary", use_container_width=True):
+                        try:
+                            for idx, row in computed_roster_df.iterrows():
+                                s_id = int(row["ID"])
+                                p_days = int(row["Calculated Presents"])
+                                
+                                # Purge and write to legacy table structure
+                                execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": s_id, "month": sel_month})
+                                execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {"s_id": s_id, "month": sel_month.strip(), "p_days": p_days, "t_days": total_computed_days})
+                            
+                            st.success(f"🎉 Successfully locked daily metrics down into monthly ledger profiles for {len(computed_roster_df)} students!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Sync Execution Error: {e}")
+
+        # ----------------------------------------------------------------------------
+        # MODE 2: ORIGINAL MANUAL SECTION ENTRY (PRESERVED AS AN OVERRIDE)
+        # ----------------------------------------------------------------------------
+        elif att_flow_mode == "📋 Manual Section Override":
             c1, c2, c3, c4 = st.columns(4)
             
             if current_role == 'teacher' and current_user_id is not None:
@@ -668,6 +753,9 @@ if menu_choice in ["📂 Enter Marks & Attendance", "📝 Enter Marks & Attendan
                 except Exception as e:
                     st.error(f"Database sync issue: {e}")
 
+        # ----------------------------------------------------------------------------
+        # MODE 3: INDIVIDUAL STUDENT ENTRY
+        # ----------------------------------------------------------------------------
         elif att_flow_mode == "👤 By Single Student Roll Number":
             st.subheader("👤 Single Student Attendance Record Manager")
             single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
@@ -698,6 +786,9 @@ if menu_choice in ["📂 Enter Marks & Attendance", "📝 Enter Marks & Attendan
                         st.success(f"🎉 Attendance updated successfully for {s_name}!")
                         st.rerun()
 
+        # ----------------------------------------------------------------------------
+        # MODE 4: BULK FILES UPLOADER ENGINE
+        # ----------------------------------------------------------------------------
         elif att_flow_mode == "📤 Bulk Excel/CSV Import":
             st.subheader("📤 Bulk Attendance CSV Document Importer")
             st.info("📊 Spreadsheet layout must use these headers: **ID** and **Present**")
