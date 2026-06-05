@@ -759,123 +759,63 @@ if menu_choice == "📅 Attendance Entry Management":
             target_month_num = month_numbers[sync_month]
             
             if st.button("🔄 Compute and Compile Attendance Summaries", type="primary", use_container_width=True):
-                calculated_logs = run_query("""
-                    SELECT 
-                        s.id AS student_id,
-                        COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
-                        COUNT(d.status) AS total_days
-                    FROM students s
-                    JOIN daily_attendance d ON s.id = d.student_id
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
-                      AND STRFTIME('%m', d.attendance_date) = :month_num
-                    GROUP BY s.id
-                """, {"section": sync_section, "class_level": sync_class, "month_num": target_month_num})
-                
-                if calculated_logs.empty:
-                    st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
-                else:
-                    try:
-                        import sqlite3
-                        conn = sqlite3.connect(DB_FILE_PATH)
+                try:
+                    import sqlite3
+                    # Open direct native sqlite3 connection to bypass engine text wrapper conflicts
+                    conn = sqlite3.connect(DB_FILE_PATH)
+                    
+                    # Compute aggregations using native positional '?' placeholders 
+                    query = """
+                        SELECT 
+                            s.id AS student_id,
+                            COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
+                            COUNT(d.status) AS total_days
+                        FROM students s
+                        JOIN daily_attendance d ON s.id = d.student_id
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(?))
+                          AND UPPER(TRIM(s.class)) = UPPER(TRIM(?))
+                          AND STRFTIME('%m', d.attendance_date) = ?
+                        GROUP BY s.id
+                    """
+                    
+                    calculated_logs = pd.read_sql_query(query, conn, params=(sync_section, sync_class, target_month_num))
+                    
+                    if calculated_logs.empty:
+                        st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
+                        conn.close()
+                    else:
                         cursor = conn.cursor()
+                        
+                        # Verify aggregate tables exist safely
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS attendance (
+                                student_id INTEGER,
+                                month_name TEXT,
+                                present_days INTEGER,
+                                total_days INTEGER,
+                                PRIMARY KEY (student_id, month_name)
+                            );
+                        """)
+                        
                         cursor.execute("BEGIN TRANSACTION;")
                         
                         for idx, row in calculated_logs.iterrows():
-                            cursor.execute("DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", (int(row['student_id']), sync_month))
-                            cursor.execute("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", (int(row['student_id']), sync_month, int(row['present_days']), int(row['total_days'])))
+                            cursor.execute(
+                                "DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", 
+                                (int(row['student_id']), sync_month)
+                            )
+                            cursor.execute(
+                                "INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", 
+                                (int(row['student_id']), sync_month, int(row['present_days']), int(row['total_days']))
+                            )
                         
                         conn.commit()
                         conn.close()
                         st.success(f"⚡ Successfully compiled analytics matrices for {len(calculated_logs)} students!")
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Transaction aggregation error: {e}")
-
-        elif att_flow_mode == "📋 Manual Section Override":
-            c1, c2, c3 = st.columns(3)
-            with c1: sel_session = st.selectbox("Select Session:", session_options, key="att_sess_a")
-            with c2: sel_class = st.selectbox("Select Class Level:", class_options, key="att_class_filter_a")
-            with c3: 
-                active_secs_df = run_query("""
-                    SELECT DISTINCT section FROM students 
-                    WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
-                    ORDER BY section
-                """, {"sess": sel_session, "cls": sel_class})
-                section_options = active_secs_df['section'].tolist() if not active_secs_df.empty else ["CK1"]
-                sel_section = st.selectbox("Select Target Section:", section_options, key="att_sec_filter_a")
-            
-            row2_1, row2_2 = st.columns(2)
-            with row2_1: sel_month = st.selectbox("Select Attendance Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="att_month_sel")
-            with row2_2: total_days = st.number_input("Set Total Working Days:", min_value=1, max_value=31, value=24, key="sec_global_days")
-            
-            if sel_section and sel_session:
-                roster_df = run_query("""
-                    SELECT s.id AS "ID", s.name AS "Student Name", a.present_days AS "Present"
-                    FROM students s
-                    LEFT JOIN attendance a ON s.id = a.student_id AND UPPER(TRIM(a.month_name)) = UPPER(TRIM(:month))
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
-                      AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
-                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) = 'ACTIVE' OR UPPER(TRIM(s.status)) != 'LEFT')
-                    ORDER BY s.id ASC
-                """, {"month": sel_month, "section": sel_section, "class_level": sel_class, "session": sel_session})
-                
-                if roster_df.empty:
-                    st.info(f"💡 No active student profiles registered under Section '{sel_section}' ({sel_class}).")
-                else:
-                    roster_df['Present'] = roster_df['Present'].fillna(total_days)
-                    with st.form("bulk_attendance_form"):
-                        updated_attendance = {}
-                        for idx, row in roster_df.iterrows():
-                            col_s1, col_s2 = st.columns([3, 1])
-                            col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                            updated_attendance[row['ID']] = col_s2.number_input("Days Present", min_value=0, max_value=int(total_days), value=int(float(row['Present'])), key=f"pres_{row['ID']}", label_visibility="collapsed")
                         
-                        if st.form_submit_button("💾 Save Attendance Ledger", type="primary"):
-                            try:
-                                import sqlite3
-                                conn = sqlite3.connect(DB_FILE_PATH)
-                                cursor = conn.cursor()
-                                cursor.execute("BEGIN TRANSACTION;")
-                                
-                                for s_id, p_days in updated_attendance.items():
-                                    cursor.execute("DELETE FROM attendance WHERE student_id = ? AND UPPER(TRIM(month_name)) = UPPER(TRIM(?))", (int(s_id), sel_month))
-                                    cursor.execute("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (?, ?, ?, ?)", (int(s_id), sel_month.strip(), int(p_days), int(total_days)))
-                                    
-                                conn.commit()
-                                conn.close()
-                                st.success("⚡ Monthly Summary overrides locked instantly!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Override transaction failure: {e}")
-
-        elif att_flow_mode == "👤 By Single Student Roll Number":
-            st.subheader("👤 Single Student Attendance Record Manager")
-            single_att_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
-            
-            if single_att_id and single_att_id.isdigit():
-                student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_att_id)})
-                if not student_info.empty:
-                    s_name = student_info['name'].iloc[0].upper()
-                    s_section = student_info['section'].iloc[0].upper().strip()
-                    s_session = student_info['session'].iloc[0]
-                    s_class = student_info['class'].iloc[0]
-                    st.info(f"👤 Found Student: {s_name} | Class: {s_class} | Section: {s_section}")
-                    
-                    c_at1, c_at2, c_at3 = st.columns(3)
-                    with c_at1: single_att_month = st.selectbox("Select Target Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], key="s_att_m")
-                    with c_at2: single_att_total = st.number_input("Total Tracked Days:", min_value=1, max_value=31, value=24, key="s_att_tot")
-                    
-                    existing_att = run_query("SELECT present_days FROM attendance WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"id": int(single_att_id), "month": single_att_month})
-                    init_present_val = int(existing_att['present_days'].iloc[0]) if not existing_att.empty else int(single_att_total)
-                    with c_at3: single_present = st.number_input("Days Present:", min_value=0, max_value=int(single_att_total), value=init_present_val, key="s_att_pres_val")
-                    
-                    if st.button("💾 Save Individual Monthly Log", type="primary"):
-                        execute_db_command("DELETE FROM attendance WHERE student_id = :id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"id": int(single_att_id), "month": single_att_month})
-                        execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:id, :month, :p_days, :t_days)", {"id": int(single_att_id), "month": single_att_month.strip(), "p_days": int(single_present), "t_days": int(single_att_total)})
-                        st.success(f"🎉 Summary parameters optimized for {s_name}!")
-                        st.rerun()
+                except Exception as e:
+                    st.error(f"Transaction aggregation error: {e}")
                         # ====================================================================================
 # MODULE 3: ATTENDANCE REPORTS (CONCORDIA COLLEGE KASUR LAYOUT ENGINE)
 # ====================================================================================
