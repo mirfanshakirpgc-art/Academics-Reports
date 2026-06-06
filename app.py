@@ -1341,9 +1341,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
         # 1. Performance Marks Fetching Segment (Robust Lowercasing + White Space Stripping)
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
-            cols_marks = [c.lower() for c in sample_marks.columns]
+            cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
             
-            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else cols_marks[min(1, len(cols_marks)-1)])
+            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else "subject_name")
             exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
             obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
             tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
@@ -1356,7 +1356,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             if not marks_df.empty:
                 marks_df.columns = [c.lower() for c in marks_df.columns]
-                # Cast and scrub variables explicitly to guarantee structural cross-matching matches
                 marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
                 marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
                 marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
@@ -1369,24 +1368,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
             
             # Smart-scan schema identifiers to match alternative table setups
-            if "date_marked" in cols_att:
-                date_col = "date_marked"
-            elif "attendance_date" in cols_att:
+            if "attendance_date" in cols_att:
                 date_col = "attendance_date"
+            elif "date_marked" in cols_att:
+                date_col = "date_marked"
             elif "date" in cols_att:
                 date_col = "date"
             elif "att_date" in cols_att:
                 date_col = "att_date"
             else:
-                # If everything fails, fall back to what actually exists in your schema
                 date_col = cols_att[1] if len(cols_att) > 1 else "date"
             
-            if "status" in cols_att:
-                status_col = "status"
-            elif "attendance_status" in cols_att:
-                status_col = "attendance_status"
-            else:
-                status_col = "status"
+            status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
 
             attendance_df = run_query(f"""
                 SELECT student_id, {date_col} as attendance_date, {status_col} as status
@@ -1399,27 +1392,46 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                 
         except Exception as e:
-            # Absolute baseline dynamic recovery block
             try:
                 attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
                 if not attendance_df.empty:
                     attendance_df.columns = [c.lower() for c in attendance_df.columns]
                     attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                     
-                    # Rename on the fly depending on what fallback is active
-                    possible_date_fields = ["date_marked", "date", "att_date", "attendance_date"]
-                    for field in possible_date_fields:
-                        if field in attendance_df.columns and field != "attendance_date":
+                    for field in ["date_marked", "date", "att_date"]:
+                        if field in attendance_df.columns:
                             attendance_df = attendance_df.rename(columns={field: "attendance_date"})
                             break
-                    
-                    possible_status_fields = ["status", "attendance_status"]
-                    for field in possible_status_fields:
-                        if field in attendance_df.columns and field != "status":
+                    for field in ["status", "attendance_status"]:
+                        if field in attendance_df.columns:
                             attendance_df = attendance_df.rename(columns={field: "status"})
                             break
             except Exception as internal_err:
-                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve.")
+                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve. System Details: {str(internal_err)}")
+
+        # ==========================================
+        # 🛠️ VISUAL BACKEND DATA DIAGNOSTICS PANEL
+        # ==========================================
+        with st.expander("🔍 System Inspector: View Raw Database Content", expanded=True):
+            diag_col1, diag_col2 = st.columns(2)
+            with diag_col1:
+                st.markdown("### 📊 Marks Table Status")
+                if not marks_df.empty:
+                    st.success(f"Loaded {len(marks_df)} record rows.")
+                    st.write("**Distinct Exams Stored in DB:**", list(marks_df["exam_type"].unique()))
+                    st.write("**Sample Data Elements:**", marks_df.head(3))
+                else:
+                    st.warning("Empty data collection returned for Marks lookup matches.")
+            with diag_col2:
+                st.markdown("### 📅 Attendance Table Status")
+                if not attendance_df.empty:
+                    st.success(f"Loaded {len(attendance_df)} attendance rows.")
+                    st.write("**Mapped Column Target Structure:**", list(attendance_df.columns))
+                    st.write("**Sample Data Elements:**", attendance_df.head(3))
+                else:
+                    st.warning("Empty data collection returned for Attendance lookup matches.")
+        st.markdown("---")
+        # ==========================================
         # Flat CSS assignment avoids multi-line format evaluation parser issues completely
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
