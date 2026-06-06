@@ -206,15 +206,62 @@ AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
-    st.title("Concordia College Kasur")
+    st.title("🏛️ Concordia College Kasur")
+    st.subheader("Academic Ledger Management Dashboard")
+    st.markdown("---")
+    
+    # Current Academic Tracking Year
+    CURRENT_YEAR = 2026
+
     try:
-        s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
-        m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
-    except Exception:
-        s_count, m_count = 0, 0
-    c1, c2 = st.columns(2)
-    c1.metric("Total Registered Students", s_count)
-    c2.metric("Total Grade Records Captured", m_count)
+        # 1. Fetch Global Statistics
+        total_students = run_query("SELECT COUNT(*) FROM students WHERE status = 'ACTIVE'").iloc[0, 0]
+        
+        # 2. Fetch Cohort-Specific Statistics dynamically mapped to 2026
+        # --- 12th Class (Promoted from 2025) ---
+        count_12th = run_query(
+            "SELECT COUNT(*) FROM students WHERE session = '2025-27' AND class = '12th' AND status = 'ACTIVE'"
+        ).iloc[0, 0]
+        
+        # --- 11th Class (New Batch for 2026) ---
+        count_11th = run_query(
+            "SELECT COUNT(*) FROM students WHERE session = '2026-28' AND class = '11th' AND status = 'ACTIVE'"
+        ).iloc[0, 0]
+
+        # 3. Render Metric Cards
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                label="👥 Total Active Enrollment", 
+                value=int(total_students)
+            )
+            
+        with col2:
+            st.metric(
+                label="🎓 12th Class (Session 2025-27)", 
+                value=int(count_12th),
+                delta="Promoted Cohort"
+            )
+            
+        with col3:
+            st.metric(
+                label="🌱 11th Class (Session 2026-28)", 
+                value=int(count_11th),
+                delta="New Admissions",
+                delta_color="normal"
+            )
+            
+        st.markdown("---")
+        
+        # Quick Status Overview Container
+        st.info(
+            f"ℹ️ **System Timeline Status:** Operational Cycle set to Academic Year **{CURRENT_YEAR}**. "
+            f"Cross-referencing registers for ongoing parallel terms."
+        )
+
+    except Exception as e:
+        st.error(f"❌ Failed to load live dashboard ledger metrics: {e}")
 
 # ----------------- ➕ ADD STUDENTS -----------------
 elif menu_choice == "➕ Add Students":
