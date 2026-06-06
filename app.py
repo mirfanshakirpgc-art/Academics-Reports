@@ -666,96 +666,64 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             bulk_total_marks = st.number_input("Total Marks Assigned:", value=100, key="bulk_total")
         
         st.caption(f"📍 Data points uploaded here will align under **{bulk_class} Class** metrics pipeline.")
+        st.caption(f"📍 Data points uploaded here will align under **{bulk_class} Class** metrics pipeline.")
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         
-        if uploaded_file is not None:
-            process_bulk_marks_upload(uploaded_file, bulk_subject, bulk_exam, bulk_total_marks)
-# ====================================================================================
-# MODULE 2: MULTI-TEST PROGRESS REPORT
-# ====================================================================================
-elif menu_choice == "📈 Multi-Test Progress Report":
-    st.title("📈 Multi-Test Progress Analytics")
-    st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
-
-    st.markdown("""
-        <style>
-        @media print {
-            .no-print { display: none !important; }
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    all_frameworks = [
-        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
-        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
-    ]
-
-    st.markdown('<div class="no-print">', unsafe_allow_html=True)
-    
-    col_g1, col_g2 = st.columns(2)
-    with col_g1:
-        sel_session = st.selectbox("🎯 Target Academic Session:", AVAILABLE_SESSIONS, index=1, key="rep_global_session")
-    with col_g2:
-        sel_class = st.selectbox("📚 Select Class View Level:", ["11th", "12th"], index=1, key="rep_global_class")
-
-    st.markdown("---")
-
-    scope_choice = st.radio(
-        "𖨾 Select Scope:",
-        options=["👤 Single Student Card", "👥 Complete Section Cards"],
-        index=0,
-        horizontal=True,
-        key="mt_reporting_scope"
-    )
-
-    students_to_process = []
-    selected_exams_list = []
-    
-    rendered_discipline = "N/A"
-    rendered_section = "N/A"
-
-    if scope_choice == "👤 Single Student Card":
-        with st.form("single_student_secure_form"):
-            st.markdown("##### 👤 Single Profile Verification Panel")
-            col_s1, col_s2 = st.columns([2, 3])
-            with col_s1:
-                search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
-            with col_s2:
-                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_single")
+        # 1. Stop execution early if no file is present to prevent deep nesting
+        if uploaded_file is None:
+            st.stop()
             
-            submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
-            
-        if submit_single:
-            clean_id = search_id.strip()
-            if not clean_id:
-                st.error("⚠️ Please input a valid Student Roll Number / ID.")
+        # 2. Main execution block with standard, tightly controlled indentation
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                import_df = pd.read_csv(uploaded_file)
             else:
-                try:
-                    query_id = int(clean_id) if clean_id.isdigit() else clean_id
+                import_df = pd.read_excel(uploaded_file)
+                
+            import_df.columns = [str(c).strip().upper() for c in import_df.columns]
+            
+            if 'ID' not in import_df.columns or 'MARKS' not in import_df.columns:
+                st.error("🚨 Missing columns! Your file must have headers named exactly **ID** and **Marks**.")
+                st.stop()
+                
+            st.success(f"📊 Found data matrix for {len(import_df)} student rows cleanly read!")
+            st.dataframe(import_df.head(10))
+            
+            if st.button("🚀 Process and Save Bulk Marks to Database", type="primary", key="commit_bulk_data_btn"):
+                success_count = 0
+                for _, row in import_df.iterrows():
+                    s_id = str(row['ID']).strip()
+                    score = str(row['MARKS']).strip().upper()
                     
-                    if sel_class == "11th" and sel_session == "2025-27":
-                        query_sql = """
-                            SELECT id, name, section, '11th' as class 
-                            FROM students 
-                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = '12TH'
-                        """
-                    else:
-                        query_sql = """
-                            SELECT id, name, section, class 
-                            FROM students 
-                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
-                        """
+                    if s_id.isdigit():
+                        execute_db_command("""
+                            DELETE FROM marks 
+                            WHERE student_id = :s_id 
+                              AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) 
+                              AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                        """, {"s_id": int(s_id), "subject": bulk_subject, "exam": bulk_exam})
+                        
+                        if score != "":
+                            execute_db_command("""
+                                INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                VALUES (:s_id, :subject, :exam, :score, :total)
+                            """, {
+                                "s_id": int(s_id), 
+                                "subject": bulk_subject.strip().upper(), 
+                                "exam": bulk_exam.strip().upper(), 
+                                "score": score, 
+                                "total": float(bulk_total_marks)
+                            })
+                            success_count += 1
+                            
+                if success_count > 0:
+                    st.success(f"🎉 Successfully uploaded and synchronized database logs for {success_count} students!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ No valid rows with data content were processed.")
                     
-                    student_df = run_query(query_sql, {"sid": query_id, "session": sel_session, "class_level": sel_class})
-                    
-                    if not student_df.empty:
-                        students_to_process = student_df.to_dict('records')
-                        rendered_section = student_df.iloc[0]["section"]
-                        rendered_discipline = "N/A"
-                    else:
-                        st.error(f"❌ No student profile found matching ID #{clean_id} for the selected structural parameters.")
-                except Exception as e:
+        except Exception as e:
+            st.error(f"❌ Failed to parse or upload system data spreadsheet matrix: {e}")
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
     else:
