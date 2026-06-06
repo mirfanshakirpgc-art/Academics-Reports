@@ -2185,7 +2185,7 @@ with col_section:
         # 3. Double check that other standard sections are injected if the list came up dry
         if not all_sections or len(all_sections) <= 1:
             # Fallback array containing common structural institutional sections
-            fallback_pool = ["MQ1", "MQ2", "MQ3", "QA1", "QA2", "Pre-Medical", "Pre-Engineering", "ICS", "Commerce"]
+            fallback_pool = ["MQ1", "MQ2", "MQ3", "EQ1", "EK1", "CK1", "CK2", "CK3", "CQ3", "FK1", "FQ1", "IQ1", "1K1"]
             all_sections = sorted(list(set(fallback_pool + [s_sec])))
         
         # 4. Safely set up selection indices
