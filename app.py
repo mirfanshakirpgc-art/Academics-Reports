@@ -1225,6 +1225,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
             col_s1, col_s2 = st.columns([2, 3])
             with col_s1:
                 search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
+                sel_session_single = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="form_sess_single")
+                sel_class_single = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="form_class_single")
             with col_s2:
                 selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_single")
             
@@ -1242,14 +1244,16 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         SELECT id, name, section, class 
                         FROM students 
                         WHERE id = :sid
-                    """, {"sid": query_id})
+                          AND session = :session
+                          AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                    """, {"sid": query_id, "session": sel_session_single, "class_level": sel_class_single})
                     
                     if not student_df.empty:
                         students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
                         rendered_discipline = "N/A"
                     else:
-                        st.error(f"❌ Student ID #{clean_id} was not found in the database.")
+                        st.error(f"❌ Student ID #{clean_id} was not found for Session {sel_session_single} ({sel_class_single}).")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
@@ -1259,9 +1263,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
             col_c1, col_c2, col_c3 = st.columns(3)
             with col_c1:
                 sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="form_sel_disc_bulk")
+                sel_session_bulk = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="form_sess_bulk")
             with col_c2:
                 filtered_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
                 sel_sec = st.selectbox("Select Target Class Section:", filtered_sections, key="form_sel_sec_bulk")
+                sel_class_bulk = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="form_class_bulk")
             with col_c3:
                 selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_bulk")
                 
@@ -1274,14 +1280,16 @@ if menu_choice == "📈 Multi-Test Progress Report":
             section_students_df = run_query("""
                 SELECT id, name, section, class 
                 FROM students 
-                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section))
+                  AND session = :session
+                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
                 ORDER BY id ASC
-            """, {"section": sel_sec})
+            """, {"section": sel_sec, "session": sel_session_bulk, "class_level": sel_class_bulk})
             
             if not section_students_df.empty:
                 students_to_process = section_students_df.to_dict('records')
             else:
-                st.info(f"💡 No registered student profiles mapped to section '{sel_sec}'.")
+                st.info(f"💡 No registered student profiles mapped to section '{sel_sec}' for Session {sel_session_bulk}.")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1593,10 +1601,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
                 elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
-                    # 4 elective track unique to Commerce
                     active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
                 elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
-                    # 3 standard electives for Humanities
                     active_electives = ["Education", "Isl_Elc", "Computer"]
                 elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
                     active_electives = ["Information Technology", "Computer Science", "Networks"]
@@ -1712,6 +1718,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
             else:
                 total_row_html += "<td><strong>-</strong></td></tr>"
+
             # --- ATTENDANCE TRACKER PROCESSING ---
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"].astype(str) == str(match_id)]
@@ -1872,56 +1879,47 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 setTimeout(function() { window.print(); }, 200);
             }
 
+            function exportDossierToImage(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) { alert('No student cards available to capture.'); return; }
+                
+                var targetList = [];
+                if (isSingleTarget) {
+                    targetList.push(cards[0]);
+                } else {
+                    cards.forEach(function(c) { targetList.push(c); });
+                }
+                
+                triggerImageCaptureSequence(targetList, 0);
+            }
+
             function triggerImageCaptureSequence(targetList, currentIndex) {
                 if (currentIndex >= targetList.length) return;
                 
-                var currentElement = targetList[currentIndex];
-                var studentName = currentElement.getAttribute('data-name') || 'Student';
-                var studentID = currentElement.getAttribute('data-id') || 'Unknown';
+                var element = targetList[currentIndex];
+                var studName = element.getAttribute('data-name') || 'student';
+                var studId = element.getAttribute('data-id') || 'id';
                 
-                html2canvas(currentElement, {
-                    scale: 2, 
-                    useCORS: true,
-                    backgroundColor: '#ffffff'
-                }).then(function(canvas) {
-                    var dataUrl = canvas.toDataURL('image/png');
-                    var downloadAnchor = document.createElement('a');
+                html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
+                    var link = document.createElement('a');
+                    link.download = studId + '_' + studName + '_ProgressCard.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
                     
-                    downloadAnchor.download = 'Result_Card_' + studentName + '_' + studentID + '.png';
-                    downloadAnchor.href = dataUrl;
-                    document.body.appendChild(downloadAnchor);
-                    downloadAnchor.click();
-                    document.body.removeChild(downloadAnchor);
-                    
-                    triggerImageCaptureSequence(targetList, currentIndex + 1);
+                    setTimeout(function() {
+                        triggerImageCaptureSequence(targetList, currentIndex + 1);
+                    }, 500);
                 }).catch(function(err) {
-                    console.error("Canvas image export failure configuration:", err);
-                    triggerImageCaptureSequence(targetList, currentIndex + 1);
+                    console.error('Image capture sequence broken: ', err);
                 });
-            }
-
-            function exportDossierToImage(isSingleTarget) {
-                var cards = document.querySelectorAll('.student-card-record');
-                if (cards.length === 0) {
-                    alert("No valid student cards rendered to capture.");
-                    return;
-                }
-
-                if (isSingleTarget) {
-                    triggerImageCaptureSequence([cards[0]], 0);
-                } else {
-                    if (confirm("Generate and download separate PNG snapshots for all (" + cards.length + ") compiled records?")) {
-                        triggerImageCaptureSequence(Array.from(cards), 0);
-                    }
-                }
             }
             </script>
         </body>
         </html>
         """
         
-        dynamic_height = 1250 if len(students_to_process) == 1 else min(1150 * len(students_to_process), 9500)
-        components.html(composite_html_payload, height=dynamic_height, scrolling=True)
+        # Safe component execution boundary payload delivery via core pipeline frame
+        st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
