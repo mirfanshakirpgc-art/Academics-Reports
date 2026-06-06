@@ -251,11 +251,11 @@ elif menu_choice == "➕ Add Students":
         
     try:
         discipline_options = AVAILABLE_DISCIPLINE
-        # Double check to remove General Science if it pulls from a global list
         if "General Science" in discipline_options:
             discipline_options = [d for d in discipline_options if d != "General Science"]
     except NameError:
-        discipline_options = ["Pre-Engineering", "Pre-Medical", "ICS (Physics)", "ICS (Stats)", "I.Com"]
+        # Fallback top-level dictionary keys
+        discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
     # 🛠️ Main Filter Row 1: Session & Academic System Type
     c1, c2 = st.columns(2)
@@ -273,18 +273,43 @@ elif menu_choice == "➕ Add Students":
             selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
         with c4: 
             selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
-        with c5: 
-            selected_section = st.text_input("📋 4. Enter Target Section:", value="CK2", key="add_stu_sec_annual").strip().upper()
+            
+        # 🎯 Dynamic Section Filtering Logic from Nested Dictionary Map
+        with c5:
+            try:
+                # Access global dictionary safely
+                discipline_map = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {})
+                available_sections = discipline_map.get(selected_class, [])
+            except NameError:
+                # Match your exact nested map structure as an active backup
+                fallback_nested_map = {
+                    "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
+                    "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
+                    "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+                    "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
+                    "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+                    "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]}
+                }
+                available_sections = fallback_nested_map.get(selected_discipline, {}).get(selected_class, ["CK2"])
+                
+            # Clean and sanitize the strings safely
+            cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
+            
+            # Show dynamic Selectbox dropdown instead of raw text box
+            if cleaned_sections:
+                selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
+            else:
+                selected_section = st.text_input("📋 4. Enter Target Section Manually:", value="CK2", key="add_stu_sec_annual_manual").strip().upper()
     
     else:
-        # Semester System: Completely removes the discipline column
+        # Semester System: Discipline column completely removed
         c3, c4 = st.columns(2)
         with c3: 
             selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
         with c4: 
             selected_section = st.selectbox("📋 3. Select Target Section:", ["DIT_G", "DIT_B"], key="add_stu_sec_semester")
         
-        # Default string placeholder for non-applicable backend db field
+        # Default backend identifier value string for non-applicable database fields
         selected_discipline = "N/A"
 
     st.markdown("---")
