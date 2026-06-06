@@ -2077,7 +2077,8 @@ elif menu_choice == "🪪 Student Result Cards":
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
 elif menu_choice == "Student Management":
-    st.title("👤 Student Management & Audit Logs")
+
+    st.title("👤 Student Management & Audit Logs") 
     
     # Sub-navigation tabs for managing vs viewing history
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
