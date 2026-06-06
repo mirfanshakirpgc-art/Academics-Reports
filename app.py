@@ -1399,16 +1399,13 @@ Let's completely bypass this issue by removing the variables and hardcoding the 
 Please replace that entire bottom section one more time with this **fully flattened, hardcoded version**:
 
 ```python
-        Ah, I see what happened. Because Python interprets a raw multi-line string ending in triple quotes (`r"""`) specially, adding that explanatory comment with the closing parenthesis `)` right next to it completely confused Python's parser!
+        Ah, that is completely on me! I accidentally left my own chat message's conversational text inside the code block I provided, which Python is trying to read as a line of code. Because it contains a random closing parenthesis `)`, the interpreter threw an `unmatched ')'` error.
 
-Let's skip the raw string approach altogether and fix the root problem using standard Python formatting. We will define the CSS rules cleanly, strip out any hidden non-breaking space characters dynamically using `.replace('\xa0', ' ')`, and get your app running without any syntax issues.
-
-Go ahead and delete everything from `st.write("---")` down to the final `st.components.v1.html(...)` line, and replace it all with this:
+Let's completely clean it up. Replace that whole section with this exact code block. It contains absolutely zero conversational text, zero hidden non-breaking spaces, and is ready to run seamlessly:
 
 ```python
         st.write("---")
 
-        # Define the CSS rules cleanly without inline explanations to avoid parsing issues
         css_styles = """
         <style>
         body { background-color: #ffffff; margin: 0; padding: 10px; }
@@ -1451,9 +1448,6 @@ Go ahead and delete everything from `st.write("---")` down to the final `st.comp
         }
         </style>
         """
-        
-        # Explicitly clean out hidden formatting characters (NBSPs) before formatting
-        css_styles = css_styles.replace('\xa0', ' ')
 
         composite_html_payload = f"""
         <html>
@@ -1614,12 +1608,11 @@ Go ahead and delete everything from `st.write("---")` down to the final `st.comp
         </html>
         """
         
-        # Run one final cleanup pass on the entire payload to eliminate any lingering bad characters
         composite_html_payload = composite_html_payload.replace('\xa0', ' ')
         st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 
 ```
-            # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
+  # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
