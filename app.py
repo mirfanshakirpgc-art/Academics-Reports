@@ -593,6 +593,9 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks score configuration updated successfully for {s_name}!")
                     st.rerun()
 
+    # ==============================================================================
+    # MODE C: BULK EXCEL/CSV IMPORT
+    # ==============================================================================
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Upload Exam Marks Matrix")
         st.info("💡 **Instructions:** Upload an Excel (.xlsx) or CSV (.csv) file. The file **must** contain an `ID` column and a `Marks` column.")
@@ -613,56 +616,61 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         st.caption(f"📍 Data points uploaded here will align under **{bulk_class} Class** metrics pipeline.")
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         
-        if uploaded_file is not None:
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    import_df = pd.read_csv(uploaded_file)
-                else:
-                    import_df = pd.read_excel(uploaded_file)
-                    
-                import_df.columns = [str(c).strip().upper() for c in import_df.columns]
-                
-                if 'ID' not in import_df.columns or 'MARKS' not in import_df.columns:
-                    st.error("🚨 Missing columns! Your file must have headers named exactly **ID** and **Marks**.")
-                else:
-                    st.success(f"📊 Found data matrix for {len(import_df)} student rows cleanly read!")
-                    st.dataframe(import_df.head(10))
-                    
-                    if st.button("🚀 Process and Save Bulk Marks to Database", type="primary", key="commit_bulk_data_btn"):
-                        success_count = 0
-                        for _, row in import_df.iterrows():
-                            s_id = str(row['ID']).strip()
-                            score = str(row['MARKS']).strip().upper()
-                            
-                            if s_id.isdigit():
-                                execute_db_command("""
-                                    DELETE FROM marks 
-                                    WHERE student_id = :s_id 
-                                      AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) 
-                                      AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                                """, {"s_id": int(s_id), "subject": bulk_subject, "exam": bulk_exam})
-                                
-                                if score != "":
-                                    execute_db_command("""
-                                        INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
-                                        VALUES (:s_id, :subject, :exam, :score, :total)
-                                    """, {
-                                        "s_id": int(s_id), 
-                                        "subject": bulk_subject.strip().upper(), 
-                                        "exam": bulk_exam.strip().upper(), 
-                                        "score": score, 
-                                        "total": float(bulk_total_marks)
-                                    })
-                                    success_count += 1
-                                    
-                        if success_count > 0:
-                            st.success(f"🎉 Successfully uploaded and synchronized database logs for {success_count} students!")
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ No valid rows with data content were processed.")
-            except Exception as e:
-                st.error(f"❌ Failed to parse or upload system data spreadsheet matrix: {e}")
+        if uploaded_file is None:
+            st.stop()
 
+        # Processing block (Guaranteed flat hierarchy structure)
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                import_df = pd.read_csv(uploaded_file)
+            else:
+                import_df = pd.read_excel(uploaded_file)
+                
+            import_df.columns = [str(c).strip().upper() for c in import_df.columns]
+            
+            if 'ID' not in import_df.columns or 'MARKS' not in import_df.columns:
+                st.error("🚨 Missing columns! Your file must have headers named exactly **ID** and **Marks**.")
+                st.stop()
+                
+            st.success(f"📊 Found data matrix for {len(import_df)} student rows cleanly read!")
+            st.dataframe(import_df.head(10))
+            
+            # Form button control to execute safe iteration updates
+            if st.button("🚀 Process and Save Bulk Marks to Database", type="primary", key="commit_bulk_data_btn"):
+                success_count = 0
+                for _, row in import_df.iterrows():
+                    s_id = str(row['ID']).strip()
+                    score = str(row['MARKS']).strip().upper()
+                    
+                    if s_id.isdigit():
+                        execute_db_command("""
+                            DELETE FROM marks 
+                            WHERE student_id = :s_id 
+                              AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) 
+                              AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                        """, {"s_id": int(s_id), "subject": bulk_subject, "exam": bulk_exam})
+                        
+                        if score != "":
+                            execute_db_command("""
+                                INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                VALUES (:s_id, :subject, :exam, :score, :total)
+                            """, {
+                                "s_id": int(s_id), 
+                                "subject": bulk_subject.strip().upper(), 
+                                "exam": bulk_exam.strip().upper(), 
+                                "score": score, 
+                                "total": float(bulk_total_marks)
+                            })
+                            success_count += 1
+                            
+                if success_count > 0:
+                    st.success(f"🎉 Successfully uploaded and synchronized database logs for {success_count} students!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ No valid data mutations were parsed.")
+                    
+        except Exception as e:
+            st.error(f"❌ Failed to parse system data spreadsheet matrix: {e}")
 # ====================================================================================
 # MODULE 2: MULTI-TEST PROGRESS REPORT
 # ====================================================================================
