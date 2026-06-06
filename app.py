@@ -1394,52 +1394,55 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
 
+        Ah, I see what happened! This error occurs because Python thinks the `{panel_gap}` inside that CSS string is trying to evaluate as a Python variable, but the string wasn't properly marked as an **f-string** ($f"""$) in your file, or there are hidden non-breaking spaces (NBSPs) copy-pasted from the browser.
+
+Let's completely bypass this issue by removing the variables and hardcoding the plain values (`12px` and `850px`) directly into the CSS string. This makes the code robust and completely immune to syntax or string formatting errors.
+
+Please replace that entire bottom section one more time with this **fully flattened, hardcoded version**:
+
+```python
         st.write("---")
 
-        # Isolated configurations to protect numeric literals from hidden spaces
-        panel_gap = "12px"
-        panel_width = "850px"
-
-        css_styles = f"""
+        css_styles = """
         <style>
-        body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
-        .action-dashboard-panel {{ display: flex; flex-wrap: wrap; gap: {panel_gap}; max-width: {panel_width}; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }}
-        .action-control-btn {{ flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }}
-        .action-control-btn:active {{ transform: scale(0.97); }}
-        .btn-print-single {{ background-color: #2e7d32; }}
-        .btn-print-single:hover {{ background-color: #1b5e20; }}
-        .btn-print-bulk {{ background-color: #1565c0; }}
-        .btn-print-bulk:hover {{ background-color: #0d47a1; }}
-        .btn-img-single {{ background-color: #e65100; }}
-        .btn-img-single:hover {{ background-color: #b33900; }}
-        .btn-img-bulk {{ background-color: #6a1b9a; }}
-        .btn-img-bulk:hover {{ background-color: #4a148c; }}
-        .cck-container {{ background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }}
-        .cck-header-wrapper {{ display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }}
-        .cck-logo-image-container {{ width: 75px; height: 75px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }}
-        .cck-logo-image {{ max-width: 100%; max-height: 100%; object-fit: contain; }}
-        .cck-logo-fallback-text {{ background-color: #e67e22; color: #ffffff; font-weight: bold; font-size: 22px; width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }}
-        .cck-title-block {{ text-align: center; }}
-        .cck-main-title {{ font-size: 24px; font-weight: bold; margin: 15px; letter-spacing: 0.5px; }}
-        .cck-sub-title {{ font-size: 13px; color: #444444; margin: 2px 0 0 0; }}
-        .cck-badge-wrapper {{ text-align: center; margin: 15px 0; }}
-        .cck-doc-badge {{ display: inline-block; background-color: #d1d5db; color: #000000; font-weight: bold; font-size: 16px; padding: 4px 20px; border-radius: 2px; }}
-        .cck-meta-row {{ display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }}
-        .cck-meta-field {{ margin-right: 15px; margin-bottom: 8px; }}
-        .cck-line-fill {{ border-bottom: 1px solid #000000; display: inline-block; min-width: 120px; padding-left: 5px; font-weight: bold; }}
-        .cck-report-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }}
-        .cck-report-table th, .cck-report-table td {{ border: 1px solid #000000; padding: 6px 4px; text-align: center; }}
-        .cck-report-table th {{ background-color: #ffffff; font-weight: normal; }}
-        .cck-report-table td:first-child {{ text-align: left; padding-left: 8px; }}
-        .cck-remarks-area {{ margin-top: 100px; font-size: 14px; display: flex; align-items: flex-end; }}
-        .cck-remarks-line {{ flex-grow: 1; border-bottom: 1px solid #000000; margin-left: 8px; padding-left: 5px; font-style: italic; }}
-        .cck-footer-sign {{ margin-top: 25px; text-align: right; font-size: 14px; padding-right: 20px; }}
-        @media print {{
-            .action-dashboard-panel {{ display: none !important; }}
-            .cck-single-print-isolation {{ display: block !important; }}
-            .cck-single-print-hide {{ display: none !important; }}
-            .cck-container {{ border: none !important; padding: 0 !important; margin-bottom: 0 !important; }}
-        }}
+        body { background-color: #ffffff; margin: 0; padding: 10px; }
+        .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }
+        .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .action-control-btn:active { transform: scale(0.97); }
+        .btn-print-single { background-color: #2e7d32; }
+        .btn-print-single:hover { background-color: #1b5e20; }
+        .btn-print-bulk { background-color: #1565c0; }
+        .btn-print-bulk:hover { background-color: #0d47a1; }
+        .btn-img-single { background-color: #e65100; }
+        .btn-img-single:hover { background-color: #b33900; }
+        .btn-img-bulk { background-color: #6a1b9a; }
+        .btn-img-bulk:hover { background-color: #4a148c; }
+        .cck-container { background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }
+        .cck-header-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }
+        .cck-logo-image-container { width: 75px; height: 75px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }
+        .cck-logo-image { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .cck-logo-fallback-text { background-color: #e67e22; color: #ffffff; font-weight: bold; font-size: 22px; width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+        .cck-title-block { text-align: center; }
+        .cck-main-title { font-size: 24px; font-weight: bold; margin: 15px; letter-spacing: 0.5px; }
+        .cck-sub-title { font-size: 13px; color: #444444; margin: 2px 0 0 0; }
+        .cck-badge-wrapper { text-align: center; margin: 15px 0; }
+        .cck-doc-badge { display: inline-block; background-color: #d1d5db; color: #000000; font-weight: bold; font-size: 16px; padding: 4px 20px; border-radius: 2px; }
+        .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }
+        .cck-meta-field { margin-right: 15px; margin-bottom: 8px; }
+        .cck-line-fill { border-bottom: 1px solid #000000; display: inline-block; min-width: 120px; padding-left: 5px; font-weight: bold; }
+        .cck-report-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
+        .cck-report-table th, .cck-report-table td { border: 1px solid #000000; padding: 6px 4px; text-align: center; }
+        .cck-report-table th { background-color: #ffffff; font-weight: normal; }
+        .cck-report-table td:first-child { text-align: left; padding-left: 8px; }
+        .cck-remarks-area { margin-top: 100px; font-size: 14px; display: flex; align-items: flex-end; }
+        .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000; margin-left: 8px; padding-left: 5px; font-style: italic; }
+        .cck-footer-sign { margin-top: 25px; text-align: right; font-size: 14px; padding-right: 20px; }
+        @media print {
+            .action-dashboard-panel { display: none !important; }
+            .cck-single-print-isolation { display: block !important; }
+            .cck-single-print-hide { display: none !important; }
+            .cck-container { border: none !important; padding: 0 !important; margin-bottom: 0 !important; }
+        }
         </style>
         """
 
@@ -1602,6 +1605,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         st.components.v1.html(composite_html_payload, height=900, scrolling=True)
+
+```
 
             # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
