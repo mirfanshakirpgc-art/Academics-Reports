@@ -184,13 +184,30 @@ DISCIPLINE_SUBJECTS_MAP = {
 }
 
 DISCIPLINE_SECTIONS_MAP = {
-    "MEDICAL": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-    "ENGINEERING": ["EG_BLUE", "EB_BLUE"],
-    "ICS_PHYSICS": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
-    "ICS_STATS": ["CG_STATS", "CB_STATS"],
-    "COMMERCE": ["IG", "IB"],
-    "HUMANITIES": ["FB", "FG"],
-    "INFORMATION_TECHNOLOGY": ["DITB", "DITG"]
+    "MEDICAL": {
+        "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
+        "12th": ["MQ1", "MQ2", "MK"]                     # Matches your promotion code rules
+    },
+    "ENGINEERING": {
+        "11th": ["EG_BLUE", "EB_BLUE"],
+        "12th": ["EQ", "EK"]                             # Matches your promotion code rules
+    },
+    "ICS (PHYSICS)": {
+        "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
+        "12th": ["CQ1", "CQ2", "CK1", "CK2"]             # Matches your promotion code rules
+    },
+    "ICS (STATS)": {
+        "11th": ["CG_STATS", "CB_STATS"],
+        "12th": ["CQ3", "CK3"]                           # Matches your promotion code rules
+    },
+    "COMMERCE": {
+        "11th": ["IG", "IB"],
+        "12th": ["IK", "IQ"]                             # Matches your promotion code rules
+    },
+    "HUMANITIES": {
+        "11th": ["FB", "FG"],
+        "12th": ["FK", "FQ"]                             # Matches your promotion code rules
+    }
 }
 
 AVAILABLE_DISCIPLINE = list(DISCIPLINE_SUBJECTS_MAP.keys())
@@ -1204,38 +1221,26 @@ if menu_choice == "📈 Multi-Test Progress Report":
     # --- GLOBAL INTERFACE FILTER PANEL (Interactive Configuration) ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
-    # 1. Base Strategy Selectors (Discipline, Class, and Session)
     st.markdown('##### 🎛️ Filter Configuration Panel')
     col_filter1, col_filter2, col_filter3 = st.columns(3)
     
     with col_filter1:
-        sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="global_sel_disc")
+        # Dynamically pulls track keys directly from your dictionary framework
+        sel_disc = st.selectbox("Select Discipline Context:", list(DISCIPLINE_SECTIONS_MAP.keys()), key="global_sel_disc")
         sel_session_global = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="global_sel_sess")
         
     with col_filter2:
         sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
         
-        # Pull raw mapping database array matching selected discipline
-        base_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
+        # Look up the target subset dictionary safely
+        discipline_data = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {})
         
-        # CRITICAL: Dynamic transformation logic for 12th Section Naming Conventions
-        if sel_class_global == "12th":
-            filtered_sections = []
-            for sec in base_sections:
-                if sec.startswith("M") and not sec.startswith("2M"):
-                    filtered_sections.append(sec.replace("M", "2M", 1))
-                elif sec.startswith("E") and not sec.startswith("2E"):
-                    filtered_sections.append(sec.replace("E", "2E", 1))
-                elif sec.startswith("C") and not sec.startswith("2C"):
-                    filtered_sections.append(sec.replace("C", "2C", 1))
-                elif sec.startswith("I") and not sec.startswith("2I"):
-                    filtered_sections.append(sec.replace("I", "2I", 1))
-                elif sec.startswith("F") and not sec.startswith("2F"):
-                    filtered_sections.append(sec.replace("F", "2F", 1))
-                else:
-                    filtered_sections.append(f"2_{sec}" if not sec.startswith("2_") else sec)
-        else:
-            filtered_sections = base_sections
+        # Read matching target lists directly (No text-replacement hacks required)
+        filtered_sections = discipline_data.get(sel_class_global, [])
+        
+        # Safe structural fallback
+        if not filtered_sections and isinstance(discipline_data, list):
+            filtered_sections = discipline_data
 
         sel_sec = st.selectbox("Select Target Class Section:", filtered_sections, key="global_sel_sec")
         
