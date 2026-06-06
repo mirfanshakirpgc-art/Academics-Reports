@@ -1294,25 +1294,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </style>
     """, unsafe_allow_html=True)
 
-    # --- EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
     all_frameworks = [
         "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
         "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
         "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
     ]
 
-    # --- DYNAMIC CONTROLS INTERFACE PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
-    # 🛠️ GLOBAL ACADEMIC CONTEXT PARAMETERS
+    # 🛠️ FLEXIBLE ACADEMIC CONTEXT PARAMETERS (Unlocked dropdowns)
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         sel_session = st.selectbox("🎯 Target Academic Session:", AVAILABLE_SESSIONS, index=2, key="rep_global_session")
-        # 🧠 Context-Aware Auto-Inference for Classes
-        start_year = int(sel_session.split('-')[0])
-        sel_class = "12th" if start_year == 2025 else "11th"
     with col_g2:
-        st.text_input("Active Cohort Filter Level:", value=sel_class, disabled=True, key="rep_global_class_readonly")
+        # User can now explicitly toggle between 11th (History) and 12th (Current)
+        sel_class = st.selectbox("📚 Select Class View Level:", ["11th", "12th"], index=1, key="rep_global_class")
 
     st.markdown("---")
 
@@ -1350,18 +1346,30 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 try:
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
                     
-                    student_df = run_query("""
-                        SELECT id, name, section, class 
-                        FROM students 
-                        WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
-                    """, {"sid": query_id, "session": sel_session, "class_level": sel_class})
+                    # Smart routing query logic
+                    if sel_class == "11th" and sel_session == "2025-27":
+                        # Look for active 12th graders belonging to this cycle to view historical 11th ledger
+                        query_sql = """
+                            SELECT id, name, section, '11th' as class 
+                            FROM students 
+                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = '12TH'
+                        """
+                    else:
+                        # Standard active structural context lookup
+                        query_sql = """
+                            SELECT id, name, section, class 
+                            FROM students 
+                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                        """
+                    
+                    student_df = run_query(query_sql, {"sid": query_id, "session": sel_session, "class_level": sel_class})
                     
                     if not student_df.empty:
                         students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
                         rendered_discipline = "N/A"
                     else:
-                        st.error(f"❌ Student ID #{clean_id} was not found under active session {sel_session} ({sel_class}).")
+                        st.error(f"❌ No student profile found matching ID #{clean_id} for the selected parameters.")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
@@ -1383,644 +1391,37 @@ if menu_choice == "📈 Multi-Test Progress Report":
             rendered_discipline = sel_disc
             rendered_section = sel_sec
             
-            # Formatted to prevent cross-contamination across sessions
-            section_students_df = run_query("""
-                SELECT id, name, section, class 
-                FROM students 
-                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-                  AND session = :session
-                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
-                  AND (status IS NULL OR UPPER(TRIM(status)) = 'ACTIVE')
-                ORDER BY id ASC
-            """, {"section": sel_sec, "session": sel_session, "class_level": sel_class})
+            # Smart section routing logic for bulk compilation
+            if sel_class == "11th" and sel_session == "2025-27":
+                # Find current 12th graders from this section to rebuild their historical 11th-grade profile sheets
+                query_sql = """
+                    SELECT id, name, section, '11th' as class 
+                    FROM students 
+                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                      AND session = :session
+                      AND UPPER(TRIM(class)) = '12TH'
+                    ORDER BY id ASC
+                """
+            else:
+                # Regular layout matching current active system entries
+                query_sql = """
+                    SELECT id, name, section, class 
+                    FROM students 
+                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                      AND session = :session
+                      AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                      AND (status IS NULL OR UPPER(TRIM(status)) = 'ACTIVE')
+                    ORDER BY id ASC
+                """
+            
+            section_students_df = run_query(query_sql, {"section": sel_sec, "session": sel_session, "class_level": sel_class})
             
             if not section_students_df.empty:
                 students_to_process = section_students_df.to_dict('records')
             else:
-                st.info(f"💡 No registered active student profiles mapped to section '{sel_sec}' within session {sel_session}.")
+                st.info(f"💡 No target student profiles found matching section '{sel_sec}' for the selected parameters.")
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
-    if students_to_process and not selected_exams_list:
-        st.warning("⚠️ Select at least one test metric from the multi-select parameter tool to compile report views.")
-        
-    elif students_to_process:
-        params_dict = {}
-        placeholder_list = []
-        
-        for idx, s in enumerate(students_to_process):
-            s_id = s['id']
-            clean_s_id = int(s_id) if str(s_id).isdigit() else str(s_id).strip()
-            
-            key = f"sid_{idx}"
-            placeholder_list.append(f":{key}")
-            params_dict[key] = clean_s_id
-            
-        placeholders_str = ", ".join(placeholder_list)
-        
-        marks_df = pd.DataFrame()
-        attendance_df = pd.DataFrame()
-
-        try:
-            sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
-            cols_marks = [c.lower() for c in sample_marks.columns]
-            
-            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else cols_marks[min(1, len(cols_marks)-1)])
-            exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
-            obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
-            tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
-
-            marks_df = run_query(f"""
-                SELECT student_id, {sub_col} as subject_name, TRIM({exam_col}) as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
-                FROM marks
-                WHERE student_id IN ({placeholders_str})
-            """, params_dict)
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
-
-        try:
-            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns]
-            
-            month_col = "month_name" if "month_name" in cols_att else ("month" if "month" in cols_att else "month_name")
-            tot_days_col = "total_days" if "total_days" in cols_att else "total_days"
-            
-            att_days_col = "attended_days"
-            for variant in ["attended_days", "present_days", "present", "attended"]:
-                if variant in cols_att:
-                    att_days_col = variant
-                    break
-
-            attendance_df = run_query(f"""
-                SELECT student_id, {month_col} as month_name, {tot_days_col} as total_days, {att_days_col} as attended_days 
-                FROM attendance
-                WHERE student_id IN ({placeholders_str})
-            """, params_dict)
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
-
-        st.write("---")
-
-        composite_html_payload = f"""
-        <html>
-        <head>
-        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-        <style>
-        body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
-        
-        .action-dashboard-panel {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 12px;
-            max-width: 850px;
-            margin: 10px auto 25px auto;
-            font-family: 'Arial', sans-serif;
-        }}
-        .action-control-btn {{
-            color: white;
-            border: none;
-            padding: 12px 18px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: background 0.2s, transform 0.1s, opacity 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }}
-        .action-control-btn:active {{
-            transform: scale(0.97);
-        }}
-        .btn-print-single {{ background-color: #2e7d32; }}
-        .btn-print-single:hover {{ background-color: #1b5e20; }}
-        .btn-print-bulk {{ background-color: #1565c0; }}
-        .btn-print-bulk:hover {{ background-color: #0d47a1; }}
-        .btn-img-single {{ background-color: #e65100; }}
-        .btn-img-single:hover {{ background-color: #b33900; }}
-        .btn-img-bulk {{ background-color: #6a1b9a; }}
-        .btn-img-bulk:hover {{ background-color: #4a148c; }}
-
-        .cck-container {{
-            background-color: #ffffff;
-            border: 1px solid #000000;
-            padding: 30px;
-            margin: 0 auto 30px auto;
-            max-width: 850px;
-            color: #000000;
-            font-family: 'Arial', sans-serif;
-            page-break-after: always;
-            box-sizing: border-box;
-        }}
-        .cck-header-wrapper {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 5px;
-            position: relative;
-        }}
-        
-        .cck-logo-image-container {{
-            width: 75px;
-            height: 75px;
-            position: absolute;
-            left: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-        .cck-logo-image {{
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }}
-        
-        .cck-logo-fallback-text {{
-            background-color: #e67e22;
-            color: #ffffff;
-            font-weight: bold;
-            font-size: 22px;
-            width: 75px;
-            height: 75px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-        }}
-        
-        .cck-title-block {{
-            text-align: center;
-        }}
-        .cck-main-title {{
-            font-size: 24px;
-            font-weight: bold;
-            margin: 15;
-            letter-spacing: 0.5px;
-        }}
-        .cck-sub-title {{
-            font-size: 13px;
-            color: #444444;
-            margin: 2px 0 0 0;
-        }}
-        .cck-badge-wrapper {{
-            text-align: center;
-            margin: 15px 0;
-        }}
-        .cck-doc-badge {{
-            display: inline-block;
-            background-color: #d1d5db;
-            color: #000000;
-            font-weight: bold;
-            font-size: 16px;
-            padding: 4px 20px;
-            border-radius: 2px;
-        }}
-        .cck-meta-row {{
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }}
-        .cck-meta-field {{
-            margin-right: 15px;
-            margin-bottom: 8px;
-        }}
-        .cck-line-fill {{
-            border-bottom: 1px solid #000000;
-            display: inline-block;
-            min-width: 120px;
-            padding-left: 5px;
-            font-weight: bold;
-        }}
-        .cck-report-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 25px;
-            font-size: 13px;
-        }}
-        .cck-report-table th, .cck-report-table td {{
-            border: 1px solid #000000;
-            padding: 6px 4px;
-            text-align: center;
-        }}
-        .cck-report-table th {{
-            background-color: #ffffff;
-            font-weight: normal;
-        }}
-        .cck-report-table td:first-child {{
-            text-align: left;
-            padding-left: 8px;
-        }}
-        .cck-remarks-area {{
-            margin-top: 100px;
-            font-size: 14px;
-            display: flex;
-            align-items: flex-end;
-        }}
-        .cck-remarks-line {{
-            flex-grow: 1;
-            border-bottom: 1px solid #000000;
-            margin-left: 8px;
-            padding-left: 5px;
-            font-style: italic;
-        }}
-        .cck-footer-sign {{
-            margin-top: 25px;
-            text-align: right;
-            font-size: 14px;
-            padding-right: 20px;
-        }}
-        
-        @media print {{
-            .action-dashboard-panel {{ display: none !important; }}
-            .cck-single-print-isolation {{ display: block !important; }}
-            .cck-single-print-hide {{ display: none !important; }}
-            .cck-container {{
-                border: none !important;
-                padding: 0 !important;
-                margin-bottom: 0 !important;
-            }}
-        }}
-        </style>
-        </head>
-        <body>
-            <div class="action-dashboard-panel">
-                <button class="action-control-btn btn-print-single" onclick="executeTargetPrint(true)">👤 Print Single Student</button>
-                <button class="action-control-btn btn-print-bulk" onclick="executeTargetPrint(false)">👥 Print Complete Section</button>
-                <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Single as Picture</button>
-                <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Section as Pictures</button>
-            </div>
-            
-            <div id="dossiers-master-wrapper">
-        """
-        
-        for index, s_meta in enumerate(students_to_process):
-            s_id = str(s_meta["id"]).strip()
-            
-            raw_name = str(s_meta["name"])
-            s_name = " ".join(raw_name.replace("\n", " ").split())
-            
-            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
-            s_section = " ".join(raw_section.replace("\n", " ").split())
-            
-            raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class
-            s_class = " ".join(raw_class.replace("\n", " ").split())
-            
-            match_id = int(s_id) if s_id.isdigit() else s_id
-            
-            # --- MARKS CARD MATRIX PROCESSING ---
-            if not marks_df.empty:
-                s_marks = marks_df[marks_df["student_id"].astype(str) == str(match_id)].copy()
-            else:
-                s_marks = pd.DataFrame()
-                
-            if not s_marks.empty:
-                s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
-                
-                detected_sec = "UNKNOWN"
-                if "section" in s_marks.columns and not s_marks["section"].dropna().empty:
-                    detected_sec = str(s_marks["section"].dropna().iloc[-1]).upper().strip()
-                else:
-                    detected_sec = s_section.upper().strip()
-                
-                target_section_context = s_section.upper().strip() if s_section else detected_sec
-                
-                medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
-                engineering_secs = ["EG_BLUE", "EB_BLUE"]
-                ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
-                ics_stats_secs = ["CG_STATS", "CB_STATS"]
-                commerce_secs = ["IG", "IB"]
-                humanities_secs = ["FB", "FG"]
-                it_secs = ["DITB", "DITG"]
-                
-                compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
-                
-                if any(x in target_section_context for x in medical_secs) or target_section_context.startswith("M"):
-                    active_electives = ["Chemistry", "Biology", "Physics"]
-                elif any(x in target_section_context for x in engineering_secs) or target_section_context.startswith("E"):
-                    active_electives = ["Chemistry", "Mathematics", "Physics"]
-                elif any(x in target_section_context for x in ics_physics_secs):
-                    active_electives = ["Computer", "Mathematics", "Physics"]
-                elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
-                    active_electives = ["Computer", "Mathematics", "Statistics"]
-                elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
-                    active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
-                elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
-                    active_electives = ["Education", "Isl_Elc", "Computer"]
-                elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
-                    active_electives = ["Information Technology", "Computer Science", "Networks"]
-                else:
-                    active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
-                
-                raw_subjects = list(set(compulsory_subs + active_electives))
-                unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
-                
-                history_bridge_map = {
-                    "Chemistry": ["Computer"],
-                    "Biology": ["Statistics"],
-                    "Physics": ["Mathematics"],
-                    "Education": ["Mathematics", "Physics", "Chemistry"],
-                    "Isl_Elc": ["Statistics", "Biology", "Economics", "Accounting"],
-                    "Accounting": ["Mathematics"],       
-                    "Economics": ["Chemistry", "Computer"], 
-                    "Commerce": ["Physics", "Biology"]
-                }
-            else:
-                target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
-                if any(x in target_section_context for x in ["IB", "IG"]):
-                    raw_subjects = ["English", "Urdu", "Accounting", "Economics", "Commerce", "Isl_Eth", "T_Quran", "B_Math"]
-                    unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
-                elif any(x in target_section_context for x in ["FB", "FG"]):
-                    unique_subjects = ["English", "Urdu", "Education", "Isl_Elc", "Computer", "Isl_Eth", "T_Quran"]
-                else:
-                    unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
-                history_bridge_map = {}
-            
-            table_rows_html = ""
-            exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
-            exam_totals_max = {exam: 0.0 for exam in selected_exams_list}
-            exam_has_any_data = {exam: False for exam in selected_exams_list}
-
-            for sub in unique_subjects:
-                row_html = f"<tr><td>{sub.upper()}</td>"
-                sub_percentages = []
-
-                for exam in selected_exams_list:
-                    exam_subset = s_marks[(s_marks["subject_clean"] == sub) & (s_marks["exam_type"].str.upper() == exam.upper())] if not s_marks.empty else pd.DataFrame()
-                    
-                    if exam_subset.empty and sub in history_bridge_map and not s_marks.empty:
-                        possible_old_subs = history_bridge_map[sub]
-                        old_match = s_marks[(s_marks["subject_clean"].isin(possible_old_subs)) & (s_marks["exam_type"].str.upper() == exam.upper())]
-                        
-                        if not old_match.empty:
-                            old_sub_clean = old_match.iloc[0]["subject_clean"]
-                            shorthand_tag = old_sub_clean[:4] if len(old_sub_clean) > 4 else old_sub_clean
-                            
-                            m_obt = old_match.iloc[0]["marks_obtained"]
-                            m_tot = old_match.iloc[0]["total_marks"]
-                            try:
-                                val_obt = float(m_obt)
-                                val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
-                                pct = (val_obt / val_tot) * 100
-                                row_html += f"<td><span style='font-size:11px; color:#7f8c8d;'>{shorthand_tag}({int(pct)}%)</span></td>"
-                                sub_percentages.append(pct)
-                                exam_totals_obtained[exam] += val_obt
-                                exam_totals_max[exam] += val_tot
-                                exam_has_any_data[exam] = True
-                                continue 
-                            except:
-                                pass
-
-                    if not exam_subset.empty:
-                        m_obt = exam_subset.iloc[0]["marks_obtained"]
-                        m_tot = exam_subset.iloc[0]["total_marks"]
-                        try:
-                            val_obt = float(m_obt)
-                            val_tot = float(m_tot) if float(m_tot) > 0 else 100.0
-                            pct = (val_obt / val_tot) * 100
-                            row_html += f"<td>{int(pct)}%</td>"
-                            sub_percentages.append(pct)
-                            exam_totals_obtained[exam] += val_obt
-                            exam_totals_max[exam] += val_tot
-                            exam_has_any_data[exam] = True
-                        except:
-                            clean_obt = str(m_obt).strip().upper()
-                            if clean_obt in ["A", "ABSENT", "ABS"]:
-                                row_html += "<td>A</td>"
-                                exam_totals_max[exam] += float(m_tot) if pd.notna(m_tot) and float(m_tot) > 0 else 100.0
-                                exam_has_any_data[exam] = True
-                                sub_percentages.append(0.0)
-                            elif clean_obt in ["NC", "N.C"]:
-                                row_html += "<td style='color: #7f8c8d; font-weight: bold;'>NC</td>"
-                            else:
-                                row_html += "<td>-</td>"
-                    else:
-                        row_html += "<td>-</td>"
-                
-                if sub_percentages:
-                    avg_pct = int(sum(sub_percentages) / len(sub_percentages))
-                    row_html += f"<td><strong>{avg_pct}%</strong></td></tr>"
-                else:
-                    row_html += "<td><strong>-</strong></td></tr>"
-                table_rows_html += row_html
-
-            # --- GRAND TOTALS ROW ---
-            total_row_html = "<tr><td><strong>Total</strong></td>"
-            grand_total_percentages = []
-            for exam in selected_exams_list:
-                if exam_has_any_data[exam] and exam_totals_max[exam] > 0:
-                    tot_pct = int((exam_totals_obtained[exam] / exam_totals_max[exam]) * 100)
-                    total_row_html += f"<td><strong>{tot_pct}%</strong></td>"
-                    grand_total_percentages.append(tot_pct)
-                else:
-                    total_row_html += "<td><strong>-</strong></td>"
-            
-            if grand_total_percentages:
-                overall_avg = int(sum(grand_total_percentages) / len(grand_total_percentages))
-                total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
-            else:
-                total_row_html += "<td><strong>-</strong></td></tr>"
-                
-            # --- ATTENDANCE TRACKER PROCESSING ---
-            if not attendance_df.empty:
-                s_att = attendance_df[attendance_df["student_id"].astype(str) == str(match_id)]
-            else:
-                s_att = pd.DataFrame()
-            
-            tot_days_row = ""
-            att_days_row = ""
-            pct_days_row = ""
-            
-            overall_tot_days = 0
-            overall_att_days = 0
-
-            for m in months_list:
-                m_subset = s_att[s_att["month_name"].str.startswith(m[:3], na=False)] if not s_att.empty else pd.DataFrame()
-                
-                if not s_att.empty and not m_subset.empty:
-                    t_d = int(m_subset.iloc[0]["total_days"])
-                    a_d = int(m_subset.iloc[0]["attended_days"])
-                    p_d = int((a_d / t_d) * 100) if t_d > 0 else 0
-                    
-                    overall_tot_days += t_d
-                    overall_att_days += a_d
-                    
-                    tot_days_row += f"<td>{t_d}</td>"
-                    att_days_row += f"<td>{a_d}</td>"
-                    pct_days_row += f"<td>{p_d}%</td>"
-                else:
-                    tot_days_row += "<td></td>"
-                    att_days_row += "<td></td>"
-                    pct_days_row += "<td></td>"
-            
-            if overall_tot_days > 0:
-                overall_att_pct = f"{int((overall_att_days / overall_tot_days) * 100)}%"
-                tot_days_row += f"<td>{overall_tot_days}</td>"
-                att_days_row += f"<td>{overall_att_days}</td>"
-                pct_days_row += f"<td><strong>{overall_att_pct}</strong></td>"
-            else:
-                tot_days_row += "<td></td>"
-                att_days_row += "<td></td>"
-                pct_days_row += "<td></td>"
-
-            # --- ANALYTIC AUTO REMARKS TEXT ---
-            if grand_total_percentages:
-                final_perf = grand_total_percentages[-1]
-                if final_perf >= 85: remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
-                elif final_perf >= 70: remarks_text = "Highly satisfactory progress across consecutive monthly milestones."
-                elif final_perf >= 50: remarks_text = "Good core standing. Targeted revision in weaker subjects will boost performance."
-                else: remarks_text = "Requires closer attention and regular conceptual reinforcement."
-            else:
-                remarks_text = "Assessment parameters incomplete or awaiting evaluation confirmation."
-
-            thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
-            thead_sub_tds = "".join(["<td>Obt. Age%</td>" for _ in selected_exams_list])
-
-            if logo_base64:
-                logo_element_markup = f'<img class="cck-logo-image" src="{logo_base64}" alt="College Logo" />'
-            else:
-                logo_element_markup = '<div class="cck-logo-fallback-text">CC</div>'
-
-            composite_html_payload += f"""
-            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
-                <div class="cck-header-wrapper">
-                    <div class="cck-logo-image-container">
-                        {logo_element_markup}
-                    </div>
-                    <div class="cck-title-block">
-                        <div class="cck-main-title">CONCORDIA COLLEGE KASUR</div>
-                    </div>
-                </div>
-                
-                <div class="cck-badge-wrapper">
-                    <div class="cck-doc-badge">Result Card</div>
-                </div>
-                
-                <div class="cck-meta-row">
-                    <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
-                    <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
-                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
-                    <div class="cck-meta-field">Class: <span class="cck-line-fill">{s_class}</span></div>
-                </div>
-                
-                <table class="cck-report-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 25%;"></th>
-                            {thead_exams_th}
-                            <th></th>
-                        </tr>
-                        <tr>
-                            <th style="text-align: left; padding-left: 8px; font-weight: bold;">Subjects</th>
-                            {thead_sub_tds}
-                            <td style="font-weight: bold;">Avg.%</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {table_rows_html}
-                        {total_row_html}
-                    </tbody>
-                </table>
-                
-                <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;">
-                    <div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div>
-                </div>
-                
-                <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
-                    <thead>
-                        <tr>
-                            <th style="width: 14%;"></th>
-                            <th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th>
-                            <th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th>
-                            <th style="font-weight: bold;">Over All Att.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td><strong>Total Days</strong></td>{tot_days_row}</tr>
-                        <tr><td><strong>Att. Days</strong></td>{att_days_row}</tr>
-                        <tr><td><strong>Age%</strong></td>{pct_days_row}</tr>
-                    </tbody>
-                </table>
-                
-                <div class="cck-remarks-area">
-                    <strong>Remarks:</strong>
-                    <div class="cck-remarks-line">{remarks_text}</div>
-                </div>
-                
-                <div class="cck-footer-sign">
-                    <strong>Principal Sign</strong>
-                </div>
-            </div>
-            """
-        
-        composite_html_payload += """
-            </div> 
-            
-            <script>
-            function executeTargetPrint(isSingleTarget) {
-                var cards = document.querySelectorAll('.student-card-record');
-                if (cards.length === 0) return;
-                
-                if (isSingleTarget) {
-                    cards.forEach(function(card, idx) {
-                        if (idx === 0) {
-                            card.classList.add('cck-single-print-isolation');
-                            card.classList.remove('cck-single-print-hide');
-                        } else {
-                            card.classList.add('cck-single-print-hide');
-                            card.classList.remove('cck-single-print-isolation');
-                        }
-                    });
-                } else {
-                    cards.forEach(function(card) {
-                        card.classList.remove('cck-single-print-hide');
-                        card.classList.remove('cck-single-print-isolation');
-                    });
-                }
-                
-                setTimeout(function() { window.print(); }, 200);
-            }
-
-            function exportDossierToImage(isSingleTarget) {
-                var cards = document.querySelectorAll('.student-card-record');
-                if (cards.length === 0) { alert('No report layers found to capture.'); return; }
-                
-                var processQueue = [];
-                if (isSingleTarget) {
-                    processQueue.push(cards[0]);
-                } else {
-                    cards.forEach(function(c) { processQueue.push(c); });
-                }
-                
-                var continuousRender = function(idx) {
-                    if (idx >= processQueue.length) return;
-                    var targetCard = processQueue[idx];
-                    
-                    html2canvas(targetCard, { scale: 2, useCORS: true }).then(function(canvas) {
-                        var dataUrl = canvas.toDataURL('image/png');
-                        var filename = 'Report_' + targetCard.getAttribute('data-name') + '_' + targetCard.getAttribute('data-id') + '.png';
-                        
-                        var link = document.createElement('a');
-                        link.download = filename;
-                        link.href = dataUrl;
-                        link.click();
-                        
-                        setTimeout(function() { continuousRender(idx + 1); }, 300);
-                    });
-                };
-                continuousRender(0);
-            }
-            </script>
-        </body>
-        </html>
-        """
-        
-        # 🖥️ Render the component safely inside standard component frame height
-        st.components.v1.html(composite_html_payload, height=800, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
