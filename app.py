@@ -2163,39 +2163,71 @@ elif menu_choice == "Student Management":
                                     st.error(f"Failed to update status: {e}")
                 
                 # --- SECTION CHANGE MANAGEMENT CARD ---
-with col_section:
-    with st.container(border=True):
-        st.subheader("🏫 Room & Section Transfer")
-        
-        # 1. Extract every unique section value present across your map variables
-        raw_sections = set()
-        for key, value in DISCIPLINE_SECTIONS_MAP.items():
-            if isinstance(value, list):
-                for item in value:
-                    raw_sections.add(str(item).strip())
-            else:
-                raw_sections.add(str(value).strip())
-        
-        # 2. Filter out anything containing "th", numbers standing alone as classes, or empty items
-        all_sections = sorted([
-            sec for sec in raw_sections 
-            if "th" not in sec.lower() and sec != "" and not (sec.isdigit() and len(sec) <= 2)
-        ])
-        
-        # 3. Double check that other standard sections are injected if the list came up dry
-        if not all_sections or len(all_sections) <= 1:
-            # Fallback array containing common structural institutional sections
-            fallback_pool = ["MQ1", "MQ2", "MQ3", "EQ1", "EK1", "CK1", "CK2", "CK3", "CQ3", "FK1", "FQ1", "IQ1", "1K1"]
-            all_sections = sorted(list(set(fallback_pool + [s_sec])))
-        
-        # 4. Safely set up selection indices
-        if s_sec in all_sections:
-            default_sec_idx = all_sections.index(s_sec)
-        else:
-            all_sections.insert(0, s_sec)
-            default_sec_idx = 0
+    with col_section:
+        with st.container(border=True):
+            st.subheader("🏫 Room & Section Transfer")
             
-        new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
+            # 1. Extract every unique section value present across your map variables
+            raw_sections = set()
+            for key, value in DISCIPLINE_SECTIONS_MAP.items():
+                if isinstance(value, list):
+                    for item in value:
+                        raw_sections.add(str(item).strip())
+                else:
+                    raw_sections.add(str(value).strip())
+            
+            # 2. Filter out anything containing "th", numbers standing alone as classes, or empty items
+            all_sections = sorted([
+                sec for sec in raw_sections 
+                if "th" not in sec.lower() and sec != "" and not (sec.isdigit() and len(sec) <= 2)
+            ])
+            
+            # 3. Double check that other standard sections are injected if the list came up dry
+            if not all_sections or len(all_sections) <= 1:
+                fallback_pool = ["MQ1", "MQ2", "MQ3", "QA1", "QA2", "Pre-Medical", "Pre-Engineering", "ICS", "Commerce"]
+                all_sections = sorted(list(set(fallback_pool + [s_sec])))
+            
+            # 4. Safely set up selection indices
+            if s_sec in all_sections:
+                default_sec_idx = all_sections.index(s_sec)
+            else:
+                all_sections.insert(0, s_sec)
+                default_sec_idx = 0
+                
+            new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
+            section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
+            section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
+            
+            if st.button("🔄 Execute Section Change", use_container_width=True, type="primary"):
+                if new_sec == s_sec:
+                    st.warning("⚠️ Student is already assigned to this section.")
+                elif not section_remarks.strip():
+                    st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
+                else:
+                    try:
+                        # Using PostgreSQL Native %s placeholders 
+                        run_update(
+                            "UPDATE students SET section = %s WHERE id = %s", 
+                            (str(new_sec), int(s_id))
+                        )
+                        
+                        try:
+                            run_update("""
+                                INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
+                                VALUES (%s, 'SECTION_TRANSFER', %s, %s, %s, %s)
+                            """, (int(s_id), str(s_sec), str(new_sec), str(section_date), section_remarks.strip()))
+                        except Exception:
+                            pass
+                        
+                        st.success(f"✅ Successfully transferred student to **{new_sec}**!")
+                        
+                        if "section_select_node" in st.session_state:
+                            del st.session_state["section_select_node"]
+                            
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Database Write Rejected the Change: {e}")
 
     # =========================================================
     # TAB 2: AUDIT LOGS VIEW (Perfectly Indented)
