@@ -1000,8 +1000,10 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                 if success_count > 0:
                     st.success(f"🎉 Successfully imported and synced marks for {success_count} students dynamically!")
                     st.rerun()
-            except Exception as e:
-                st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
+                else:
+                    st.warning("⚠️ No valid rows with data content were processed.")
+        except Exception as e:
+            st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC DATABASE INTEGRATION)
 # ====================================================================================
