@@ -1304,6 +1304,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
     # --- DYNAMIC CONTROLS INTERFACE PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
+    # 🛠️ GLOBAL ACADEMIC CONTEXT PARAMETERS
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        sel_session = st.selectbox("🎯 Target Academic Session:", AVAILABLE_SESSIONS, index=2, key="rep_global_session")
+        # 🧠 Context-Aware Auto-Inference for Classes
+        start_year = int(sel_session.split('-')[0])
+        sel_class = "12th" if start_year == 2025 else "11th"
+    with col_g2:
+        st.text_input("Active Cohort Filter Level:", value=sel_class, disabled=True, key="rep_global_class_readonly")
+
+    st.markdown("---")
+
     scope_choice = st.radio(
         "𖨾 Select Scope:",
         options=["👤 Single Student Card", "👥 Complete Section Cards"],
@@ -1341,15 +1353,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     student_df = run_query("""
                         SELECT id, name, section, class 
                         FROM students 
-                        WHERE id = :sid
-                    """, {"sid": query_id})
+                        WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                    """, {"sid": query_id, "session": sel_session, "class_level": sel_class})
                     
                     if not student_df.empty:
                         students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
                         rendered_discipline = "N/A"
                     else:
-                        st.error(f"❌ Student ID #{clean_id} was not found in the database.")
+                        st.error(f"❌ Student ID #{clean_id} was not found under active session {sel_session} ({sel_class}).")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
@@ -1371,17 +1383,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
             rendered_discipline = sel_disc
             rendered_section = sel_sec
             
+            # Formatted to prevent cross-contamination across sessions
             section_students_df = run_query("""
                 SELECT id, name, section, class 
                 FROM students 
                 WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                  AND session = :session
+                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                  AND (status IS NULL OR UPPER(TRIM(status)) = 'ACTIVE')
                 ORDER BY id ASC
-            """, {"section": sel_sec})
+            """, {"section": sel_sec, "session": sel_session, "class_level": sel_class})
             
             if not section_students_df.empty:
                 students_to_process = section_students_df.to_dict('records')
             else:
-                st.info(f"💡 No registered student profiles mapped to section '{sel_sec}'.")
+                st.info(f"💡 No registered active student profiles mapped to section '{sel_sec}' within session {sel_session}.")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1651,7 +1667,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
             s_section = " ".join(raw_section.replace("\n", " ").split())
             
-            raw_class = str(s_meta["class"]) if s_meta.get("class") else "11th"
+            raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
             match_id = int(s_id) if s_id.isdigit() else s_id
@@ -1671,7 +1687,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 else:
                     detected_sec = s_section.upper().strip()
                 
-                # Verify structural track selection safely
                 target_section_context = s_section.upper().strip() if s_section else detected_sec
                 
                 medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
@@ -1693,10 +1708,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
                 elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
-                    # 4 elective track unique to Commerce
                     active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
                 elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
-                    # 3 standard electives for Humanities
                     active_electives = ["Education", "Isl_Elc", "Computer"]
                 elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
                     active_electives = ["Information Technology", "Computer Science", "Networks"]
@@ -1706,7 +1719,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 raw_subjects = list(set(compulsory_subs + active_electives))
                 unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
                 
-                # Preserved historical matrix maps for all tracks including FB / FG
                 history_bridge_map = {
                     "Chemistry": ["Computer"],
                     "Biology": ["Statistics"],
@@ -1812,6 +1824,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 total_row_html += f"<td><strong>{overall_avg}%</strong></td></tr>"
             else:
                 total_row_html += "<td><strong>-</strong></td></tr>"
+                
             # --- ATTENDANCE TRACKER PROCESSING ---
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"].astype(str) == str(match_id)]
@@ -1972,56 +1985,42 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 setTimeout(function() { window.print(); }, 200);
             }
 
-            function triggerImageCaptureSequence(targetList, currentIndex) {
-                if (currentIndex >= targetList.length) return;
-                
-                var currentElement = targetList[currentIndex];
-                var studentName = currentElement.getAttribute('data-name') || 'Student';
-                var studentID = currentElement.getAttribute('data-id') || 'Unknown';
-                
-                html2canvas(currentElement, {
-                    scale: 2, 
-                    useCORS: true,
-                    backgroundColor: '#ffffff'
-                }).then(function(canvas) {
-                    var dataUrl = canvas.toDataURL('image/png');
-                    var downloadAnchor = document.createElement('a');
-                    
-                    downloadAnchor.download = 'Result_Card_' + studentName + '_' + studentID + '.png';
-                    downloadAnchor.href = dataUrl;
-                    document.body.appendChild(downloadAnchor);
-                    downloadAnchor.click();
-                    document.body.removeChild(downloadAnchor);
-                    
-                    triggerImageCaptureSequence(targetList, currentIndex + 1);
-                }).catch(function(err) {
-                    console.error("Canvas image export failure configuration:", err);
-                    triggerImageCaptureSequence(targetList, currentIndex + 1);
-                });
-            }
-
             function exportDossierToImage(isSingleTarget) {
                 var cards = document.querySelectorAll('.student-card-record');
-                if (cards.length === 0) {
-                    alert("No valid student cards rendered to capture.");
-                    return;
-                }
-
+                if (cards.length === 0) { alert('No report layers found to capture.'); return; }
+                
+                var processQueue = [];
                 if (isSingleTarget) {
-                    triggerImageCaptureSequence([cards[0]], 0);
+                    processQueue.push(cards[0]);
                 } else {
-                    if (confirm("Generate and download separate PNG snapshots for all (" + cards.length + ") compiled records?")) {
-                        triggerImageCaptureSequence(Array.from(cards), 0);
-                    }
+                    cards.forEach(function(c) { processQueue.push(c); });
                 }
+                
+                var continuousRender = function(idx) {
+                    if (idx >= processQueue.length) return;
+                    var targetCard = processQueue[idx];
+                    
+                    html2canvas(targetCard, { scale: 2, useCORS: true }).then(function(canvas) {
+                        var dataUrl = canvas.toDataURL('image/png');
+                        var filename = 'Report_' + targetCard.getAttribute('data-name') + '_' + targetCard.getAttribute('data-id') + '.png';
+                        
+                        var link = document.createElement('a');
+                        link.download = filename;
+                        link.href = dataUrl;
+                        link.click();
+                        
+                        setTimeout(function() { continuousRender(idx + 1); }, 300);
+                    });
+                };
+                continuousRender(0);
             }
             </script>
         </body>
         </html>
         """
         
-        dynamic_height = 1250 if len(students_to_process) == 1 else min(1150 * len(students_to_process), 9500)
-        components.html(composite_html_payload, height=dynamic_height, scrolling=True)
+        # 🖥️ Render the component safely inside standard component frame height
+        st.components.v1.html(composite_html_payload, height=800, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
