@@ -2170,7 +2170,6 @@ elif menu_choice == "Student Management":
                     with st.container(border=True):
                         st.subheader("🏫 Room & Section Transfer")
                         
-                        # Clean filter to remove classes like "11th" from sections dropdown
                         raw_sections = set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])
                         all_sections = sorted([str(sec) for sec in raw_sections if "th" not in str(sec).lower()])
                         if not all_sections: all_sections = [s_sec]
@@ -2198,8 +2197,9 @@ elif menu_choice == "Student Management":
                                     st.error(f"Failed to change section: {e}")
             else:
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
+
     # =========================================================
-    # TAB 2: AUDIT LOGS VIEW (Inline Row-by-Row Deletion Engine)
+    # TAB 2: AUDIT LOGS VIEW (Perfectly Indented)
     # =========================================================
     with logs_tab:
         st.subheader("📋 Institutional Exit & Section Transfer Logs")
@@ -2255,7 +2255,6 @@ elif menu_choice == "Student Management":
             else:
                 display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
                 
-                # --- EXCEL / CSV DOWNLOAD UTILITY ---
                 try:
                     export_df = display_df.drop(columns=["Log ID"], errors="ignore")
                     csv_data = export_df.to_csv(index=False).encode('utf-8')
@@ -2271,7 +2270,6 @@ elif menu_choice == "Student Management":
                 
                 st.markdown("---")
                 
-                # --- DYNAMIC INLINE ROW RENDERING TABLE HEADER ---
                 th_id, th_name, th_act, th_frm, th_to, th_date, th_rem, th_btn = st.columns([1, 2.5, 1.8, 1.2, 1.2, 1.3, 2, 1])
                 th_id.markdown("**ID**")
                 th_name.markdown("**Student Name**")
@@ -2283,7 +2281,6 @@ elif menu_choice == "Student Management":
                 th_btn.markdown("**Action**")
                 st.markdown("<hr style='margin: 4px 0px 12px 0px; border-color: rgba(49, 51, 63, 0.2);'>", unsafe_allow_html=True)
                 
-                # --- ITERATE RECORDS FOR INLINE ACTIONS ---
                 for idx, row in display_df.iterrows():
                     r_id = row["ID"]
                     r_name = row["Student Name"]
@@ -2317,8 +2314,6 @@ elif menu_choice == "Student Management":
                             c_btn.caption("Legacy")
                         
                         st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
-
-```
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
