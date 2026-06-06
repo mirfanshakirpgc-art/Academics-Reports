@@ -2342,7 +2342,7 @@ elif menu_choice == "Student Management":
                                     run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": int(log_id)})
                                     st.success(f"💥 Purged Log #{int(log_id)}!")
                                     st.rerun()
-                                catch Exception as inline_err:
+                                except Exception as inline_err:
                                     st.error(f"Error: {inline_err}")
                         else:
                             c_btn.caption("Legacy")
