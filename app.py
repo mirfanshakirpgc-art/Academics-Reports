@@ -240,20 +240,52 @@ elif menu_choice == "➕ Add Students":
     # 📋 1. Setup Input Context Option Matrix
     try:
         session_options = AVAILABLE_SESSIONS
+        # Remove 2024-26 if it exists globally
+        if "2024-26" in session_options:
+            session_options = [s for s in session_options if s != "2024-26"]
+        # Append 2027-29 if it isn't already inside the list
+        if "2027-29" not in session_options:
+            session_options.append("2027-29")
     except NameError:
-        session_options = ["2024-26", "2025-27", "2026-28"]
+        session_options = ["2025-27", "2026-28", "2027-29"]
         
     try:
         discipline_options = AVAILABLE_DISCIPLINE
+        # Double check to remove General Science if it pulls from a global list
+        if "General Science" in discipline_options:
+            discipline_options = [d for d in discipline_options if d != "General Science"]
     except NameError:
-        discipline_options = ["Pre-Engineering", "Pre-Medical", "ICS (Physics)", "ICS (Stats)", "I.Com", "General Science"]
+        discipline_options = ["Pre-Engineering", "Pre-Medical", "ICS (Physics)", "ICS (Stats)", "I.Com"]
 
-    # 🛠️ Main Filter Row
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=1, key="add_stu_sess")
-    with c2: selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
-    with c3: selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
-    with c4: selected_section = st.text_input("📋 4. Enter Target Section:", value="CK2", key="add_stu_sec").strip().upper()
+    # 🛠️ Main Filter Row 1: Session & Academic System Type
+    c1, c2 = st.columns(2)
+    with c1: 
+        selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=0, key="add_stu_sess")
+    with c2: 
+        academic_system = st.radio("🏫 Select Academic System Structure:", ["🗓️ Annual System", "🎓 Semester System"], horizontal=True, key="add_stu_system_type")
+
+    st.markdown("---")
+
+    # 🛠️ Main Filter Row 2: Level, Discipline, Section Context (Dynamic Layouts)
+    if academic_system == "🗓️ Annual System":
+        c3, c4, c5 = st.columns(3)
+        with c3: 
+            selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
+        with c4: 
+            selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
+        with c5: 
+            selected_section = st.text_input("📋 4. Enter Target Section:", value="CK2", key="add_stu_sec_annual").strip().upper()
+    
+    else:
+        # Semester System: Completely removes the discipline column
+        c3, c4 = st.columns(2)
+        with c3: 
+            selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
+        with c4: 
+            selected_section = st.selectbox("📋 3. Select Target Section:", ["DIT_G", "DIT_B"], key="add_stu_sec_semester")
+        
+        # Default string placeholder for non-applicable backend db field
+        selected_discipline = "N/A"
 
     st.markdown("---")
 
@@ -270,7 +302,8 @@ elif menu_choice == "➕ Add Students":
     # MODE A: SINGLE STUDENT ENTRY CARD
     # --------------------------------------------
     if entry_strategy == "👤 Single Student Card Entry":
-        st.subheader(f"👤 Register Single Student into {selected_section} ({selected_class} - {selected_discipline})")
+        display_details = f"{selected_class}" if academic_system == "🎓 Semester System" else f"{selected_class} - {selected_discipline}"
+        st.subheader(f"👤 Register Single Student into {selected_section} ({display_details})")
         
         with st.form("single_student_form_card"):
             sc1, sc2 = st.columns(2)
@@ -279,7 +312,7 @@ elif menu_choice == "➕ Add Students":
                 single_name = st.text_input("👤 Full Student Name:")
             with sc2:
                 single_status = st.selectbox("⚙️ Profile Status:", ["ACTIVE", "LEFT", "SUSPENDED"])
-                st.info(f"📍 Binding context automatically to Session: **{selected_session}**")
+                st.info(f"📍 Binding context automatically to Session: **{selected_session}** ({academic_system})")
 
             if st.form_submit_button("🚀 Register Student to Ledger", type="primary"):
                 if not single_id.isdigit():
@@ -317,7 +350,6 @@ elif menu_choice == "➕ Add Students":
         st.subheader(f"📋 Grid Ledger Workspace: Section {selected_section} ({selected_class})")
         st.caption("💡 Tip: Enter or paste your student roster records directly inside the data spreadsheet editor rows down below.")
         
-        # Generates matrix workspace structure pre-binding columns class data layouts 
         import_template = pd.DataFrame([{"ID": "", "Full Name": ""} for _ in range(40)])
         pasted_data = st.data_editor(import_template, use_container_width=True, num_rows="dynamic", key="bulk_paste_grid_matrix")
         
@@ -342,7 +374,7 @@ elif menu_choice == "➕ Add Students":
                             "id": int(r_id), 
                             "name": r_name.upper(), 
                             "sec": selected_section, 
-                            "class": selected_class,
+                            "class": selected_class, 
                             "session": selected_session
                         }
                     )
