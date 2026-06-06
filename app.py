@@ -2107,7 +2107,7 @@ elif menu_choice == "Student Management":
                 try:
                     status_check = run_query("SELECT status FROM students WHERE id = :id", {"id": s_id})
                     if not status_check.empty and pd.notna(status_check.iloc[0]["status"]):
-                        s_status = status_check.iloc[0]["status"]
+                        s_status = str(status_check.iloc[0]["status"]).strip()
                 except Exception:
                     pass
                 
@@ -2152,7 +2152,7 @@ elif menu_choice == "Student Management":
                                     );
                                 """)
                             except Exception:
-                                pass # If it's already there or handled, keep going
+                                pass
 
                             # 2. Process the status modification
                             try:
@@ -2161,13 +2161,13 @@ elif menu_choice == "Student Management":
                                 run_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
                                     VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)
+                                -- Note: Field params mapped explicitly via database execution context variables
                                 """, {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
                                 
                                 st.success(f"✅ Successfully updated status to **{new_status}**!")
                                 st.rerun()
                             except Exception as e:
-                                # Only add the status column if the error explicitly says it's missing
-                                if "column" in str(e).lower() and "status" in str(e).lower() and "not exist" in str(e).lower():
+                                if "column" in str(e).lower() and "status" in str(e).lower():
                                     try:
                                         run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
                                         run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
@@ -2197,7 +2197,6 @@ elif menu_choice == "Student Management":
                             try:
                                 run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
                                 
-                                # Log transfer into history log layout
                                 run_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
                                     VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
@@ -2228,7 +2227,7 @@ elif menu_choice == "Student Management":
             else:
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
 
-# =========================================================
+    # =========================================================
     # TAB 2: AUDIT LOGS VIEW (Inline Row-by-Row Deletion Engine)
     # =========================================================
     with logs_tab:
@@ -2237,7 +2236,6 @@ elif menu_choice == "Student Management":
         
         filter_view = st.selectbox("Filter Log Matrix By Type:", ["All Historical Actions", "Left Students Master List", "Section Transfer Track Log"])
         
-        # Pull master references including the true Log ID from log tables
         try:
             log_data_df = run_query("""
                 SELECT l.id AS "Log ID", l.student_id AS "ID", s.name AS "Student Name", 
@@ -2251,7 +2249,6 @@ elif menu_choice == "Student Management":
         except Exception:
             log_data_df = pd.DataFrame(columns=["Log ID", "ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
             
-        # Fallback tracking scan for legacy left records
         try:
             left_fallback_df = run_query("""
                 SELECT NULL AS "Log ID", id AS "ID", name AS "Student Name", 
@@ -2265,7 +2262,7 @@ elif menu_choice == "Student Management":
             left_fallback_df = pd.DataFrame()
         
         if left_fallback_df is not None and not left_fallback_df.empty:
-            existing_logged_ids = log_data_df[log_data_df["To"] == "Left"]["ID"].tolist()
+            existing_logged_ids = log_data_df[log_data_df["To"] == "Left"]["ID"].tolist() if not log_data_df.empty else []
             filtered_fallback = left_fallback_df[~left_fallback_df["ID"].isin(existing_logged_ids)]
             log_data_df = pd.concat([log_data_df, filtered_fallback], ignore_index=True)
 
@@ -2285,7 +2282,6 @@ elif menu_choice == "Student Management":
             if filtered_df.empty:
                 st.info(f"💡 No matching tracking logs found for type selection: '{filter_view}'")
             else:
-                # Clean up tracking columns before layout compilation
                 display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
                 
                 # --- EXCEL / CSV DOWNLOAD UTILITY ---
@@ -2317,35 +2313,41 @@ elif menu_choice == "Student Management":
                 st.markdown("<hr style='margin: 4px 0px 12px 0px; border-color: rgba(49, 51, 63, 0.2);'>", unsafe_allow_html=True)
                 
                 # --- ITERATE RECORDS FOR INLINE ACTIONS ---
+                # Fixed spacing structure using unique operational button states explicitly inside containers
                 for idx, row in display_df.iterrows():
-                    r_id, r_name, r_act, r_frm, r_to, r_date, r_rem = row["ID"], row["Student Name"], row["Action"], row["From"], row["To"], row["Date Stamp"], row["Staff Remarks Context"]
+                    r_id = row["ID"]
+                    r_name = row["Student Name"]
+                    r_act = row["Action"]
+                    r_frm = row["From"]
+                    r_to = row["To"]
+                    r_date = row["Date Stamp"]
+                    r_rem = row["Staff Remarks Context"]
                     log_id = row["Log ID"]
                     
-                    # Create matching horizontal grids for data layout alignment
-                    c_id, c_name, c_act, c_frm, c_to, c_date, c_rem, c_btn = st.columns([1, 2.5, 1.8, 1.2, 1.2, 1.3, 2, 1])
-                    
-                    c_id.write(str(r_id))
-                    c_name.write(str(r_name))
-                    c_act.write(str(r_act))
-                    c_frm.write(str(r_frm))
-                    c_to.write(str(r_to))
-                    c_date.write(str(r_date))
-                    c_rem.write(str(r_rem))
-                    
-                    # Display an inline delete button if it has an operational Log ID tracking reference
-                    if pd.notna(log_id):
-                        if c_btn.button("🗑️ Delete", key=f"del_inline_{int(log_id)}", type="primary", use_container_width=True):
-                            try:
-                                run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": int(log_id)})
-                                st.success(f"💥 Purged Log #{int(log_id)}!")
-                                st.rerun()
-                            except Exception as inline_err:
-                                st.error(f"Error: {inline_err}")
-                    else:
-                        c_btn.caption("Legacy")
-                    
-                    # Thin separation line between data rows
-                    st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
+                    with st.container():
+                        c_id, c_name, c_act, c_frm, c_to, c_date, c_rem, c_btn = st.columns([1, 2.5, 1.8, 1.2, 1.2, 1.3, 2, 1])
+                        
+                        c_id.write(str(r_id))
+                        c_name.write(str(r_name))
+                        c_act.write(str(r_act))
+                        c_frm.write(str(r_frm))
+                        c_to.write(str(r_to))
+                        c_date.write(str(r_date))
+                        c_rem.write(str(r_rem))
+                        
+                        if pd.notna(log_id):
+                            # Explicit int cast string configuration prevents duplicate tracking keys
+                            if c_btn.button("🗑️ Delete", key=f"del_inline_{int(log_id)}", type="primary", use_container_width=True):
+                                try:
+                                    run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": int(log_id)})
+                                    st.success(f"💥 Purged Log #{int(log_id)}!")
+                                    st.rerun()
+                                catch Exception as inline_err:
+                                    st.error(f"Error: {inline_err}")
+                        else:
+                            c_btn.caption("Legacy")
+                        
+                        st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
