@@ -1575,15 +1575,22 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     
                     if not s_att.empty:
                     # Flat assignment completely eliminates nested indentation alignment crashes
-                        s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
-                else:
-                    # Create a safe blank fallback column for summary data matrices
-                    s_att['parsed_date'] = pd.NaT
-                        month_records = s_att[s_att['parsed_date'].dt.month == m_num]
-                        
-                        t_d = len(month_records)
-                        a_d = len(month_records[month_records['status'].astype(str).str.strip().str.upper().str.startswith('P')])
+                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
 
+                    # Populate the calendar aggregation matrix dictionary safely
+                    for m_num, m_name in month_map.items():
+                        if 'attendance_date' in s_att.columns:
+                            month_records = s_att[s_att['parsed_date'].dt.month == m_num]
+                            t_days = len(month_records)
+                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
+                        else:
+                            # Safely read from your pre-compiled summary sync database records table instead
+                            month_records = s_att[s_att['month_name'].astype(str).str.strip().str.lower() == m_name.lower()]
+                            t_days = int(month_records['total_days'].sum()) if not month_records.empty else 0
+                            p_days = int(month_records['present_days'].sum()) if not month_records.empty else 0
+
+                        if t_days > 0:
+                            attendance_matrix[m_name] = {"total": t_days, "present": p_days}
                 overall_tot_days += t_d
                 overall_att_days += a_d
 
