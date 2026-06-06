@@ -1744,6 +1744,138 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         st.components.v1.html(composite_html_payload, height=900, scrolling=True)
+
+            # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
+            tot_days_row, att_days_row, pct_days_row = "", "", ""
+            overall_tot_days, overall_att_days = 0, 0
+
+            # Map layout text columns to exact calendar month indexes
+            month_map = {
+                "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
+                "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
+            }
+
+            for m_name, m_num in month_map.items():
+                t_d, a_d = 0, 0
+                
+                if not attendance_df.empty:
+                    s_att = attendance_df[attendance_df["student_id"].astype(str).str.strip() == str(match_id).strip()].copy()
+                    
+                    if not s_att.empty:
+                        s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
+                        month_records = s_att[s_att['parsed_date'].dt.month == m_num]
+                        
+                        t_d = len(month_records)
+                        a_d = len(month_records[month_records['status'].astype(str).str.strip().str.upper().str.startswith('P')])
+
+                overall_tot_days += t_d
+                overall_att_days += a_d
+
+                t_d_str = f"{t_d:02d}" if t_d > 0 else "-"
+                a_d_str = f"{a_d:02d}" if t_d > 0 else "-"
+                pct_str = f"{int((a_d/t_d)*100)}%" if t_d > 0 else "-"
+
+                tot_days_row += f"<td>{t_d_str}</td>"
+                att_days_row += f"<td>{a_d_str}</td>"
+                pct_days_row += f"<td>{pct_str}</td>"
+            
+            if overall_tot_days > 0:
+                tot_days_row += f"<td>{overall_tot_days:02d}</td>"
+                att_days_row += f"<td>{overall_att_days:02d}</td>"
+                pct_days_row += f"<td><strong>{int((overall_att_days / overall_tot_days) * 100)}%</strong></td>"
+            else:
+                tot_days_row += "<td>-</td>"
+                att_days_row += "<td>-</td>"
+                pct_days_row += "<td><strong>0%</strong></td>"
+
+            remarks_text = "Satisfactory academic progress observed."
+            if grand_total_percentages and grand_total_percentages[-1] >= 85:
+                remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
+
+            thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
+            thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
+
+            logo_markup = f'<img class="cck-logo-image" src="{logo_base64}" alt="Logo" />' if logo_base64 else '<div class="cck-logo-fallback-text">CC</div>'
+
+            composite_html_payload += f"""
+            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
+                <div class="cck-header-wrapper">
+                    <div class="cck-logo-image-container">{logo_markup}</div>
+                    <div class="cck-title-block"><div class="cck-main-title">CONCORDIA COLLEGE KASUR</div></div>
+                </div>
+                <div class="cck-badge-wrapper"><div class="cck-doc-badge">Result Card</div></div>
+                <div class="cck-meta-row">
+                    <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
+                    <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
+                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
+                    <div class="cck-meta-field">Class: <span class="cck-line-fill">{s_class}</span></div>
+                </div>
+                <table class="cck-report-table">
+                    <thead>
+                        <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
+                        <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">Subjects</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
+                    </thead>
+                    <tbody>{table_rows_html}{total_row_html}</tbody>
+                </table>
+                <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;"><div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div></div>
+                <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
+                    <thead>
+                        <tr><th style="width: 14%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th style="font-weight: bold;">Overall</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Total Days</strong></td>{tot_days_row}</tr>
+                        <tr><td><strong>Att. Days</strong></td>{att_days_row}</tr>
+                        <tr><td><strong>Age%</strong></td>{pct_days_row}</tr>
+                    </tbody>
+                </table>
+                <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
+                <div class="cck-footer-sign"><strong>Principal Sign</strong></div>
+            </div>
+            """
+        
+        composite_html_payload += """
+            </div> 
+            <script>
+            function executeTargetPrint(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) return;
+                cards.forEach(function(card, idx) {
+                    if (isSingleTarget) {
+                        if (idx === 0) { card.classList.add('cck-single-print-isolation'); card.classList.remove('cck-single-print-hide'); }
+                        else { card.classList.add('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                    } else { card.classList.remove('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                });
+                setTimeout(function() { window.print(); }, 200);
+            }
+
+            function exportDossierToImage(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) { alert('No student cards available.'); return; }
+                var targetList = [];
+                if (isSingleTarget) { targetList.push(cards[0]); } 
+                else { cards.forEach(function(c) { targetList.push(c); }); }
+                triggerImageCaptureSequence(targetList, 0);
+            }
+
+            function triggerImageCaptureSequence(targetList, currentIndex) {
+                if (currentIndex >= targetList.length) return;
+                var element = targetList[currentIndex];
+                var studName = element.getAttribute('data-name') || 'student';
+                var studId = element.getAttribute('data-id') || 'id';
+                
+                html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
+                    var link = document.createElement('a');
+                    link.download = studId + '_' + studName + '_ProgressCard.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    setTimeout(function() { triggerImageCaptureSequence(targetList, currentIndex + 1); }, 500);
+                });
+            }
+            </script>
+        </body>
+        </html>
+        """
+        st.components.v1.html(composite_html_payload, height=900, scrolling=True)
         <html>
         <head>
         <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
