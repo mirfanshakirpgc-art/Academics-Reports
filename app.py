@@ -1258,20 +1258,52 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
     else:
-        with st.form("complete_section_secure_form"):
-            st.markdown("##### 👥 Complete Section Processing Panel")
-            col_c1, col_c2, col_c3 = st.columns(3)
-            with col_c1:
-                sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="form_sel_disc_bulk")
-                sel_session_bulk = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="form_sess_bulk")
-            with col_c2:
-                filtered_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
-                sel_sec = st.selectbox("Select Target Class Section:", filtered_sections, key="form_sel_sec_bulk")
-                sel_class_bulk = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="form_class_bulk")
-            with col_c3:
-                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_bulk")
-                
-            submit_bulk = st.form_submit_button("🚀 Compile All Section Cards", use_container_width=True)
+        # --- BULK SECTION PROCESSING PANEL (DYNAMIC CROSS-FILTERING) ---
+        # We process selection fields outside the form container framework to allow active state reruns
+        st.markdown('<div style="border:1px solid #d3d3d3; padding: 20px; border-radius: 5px; margin-bottom: 20px;">', unsafe_allow_html=True)
+        st.markdown("##### 👥 Complete Section Processing Panel")
+        col_c1, col_c2, col_c3 = st.columns(3)
+        
+        with col_c1:
+            sel_disc = st.selectbox("Select Discipline Context:", AVAILABLE_DISCIPLINE, key="bulk_sel_disc")
+            sel_session_bulk = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="bulk_sel_sess")
+        
+        with col_c2:
+            sel_class_bulk = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="bulk_sel_class")
+            
+            # Extract raw base mapping
+            base_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
+            
+            # Dynamic filtering logic to format sections depending on 11th vs 12th selection
+            if sel_class_bulk == "12th":
+                # Matches database naming conventions for 12th year variants
+                # Converts 11th specific prefix models (e.g., 'M' to '2') or appends indicator suffixes
+                filtered_sections = []
+                for sec in base_sections:
+                    if sec.startswith("M"):
+                        filtered_sections.append(sec.replace("M", "2M", 1) if not sec.startswith("2M") else sec)
+                    elif sec.startswith("E"):
+                        filtered_sections.append(sec.replace("E", "2E", 1) if not sec.startswith("2E") else sec)
+                    elif sec.startswith("C"):
+                        filtered_sections.append(sec.replace("C", "2C", 1) if not sec.startswith("2C") else sec)
+                    elif sec.startswith("I"):
+                        filtered_sections.append(sec.replace("I", "2I", 1) if not sec.startswith("2I") else sec)
+                    elif sec.startswith("F"):
+                        filtered_sections.append(sec.replace("F", "2F", 1) if not sec.startswith("2F") else sec)
+                    else:
+                        # Fallback case pattern matching: automatically handles standard structures
+                        filtered_sections.append(f"2_{sec}" if not sec.startswith("2_") else sec)
+            else:
+                filtered_sections = base_sections
+
+            sel_sec = st.selectbox("Select Target Class Section:", filtered_sections, key="bulk_sel_sec")
+            
+        with col_c3:
+            selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="bulk_exams")
+            
+        st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
+        submit_bulk = st.button("🚀 Compile All Section Cards", use_container_width=True, type="primary")
+        st.markdown('</div></div>', unsafe_allow_html=True)
             
         if submit_bulk:
             rendered_discipline = sel_disc
@@ -1289,7 +1321,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not section_students_df.empty:
                 students_to_process = section_students_df.to_dict('records')
             else:
-                st.info(f"💡 No registered student profiles mapped to section '{sel_sec}' for Session {sel_session_bulk}.")
+                st.info(f"💡 No registered student profiles mapped to section '{sel_sec}' for Session {sel_session_bulk} ({sel_class_bulk}).")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1582,29 +1614,30 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 # Verify structural track selection safely
                 target_section_context = s_section.upper().strip() if s_section else detected_sec
                 
-                medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE"]
-                engineering_secs = ["EG_BLUE", "EB_BLUE"]
-                ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"]
-                ics_stats_secs = ["CG_STATS", "CB_STATS"]
-                commerce_secs = ["IG", "IB"]
-                humanities_secs = ["FB", "FG"]
-                it_secs = ["DITB", "DITG"]
+                medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "2MG_BLUE", "2MG_WHITE", "2MB_BLUE"]
+                engineering_secs = ["EG_BLUE", "EB_BLUE", "2EG_BLUE", "2EB_BLUE"]
+                ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "2CG_WHITE", "2CG_GREEN", "2CB_WHITE", "2CB_GREEN"]
+                ics_stats_secs = ["CG_STATS", "CB_STATS", "2CG_STATS", "2CB_STATS"]
+                commerce_secs = ["IG", "IB", "2IG", "2IB"]
+                humanities_secs = ["FB", "FG", "2FB", "2FG"]
+                it_secs = ["DITB", "DITG", "2DITB", "2DITG"]
                 
                 compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
                 
-                if any(x in target_section_context for x in medical_secs) or target_section_context.startswith("M"):
+                # Dynamic matching patterns for both years
+                if any(x in target_section_context for x in medical_secs) or target_section_context.startswith("M") or "2M" in target_section_context:
                     active_electives = ["Chemistry", "Biology", "Physics"]
-                elif any(x in target_section_context for x in engineering_secs) or target_section_context.startswith("E"):
+                elif any(x in target_section_context for x in engineering_secs) or target_section_context.startswith("E") or "2E" in target_section_context:
                     active_electives = ["Chemistry", "Mathematics", "Physics"]
                 elif any(x in target_section_context for x in ics_physics_secs):
                     active_electives = ["Computer", "Mathematics", "Physics"]
                 elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
-                elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I"):
+                elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I") or "2I" in target_section_context:
                     active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
-                elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F"):
+                elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F") or "2F" in target_section_context:
                     active_electives = ["Education", "Isl_Elc", "Computer"]
-                elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT"):
+                elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT") or "2DIT" in target_section_context:
                     active_electives = ["Information Technology", "Computer Science", "Networks"]
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
@@ -1612,7 +1645,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 raw_subjects = list(set(compulsory_subs + active_electives))
                 unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
                 
-                # Preserved historical matrix maps for all tracks including FB / FG
                 history_bridge_map = {
                     "Chemistry": ["Computer"],
                     "Biology": ["Statistics"],
@@ -1625,10 +1657,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 }
             else:
                 target_section_context = s_section.upper().strip() if s_section else "UNKNOWN"
-                if any(x in target_section_context for x in ["IB", "IG"]):
+                if any(x in target_section_context for x in ["IB", "IG", "2IB", "2IG"]):
                     raw_subjects = ["English", "Urdu", "Accounting", "Economics", "Commerce", "Isl_Eth", "T_Quran", "B_Math"]
                     unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
-                elif any(x in target_section_context for x in ["FB", "FG"]):
+                elif any(x in target_section_context for x in ["FB", "FG", "2FB", "2FG"]):
                     unique_subjects = ["English", "Urdu", "Education", "Isl_Elc", "Computer", "Isl_Eth", "T_Quran"]
                 else:
                     unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
@@ -1918,7 +1950,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         
-        # Safe component execution boundary payload delivery via core pipeline frame
         st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
