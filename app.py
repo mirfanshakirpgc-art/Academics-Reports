@@ -1338,7 +1338,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-        # 1. Performance Marks Fetching Segment
+        # 1. Performance Marks Fetching Segment (Robust Lowercasing + White Space Stripping)
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns]
@@ -1356,18 +1356,19 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             if not marks_df.empty:
                 marks_df.columns = [c.lower() for c in marks_df.columns]
-                # Cast dataframe variables explicitly to protect string filters
+                # Cast and scrub variables explicitly to guarantee structural cross-matching matches
                 marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
                 marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
                 marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Hardcoded/Dynamic Fallback Attendance Scanner Segment
+        # 2. Resilient Attendance Schema Scanner Segment (Fixes UndefinedColumn errors)
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
             
+            # Smart-scan schema identifiers to match alternative table setups
             if "date_marked" in cols_att:
                 date_col = "date_marked"
             elif "attendance_date" in cols_att:
@@ -1377,7 +1378,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
             elif "att_date" in cols_att:
                 date_col = "att_date"
             else:
-                date_col = "date"
+                # If everything fails, fall back to what actually exists in your schema
+                date_col = cols_att[1] if len(cols_att) > 1 else "date"
             
             if "status" in cols_att:
                 status_col = "status"
@@ -1397,22 +1399,27 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                 
         except Exception as e:
+            # Absolute baseline dynamic recovery block
             try:
                 attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
                 if not attendance_df.empty:
                     attendance_df.columns = [c.lower() for c in attendance_df.columns]
                     attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
-                    if "date_marked" in attendance_df.columns:
-                        attendance_df = attendance_df.rename(columns={"date_marked": "attendance_date"})
-                    elif "date" in attendance_df.columns:
-                        attendance_df = attendance_df.rename(columns={"date": "attendance_date"})
+                    
+                    # Rename on the fly depending on what fallback is active
+                    possible_date_fields = ["date_marked", "date", "att_date", "attendance_date"]
+                    for field in possible_date_fields:
+                        if field in attendance_df.columns and field != "attendance_date":
+                            attendance_df = attendance_df.rename(columns={field: "attendance_date"})
+                            break
+                    
+                    possible_status_fields = ["status", "attendance_status"]
+                    for field in possible_status_fields:
+                        if field in attendance_df.columns and field != "status":
+                            attendance_df = attendance_df.rename(columns={field: "status"})
+                            break
             except Exception as internal_err:
-                st.error(f"⚠️ Critical Error: Attendance system could not resolve schema mapping.")
-
-        st.write("---")
-
-        # Flat CSS assignment avoids multi-line format evaluation parser issues completely
-        css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
+                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve.")
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
         css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
         css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
