@@ -254,7 +254,7 @@ elif menu_choice == "➕ Add Students":
         if "General Science" in discipline_options:
             discipline_options = [d for d in discipline_options if d != "General Science"]
     except NameError:
-        # Fallback top-level dictionary keys to match your data structure exactly
+        # User-friendly display items for the dropdown menu
         discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
     # 🛠️ Main Filter Row 1: Session & Academic System Type
@@ -274,23 +274,40 @@ elif menu_choice == "➕ Add Students":
         with c4: 
             selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
             
-        # 🎯 Dynamic Section Filtering Logic from Nested Dictionary Map
+        # 🎯 Dynamic Section Filtering Logic with Key Normalization Fix
         with c5:
+            # Normalize "ICS (PHYSICS)" -> "ICS_PHYSICS" and "ICS (STATS)" -> "ICS_STATS"
+            normalized_discipline = (
+                selected_discipline.upper()
+                .replace(" ", "_")
+                .replace("(", "")
+                .replace(")", "")
+            )
+            
+            # Handle standardizing STATISTICS if your dictionary key uses the full word
+            if normalized_discipline == "ICS_STATS":
+                normalized_discipline = "ICS_STATISTICS"
+
             try:
-                # Access global dictionary safely
-                discipline_map = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {})
+                # Safely attempt to access your global dictionary with the normalized key
+                discipline_map = DISCIPLINE_SECTIONS_MAP.get(normalized_discipline, {})
                 available_sections = discipline_map.get(selected_class, [])
+                
+                # If global lookup returned nothing, try with raw selectbox value just in case
+                if not available_sections:
+                    discipline_map = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {})
+                    available_sections = discipline_map.get(selected_class, [])
             except NameError:
-                # Active local fallback containing your exact section routing structure
+                # Active local fallback mapping matching your exact structural blueprint
                 fallback_nested_map = {
                     "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
                     "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-                    "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
-                    "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
+                    "ICS_PHYSICS": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+                    "ICS_STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
                     "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
                     "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]}
                 }
-                available_sections = fallback_nested_map.get(selected_discipline, {}).get(selected_class, [])
+                available_sections = fallback_nested_map.get(normalized_discipline, {}).get(selected_class, [])
                 
             # Clean and sanitize strings safely
             cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
@@ -309,7 +326,6 @@ elif menu_choice == "➕ Add Students":
         with c4: 
             selected_section = st.selectbox("📋 3. Select Target Section:", ["DIT_G", "DIT_B"], key="add_stu_sec_semester")
         
-        # Default string identifier for non-applicable database fields
         selected_discipline = "N/A"
 
     st.markdown("---")
