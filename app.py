@@ -1409,29 +1409,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
             except Exception as internal_err:
                 st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve. System Details: {str(internal_err)}")
 
+        except Exception as internal_err:
+                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve. System Details: {str(internal_err)}")
+
         # ==========================================
-        # 🛠️ VISUAL BACKEND DATA DIAGNOSTICS PANEL
+        # 🛠️ QUIET LOGGING CHECKPOINT (INTERFACE IS CLEAN NOW)
         # ==========================================
-        with st.expander("🔍 System Inspector: View Raw Database Content", expanded=True):
-            diag_col1, diag_col2 = st.columns(2)
-            with diag_col1:
-                st.markdown("### 📊 Marks Table Status")
-                if not marks_df.empty:
-                    st.success(f"Loaded {len(marks_df)} record rows.")
-                    st.write("**Distinct Exams Stored in DB:**", list(marks_df["exam_type"].unique()))
-                    st.write("**Sample Data Elements:**", marks_df.head(3))
-                else:
-                    st.warning("Empty data collection returned for Marks lookup matches.")
-            with diag_col2:
-                st.markdown("### 📅 Attendance Table Status")
-                if not attendance_df.empty:
-                    st.success(f"Loaded {len(attendance_df)} attendance rows.")
-                    st.write("**Mapped Column Target Structure:**", list(attendance_df.columns))
-                    st.write("**Sample Data Elements:**", attendance_df.head(3))
-                else:
-                    st.warning("Empty data collection returned for Attendance lookup matches.")
-        st.markdown("---")
+        import logging
+        logger = logging.getLogger("StreamlitApp")
+        
+        if marks_df.empty:
+            logger.warning("No marks data returned for the requested student configuration.")
+        if attendance_df.empty:
+            logger.warning("No attendance rows retrieved from database matching these student criteria.")
         # ==========================================
+
+        # Flat CSS assignment avoids multi-line format evaluation parser issues completely
+        css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         # Flat CSS assignment avoids multi-line format evaluation parser issues completely
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
