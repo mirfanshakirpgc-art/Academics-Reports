@@ -1381,6 +1381,77 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
         except Exception as e:
             st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
+            # ... ABOVE IS YOUR MARKS_DF TRY-EXCEPT BLOCK ...
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
+
+        # === ❌ REMOVE THIS OLD ATTENDANCE BLOCK FROM HERE ===
+        try:
+            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
+            cols_att = [c.lower() for c in sample_att.columns]
+            
+            date_col = "attendance_date"
+            for variant in ["date_marked", "attendance_date", "date", "att_date", "date_created"]:
+                if variant in cols_att:
+                    date_col = variant
+                    break
+            
+            status_col = "status"
+            for variant in ["status", "attendance_status", "present_absent", "att_status"]:
+                if variant in cols_att:
+                    status_col = variant
+                    break
+
+            attendance_df = run_query(f"""
+                SELECT student_id, {date_col} as attendance_date, {status_col} as status
+                FROM attendance
+                WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+            
+            if not attendance_df.empty:
+                attendance_df.columns = [c.lower() for c in attendance_df.columns]
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
+        # === ❌ UP TO HERE ===
+
+
+        # ===  PASTE THE NEW SMART-SCANNER BLOCK HERE ===
+        try:
+            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
+            cols_att = [c.lower() for c in sample_att.columns]
+            
+            date_col = None
+            for variant in ["date_marked", "attendance_date", "date", "att_date", "date_created", "marked_date", "session_date"]:
+                if variant in cols_att:
+                    date_col = variant
+                    break
+            
+            if not date_col:
+                date_candidates = [c for c in cols_att if "date" in c or "time" in c]
+                date_col = date_candidates[0] if date_candidates else cols_att[min(1, len(cols_att)-1)]
+            
+            status_col = "status"
+            for variant in ["status", "attendance_status", "present_absent", "att_status", "is_present"]:
+                if variant in cols_att:
+                    status_col = variant
+                    break
+
+            attendance_df = run_query(f"""
+                SELECT student_id, {date_col} as attendance_date, {status_col} as status
+                FROM attendance
+                WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+            
+            if not attendance_df.empty:
+                attendance_df.columns = [c.lower() for c in attendance_df.columns]
+                
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance logs. Real columns found were: {cols_att if 'cols_att' in locals() else 'Unknown'}")
+            st.error(f"Error Details: {str(e)}")
+        # ===  END OF NEW CODE ===
+
+        st.write("---")
+        # ... BELOW IS YOUR css_rules CONFIGURATION ...
 
         st.write("---")
 
