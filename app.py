@@ -271,25 +271,46 @@ elif menu_choice == "➕ Add Students":
     try:
         session_options = AVAILABLE_SESSIONS
     except NameError:
-        session_options = ["2024-26", "2025-27", "2026-28"]
+        session_options = ["2024-26", "2025-27", "2026-28", "2027-29"]
         
     try:
         discipline_options = AVAILABLE_DISCIPLINE
     except NameError:
         discipline_options = ["Pre-Engineering", "Pre-Medical", "ICS (Physics)", "ICS (Stats)", "I.Com", "General Science"]
 
-    # 🛠️ Main Filter Row
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=1, key="add_stu_sess")
-    with c2: selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
-    with c3: selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
-    with c4: selected_section = st.text_input("📋 4. Enter Target Section:", value="CK2", key="add_stu_sec").strip().upper()
+    # 🛠️ Main Filter Row (Auto-Infers Class Level)
+    c1, c2, c3 = st.columns(3)
+    with c1: 
+        selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=2, key="add_stu_sess")
+        
+        # 🧠 Context-Aware Auto-Promotion Logic for 2026 Academic Calendar
+        try:
+            start_year = int(selected_session.split('-')[0])
+            if start_year == 2026:
+                selected_class = "11th"
+            elif start_year == 2025:
+                selected_class = "12th"
+            else:
+                selected_class = "11th" # Fallback rule
+        except Exception:
+            selected_class = "11th"
+
+    with c2: 
+        selected_discipline = st.selectbox("🔬 2. Select Discipline:", discipline_options, key="add_stu_disc")
+    with c3: 
+        selected_section = st.text_input("📋 3. Enter Target Section:", value="CK2", key="add_stu_sec").strip().upper()
+
+    # Dynamic status banner providing direct feedback to the registrar operator
+    if selected_class == "11th":
+        st.success(f"🌱 **Session {selected_session}** is recognized as **11th Class** (New Admissions Batch).")
+    else:
+        st.info(f"🎓 **Session {selected_session}** is recognized as **12th Class** (Promoted Roster Batch).")
 
     st.markdown("---")
 
-    # 👤 5. Select Registration Entry Strategy Mode Layout Toggle
+    # 👤 4. Select Registration Entry Strategy Mode Layout Toggle
     entry_strategy = st.radio(
-        "🛠️ 5. Choose Registration Mode Layout:", 
+        "🛠️ 4. Choose Registration Mode Layout:", 
         ["👤 Single Student Card Entry", "📋 Complete Section Batch Paste Grid"], 
         horizontal=True, 
         key="registration_entry_strategy"
@@ -309,7 +330,7 @@ elif menu_choice == "➕ Add Students":
                 single_name = st.text_input("👤 Full Student Name:")
             with sc2:
                 single_status = st.selectbox("⚙️ Profile Status:", ["ACTIVE", "LEFT", "SUSPENDED"])
-                st.info(f"📍 Binding context automatically to Session: **{selected_session}**")
+                st.info(f"📍 Binding context automatically to Session: **{selected_session}** | Class: **{selected_class}**")
 
             if st.form_submit_button("🚀 Register Student to Ledger", type="primary"):
                 if not single_id.isdigit():
