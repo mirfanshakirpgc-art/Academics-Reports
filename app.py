@@ -1396,20 +1396,22 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
         st.write("---")
 
-        # Standard multi-line string WITHOUT the 'f' prefix so CSS brackets don't conflict with Python
+        # Standard multi-line string with percentages. No '1fr' or 'px' combos to trigger Python syntax errors!
         css_styles = """
         <style>
         body { background-color: #ffffff; margin: 0; padding: 10px; }
         
         .action-dashboard-panel {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            display: flex;
+            flex-wrap: wrap;
             gap: 12px;
             max-width: 850px;
             margin: 10px auto 25px auto;
             font-family: 'Arial', sans-serif;
         }
         .action-control-btn {
+            flex: 1;
+            min-width: 180px;
             color: white;
             border: none;
             padding: 12px 18px;
@@ -1500,7 +1502,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         .cck-badge-wrapper {
             text-align: center;
             margin: 15px 0;
-        }}
+        }
         .cck-doc-badge {
             display: inline-block;
             background-color: #d1d5db;
@@ -1580,7 +1582,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </style>
         """
 
-        # Start the master layout container payload string assembly
+        # Start master component markup payload assembly safely
         composite_html_payload = f"""
         <html>
         <head>
