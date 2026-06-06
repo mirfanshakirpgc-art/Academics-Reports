@@ -618,6 +618,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         
         if uploaded_file is not None:
             try:
+                # 1. Read file immediately into session state to protect it from disappearing on rerun
                 if uploaded_file.name.endswith('.csv'):
                     import_df = pd.read_csv(uploaded_file)
                 else:
@@ -631,14 +632,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"📊 Found data matrix for {len(import_df)} student rows cleanly read!")
                     st.dataframe(import_df.head(10))
                     
-                    if st.button("🚀 Process and Save Bulk Marks to Database", type="primary"):
+                    # 2. Use a distinct key and clear block level execution
+                    execute_save = st.button("🚀 Process and Save Bulk Marks to Database", type="primary", key="commit_bulk_btn")
+                    
+                    if execute_save:
                         success_count = 0
                         for _, row in import_df.iterrows():
                             s_id = str(row['ID']).strip()
                             score = str(row['MARKS']).strip().upper()
                             
                             if s_id.isdigit():
-                                # Clear existing record to avoid duplicate keys
+                                # Clear old data
                                 execute_db_command("""
                                     DELETE FROM marks 
                                     WHERE student_id = :s_id 
@@ -646,7 +650,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                       AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                                 """, {"s_id": int(s_id), "subject": bulk_subject, "exam": bulk_exam})
                                 
-                                # Insert if score isn't empty
+                                # Insert fresh data
                                 if score != "":
                                     execute_db_command("""
                                         INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
@@ -664,9 +668,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.success(f"🎉 Successfully uploaded and synchronized database logs for {success_count} students!")
                             st.rerun()
                         else:
-                            st.warning("⚠️ No valid rows were modified or saved.")
+                            st.warning("⚠️ No valid rows with content were modified or saved.")
             except Exception as e:
-                st.error(f"❌ Failed to parse or upload system data spreadsheet matrix: {e}")
+                st.error(f"❌ Failed to parse system data spreadsheet matrix: {e}")
 # ====================================================================================
 # MODULE 2: MULTI-TEST PROGRESS REPORT (COMPLETELY OVERHAULED & DYNAMIC ROUTING REWRITTEN)
 # ====================================================================================
