@@ -1358,9 +1358,27 @@ if menu_choice == "📈 Multi-Test Progress Report":
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
         try:
-            # Cleaned raw date query with strict Python formatting alignment
+            # 1. Fetch a single row first to discover actual database column names
+            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
+            cols_att = [c.lower() for c in sample_att.columns]
+            
+            # 2. Dynamically look for the date column variant
+            date_col = "attendance_date"  # Default fallback
+            for variant in ["attendance_date", "date", "att_date", "date_created", "log_date"]:
+                if variant in cols_att:
+                    date_col = variant
+                    break
+            
+            # 3. Dynamically look for the status column variant
+            status_col = "status"  # Default fallback
+            for variant in ["status", "attendance_status", "present_absent", "att_status"]:
+                if variant in cols_att:
+                    status_col = variant
+                    break
+
+            # 4. Execute the main query using the columns discovered dynamically
             attendance_df = run_query(f"""
-                SELECT student_id, attendance_date, status
+                SELECT student_id, {date_col} as attendance_date, {status_col} as status
                 FROM attendance
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
