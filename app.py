@@ -1338,6 +1338,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
+        # 1. Performance Marks Fetching Segment
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns]
@@ -1355,86 +1356,28 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
+        # 2. Hardcoded/Dynamic Fallback Attendance Scanner Segment
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns]
+            cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
             
-            date_col = "attendance_date"
-            for variant in ["date_marked", "attendance_date", "date", "att_date", "date_created"]:
-                if variant in cols_att:
-                    date_col = variant
-                    break
+            if "date_marked" in cols_att:
+                date_col = "date_marked"
+            elif "attendance_date" in cols_att:
+                date_col = "attendance_date"
+            elif "date" in cols_att:
+                date_col = "date"
+            elif "att_date" in cols_att:
+                date_col = "att_date"
+            else:
+                date_col = "date"  # Default fallback if table is empty
             
-            status_col = "status"
-            for variant in ["status", "attendance_status", "present_absent", "att_status"]:
-                if variant in cols_att:
-                    status_col = variant
-                    break
-
-            attendance_df = run_query(f"""
-                SELECT student_id, {date_col} as attendance_date, {status_col} as status
-                FROM attendance
-                WHERE student_id IN ({placeholders_str})
-            """, params_dict)
-            
-            if not attendance_df.empty:
-                attendance_df.columns = [c.lower() for c in attendance_df.columns]
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
-            # ... ABOVE IS YOUR MARKS_DF TRY-EXCEPT BLOCK ...
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
-
-        # === ❌ REMOVE THIS OLD ATTENDANCE BLOCK FROM HERE ===
-        try:
-            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns]
-            
-            date_col = "attendance_date"
-            for variant in ["date_marked", "attendance_date", "date", "att_date", "date_created"]:
-                if variant in cols_att:
-                    date_col = variant
-                    break
-            
-            status_col = "status"
-            for variant in ["status", "attendance_status", "present_absent", "att_status"]:
-                if variant in cols_att:
-                    status_col = variant
-                    break
-
-            attendance_df = run_query(f"""
-                SELECT student_id, {date_col} as attendance_date, {status_col} as status
-                FROM attendance
-                WHERE student_id IN ({placeholders_str})
-            """, params_dict)
-            
-            if not attendance_df.empty:
-                attendance_df.columns = [c.lower() for c in attendance_df.columns]
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
-        # === ❌ UP TO HERE ===
-
-
-        # ===  PASTE THE NEW SMART-SCANNER BLOCK HERE ===
-        try:
-            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns]
-            
-            date_col = None
-            for variant in ["date_marked", "attendance_date", "date", "att_date", "date_created", "marked_date", "session_date"]:
-                if variant in cols_att:
-                    date_col = variant
-                    break
-            
-            if not date_col:
-                date_candidates = [c for c in cols_att if "date" in c or "time" in c]
-                date_col = date_candidates[0] if date_candidates else cols_att[min(1, len(cols_att)-1)]
-            
-            status_col = "status"
-            for variant in ["status", "attendance_status", "present_absent", "att_status", "is_present"]:
-                if variant in cols_att:
-                    status_col = variant
-                    break
+            if "status" in cols_att:
+                status_col = "status"
+            elif "attendance_status" in cols_att:
+                status_col = "attendance_status"
+            else:
+                status_col = "status"
 
             attendance_df = run_query(f"""
                 SELECT student_id, {date_col} as attendance_date, {status_col} as status
@@ -1446,12 +1389,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
                 
         except Exception as e:
-            st.error(f"⚠️ Failed fetching attendance logs. Real columns found were: {cols_att if 'cols_att' in locals() else 'Unknown'}")
-            st.error(f"Error Details: {str(e)}")
-        # ===  END OF NEW CODE ===
-
-        st.write("---")
-        # ... BELOW IS YOUR css_rules CONFIGURATION ...
+            # Emergency direct extraction catch-block if schemas fail
+            try:
+                attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
+                if not attendance_df.empty:
+                    attendance_df.columns = [c.lower() for c in attendance_df.columns]
+                    if "date_marked" in attendance_df.columns:
+                        attendance_df = attendance_df.rename(columns={"date_marked": "attendance_date"})
+                    elif "date" in attendance_df.columns:
+                        attendance_df = attendance_df.rename(columns={"date": "attendance_date"})
+            except Exception as internal_err:
+                st.error(f"⚠️ Critical Error: Attendance system could not resolve schema mapping.")
 
         st.write("---")
 
