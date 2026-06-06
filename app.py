@@ -376,6 +376,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
                 with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
                 with c4: st.info("🔒 Bound to Allocation Profile")
+                sel_class = "%" # Let teachers fetch all valid match parameters
             else:
                 st.warning("🚨 You do not have any active subjects or sections assigned yet.")
                 sel_subject, sel_section, sel_session = None, None, None
@@ -386,31 +387,42 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             with c2: 
                 sel_discipline = st.selectbox("Select Discipline:", ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"], key="marks_disc_sel")
             with c3: 
-                sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="entry_class_filter_a")
+                sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
             with c4: 
+                # Smart fallback query that handles both standard string variations and custom mappings
                 active_secs_df = run_query(
                     """
                     SELECT DISTINCT section FROM students 
                     WHERE session LIKE :sess 
-                      AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+                      AND (UPPER(TRIM(class)) = UPPER(TRIM(:cls)) OR :cls = 'ALL' OR class LIKE :disc_match)
                     ORDER BY section
                     """,
-                    {"sess": sess_prefix, "cls": sel_class}
+                    {"sess": sess_prefix, "cls": sel_class, "disc_match": f"%{sel_discipline}%"}
                 )
                 
                 valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
+                
+                fallback_map = {
+                    "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                    "ENGINEERING": ["EK1", "EQ1"],
+                    "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                    "ICS_STATISTICS": ["CQ3", "CK3"],
+                    "COMMERCE": ["IQ1", "IK1"],
+                    "HUMANITIES": ["FQ1", "FK1"]
+                }
+                
+                # If database returns no sections for the literal "11th"/"12th" label, populate your explicit mapping pool
                 if not valid_sections_list:
-                    fallback_map = {
-                        "MEDICAL": ["MQ1", "MQ2", "MK1"],
-                        "ENGINEERING": ["EK1", "EQ1"],
-                        "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
-                        "ICS_STATISTICS": ["CQ3", "CK3"],
-                        "COMMERCE": ["IQ1", "IK1"],
-                        "HUMANITIES": ["FQ1", "FK1"]
-                    }
                     valid_sections_list = fallback_map.get(sel_discipline, ["MQ1"])
 
                 sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
+                
+            try:
+                available_subjects = DISCIPLINE_SUBJECTS_MAP[sel_discipline]
+            except NameError:
+                available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology", "Statistics", "Computer Science"]
+                
+            sel_subject = st.selectbox("Select Subject:", available_subjects, key="entry_sub_filter_a")
                 
             try:
                 available_subjects = DISCIPLINE_SUBJECTS_MAP[sel_discipline]
@@ -429,6 +441,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             try:
                 sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
                 
+                # Updated query handles cases where class is stored as '12th' OR 'ICS_PHYSICS'
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -436,7 +449,11 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                         AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
                         AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
+                      AND (
+                           UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level)) 
+                           OR :class_level = 'ALL' 
+                           OR UPPER(TRIM(s.class)) LIKE UPPER(TRIM(:disc_match))
+                          )
                       AND (s.session LIKE :sess_prefix OR s.session = :session)
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                     ORDER BY s.id ASC
@@ -445,6 +462,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     "exam": sel_exam,
                     "section": sel_section, 
                     "class_level": sel_class,
+                    "disc_match": f"%{sel_discipline}%",
                     "session": sel_session, 
                     "sess_prefix": sess_prefix
                 })
