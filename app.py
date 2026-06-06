@@ -968,7 +968,8 @@ elif menu_choice == "📈 Multi-Test Progress Report":
         for student in students_to_process:
             st.write(f"📝 **Card View Generated for:** ID {student['id']} — {student['name']} ({student['class']})")
                     
-                    if st.button("🚀 Process and Save Bulk Marks to Database", type="primary"):
+            if st.button("🚀 Process and Save Bulk Marks to Database", type="primary"):
+            
                         success_count = 0
                         for idx, row in import_df.iterrows():
                             student_id = str(row['ID']).strip()
