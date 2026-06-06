@@ -1409,11 +1409,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
             except Exception as internal_err:
                 st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve. System Details: {str(internal_err)}")
 
-        except Exception as internal_err:
-                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve. System Details: {str(internal_err)}")
-
         # ==========================================
-        # 🛠️ QUIET LOGGING CHECKPOINT (INTERFACE IS CLEAN NOW)
+        # 🛠️ QUIET LOGGING CHECKPOINT (INTERFACE CLEANED)
         # ==========================================
         import logging
         logger = logging.getLogger("StreamlitApp")
@@ -1423,9 +1420,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         if attendance_df.empty:
             logger.warning("No attendance rows retrieved from database matching these student criteria.")
         # ==========================================
-
-        # Flat CSS assignment avoids multi-line format evaluation parser issues completely
-        css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         # Flat CSS assignment avoids multi-line format evaluation parser issues completely
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
