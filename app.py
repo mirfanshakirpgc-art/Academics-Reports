@@ -1401,7 +1401,8 @@ Please replace that entire bottom section one more time with this **fully flatte
 ```python
         st.write("---")
 
-        css_styles = """
+        # Using a raw string (r""") prevents Python from parsing internal contents as numeric literals
+        css_styles = r"""
         <style>
         body { background-color: #ffffff; margin: 0; padding: 10px; }
         .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }
@@ -1593,7 +1594,7 @@ Please replace that entire bottom section one more time with this **fully flatte
                 html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
                     var link = document.createElement('a');
                     link.download = studId + '_' + studName + '_ProgressCard.png';
-                    link.href = canvas.toToDataURL('image/png');
+                    link.href = canvas.toDataURL('image/png');
                     link.click();
                     setTimeout(function() { triggerImageCaptureSequence(targetList, currentIndex + 1); }, 500);
                 });
@@ -1603,9 +1604,6 @@ Please replace that entire bottom section one more time with this **fully flatte
         </html>
         """
         st.components.v1.html(composite_html_payload, height=900, scrolling=True)
-
-```
-
             # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
