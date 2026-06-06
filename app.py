@@ -1394,8 +1394,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
 
-        Ah, I see what happened! This error occurs because Python thinks the `{panel_gap}` inside that CSS string is trying to evaluate as a Python variable, but the string wasn't properly marked as an **f-string** ($f"""$) in your file, or there are hidden non-breaking spaces (NBSPs) copy-pasted from the browser.
-
 Let's completely bypass this issue by removing the variables and hardcoding the plain values (`12px` and `850px`) directly into the CSS string. This makes the code robust and completely immune to syntax or string formatting errors.
 
 Please replace that entire bottom section one more time with this **fully flattened, hardcoded version**:
@@ -1595,7 +1593,7 @@ Please replace that entire bottom section one more time with this **fully flatte
                 html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
                     var link = document.createElement('a');
                     link.download = studId + '_' + studName + '_ProgressCard.png';
-                    link.href = canvas.toDataURL('image/png');
+                    link.href = canvas.toToDataURL('image/png');
                     link.click();
                     setTimeout(function() { triggerImageCaptureSequence(targetList, currentIndex + 1); }, 500);
                 });
