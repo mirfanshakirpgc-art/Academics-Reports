@@ -161,8 +161,8 @@ menu_choice = st.sidebar.radio(
     [
         "📊 Home Dashboard", 
         "➕ Add Students", 
-        "📝 Academic Exam Marks Entry",      # Standalone Module 1
-        "📅 Attendance Entry Management",    # Standalone Module 2
+        "📝 Academic Exam Marks Entry",      
+        "📅 Attendance Entry Management",    
         "📋 Section Summary Report", 
         "📈 Multi-Test Progress Report", 
         "🪪 Student Result Cards", 
@@ -193,6 +193,28 @@ DISCIPLINE_SECTIONS_MAP = {
     "INFORMATION_TECHNOLOGY": ["DITB", "DITG"]
 }
 
+# 🛠️ DYNAMIC SECTION MATRIX BY CLASS & DISCIPLINE LOOKUP
+CLASS_DISCIPLINE_SECTIONS = {
+    "11th": {
+        "MEDICAL": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
+        "ENGINEERING": ["EG_BLUE", "EB_BLUE"],
+        "ICS_PHYSICS": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
+        "ICS_STATS": ["CG_STATS", "CB_STATS"],
+        "COMMERCE": ["IG", "IB"],
+        "HUMANITIES": ["FB", "FG"],
+        "INFORMATION_TECHNOLOGY": ["DITB", "DITG"]
+    },
+    "12th": {
+        "MEDICAL": ["M1", "M2", "M3"],
+        "ENGINEERING": ["E1", "E2"],
+        "ICS_PHYSICS": ["C1", "C2", "C3"],
+        "ICS_STATS": ["CS1", "CS2"],
+        "COMMERCE": ["I1", "I2"],
+        "HUMANITIES": ["A1", "A2"],
+        "INFORMATION_TECHNOLOGY": ["IT1", "IT2"]
+    }
+}
+
 AVAILABLE_DISCIPLINE = list(DISCIPLINE_SUBJECTS_MAP.keys())
 AVAILABLE_EXAMS = [
     "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
@@ -210,55 +232,32 @@ if menu_choice == "📊 Home Dashboard":
     st.subheader("Academic Ledger Management Dashboard")
     st.markdown("---")
     
-    # Current Academic Tracking Year
     CURRENT_YEAR = 2026
 
     try:
-        # 1. Fetch Global Statistics
         total_students = run_query("SELECT COUNT(*) FROM students WHERE status = 'ACTIVE'").iloc[0, 0]
         
-        # 2. Fetch Cohort-Specific Statistics dynamically mapped to 2026
-        # --- 12th Class (Promoted from 2025) ---
         count_12th = run_query(
             "SELECT COUNT(*) FROM students WHERE session = '2025-27' AND class = '12th' AND status = 'ACTIVE'"
         ).iloc[0, 0]
         
-        # --- 11th Class (New Batch for 2026) ---
         count_11th = run_query(
             "SELECT COUNT(*) FROM students WHERE session = '2026-28' AND class = '11th' AND status = 'ACTIVE'"
         ).iloc[0, 0]
 
-        # 3. Render Metric Cards
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric(
-                label="👥 Total Active Enrollment", 
-                value=int(total_students)
-            )
+            st.metric(label="👥 Total Active Enrollment", value=int(total_students))
             
         with col2:
-            st.metric(
-                label="🎓 12th Class (Session 2025-27)", 
-                value=int(count_12th),
-                delta="Promoted Cohort"
-            )
+            st.metric(label="🎓 12th Class (Session 2025-27)", value=int(count_12th), delta="Promoted Cohort")
             
         with col3:
-            st.metric(
-                label="🌱 11th Class (Session 2026-28)", 
-                value=int(count_11th),
-                delta="New Admissions",
-                delta_color="normal"
-            )
+            st.metric(label="🌱 11th Class (Session 2026-28)", value=int(count_11th), delta="New Admissions", delta_color="normal")
             
         st.markdown("---")
-        
-        # Quick Status Overview Container
-        st.info(
-            f"ℹ️ **System Timeline Status:** Operational Cycle set to Academic Year **{CURRENT_YEAR}**. "
-            f"Cross-referencing registers for ongoing parallel terms."
-        )
+        st.info(f"ℹ️ **System Timeline Status:** Operational Cycle set to Academic Year **{CURRENT_YEAR}**. Cross-referencing registers for ongoing parallel terms.")
 
     except Exception as e:
         st.error(f"❌ Failed to load live dashboard ledger metrics: {e}")
@@ -267,7 +266,6 @@ if menu_choice == "📊 Home Dashboard":
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
-    # 📋 1. Setup Input Context Option Matrix
     try:
         session_options = AVAILABLE_SESSIONS
     except NameError:
@@ -278,12 +276,9 @@ elif menu_choice == "➕ Add Students":
     except NameError:
         discipline_options = ["Pre-Engineering", "Pre-Medical", "ICS (Physics)", "ICS (Stats)", "I.Com", "General Science"]
 
-    # 🛠️ Main Filter Row (Auto-Infers Class Level)
     c1, c2, c3 = st.columns(3)
     with c1: 
         selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=2, key="add_stu_sess")
-        
-        # 🧠 Context-Aware Auto-Promotion Logic for 2026 Academic Calendar
         try:
             start_year = int(selected_session.split('-')[0])
             if start_year == 2026:
@@ -291,7 +286,7 @@ elif menu_choice == "➕ Add Students":
             elif start_year == 2025:
                 selected_class = "12th"
             else:
-                selected_class = "11th" # Fallback rule
+                selected_class = "11th"
         except Exception:
             selected_class = "11th"
 
@@ -300,7 +295,6 @@ elif menu_choice == "➕ Add Students":
     with c3: 
         selected_section = st.text_input("📋 3. Enter Target Section:", value="CK2", key="add_stu_sec").strip().upper()
 
-    # Dynamic status banner providing direct feedback to the registrar operator
     if selected_class == "11th":
         st.success(f"🌱 **Session {selected_session}** is recognized as **11th Class** (New Admissions Batch).")
     else:
@@ -308,7 +302,6 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
 
-    # 👤 4. Select Registration Entry Strategy Mode Layout Toggle
     entry_strategy = st.radio(
         "🛠️ 4. Choose Registration Mode Layout:", 
         ["👤 Single Student Card Entry", "📋 Complete Section Batch Paste Grid"], 
@@ -317,9 +310,6 @@ elif menu_choice == "➕ Add Students":
     )
     st.markdown("---")
 
-    # --------------------------------------------
-    # MODE A: SINGLE STUDENT ENTRY CARD
-    # --------------------------------------------
     if entry_strategy == "👤 Single Student Card Entry":
         st.subheader(f"👤 Register Single Student into {selected_section} ({selected_class} - {selected_discipline})")
         
@@ -361,14 +351,10 @@ elif menu_choice == "➕ Add Students":
                         st.success(f"🎉 Profile registered successfully for student {single_name.upper()}!")
                         st.rerun()
 
-    # --------------------------------------------
-    # MODE B: COMPLETE SECTION BATCH IMPORT GRID
-    # --------------------------------------------
     elif entry_strategy == "📋 Complete Section Batch Paste Grid":
         st.subheader(f"📋 Grid Ledger Workspace: Section {selected_section} ({selected_class})")
         st.caption("💡 Tip: Enter or paste your student roster records directly inside the data spreadsheet editor rows down below.")
         
-        # Generates matrix workspace structure pre-binding columns class data layouts 
         import_template = pd.DataFrame([{"ID": "", "Full Name": ""} for _ in range(40)])
         pasted_data = st.data_editor(import_template, use_container_width=True, num_rows="dynamic", key="bulk_paste_grid_matrix")
         
@@ -404,10 +390,11 @@ elif menu_choice == "➕ Add Students":
                 st.rerun()
             else:
                 st.warning("⚠️ No valid structural rows with matching data were found inside the active tracking editor block.")
+
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-if menu_choice == "📝 Academic Exam Marks Entry":
+elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
@@ -418,7 +405,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
         
-        # --- ROLE CONTEXT RESOLUTION & INTERFERENCE ENGINE ---
         if current_role == 'teacher' and current_user_id is not None:
             teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
             if not teacher_rights.empty:
@@ -427,7 +413,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 
                 with c1: 
                     sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=2, key="entry_sess_t")
-                    # 🧠 Auto-infer class for teacher views
                     start_year = int(sel_session.split('-')[0])
                     sel_class = "12th" if start_year == 2025 else "11th"
                     
@@ -438,12 +423,9 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 st.warning("🚨 You do not have any active subjects or sections assigned yet.")
                 sel_subject, sel_section, sel_session, sel_class = None, None, None, None
         else:
-            # --- ADMIN VIEW (AUTOMATED SYNCHRONIZATION) ---
             with c1: 
                 sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=2, key="entry_sess_a")
                 sess_prefix = sel_session.split('-')[0] + '%'
-                
-                # 🧠 Auto-infer class based on the 2026 rolling baseline
                 start_year = int(sel_session.split('-')[0])
                 sel_class = "12th" if start_year == 2025 else "11th"
                 
@@ -489,7 +471,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 
             sel_subject = st.selectbox("Select Subject:", available_subjects, key="entry_sub_filter_a")
         
-        # --- DATA RENDERING AND SUBMISSION LEDGER WORKSPACE ---
         if sel_subject and sel_section and sel_session and sel_class:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
@@ -567,9 +548,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
 
-    # ==============================================================================
-    # MODE B: BY SINGLE STUDENT ROLL NUMBER
-    # ==============================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
@@ -615,9 +593,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks score configuration updated successfully for {s_name}!")
                     st.rerun()
 
-    # ==============================================================================
-    # MODE C: BULK EXCEL/CSV IMPORT
-    # ==============================================================================
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Upload Exam Marks Matrix")
         st.info("💡 **Instructions:** Upload an Excel (.xlsx) or CSV (.csv) file. The file **must** contain an `ID` column and a `Marks` column.")
@@ -625,7 +600,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         col_b1, col_b2, col_b3, col_b4 = st.columns(4)
         with col_b1: 
             bulk_session = st.selectbox("Select Session for Import:", AVAILABLE_SESSIONS, index=2, key="bulk_sess")
-            # 🧠 Inline system auto-classification engine for imports
             start_year = int(bulk_session.split('-')[0])
             bulk_class = "12th" if start_year == 2025 else "11th"
             
@@ -649,7 +623,160 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     st.error("🚨 Missing columns! Your file must have headers named exactly **ID** and **Marks**.")
                 else:
                     st.success(f"📊 Found data matrix for {len(import_df)} student rows cleanly read!")
-                    st.dataframe(import_df.head(10))
+                    st.dataframe(import_df)
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+
+# ====================================================================================
+# MODULE 2: MULTI-TEST PROGRESS REPORT (COMPLETELY OVERHAULED & DYNAMIC ROUTING REWRITTEN)
+# ====================================================================================
+elif menu_choice == "📈 Multi-Test Progress Report":
+    st.title("📈 Multi-Test Progress Analytics")
+    st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
+
+    # CSS Injection 
+    st.markdown("""
+        <style>
+        @media print {
+            .no-print { display: none !important; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    all_frameworks = [
+        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
+    ]
+
+    st.markdown('<div class="no-print">', unsafe_allow_html=True)
+    
+    # 🛠️ DROPDOWN SELECTIONS FOR ACTIVE COMPILATION VIEW
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        sel_session = st.selectbox("🎯 Target Academic Session:", AVAILABLE_SESSIONS, index=1, key="rep_global_session")
+    with col_g2:
+        sel_class = st.selectbox("📚 Select Class View Level:", ["11th", "12th"], index=1, key="rep_global_class")
+
+    st.markdown("---")
+
+    scope_choice = st.radio(
+        "𖨾 Select Scope:",
+        options=["👤 Single Student Card", "👥 Complete Section Cards"],
+        index=0,
+        horizontal=True,
+        key="mt_reporting_scope"
+    )
+
+    months_list = AVAILABLE_MONTHS
+    students_to_process = []
+    selected_exams_list = []
+    
+    rendered_discipline = "N/A"
+    rendered_section = "N/A"
+
+    if scope_choice == "👤 Single Student Card":
+        with st.form("single_student_secure_form"):
+            st.markdown("##### 👤 Single Profile Verification Panel")
+            col_s1, col_s2 = st.columns([2, 3])
+            with col_s1:
+                search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
+            with col_s2:
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_single")
+            
+            submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
+            
+        if submit_single:
+            clean_id = search_id.strip()
+            if not clean_id:
+                st.error("⚠️ Please input a valid Student Roll Number / ID.")
+            else:
+                try:
+                    query_id = int(clean_id) if clean_id.isdigit() else clean_id
+                    
+                    if sel_class == "11th" and sel_session == "2025-27":
+                        query_sql = """
+                            SELECT id, name, section, '11th' as class 
+                            FROM students 
+                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = '12TH'
+                        """
+                    else:
+                        query_sql = """
+                            SELECT id, name, section, class 
+                            FROM students 
+                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                        """
+                    
+                    student_df = run_query(query_sql, {"sid": query_id, "session": sel_session, "class_level": sel_class})
+                    
+                    if not student_df.empty:
+                        students_to_process = student_df.to_dict('records')
+                        rendered_section = student_df.iloc[0]["section"]
+                        rendered_discipline = "N/A"
+                    else:
+                        st.error(f"❌ No student profile found matching ID #{clean_id} for the selected structural parameters.")
+                except Exception as e:
+                    st.error(f"⚠️ Student verification query failed: {str(e)}.")
+
+    else:
+        with st.form("complete_section_secure_form"):
+            st.markdown("##### 👥 Complete Section Processing Panel")
+            col_c1, col_c2, col_c3 = st.columns(3)
+            
+            with col_c1:
+                available_disciplines = list(CLASS_DISCIPLINE_SECTIONS.get(sel_class, {}).keys())
+                if not available_disciplines:
+                    available_disciplines = AVAILABLE_DISCIPLINE
+                sel_disc = st.selectbox("Select Discipline Context:", available_disciplines, key="form_sel_disc_bulk")
+            
+            with col_c2:
+                class_specific_sections = CLASS_DISCIPLINE_SECTIONS.get(sel_class, {}).get(sel_disc, [])
+                if not class_specific_sections:
+                    class_specific_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
+                sel_sec = st.selectbox("Select Target Class Section:", class_specific_sections, key="form_sel_sec_bulk")
+                
+            with col_c3:
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_bulk")
+                
+            submit_bulk = st.form_submit_button("🚀 Compile All Section Cards", use_container_width=True)
+            
+        if submit_bulk:
+            rendered_discipline = sel_disc
+            rendered_section = sel_sec
+            
+            if sel_class == "11th" and sel_session == "2025-27":
+                query_sql = """
+                    SELECT id, name, section, '11th' as class 
+                    FROM students 
+                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                      AND session = :session
+                      AND UPPER(TRIM(class)) = '12TH'
+                    ORDER BY id ASC
+                """
+            else:
+                query_sql = """
+                    SELECT id, name, section, class 
+                    FROM students 
+                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                      AND session = :session
+                      AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                      AND (status IS NULL OR UPPER(TRIM(status)) = 'ACTIVE')
+                    ORDER BY id ASC
+                """
+            
+            section_students_df = run_query(query_sql, {"section": sel_sec, "session": sel_session, "class_level": sel_class})
+            
+            if not section_students_df.empty:
+                students_to_process = section_students_df.to_dict('records')
+            else:
+                st.info(f"💡 No target student profiles found matching section '{sel_sec}' for the selected parameters.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if students_to_process and selected_exams_list:
+        st.success(f"📊 Compiled {len(students_to_process)} student layout profile cards successfully! Ready for printing review.")
+        for student in students_to_process:
+            st.write(f"📝 **Card View Generated for:** ID {student['id']} — {student['name']} ({student['class']})")
                     
                     if st.button("🚀 Process and Save Bulk Marks to Database", type="primary"):
                         success_count = 0
