@@ -1349,15 +1349,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
             tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
 
             marks_df = run_query(f"""
-                SELECT student_id, {sub_col} as subject_name, TRIM({exam_col}) as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
+                SELECT student_id, {sub_col} as subject_name, {exam_col} as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
                 FROM marks
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
             
             if not marks_df.empty:
                 marks_df.columns = [c.lower() for c in marks_df.columns]
-                # Force uppercase trim for clean framework matrix comparison mapping
-                marks_df['exam_type'] = marks_df['exam_type'].astype(str).str.strip().str.upper()
+                # Cast dataframe variables explicitly to protect string filters
+                marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
+                marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
+                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
@@ -1375,7 +1377,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             elif "att_date" in cols_att:
                 date_col = "att_date"
             else:
-                date_col = "date"  # Default fallback if table is empty
+                date_col = "date"
             
             if "status" in cols_att:
                 status_col = "status"
@@ -1392,12 +1394,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             if not attendance_df.empty:
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
+                attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                 
         except Exception as e:
             try:
                 attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
                 if not attendance_df.empty:
                     attendance_df.columns = [c.lower() for c in attendance_df.columns]
+                    attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                     if "date_marked" in attendance_df.columns:
                         attendance_df = attendance_df.rename(columns={"date_marked": "attendance_date"})
                     elif "date" in attendance_df.columns:
@@ -1462,8 +1466,74 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
-            match_id = int(s_id) if s_id.isdigit() else s_id
+            # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
+            table_rows_html = ""
+            total_row_html = ""
+            grand_total_percentages = [0]
 
+            if not marks_df.empty:
+                # Target slice marks records matching this active student ID key string safely
+                s_marks = marks_df[marks_df["student_id"] == s_id].copy()
+                
+                if not s_marks.empty:
+                    distinct_subjects = sorted(s_marks["subject_name"].unique())
+                    exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
+                    exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
+                    
+                    for sub in distinct_subjects:
+                        sub_marks = s_marks[s_marks["subject_name"] == sub]
+                        row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
+                        subject_pct_accum = 0
+                        valid_exams_count = 0
+                        
+                        for exam in selected_exams_list:
+                            match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+                            if not match_row.empty:
+                                try:
+                                    obt = float(match_row.iloc[0]["marks_obtained"])
+                                    tot = float(match_row.iloc[0]["total_marks"])
+                                    pct = int((obt / tot) * 100) if tot > 0 else 0
+                                    
+                                    row_tds += f"<td>{pct}%</td>"
+                                    exam_totals_obtained[exam] += obt
+                                    exam_totals_possible[exam] += tot
+                                    subject_pct_accum += pct
+                                    valid_exams_count += 1
+                                except:
+                                    row_tds += "<td>-</td>"
+                            else:
+                                row_tds += "<td>-</td>"
+                        
+                        sub_avg = int(subject_pct_accum / valid_exams_count) if valid_exams_count > 0 else 0
+                        row_tds += f"<td><strong>{sub_avg}%</strong></td>"
+                        table_rows_html += f"<tr>{row_tds}</tr>"
+                    
+                    # Core Framework Columns Aggregate Footer
+                    total_obt_tds = "<td style='text-align: left; padding-left: 8px;'><strong>Total Average %</strong></td>"
+                    total_pct_accum = 0
+                    total_counted = 0
+                    
+                    for exam in selected_exams_list:
+                        e_obt = exam_totals_obtained[exam]
+                        e_tot = exam_totals_possible[exam]
+                        if e_tot > 0:
+                            e_pct = int((e_obt / e_tot) * 100)
+                            total_obt_tds += f"<td><strong>{e_pct}%</strong></td>"
+                            total_pct_accum += e_pct
+                            total_counted += 1
+                        else:
+                            total_obt_tds += "<td>-</td>"
+                            
+                    grand_avg = int(total_pct_accum / total_counted) if total_counted > 0 else 0
+                    grand_total_percentages = [grand_avg]
+                    total_obt_tds += f"<td><span style='font-size:14px;'><strong>{grand_avg}%</strong></span></td>"
+                    total_row_html = f"<tr style='background-color:#fafafa;'>{total_obt_tds}</tr>"
+
+            # If student has no record inside database yet, append clean visual empty block indicators
+            if not table_rows_html:
+                table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered exam performance records found.</td></tr>"
+
+            # --- ATTENDANCE SYSTEM MATRIX ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
@@ -1476,7 +1546,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 t_d, a_d = 0, 0
                 
                 if not attendance_df.empty:
-                    s_att = attendance_df[attendance_df["student_id"].astype(str).str.strip() == str(match_id).strip()].copy()
+                    s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
                     
                     if not s_att.empty:
                         s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
@@ -1506,18 +1576,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 pct_days_row += "<td><strong>0%</strong></td>"
 
             remarks_text = "Satisfactory academic progress observed."
-            if 'grand_total_percentages' in locals() or 'grand_total_percentages' in globals():
-                if grand_total_percentages and grand_total_percentages[-1] >= 85:
-                    remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
+            if grand_total_percentages and grand_total_percentages[-1] >= 85:
+                remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
 
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
 
-            # Safe fallbacks for undefined visual generation parameters
             l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
-            t_rows = table_rows_html if ('table_rows_html' in locals() or 'table_rows_html' in globals()) else ""
-            t_row = total_row_html if ('total_row_html' in locals() or 'total_row_html' in globals()) else ""
-
             logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
 
             composite_html_payload += f"""
@@ -1538,7 +1603,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
                         <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">Subjects</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
                     </thead>
-                    <tbody>{t_rows}{t_row}</tbody>
+                    <tbody>{table_rows_html}{total_row_html}</tbody>
                 </table>
                 <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;"><div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div></div>
                 <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
