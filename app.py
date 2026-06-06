@@ -1341,41 +1341,32 @@ if menu_choice == "📈 Multi-Test Progress Report":
         attendance_df = pd.DataFrame()
 
         try:
-            # Fetch raw daily logs for the selected students
-            attendance_df = run_query(f"""
-                SELECT 
-                    student_id, 
-                    attendance_date, 
-                    status
-                FROM attendance
-                WHERE student_id IN ({placeholders_str})
-            """, params_dict)
+            sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
+            cols_marks = [c.lower() for c in sample_marks.columns]
             
-            # Standardize column naming if necessary
-            attendance_df.columns = [c.lower() for c in attendance_df.columns]
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
+            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else cols_marks[min(1, len(cols_marks)-1)])
+            exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
+            obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
+            tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
+
+            marks_df = run_query(f"""
+                SELECT student_id, {sub_col} as subject_name, TRIM({exam_col}) as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
+                FROM marks
+                WHERE student_id IN ({placeholders_str})
             """, params_dict)
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
         try:
-            # Fetch raw daily logs for the selected students
+            # Cleaned raw date query with strict Python formatting alignment
             attendance_df = run_query(f"""
-                SELECT 
-                    student_id, 
-                    attendance_date, 
-                    status
+                SELECT student_id, attendance_date, status
                 FROM attendance
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
             
-            # Standardize column naming to lowercase safely
             if not attendance_df.empty:
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
-            """, params_dict)
         except Exception as e:
             st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
 
