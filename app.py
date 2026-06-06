@@ -1362,9 +1362,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns]
             
-            # 2. Dynamically look for the date column variant
+            # 2. Add your specific "date_marked" column variant to the scanner list
             date_col = "attendance_date"  # Default fallback
-            for variant in ["attendance_date", "date", "att_date", "date_created", "log_date"]:
+            for variant in ["date_marked", "attendance_date", "date", "att_date", "date_created"]:
                 if variant in cols_att:
                     date_col = variant
                     break
@@ -1376,11 +1376,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     status_col = variant
                     break
 
-            # 4. Execute the main query using the columns discovered dynamically
+            # 4. Execute the main query using the explicitly discovered columns
             attendance_df = run_query(f"""
                 SELECT student_id, {date_col} as attendance_date, {status_col} as status
                 FROM attendance
                 WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+            
+            if not attendance_df.empty:
+                attendance_df.columns = [c.lower() for c in attendance_df.columns]
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
             """, params_dict)
             
             if not attendance_df.empty:
