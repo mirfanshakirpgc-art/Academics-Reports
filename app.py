@@ -2167,32 +2167,50 @@ elif menu_choice == "Student Management":
         with st.container(border=True):
             st.subheader("🏫 Room & Section Transfer")
             
-            # 1. Extract every unique section value present across your map variables
-            raw_sections = set()
-            for key, value in DISCIPLINE_SECTIONS_MAP.items():
-                if isinstance(value, list):
-                    for item in value:
-                        raw_sections.add(str(item).strip())
-                else:
-                    raw_sections.add(str(value).strip())
+            # Local reference of your exact discipline sections mapping layout
+            DISCIPLINE_SECTIONS_MAP = {
+                "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                "ENGINEERING": ["EK1", "EQ1"],
+                "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                "ICS_STATISTICS": ["CQ3", "CK3"],
+                "COMMERCE": ["IQ1", "IK1"],
+                "HUMANITIES": ["FQ1", "FK1"]
+            }
             
-            # 2. Filter out anything containing "th", numbers standing alone as classes, or empty items
-            all_sections = sorted([
-                sec for sec in raw_sections 
-                if "th" not in sec.lower() and sec != "" and not (sec.isdigit() and len(sec) <= 2)
-            ])
+            # 1. Normalize the student's class name to match your dictionary keys
+            u_class = str(s_class).upper().strip()
+            lookup_key = None
             
-            # 3. Double check that other standard sections are injected if the list came up dry
-            if not all_sections or len(all_sections) <= 1:
-                fallback_pool = ["MQ1", "MQ2", "MQ3", "QA1", "QA2", "Pre-Medical", "Pre-Engineering", "ICS", "Commerce"]
-                all_sections = sorted(list(set(fallback_pool + [s_sec])))
+            if "MEDICAL" in u_class:
+                lookup_key = "MEDICAL"
+            elif "ENGINEERING" in u_class:
+                lookup_key = "ENGINEERING"
+            elif "PHYSICS" in u_class or ("ICS" in u_class and "STAT" not in u_class):
+                # Default general ICS to Physics sections unless stats is mentioned
+                lookup_key = "ICS_PHYSICS"
+            elif "STAT" in u_class:
+                lookup_key = "ICS_STATISTICS"
+            elif "COMMERCE" in u_class or "I.COM" in u_class:
+                lookup_key = "COMMERCE"
+            elif "HUMANITIES" in u_class or "ARTS" in u_class:
+                lookup_key = "HUMANITIES"
             
-            # 4. Safely set up selection indices
-            if s_sec in all_sections:
-                default_sec_idx = all_sections.index(s_sec)
+            # 2. Extract sections using our smart lookup key
+            all_sections = []
+            if lookup_key and lookup_key in DISCIPLINE_SECTIONS_MAP:
+                all_sections = [str(sec).strip() for sec in DISCIPLINE_SECTIONS_MAP[lookup_key]]
             else:
-                all_sections.insert(0, s_sec)
-                default_sec_idx = 0
+                # Emergency fallback using only your true operational sections from the map
+                all_sections = ["MQ1", "MQ2", "MK1", "EK1", "EQ1", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IQ1", "IK1", "FQ1", "FK1"]
+            
+            # 3. Ensure the student's current section is always in the options list
+            if s_sec not in all_sections:
+                all_sections.append(s_sec)
+                
+            all_sections = sorted(list(set(all_sections)))
+            
+            # 4. Handle dropdown indexing safely
+            default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
                 
             new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
             section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
@@ -2205,7 +2223,7 @@ elif menu_choice == "Student Management":
                     st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                 else:
                     try:
-                        # Using PostgreSQL Native %s placeholders 
+                        # Process update using native PostgreSQL positional %s placeholders
                         run_update(
                             "UPDATE students SET section = %s WHERE id = %s", 
                             (str(new_sec), int(s_id))
@@ -2228,7 +2246,6 @@ elif menu_choice == "Student Management":
                         
                     except Exception as e:
                         st.error(f"❌ Database Write Rejected the Change: {e}")
-
     # =========================================================
     # TAB 2: AUDIT LOGS VIEW (Perfectly Indented)
     # =========================================================
