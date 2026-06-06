@@ -1360,22 +1360,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
         try:
-            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns]
-            
-            month_col = "month_name" if "month_name" in cols_att else ("month" if "month" in cols_att else "month_name")
-            tot_days_col = "total_days" if "total_days" in cols_att else "total_days"
-            
-            att_days_col = "attended_days"
-            for variant in ["attended_days", "present_days", "present", "attended"]:
-                if variant in cols_att:
-                    att_days_col = variant
-                    break
-
+            # Fetch raw daily logs for the selected students
             attendance_df = run_query(f"""
-                SELECT student_id, {month_col} as month_name, {tot_days_col} as total_days, {att_days_col} as attended_days 
+                SELECT 
+                    student_id, 
+                    attendance_date, 
+                    status
                 FROM attendance
                 WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+            
+            # Standardize column naming to lowercase safely
+            if not attendance_df.empty:
+                attendance_df.columns = [c.lower() for c in attendance_df.columns]
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
             """, params_dict)
         except Exception as e:
             st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
