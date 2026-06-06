@@ -1341,18 +1341,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
         attendance_df = pd.DataFrame()
 
         try:
-            sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
-            cols_marks = [c.lower() for c in sample_marks.columns]
-            
-            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else cols_marks[min(1, len(cols_marks)-1)])
-            exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
-            obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
-            tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
-
-            marks_df = run_query(f"""
-                SELECT student_id, {sub_col} as subject_name, TRIM({exam_col}) as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
-                FROM marks
+            # Fetch raw daily logs for the selected students
+            attendance_df = run_query(f"""
+                SELECT 
+                    student_id, 
+                    attendance_date, 
+                    status
+                FROM attendance
                 WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+            
+            # Standardize column naming if necessary
+            attendance_df.columns = [c.lower() for c in attendance_df.columns]
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance logs: {str(e)}")
             """, params_dict)
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
@@ -1690,33 +1692,55 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     total_row_html += "<td><strong>-</strong></td>"
             total_row_html += f"<td><strong>{int(sum(grand_total_percentages)/len(grand_total_percentages))}%</strong></td></tr>" if grand_total_percentages else "<td><strong>-</strong></td></tr>"
 
-            # --- ATTENDANCE TRACKER PROCESSING ---
-            if not attendance_df.empty:
-                s_att = attendance_df[attendance_df["student_id"].astype(str) == str(match_id)]
-            else:
-                s_att = pd.DataFrame()
-            
+            # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
-            for m in months_list:
-                m_subset = s_att[s_att["month_name"].str.startswith(m[:3], na=False)] if not s_att.empty else pd.DataFrame()
-                if not m_subset.empty:
-                    t_d = int(m_subset.iloc[0]["total_days"])
-                    a_d = int(m_subset.iloc[0]["attended_days"])
-                    overall_tot_days += t_d
-                    overall_att_days += a_d
-                    tot_days_row += f"<td>{t_d}</td>"
-                    att_days_row += f"<td>{a_d}</td>"
-                    pct_days_row += f"<td>{int((a_d/t_d)*100)}%</td>" if t_d > 0 else "<td>0%</td>"
-                else:
-                    tot_days_row += "<td></td>"; att_days_row += "<td></td>"; pct_days_row += "<td></td>"
+            # Map the reporting month labels to their corresponding calendar numbers
+            month_map = {
+                "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
+                "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
+            }
+
+            for m_name, m_num in month_map.items():
+                t_d, a_d = 0, 0
+                
+                if not attendance_df.empty:
+                    # Isolate rows belonging specifically to the active student loop instance
+                    s_att = attendance_df[attendance_df["student_id"].astype(str).str.strip() == str(match_id).strip()].copy()
+                    
+                    if not s_att.empty:
+                        # Convert column strings to standard pandas timestamps seamlessly
+                        s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
+                        
+                        # Isolate the records matching the specific loop month
+                        month_records = s_att[s_att['parsed_date'].dt.month == m_num]
+                        
+                        t_d = len(month_records)
+                        # Count total items starting with the character letter 'P' (Present, P, present)
+                        a_d = len(month_records[month_records['status'].astype(str).str.strip().str.upper().str.startswith('P')])
+
+                overall_tot_days += t_d
+                overall_att_days += a_d
+
+                # Format digits below 10 with a leading zero padding string digit (e.g. 01, 05)
+                t_d_str = f"{t_d:02d}" if t_d > 0 else "-"
+                a_d_str = f"{a_d:02d}" if t_d > 0 else "-"
+                pct_str = f"{int((a_d/t_d)*100)}%" if t_d > 0 else "-"
+
+                tot_days_row += f"<td>{t_d_str}</td>"
+                att_days_row += f"<td>{a_d_str}</td>"
+                pct_days_row += f"<td>{pct_str}</td>"
             
+            # Append final summary analytics block totals column
             if overall_tot_days > 0:
-                tot_days_row += f"<td>{overall_tot_days}</td>"; att_days_row += f"<td>{overall_att_days}</td>"
+                tot_days_row += f"<td>{overall_tot_days:02d}</td>"
+                att_days_row += f"<td>{overall_att_days:02d}</td>"
                 pct_days_row += f"<td><strong>{int((overall_att_days / overall_tot_days) * 100)}%</strong></td>"
             else:
-                tot_days_row += "<td></td>"; att_days_row += "<td></td>"; pct_days_row += "<td></td>"
+                tot_days_row += "<td>-</td>"
+                att_days_row += "<td>-</td>"
+                pct_days_row += "<td><strong>0%</strong></td>"
 
             remarks_text = "Satisfactory academic progress observed."
             if grand_total_percentages and grand_total_percentages[-1] >= 85:
