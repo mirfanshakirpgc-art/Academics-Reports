@@ -1399,10 +1399,17 @@ Let's completely bypass this issue by removing the variables and hardcoding the 
 Please replace that entire bottom section one more time with this **fully flattened, hardcoded version**:
 
 ```python
+        Ah, I see what happened. Because Python interprets a raw multi-line string ending in triple quotes (`r"""`) specially, adding that explanatory comment with the closing parenthesis `)` right next to it completely confused Python's parser!
+
+Let's skip the raw string approach altogether and fix the root problem using standard Python formatting. We will define the CSS rules cleanly, strip out any hidden non-breaking space characters dynamically using `.replace('\xa0', ' ')`, and get your app running without any syntax issues.
+
+Go ahead and delete everything from `st.write("---")` down to the final `st.components.v1.html(...)` line, and replace it all with this:
+
+```python
         st.write("---")
 
-        # Using a raw string (r""") prevents Python from parsing internal contents as numeric literals
-        css_styles = r"""
+        # Define the CSS rules cleanly without inline explanations to avoid parsing issues
+        css_styles = """
         <style>
         body { background-color: #ffffff; margin: 0; padding: 10px; }
         .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }
@@ -1444,6 +1451,9 @@ Please replace that entire bottom section one more time with this **fully flatte
         }
         </style>
         """
+        
+        # Explicitly clean out hidden formatting characters (NBSPs) before formatting
+        css_styles = css_styles.replace('\xa0', ' ')
 
         composite_html_payload = f"""
         <html>
@@ -1603,7 +1613,12 @@ Please replace that entire bottom section one more time with this **fully flatte
         </body>
         </html>
         """
+        
+        # Run one final cleanup pass on the entire payload to eliminate any lingering bad characters
+        composite_html_payload = composite_html_payload.replace('\xa0', ' ')
         st.components.v1.html(composite_html_payload, height=900, scrolling=True)
+
+```
             # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
