@@ -1396,22 +1396,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
         st.write("---")
 
-        composite_html_payload = f"""
-        <html>
-        <head>
-        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        # Standard multi-line string WITHOUT the 'f' prefix so CSS brackets don't conflict with Python
+        css_styles = """
         <style>
-        body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
+        body { background-color: #ffffff; margin: 0; padding: 10px; }
         
-        .action-dashboard-panel {{
+        .action-dashboard-panel {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
             max-width: 850px;
             margin: 10px auto 25px auto;
             font-family: 'Arial', sans-serif;
-        }}
-        .action-control-btn {{
+        }
+        .action-control-btn {
             color: white;
             border: none;
             padding: 12px 18px;
@@ -1425,20 +1423,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
             align-items: center;
             justify-content: center;
             gap: 8px;
-        }}
-        .action-control-btn:active {{
+        }
+        .action-control-btn:active {
             transform: scale(0.97);
-        }}
-        .btn-print-single {{ background-color: #2e7d32; }}
-        .btn-print-single:hover {{ background-color: #1b5e20; }}
-        .btn-print-bulk {{ background-color: #1565c0; }}
-        .btn-print-bulk:hover {{ background-color: #0d47a1; }}
-        .btn-img-single {{ background-color: #e65100; }}
-        .btn-img-single:hover {{ background-color: #b33900; }}
-        .btn-img-bulk {{ background-color: #6a1b9a; }}
-        .btn-img-bulk:hover {{ background-color: #4a148c; }}
+        }
+        .btn-print-single { background-color: #2e7d32; }
+        .btn-print-single:hover { background-color: #1b5e20; }
+        .btn-print-bulk { background-color: #1565c0; }
+        .btn-print-bulk:hover { background-color: #0d47a1; }
+        .btn-img-single { background-color: #e65100; }
+        .btn-img-single:hover { background-color: #b33900; }
+        .btn-img-bulk { background-color: #6a1b9a; }
+        .btn-img-bulk:hover { background-color: #4a148c; }
 
-        .cck-container {{
+        .cck-container {
             background-color: #ffffff;
             border: 1px solid #000000;
             padding: 30px;
@@ -1448,16 +1446,16 @@ if menu_choice == "📈 Multi-Test Progress Report":
             font-family: 'Arial', sans-serif;
             page-break-after: always;
             box-sizing: border-box;
-        }}
-        .cck-header-wrapper {{
+        }
+        .cck-header-wrapper {
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 5px;
             position: relative;
-        }}
+        }
         
-        .cck-logo-image-container {{
+        .cck-logo-image-container {
             width: 75px;
             height: 75px;
             position: absolute;
@@ -1465,14 +1463,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
             display: flex;
             align-items: center;
             justify-content: center;
-        }}
-        .cck-logo-image {{
+        }
+        .cck-logo-image {
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
-        }}
+        }
         
-        .cck-logo-fallback-text {{
+        .cck-logo-fallback-text {
             background-color: #e67e22;
             color: #ffffff;
             font-weight: bold;
@@ -1483,27 +1481,27 @@ if menu_choice == "📈 Multi-Test Progress Report":
             align-items: center;
             justify-content: center;
             border-radius: 4px;
-        }}
+        }
         
-        .cck-title-block {{
+        .cck-title-block {
             text-align: center;
-        }}
-        .cck-main-title {{
+        }
+        .cck-main-title {
             font-size: 24px;
             font-weight: bold;
             margin: 15px;
             letter-spacing: 0.5px;
-        }}
-        .cck-sub-title {{
+        }
+        .cck-sub-title {
             font-size: 13px;
             color: #444444;
             margin: 2px 0 0 0;
-        }}
-        .cck-badge-wrapper {{
+        }
+        .cck-badge-wrapper {
             text-align: center;
             margin: 15px 0;
         }}
-        .cck-doc-badge {{
+        .cck-doc-badge {
             display: inline-block;
             background-color: #d1d5db;
             color: #000000;
@@ -1511,75 +1509,83 @@ if menu_choice == "📈 Multi-Test Progress Report":
             font-size: 16px;
             padding: 4px 20px;
             border-radius: 2px;
-        }}
-        .cck-meta-row {{
+        }
+        .cck-meta-row {
             display: flex;
             flex-wrap: wrap;
             justify-content: space-between;
             margin-bottom: 20px;
             font-size: 14px;
-        }}
-        .cck-meta-field {{
+        }
+        .cck-meta-field {
             margin-right: 15px;
             margin-bottom: 8px;
-        }}
-        .cck-line-fill {{
+        }
+        .cck-line-fill {
             border-bottom: 1px solid #000000;
             display: inline-block;
             min-width: 120px;
             padding-left: 5px;
             font-weight: bold;
-        }}
-        .cck-report-table {{
+        }
+        .cck-report-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 25px;
             font-size: 13px;
-        }}
-        .cck-report-table th, .cck-report-table td {{
+        }
+        .cck-report-table th, .cck-report-table td {
             border: 1px solid #000000;
             padding: 6px 4px;
             text-align: center;
-        }}
-        .cck-report-table th {{
+        }
+        .cck-report-table th {
             background-color: #ffffff;
             font-weight: normal;
-        }}
-        .cck-report-table td:first-child {{
+        }
+        .cck-report-table td:first-child {
             text-align: left;
             padding-left: 8px;
-        }}
-        .cck-remarks-area {{
+        }
+        .cck-remarks-area {
             margin-top: 100px;
             font-size: 14px;
             display: flex;
             align-items: flex-end;
-        }}
-        .cck-remarks-line {{
+        }
+        .cck-remarks-line {
             flex-grow: 1;
             border-bottom: 1px solid #000000;
             margin-left: 8px;
             padding-left: 5px;
             font-style: italic;
-        }}
-        .cck-footer-sign {{
+        }
+        .cck-footer-sign {
             margin-top: 25px;
             text-align: right;
             font-size: 14px;
             padding-right: 20px;
-        }}
+        }
         
-        @media print {{
-            .action-dashboard-panel {{ display: none !important; }}
-            .cck-single-print-isolation {{ display: block !important; }}
-            .cck-single-print-hide {{ display: none !important; }}
-            .cck-container {{
+        @media print {
+            .action-dashboard-panel { display: none !important; }
+            .cck-single-print-isolation { display: block !important; }
+            .cck-single-print-hide { display: none !important; }
+            .cck-container {
                 border: none !important;
                 padding: 0 !important;
                 margin-bottom: 0 !important;
-            }}
-        }}
+            }
+        }
         </style>
+        """
+
+        # Start the master layout container payload string assembly
+        composite_html_payload = f"""
+        <html>
+        <head>
+        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        {css_styles}
         </head>
         <body>
             <div class="action-dashboard-panel">
@@ -1605,8 +1611,137 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             match_id = int(s_id) if s_id.isdigit() else s_id
 
-            # (Subject marks strings are generated processing above this point)
+            # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
+            tot_days_row, att_days_row, pct_days_row = "", "", ""
+            overall_tot_days, overall_att_days = 0, 0
 
+            # Map layout text columns to exact calendar month indexes
+            month_map = {
+                "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
+                "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
+            }
+
+            for m_name, m_num in month_map.items():
+                t_d, a_d = 0, 0
+                
+                if not attendance_df.empty:
+                    s_att = attendance_df[attendance_df["student_id"].astype(str).str.strip() == str(match_id).strip()].copy()
+                    
+                    if not s_att.empty:
+                        s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
+                        month_records = s_att[s_att['parsed_date'].dt.month == m_num]
+                        
+                        t_d = len(month_records)
+                        a_d = len(month_records[month_records['status'].astype(str).str.strip().str.upper().str.startswith('P')])
+
+                overall_tot_days += t_d
+                overall_att_days += a_d
+
+                t_d_str = f"{t_d:02d}" if t_d > 0 else "-"
+                a_d_str = f"{a_d:02d}" if t_d > 0 else "-"
+                pct_str = f"{int((a_d/t_d)*100)}%" if t_d > 0 else "-"
+
+                tot_days_row += f"<td>{t_d_str}</td>"
+                att_days_row += f"<td>{a_d_str}</td>"
+                pct_days_row += f"<td>{pct_str}</td>"
+            
+            if overall_tot_days > 0:
+                tot_days_row += f"<td>{overall_tot_days:02d}</td>"
+                att_days_row += f"<td>{overall_att_days:02d}</td>"
+                pct_days_row += f"<td><strong>{int((overall_att_days / overall_tot_days) * 100)}%</strong></td>"
+            else:
+                tot_days_row += "<td>-</td>"
+                att_days_row += "<td>-</td>"
+                pct_days_row += "<td><strong>0%</strong></td>"
+
+            remarks_text = "Satisfactory academic progress observed."
+            if grand_total_percentages and grand_total_percentages[-1] >= 85:
+                remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
+
+            thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
+            thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
+
+            logo_markup = f'<img class="cck-logo-image" src="{logo_base64}" alt="Logo" />' if logo_base64 else '<div class="cck-logo-fallback-text">CC</div>'
+
+            composite_html_payload += f"""
+            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
+                <div class="cck-header-wrapper">
+                    <div class="cck-logo-image-container">{logo_markup}</div>
+                    <div class="cck-title-block"><div class="cck-main-title">CONCORDIA COLLEGE KASUR</div></div>
+                </div>
+                <div class="cck-badge-wrapper"><div class="cck-doc-badge">Result Card</div></div>
+                <div class="cck-meta-row">
+                    <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
+                    <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
+                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
+                    <div class="cck-meta-field">Class: <span class="cck-line-fill">{s_class}</span></div>
+                </div>
+                <table class="cck-report-table">
+                    <thead>
+                        <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
+                        <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">Subjects</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
+                    </thead>
+                    <tbody>{table_rows_html}{total_row_html}</tbody>
+                </table>
+                <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;"><div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div></div>
+                <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
+                    <thead>
+                        <tr><th style="width: 14%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th style="font-weight: bold;">Overall</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Total Days</strong></td>{tot_days_row}</tr>
+                        <tr><td><strong>Att. Days</strong></td>{att_days_row}</tr>
+                        <tr><td><strong>Age%</strong></td>{pct_days_row}</tr>
+                    </tbody>
+                </table>
+                <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
+                <div class="cck-footer-sign"><strong>Principal Sign</strong></div>
+            </div>
+            """
+        
+        composite_html_payload += """
+            </div> 
+            <script>
+            function executeTargetPrint(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) return;
+                cards.forEach(function(card, idx) {
+                    if (isSingleTarget) {
+                        if (idx === 0) { card.classList.add('cck-single-print-isolation'); card.classList.remove('cck-single-print-hide'); }
+                        else { card.classList.add('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                    } else { card.classList.remove('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                });
+                setTimeout(function() { window.print(); }, 200);
+            }
+
+            function exportDossierToImage(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) { alert('No student cards available.'); return; }
+                var targetList = [];
+                if (isSingleTarget) { targetList.push(cards[0]); } 
+                else { cards.forEach(function(c) { targetList.push(c); }); }
+                triggerImageCaptureSequence(targetList, 0);
+            }
+
+            function triggerImageCaptureSequence(targetList, currentIndex) {
+                if (currentIndex >= targetList.length) return;
+                var element = targetList[currentIndex];
+                var studName = element.getAttribute('data-name') || 'student';
+                var studId = element.getAttribute('data-id') || 'id';
+                
+                html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
+                    var link = document.createElement('a');
+                    link.download = studId + '_' + studName + '_ProgressCard.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    setTimeout(function() { triggerImageCaptureSequence(targetList, currentIndex + 1); }, 500);
+                });
+            }
+            </script>
+        </body>
+        </html>
+        """
+        st.components.v1.html(composite_html_payload, height=900, scrolling=True)
             # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
