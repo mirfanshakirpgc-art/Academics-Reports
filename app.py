@@ -2089,8 +2089,8 @@ elif menu_choice == "Student Management":
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
     
     # =========================================================
-# TAB 1: PROCESS CHANGES (Active management container)
-# =========================================================
+    # TAB 1: PROCESS CHANGES (Active management container)
+    # =========================================================
     with manage_tab:
         st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
         search_id = st.number_input("Enter Student ID:", min_value=1, step=1, key="manage_search_id")
