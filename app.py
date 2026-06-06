@@ -254,7 +254,7 @@ elif menu_choice == "➕ Add Students":
         if "General Science" in discipline_options:
             discipline_options = [d for d in discipline_options if d != "General Science"]
     except NameError:
-        # Fallback top-level dictionary keys
+        # Fallback top-level dictionary keys to match your data structure exactly
         discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
     # 🛠️ Main Filter Row 1: Session & Academic System Type
@@ -281,7 +281,7 @@ elif menu_choice == "➕ Add Students":
                 discipline_map = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {})
                 available_sections = discipline_map.get(selected_class, [])
             except NameError:
-                # Match your exact nested map structure as an active backup
+                # Active local fallback containing your exact section routing structure
                 fallback_nested_map = {
                     "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
                     "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
@@ -290,12 +290,12 @@ elif menu_choice == "➕ Add Students":
                     "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
                     "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]}
                 }
-                available_sections = fallback_nested_map.get(selected_discipline, {}).get(selected_class, ["CK2"])
+                available_sections = fallback_nested_map.get(selected_discipline, {}).get(selected_class, [])
                 
-            # Clean and sanitize the strings safely
+            # Clean and sanitize strings safely
             cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
             
-            # Show dynamic Selectbox dropdown instead of raw text box
+            # Show dynamic dropdown menu
             if cleaned_sections:
                 selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
             else:
@@ -309,7 +309,7 @@ elif menu_choice == "➕ Add Students":
         with c4: 
             selected_section = st.selectbox("📋 3. Select Target Section:", ["DIT_G", "DIT_B"], key="add_stu_sec_semester")
         
-        # Default backend identifier value string for non-applicable database fields
+        # Default string identifier for non-applicable database fields
         selected_discipline = "N/A"
 
     st.markdown("---")
