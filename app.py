@@ -977,27 +977,29 @@ elif menu_choice == "📈 Multi-Test Progress Report":
                             
                             if student_id:
                                 clean_id = int(float(student_id))
-                                execute_db_command(
-                                    """
-                                    DELETE FROM marks 
-                                    WHERE student_id = :s_id 
-                                      AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) 
-                                      AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                                    """, 
-                                    {"s_id": clean_id, "subject": bulk_subject, "exam": bulk_exam}
-                                )
-                                if score_val != "":
-                                    execute_db_command(
-                                        """
-                                        INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
-                                        VALUES (:s_id, :subject, :exam, :score, :total)
-                                        """, 
-                                        {"s_id": clean_id, "subject": bulk_subject.strip().upper(), "exam": bulk_exam.strip().upper(), "score": score_val, "total": bulk_total_marks}
-                                    )
-                                success_count += 1
-                                
-                        st.success(f"🎉 Successfully imported and synced marks for {success_count} students dynamically!")
-                        st.rerun()
+                                execute_db_command("""
+                            DELETE FROM marks 
+                            WHERE student_id = :s_id 
+                              AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) 
+                              AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                        """, {"s_id": clean_id, "subject": bulk_subject, "exam": bulk_exam})
+                        
+                        if score_val != "":
+                            execute_db_command("""
+                                INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                VALUES (:s_id, :subject, :exam, :score, :total)
+                            """, {
+                                "s_id": clean_id, 
+                                "subject": bulk_subject.strip().upper(), 
+                                "exam": bulk_exam.strip().upper(), 
+                                "score": score_val, 
+                                "total": bulk_total_marks
+                            })
+                        success_count += 1
+                        
+                if success_count > 0:
+                    st.success(f"🎉 Successfully imported and synced marks for {success_count} students dynamically!")
+                    st.rerun()
             except Exception as e:
                 st.error(f"❌ Failed to parse or process uploaded asset file layout: {e}")
 # ====================================================================================
