@@ -1353,6 +1353,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 FROM marks
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
+            
+            if not marks_df.empty:
+                marks_df.columns = [c.lower() for c in marks_df.columns]
+                # Force uppercase trim for clean framework matrix comparison mapping
+                marks_df['exam_type'] = marks_df['exam_type'].astype(str).str.strip().str.upper()
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
@@ -1389,7 +1394,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
                 
         except Exception as e:
-            # Emergency direct extraction catch-block if schemas fail
             try:
                 attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
                 if not attendance_df.empty:
