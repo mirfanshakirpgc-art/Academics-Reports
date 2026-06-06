@@ -738,28 +738,44 @@ if menu_choice == "📅 Attendance Entry Management":
             target_month_num = month_numbers[sync_month]
             
             if st.button("🔄 Compute and Compile Attendance Summaries", type="primary", use_container_width=True):
-                calculated_logs = run_query("""
+                # 1. Fetch records safely without problematic database-side formatting functions
+                raw_daily_logs = run_query("""
                     SELECT 
                         s.id AS student_id,
-                        COUNT(CASE WHEN d.status = 'P' THEN 1 END) AS present_days,
-                        COUNT(d.status) AS total_days
+                        d.attendance_date,
+                        d.status
                     FROM students s
                     JOIN daily_attendance d ON s.id = d.student_id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
                       AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
-                      AND STRFTIME('%m', d.attendance_date) = :month_num
-                    GROUP BY s.id
-                """, {"section": sync_section, "class_level": sync_class, "month_num": target_month_num})
+                """, {"section": sync_section, "class_level": sync_class})
                 
-                if calculated_logs.empty:
+                # 2. Parse dates safely in Python/Pandas to maintain database flexibility
+                if not raw_daily_logs.empty:
+                    try:
+                        raw_daily_logs['parsed_date'] = pd.to_datetime(raw_daily_logs['attendance_date'], errors='coerce')
+                        raw_daily_logs = raw_daily_logs.dropna(subset=['parsed_date'])
+                        raw_daily_logs = raw_daily_logs[raw_daily_logs['parsed_date'].dt.strftime('%m') == target_month_num]
+                    except Exception as parse_err:
+                        st.error(f"⚠️ Date processing issue: {str(parse_err)}")
+                        raw_daily_logs = pd.DataFrame()
+
+                if raw_daily_logs.empty:
                     st.warning(f"⚠️ No daily attendance tracking logs found for {sync_section} ({sync_class}) in {sync_month}.")
                 else:
-                    for idx, row in calculated_logs.iterrows():
+                    # 3. Aggregate totals using Pandas
+                    summary_data = raw_daily_logs.groupby('student_id').agg(
+                        total_days=('status', 'count'),
+                        present_days=('status', lambda x: x.astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1']).sum())
+                    ).reset_index()
+                    
+                    # 4. Save clean data metrics securely into the summary sync tables
+                    for idx, row in summary_data.iterrows():
                         execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": int(row['student_id']), "month": sync_month})
                         execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {
-                            "s_id": int(row['student_id']), "month": sync_month, "p_days": int(row['present_days']), "t_days": int(row['total_days'])
+                            "s_id": int(row['student_id']), "month": sync_month.strip(), "p_days": int(row['present_days']), "t_days": int(row['total_days'])
                         })
-                    st.success(f"🎉 Successfully aggregated and locked attendance matrices for {len(calculated_logs)} students!")
+                    st.success(f"🎉 Successfully aggregated and locked attendance matrices for {len(summary_data)} students!")
                     st.rerun()
 
         elif att_flow_mode == "📋 Manual Section Override":
