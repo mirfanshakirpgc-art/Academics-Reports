@@ -2076,7 +2076,14 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-    # ----------------- STUDENT MANAGEMENT -----------------
+    Here is your complete, fully optimized, and cleaned-up block for **`elif menu_choice == "Student Management":`**.
+
+This completely eliminates the duplicate field layout confusion by adding visual card borders (`st.container(border=True)`) around the two actions. It also includes the robust filtering logic to ensure class strings like `"11th"` or `"12th"` never pollute your dropdown selection pool.
+
+### 📋 Complete Updated Code Block
+
+```python
+# ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management & Audit Logs")
     
@@ -2084,7 +2091,7 @@ elif menu_choice == "Student Management":
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
     
     # =========================================================
-    # TAB 1: PROCESS CHANGES (Your existing active management)
+    # TAB 1: PROCESS CHANGES (Active management container)
     # =========================================================
     with manage_tab:
         st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
@@ -2123,107 +2130,114 @@ elif menu_choice == "Student Management":
                 st.divider()
                 col_status, col_section = st.columns(2)
                 
-                # --- STATUS MANAGEMENT ---
+                # --- STATUS MANAGEMENT CARD ---
                 with col_status:
-                    st.subheader("Update Status")
-                    status_options = ["Left", "Re-Active"]
-                    default_idx = status_options.index(s_status) if s_status in status_options else 0
-                    
-                    new_status = st.radio("Select Status:", status_options, index=default_idx)
-                    status_date = st.date_input("Status Change Date:", key="status_date_input")
-                    req_star = " *" if new_status in ["Left", "Re-Active"] else ""
-                    status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder="Required for Left/Re-Active actions", key="status_rem_input")
-                    
-                    if st.button("💾 Save Status", use_container_width=True):
-                        if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
-                            st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
-                        else:
-                            # 1. Ensure the logging table exists first before running updates
-                            try:
-                                run_update("""
-                                    CREATE TABLE IF NOT EXISTS student_logs (
-                                        id SERIAL PRIMARY KEY,
-                                        student_id INT, 
-                                        change_type TEXT, 
-                                        old_value TEXT, 
-                                        new_value TEXT, 
-                                        log_date TEXT, 
-                                        remarks TEXT
-                                    );
-                                """)
-                            except Exception:
-                                pass
+                    with st.container(border=True):
+                        st.subheader("👤 Update Attendance Status")
+                        status_options = ["Left", "Re-Active"]
+                        default_idx = status_options.index(s_status) if s_status in status_options else 0
+                        
+                        new_status = st.radio("Select Target Status:", status_options, index=default_idx, key="status_radio_selection")
+                        status_date = st.date_input("Status Change Date:", key="status_date_input")
+                        req_star = " *" if new_status in ["Left", "Re-Active"] else ""
+                        status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder="Required for Left/Re-Active actions", key="status_rem_input")
+                        
+                        if st.button("💾 Save Profile Status", use_container_width=True, type="secondary"):
+                            if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
+                                st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
+                            else:
+                                # Ensure log table structure exists safely
+                                try:
+                                    run_update("""
+                                        CREATE TABLE IF NOT EXISTS student_logs (
+                                            id SERIAL PRIMARY KEY,
+                                            student_id INT, 
+                                            change_type TEXT, 
+                                            old_value TEXT, 
+                                            new_value TEXT, 
+                                            log_date TEXT, 
+                                            remarks TEXT
+                                        );
+                                    """)
+                                except Exception:
+                                    pass
 
-                            # 2. Process the status modification
-                            try:
-                                run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                
-                                run_update("""
-                                    INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                    VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)
-                                -- Note: Field params mapped explicitly via database execution context variables
-                                """, {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
-                                
-                                st.success(f"✅ Successfully updated status to **{new_status}**!")
-                                st.rerun()
-                            except Exception as e:
-                                if "column" in str(e).lower() and "status" in str(e).lower():
-                                    try:
-                                        run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
-                                        run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                        st.success(f"✅ Database upgraded! Status updated to **{new_status}**.")
-                                        st.rerun()
-                                    except Exception as migration_err:
-                                        st.error(f"Could not add column: {migration_err}")
-                                else:
-                                    st.error(f"Failed to update status: {e}")
+                                try:
+                                    run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
+                                    
+                                    run_update("""
+                                        INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
+                                        VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)
+                                    """, {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
+                                    
+                                    st.success(f"✅ Successfully updated status to **{new_status}**!")
+                                    st.rerun()
+                                except Exception as e:
+                                    if "column" in str(e).lower() and "status" in str(e).lower():
+                                        try:
+                                            run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
+                                            run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
+                                            st.success(f"✅ Database upgraded! Status updated to **{new_status}**.")
+                                            st.rerun()
+                                        except Exception as migration_err:
+                                            st.error(f"Could not add column: {migration_err}")
+                                    else:
+                                        st.error(f"Failed to update status: {e}")
                 
-                # --- SECTION CHANGE MANAGEMENT ---
+                # --- SECTION CHANGE MANAGEMENT CARD ---
                 with col_section:
-                    st.subheader("Change Section")
-                    all_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
-                    default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
-                    
-                    new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx)
-                    section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
-                    section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
-                    
-                    if st.button("🔄 Change Section", use_container_width=True):
-                        if new_sec == s_sec:
-                            st.warning("⚠️ Student is already assigned to this section.")
-                        elif not section_remarks.strip():
-                            st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
-                        else:
-                            try:
-                                run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
-                                
-                                run_update("""
-                                    INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                    VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
-                                """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
-                                
-                                st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
-                                st.rerun()
-                            except Exception as e:
-                                if "no such table" in str(e).lower():
-                                    try:
-                                        run_update("""
-                                            CREATE TABLE IF NOT EXISTS student_logs (
-                                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT
-                                            );
-                                        """)
-                                        run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
-                                        run_update("""
-                                            INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                            VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
-                                        """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
-                                        st.success(f"✅ Transferred student successfully to **{new_sec}**!")
-                                        st.rerun()
-                                    except Exception as log_err:
-                                        st.error(f"Failed to save record transaction: {log_err}")
-                                else:
-                                    st.error(f"Failed to change section: {e}")
+                    with st.container(border=True):
+                        st.subheader("🏫 Room & Section Transfer")
+                        
+                        # Extract sections cleanly and filter out class strings (e.g. "11th")
+                        raw_sections = set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])
+                        all_sections = sorted([str(sec) for sec in raw_sections if "th" not in str(sec).lower()])
+                        
+                        # Fallback calculation safely handling edge parameters
+                        if not all_sections:
+                            all_sections = [s_sec]
+                            
+                        default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
+                        new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
+                        section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
+                        section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
+                        
+                        if st.button("🔄 Execute Section Change", use_container_width=True, type="primary"):
+                            if new_sec == s_sec:
+                                st.warning("⚠️ Student is already assigned to this section.")
+                            elif not section_remarks.strip():
+                                st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
+                            else:
+                                try:
+                                    run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
+                                    
+                                    run_update("""
+                                        INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
+                                        VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
+                                    """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
+                                    
+                                    st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
+                                    st.rerun()
+                                except Exception as e:
+                                    if "no such table" in str(e).lower():
+                                        try:
+                                            run_update("""
+                                                CREATE TABLE IF NOT EXISTS student_logs (
+                                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                    student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT
+                                                );
+                                            """)
+                                            run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
+                                            run_update("""
+                                                INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
+                                                VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
+                                            """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
+                                            st.success(f"✅ Transferred student successfully to **{new_sec}**!")
+                                            st.rerun()
+                                        except Exception as log_err:
+                                            st.error(f"Failed to save record transaction: {log_err}")
+                                    else:
+                                        st.error(f"Failed to change section: {e}")
             else:
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
 
@@ -2313,7 +2327,6 @@ elif menu_choice == "Student Management":
                 st.markdown("<hr style='margin: 4px 0px 12px 0px; border-color: rgba(49, 51, 63, 0.2);'>", unsafe_allow_html=True)
                 
                 # --- ITERATE RECORDS FOR INLINE ACTIONS ---
-                # Fixed spacing structure using unique operational button states explicitly inside containers
                 for idx, row in display_df.iterrows():
                     r_id = row["ID"]
                     r_name = row["Student Name"]
@@ -2336,7 +2349,6 @@ elif menu_choice == "Student Management":
                         c_rem.write(str(r_rem))
                         
                         if pd.notna(log_id):
-                            # Explicit int cast string configuration prevents duplicate tracking keys
                             if c_btn.button("🗑️ Delete", key=f"del_inline_{int(log_id)}", type="primary", use_container_width=True):
                                 try:
                                     run_update("DELETE FROM student_logs WHERE id = :log_id", {"log_id": int(log_id)})
@@ -2348,6 +2360,8 @@ elif menu_choice == "Student Management":
                             c_btn.caption("Legacy")
                         
                         st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
+
+```
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ---------------------------------------------------------
 if menu_choice == "👨‍🏫 Teacher Management":
