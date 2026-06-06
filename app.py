@@ -394,7 +394,7 @@ elif menu_choice == "➕ Add Students":
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-elif menu_choice == "📝 Academic Exam Marks Entry":
+if menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
@@ -593,9 +593,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks score configuration updated successfully for {s_name}!")
                     st.rerun()
 
-    # ==============================================================================
-    # MODE C: BULK EXCEL/CSV IMPORT
-    # ==============================================================================
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Upload Exam Marks Matrix")
         st.info("💡 **Instructions:** Upload an Excel (.xlsx) or CSV (.csv) file. The file **must** contain an `ID` column and a `Marks` column.")
@@ -618,7 +615,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         
         if uploaded_file is not None:
             try:
-                # 1. Read file immediately into session state to protect it from disappearing on rerun
                 if uploaded_file.name.endswith('.csv'):
                     import_df = pd.read_csv(uploaded_file)
                 else:
@@ -632,17 +628,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"📊 Found data matrix for {len(import_df)} student rows cleanly read!")
                     st.dataframe(import_df.head(10))
                     
-                    # 2. Use a distinct key and clear block level execution
-                    execute_save = st.button("🚀 Process and Save Bulk Marks to Database", type="primary", key="commit_bulk_btn")
-                    
-                    if execute_save:
+                    if st.button("🚀 Process and Save Bulk Marks to Database", type="primary", key="commit_bulk_data_btn"):
                         success_count = 0
                         for _, row in import_df.iterrows():
                             s_id = str(row['ID']).strip()
                             score = str(row['MARKS']).strip().upper()
                             
                             if s_id.isdigit():
-                                # Clear old data
                                 execute_db_command("""
                                     DELETE FROM marks 
                                     WHERE student_id = :s_id 
@@ -650,7 +642,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                       AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                                 """, {"s_id": int(s_id), "subject": bulk_subject, "exam": bulk_exam})
                                 
-                                # Insert fresh data
                                 if score != "":
                                     execute_db_command("""
                                         INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
@@ -668,9 +659,157 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.success(f"🎉 Successfully uploaded and synchronized database logs for {success_count} students!")
                             st.rerun()
                         else:
-                            st.warning("⚠️ No valid rows with content were modified or saved.")
+                            st.warning("⚠️ No valid rows with data content were processed.")
             except Exception as e:
-                st.error(f"❌ Failed to parse system data spreadsheet matrix: {e}")
+                st.error(f"❌ Failed to parse or upload system data spreadsheet matrix: {e}")
+
+# ====================================================================================
+# MODULE 2: MULTI-TEST PROGRESS REPORT
+# ====================================================================================
+elif menu_choice == "📈 Multi-Test Progress Report":
+    st.title("📈 Multi-Test Progress Analytics")
+    st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
+
+    st.markdown("""
+        <style>
+        @media print {
+            .no-print { display: none !important; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    all_frameworks = [
+        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
+    ]
+
+    st.markdown('<div class="no-print">', unsafe_allow_html=True)
+    
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        sel_session = st.selectbox("🎯 Target Academic Session:", AVAILABLE_SESSIONS, index=1, key="rep_global_session")
+    with col_g2:
+        sel_class = st.selectbox("📚 Select Class View Level:", ["11th", "12th"], index=1, key="rep_global_class")
+
+    st.markdown("---")
+
+    scope_choice = st.radio(
+        "𖨾 Select Scope:",
+        options=["👤 Single Student Card", "👥 Complete Section Cards"],
+        index=0,
+        horizontal=True,
+        key="mt_reporting_scope"
+    )
+
+    students_to_process = []
+    selected_exams_list = []
+    
+    rendered_discipline = "N/A"
+    rendered_section = "N/A"
+
+    if scope_choice == "👤 Single Student Card":
+        with st.form("single_student_secure_form"):
+            st.markdown("##### 👤 Single Profile Verification Panel")
+            col_s1, col_s2 = st.columns([2, 3])
+            with col_s1:
+                search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
+            with col_s2:
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_single")
+            
+            submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
+            
+        if submit_single:
+            clean_id = search_id.strip()
+            if not clean_id:
+                st.error("⚠️ Please input a valid Student Roll Number / ID.")
+            else:
+                try:
+                    query_id = int(clean_id) if clean_id.isdigit() else clean_id
+                    
+                    if sel_class == "11th" and sel_session == "2025-27":
+                        query_sql = """
+                            SELECT id, name, section, '11th' as class 
+                            FROM students 
+                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = '12TH'
+                        """
+                    else:
+                        query_sql = """
+                            SELECT id, name, section, class 
+                            FROM students 
+                            WHERE id = :sid AND session = :session AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                        """
+                    
+                    student_df = run_query(query_sql, {"sid": query_id, "session": sel_session, "class_level": sel_class})
+                    
+                    if not student_df.empty:
+                        students_to_process = student_df.to_dict('records')
+                        rendered_section = student_df.iloc[0]["section"]
+                        rendered_discipline = "N/A"
+                    else:
+                        st.error(f"❌ No student profile found matching ID #{clean_id} for the selected structural parameters.")
+                except Exception as e:
+                    st.error(f"⚠️ Student verification query failed: {str(e)}.")
+
+    else:
+        with st.form("complete_section_secure_form"):
+            st.markdown("##### 👥 Complete Section Processing Panel")
+            col_c1, col_c2, col_c3 = st.columns(3)
+            
+            with col_c1:
+                available_disciplines = list(CLASS_DISCIPLINE_SECTIONS.get(sel_class, {}).keys())
+                if not available_disciplines:
+                    available_disciplines = AVAILABLE_DISCIPLINE
+                sel_disc = st.selectbox("Select Discipline Context:", available_disciplines, key="form_sel_disc_bulk")
+            
+            with col_c2:
+                class_specific_sections = CLASS_DISCIPLINE_SECTIONS.get(sel_class, {}).get(sel_disc, [])
+                if not class_specific_sections:
+                    class_specific_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, [])
+                sel_sec = st.selectbox("Select Target Class Section:", class_specific_sections, key="form_sel_sec_bulk")
+                
+            with col_c3:
+                selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="form_exams_bulk")
+                
+            submit_bulk = st.form_submit_button("🚀 Compile All Section Cards", use_container_width=True)
+            
+        if submit_bulk:
+            rendered_discipline = sel_disc
+            rendered_section = sel_sec
+            
+            if sel_class == "11th" and sel_session == "2025-27":
+                query_sql = """
+                    SELECT id, name, section, '11th' as class 
+                    FROM students 
+                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                      AND session = :session
+                      AND UPPER(TRIM(class)) = '12TH'
+                    ORDER BY id ASC
+                """
+            else:
+                query_sql = """
+                    SELECT id, name, section, class 
+                    FROM students 
+                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                      AND session = :session
+                      AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                      AND (status IS NULL OR UPPER(TRIM(status)) = 'ACTIVE')
+                    ORDER BY id ASC
+                """
+            
+            section_students_df = run_query(query_sql, {"section": sel_sec, "session": sel_session, "class_level": sel_class})
+            
+            if not section_students_df.empty:
+                students_to_process = section_students_df.to_dict('records')
+            else:
+                st.info(f"💡 No target student profiles found matching section '{sel_sec}' for the selected parameters.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if students_to_process and selected_exams_list:
+        st.success(f"📊 Compiled {len(students_to_process)} student layout profile cards successfully! Ready for printing review.")
+        for student in students_to_process:
+            st.write(f"📝 **Card View Generated for:** ID {student['id']} — {student['name']} ({student['class']})")
 # ====================================================================================
 # MODULE 2: MULTI-TEST PROGRESS REPORT (COMPLETELY OVERHAULED & DYNAMIC ROUTING REWRITTEN)
 # ====================================================================================
