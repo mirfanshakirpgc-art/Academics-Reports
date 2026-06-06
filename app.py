@@ -1574,7 +1574,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
                     
                     if not s_att.empty:
-                        s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
+                        # Safely handle date parsing only if daily detail columns exist
+                if 'attendance_date' in s_att.columns:
+                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
+                else:
+                    # Create a safe blank fallback column for summary data matrices
+                    s_att['parsed_date'] = pd.NaT
                         month_records = s_att[s_att['parsed_date'].dt.month == m_num]
                         
                         t_d = len(month_records)
