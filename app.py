@@ -1396,11 +1396,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
         st.write("---")
 
-        # Flattened single-line CSS properties completely eliminate hidden web spaces (NBSP characters)
-        css_styles = """
+        # Isolated configurations to protect numeric literals from hidden spaces
+        panel_gap = "12px"
+        panel_width = "850px"
+
+        css_styles = f"""
         <style>
         body {{ background-color: #ffffff; margin: 0; padding: 10px; }}
-        .action-dashboard-panel {{ display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }}
+        .action-dashboard-panel {{ display: flex; flex-wrap: wrap; gap: {panel_gap}; max-width: {panel_width}; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }}
         .action-control-btn {{ flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }}
         .action-control-btn:active {{ transform: scale(0.97); }}
         .btn-print-single {{ background-color: #2e7d32; }}
@@ -1440,7 +1443,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </style>
         """
 
-        # Start master component markup payload assembly safely
         composite_html_payload = f"""
         <html>
         <head>
@@ -1471,11 +1473,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
             match_id = int(s_id) if s_id.isdigit() else s_id
 
-            # --- ATTENDANCE TRACKER PROCESSING (DAILY LOG AGGREGATION ENGINE) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
-            # Map layout text columns to exact calendar month indexes
             month_map = {
                 "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
                 "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
