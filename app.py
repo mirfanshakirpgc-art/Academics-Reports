@@ -1420,6 +1420,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             break
             except Exception as internal_err:
                 st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve.")
+        # Flat CSS assignment avoids multi-line format evaluation parser issues completely
+        css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
         css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
         css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
