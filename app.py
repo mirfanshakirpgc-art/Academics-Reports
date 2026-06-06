@@ -418,35 +418,54 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
         
+        # --- ROLE CONTEXT RESOLUTION & INTERFERENCE ENGINE ---
         if current_role == 'teacher' and current_user_id is not None:
             teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
             if not teacher_rights.empty:
                 allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                 allowed_secs = sorted(list(teacher_rights['section'].unique()))
-                with c1: sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_t")
+                
+                with c1: 
+                    sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=2, key="entry_sess_t")
+                    # 🧠 Auto-infer class for teacher views
+                    start_year = int(sel_session.split('-')[0])
+                    sel_class = "12th" if start_year == 2025 else "11th"
+                    
                 with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs)
                 with c3: sel_section = st.selectbox("Select Section:", allowed_secs)
-                with c4: st.info("🔒 Bound to Allocation Profile")
+                with c4: st.info(f"🔒 Profile Locked to **{sel_class} Class**")
             else:
                 st.warning("🚨 You do not have any active subjects or sections assigned yet.")
-                sel_subject, sel_section, sel_session = None, None, None
+                sel_subject, sel_section, sel_session, sel_class = None, None, None, None
         else:
+            # --- ADMIN VIEW (AUTOMATED SYNCHRONIZATION) ---
             with c1: 
-                sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="entry_sess_a")
+                sel_session = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=2, key="entry_sess_a")
                 sess_prefix = sel_session.split('-')[0] + '%'
+                
+                # 🧠 Auto-infer class based on the 2026 rolling baseline
+                start_year = int(sel_session.split('-')[0])
+                sel_class = "12th" if start_year == 2025 else "11th"
+                
             with c2: 
-                sel_discipline = st.selectbox("Select Discipline:", ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"], key="marks_disc_sel")
+                try:
+                    disc_opts = AVAILABLE_DISCIPLINE
+                except NameError:
+                    disc_opts = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"]
+                sel_discipline = st.selectbox("Select Discipline:", disc_opts, key="marks_disc_sel")
+                
             with c3: 
-                sel_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="entry_class_filter_a")
+                st.text_input("Assigned Class Level:", value=sel_class, disabled=True, key="entry_class_filter_readonly")
+                
             with c4: 
                 active_secs_df = run_query(
                     """
                     SELECT DISTINCT section FROM students 
-                    WHERE session LIKE :sess 
+                    WHERE (session LIKE :sess_pref OR session = :session)
                       AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
                     ORDER BY section
                     """,
-                    {"sess": sess_prefix, "cls": sel_class}
+                    {"sess_pref": sess_prefix, "session": sel_session, "cls": sel_class}
                 )
                 
                 valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
@@ -470,7 +489,8 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 
             sel_subject = st.selectbox("Select Subject:", available_subjects, key="entry_sub_filter_a")
         
-        if sel_subject and sel_section and sel_session:
+        # --- DATA RENDERING AND SUBMISSION LEDGER WORKSPACE ---
+        if sel_subject and sel_section and sel_session and sel_class:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
                 sel_exam = st.selectbox("Select Academic Exam Cycle:", ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"], key="entry_exam_sel")
@@ -504,7 +524,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     st.info(f"💡 No active student profiles registered under Section '{sel_section}' ({sel_class}) inside Session {sel_session}.")
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
-                    st.caption("ℹ️ Tip: Type 'A' for Absent or 'NC' for Not Conducted.")
+                    st.caption(f"ℹ️ Currently modification targeted to: **{sel_class} Class** roster lines.")
                     
                     with st.form("bulk_marks_form"):
                         updated_marks = {}
@@ -547,6 +567,9 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
 
+    # ==============================================================================
+    # MODE B: BY SINGLE STUDENT ROLL NUMBER
+    # ==============================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
@@ -592,16 +615,25 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks score configuration updated successfully for {s_name}!")
                     st.rerun()
 
+    # ==============================================================================
+    # MODE C: BULK EXCEL/CSV IMPORT
+    # ==============================================================================
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Upload Exam Marks Matrix")
         st.info("💡 **Instructions:** Upload an Excel (.xlsx) or CSV (.csv) file. The file **must** contain an `ID` column and a `Marks` column.")
         
         col_b1, col_b2, col_b3, col_b4 = st.columns(4)
-        with col_b1: bulk_session = st.selectbox("Select Session for Import:", AVAILABLE_SESSIONS, index=1, key="bulk_sess")
+        with col_b1: 
+            bulk_session = st.selectbox("Select Session for Import:", AVAILABLE_SESSIONS, index=2, key="bulk_sess")
+            # 🧠 Inline system auto-classification engine for imports
+            start_year = int(bulk_session.split('-')[0])
+            bulk_class = "12th" if start_year == 2025 else "11th"
+            
         with col_b2: bulk_subject = st.text_input("Subject Name:", value="STATISTICS", key="bulk_sub_name")
         with col_b3: bulk_exam = st.selectbox("Select Test Type for Import:", ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"], key="bulk_exam")
         with col_b4: bulk_total_marks = st.number_input("Total Marks Assigned:", value=100, key="bulk_total")
         
+        st.caption(f"📍 Data points uploaded here will align under **{bulk_class} Class** metrics pipeline.")
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         
         if uploaded_file is not None:
