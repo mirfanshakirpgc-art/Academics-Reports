@@ -2186,7 +2186,6 @@ elif menu_choice == "Student Management":
             elif "ENGINEERING" in u_class:
                 lookup_key = "ENGINEERING"
             elif "PHYSICS" in u_class or ("ICS" in u_class and "STAT" not in u_class):
-                # Default general ICS to Physics sections unless stats is mentioned
                 lookup_key = "ICS_PHYSICS"
             elif "STAT" in u_class:
                 lookup_key = "ICS_STATISTICS"
@@ -2200,7 +2199,6 @@ elif menu_choice == "Student Management":
             if lookup_key and lookup_key in DISCIPLINE_SECTIONS_MAP:
                 all_sections = [str(sec).strip() for sec in DISCIPLINE_SECTIONS_MAP[lookup_key]]
             else:
-                # Emergency fallback using only your true operational sections from the map
                 all_sections = ["MQ1", "MQ2", "MK1", "EK1", "EQ1", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IQ1", "IK1", "FQ1", "FK1"]
             
             # 3. Ensure the student's current section is always in the options list
@@ -2223,17 +2221,17 @@ elif menu_choice == "Student Management":
                     st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                 else:
                     try:
-                        # Process update using native PostgreSQL positional %s placeholders
+                        # FIX: Passed as a direct plain Dictionary parameters mapping (No wrapping list [])
                         run_update(
-                            "UPDATE students SET section = %s WHERE id = %s", 
-                            (str(new_sec), int(s_id))
+                            "UPDATE students SET section = :new_section WHERE id = :id", 
+                            {"new_section": str(new_sec), "id": int(s_id)}
                         )
                         
                         try:
                             run_update("""
                                 INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                VALUES (%s, 'SECTION_TRANSFER', %s, %s, %s, %s)
-                            """, (int(s_id), str(s_sec), str(new_sec), str(section_date), section_remarks.strip()))
+                                VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
+                            """, {"id": int(s_id), "old": str(s_sec), "new": str(new_sec), "date": str(section_date), "rem": section_remarks.strip()})
                         except Exception:
                             pass
                         
