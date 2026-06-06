@@ -2076,13 +2076,11 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-    Here is your complete, fully optimized, and cleaned-up block for **`elif menu_choice == "Student Management":`**.
-
-This completely eliminates the duplicate field layout confusion by adding visual card borders (`st.container(border=True)`) around the two actions. It also includes the robust filtering logic to ensure class strings like `"11th"` or `"12th"` never pollute your dropdown selection pool.
-
-### 📋 Complete Updated Code Block
-
-```python
+    elif menu_choice == "Student Management":
+    st.title("👤 Student Management & Audit Logs")
+    
+    # Sub-navigation tabs for managing vs viewing history
+    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management & Audit Logs")
