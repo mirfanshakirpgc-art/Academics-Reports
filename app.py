@@ -1218,27 +1218,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
         "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
     ]
 
-    # --- GLOBAL INTERFACE FILTER PANEL (Interactive Configuration) ---
+    # --- GLOBAL INTERFACE FILTER PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
     st.markdown('##### 🎛️ Filter Configuration Panel')
     col_filter1, col_filter2, col_filter3 = st.columns(3)
     
     with col_filter1:
-        # Dynamically pulls track keys directly from your dictionary framework
         sel_disc = st.selectbox("Select Discipline Context:", list(DISCIPLINE_SECTIONS_MAP.keys()), key="global_sel_disc")
         sel_session_global = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="global_sel_sess")
         
     with col_filter2:
         sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
         
-        # Look up the target subset dictionary safely
+        # Read matching target lists directly from your updated map structure
         discipline_data = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {})
-        
-        # Read matching target lists directly (No text-replacement hacks required)
         filtered_sections = discipline_data.get(sel_class_global, [])
         
-        # Safe structural fallback
         if not filtered_sections and isinstance(discipline_data, list):
             filtered_sections = discipline_data
 
@@ -1249,7 +1245,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     st.markdown("---")
 
-    # 2. Scope Selector Strategy (Single vs Bulk Complete Section)
+    # Scope Selector Strategy
     scope_choice = st.radio(
         "𖨾 Select Scope:",
         options=["👤 Single Student Card", "👥 Complete Section Cards"],
@@ -1262,12 +1258,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
     students_to_process = []
     
     rendered_discipline = sel_disc
-    rendered_section = sel_sec
+    rendered_section = str(sel_sec).strip()
 
     # --- SCOPE LOGIC 1: SINGLE PROFILE ---
     if scope_choice == "👤 Single Student Card":
         with st.form("single_student_secure_form"):
-            st.markdown(f"##### 👤 Single Profile Verification Panel ({sel_class_global} - {sel_sec})")
+            st.markdown(f"##### 👤 Single Profile Verification Panel ({sel_class_global} - {rendered_section})")
             search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
             submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
             
@@ -1279,20 +1275,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 try:
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
                     
+                    # Added explicit wildcards to section check to capture variants safely
                     student_df = run_query("""
                         SELECT id, name, section, class 
                         FROM students 
                         WHERE id = :sid
                           AND session = :session
                           AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
-                          AND UPPER(TRIM(section)) = UPPER(TRIM(:section))
-                    """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global, "section": sel_sec})
+                          AND UPPER(TRIM(section)) LIKE UPPER(TRIM(:section))
+                    """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global, "section": f"%{rendered_section}%"})
                     
                     if not student_df.empty:
                         students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
                     else:
-                        st.error(f"❌ Student ID #{clean_id} was not found inside Section {sel_sec} ({sel_class_global}).")
+                        st.error(f"❌ Student ID #{clean_id} was not found inside Section {rendered_section} ({sel_class_global}).")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
@@ -1300,25 +1297,26 @@ if menu_choice == "📈 Multi-Test Progress Report":
     else:
         st.markdown(f'<div style="border:1px solid #d3d3d3; padding: 20px; border-radius: 5px; margin-bottom: 20px; background-color: rgba(240, 242, 246, 0.3);">', unsafe_allow_html=True)
         st.markdown(f"##### 👥 Complete Section Processing Panel")
-        st.info(f"Ready to compile all student cards for **{sel_class_global} Year** under Section **{sel_sec}** ({sel_disc}).")
+        st.info(f"Ready to compile all student cards for **{sel_class_global} Year** under Section **{rendered_section}** ({sel_disc}).")
         
         submit_bulk = st.button("🚀 Compile All Section Cards", use_container_width=True, type="primary")
         st.markdown('</div>', unsafe_allow_html=True)
             
         if submit_bulk:
+            # Replaced '=' with 'LIKE' pattern mapping to counter trailing whitespaces from the promotion database commit
             section_students_df = run_query("""
                 SELECT id, name, section, class 
                 FROM students 
-                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section))
+                WHERE UPPER(TRIM(section)) LIKE UPPER(TRIM(:section))
                   AND session = :session
                   AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
                 ORDER BY id ASC
-            """, {"section": sel_sec, "session": sel_session_global, "class_level": sel_class_global})
+            """, {"section": f"%{rendered_section}%", "session": sel_session_global, "class_level": sel_class_global})
             
             if not section_students_df.empty:
                 students_to_process = section_students_df.to_dict('records')
             else:
-                st.info(f"💡 No registered student profiles mapped to section '{sel_sec}' for Session {sel_session_global} ({sel_class_global}).")
+                st.error(f"💡 No registered student profiles found matching section '{rendered_section}' for Session {sel_session_global} ({sel_class_global}).")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1601,45 +1599,29 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks["subject_clean"] = s_marks["subject_name"].astype(str).str.strip().str.title()
                 target_section_context = s_section.upper().strip()
                 
-                medical_secs = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "2MG_BLUE", "2MG_WHITE", "2MB_BLUE"]
-                engineering_secs = ["EG_BLUE", "EB_BLUE", "2EG_BLUE", "2EB_BLUE"]
-                ics_physics_secs = ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "2CG_WHITE", "2CG_GREEN", "2CB_WHITE", "2CB_GREEN"]
-                ics_stats_secs = ["CG_STATS", "CB_STATS", "2CG_STATS", "2CB_STATS"]
-                commerce_secs = ["IG", "IB", "2IG", "2IB"]
-                humanities_secs = ["FB", "FG", "2FB", "2FG"]
-                it_secs = ["DITB", "DITG", "2DITB", "2DITG"]
-                
+                # Broaden matching tags to align with the new short 12th section identifiers (e.g. MQ1, EQ, CQ1)
                 compulsory_subs = ["English", "Urdu", "Isl_Eth", "T_Quran"]
                 
-                if any(x in target_section_context for x in medical_secs) or target_section_context.startswith("M") or "2M" in target_section_context:
+                if "MQ" in target_section_context or "MK" in target_section_context or "M" in target_section_context:
                     active_electives = ["Chemistry", "Biology", "Physics"]
-                elif any(x in target_section_context for x in engineering_secs) or target_section_context.startswith("E") or "2E" in target_section_context:
+                elif "EQ" in target_section_context or "EK" in target_section_context or "E" in target_section_context:
                     active_electives = ["Chemistry", "Mathematics", "Physics"]
-                elif any(x in target_section_context for x in ics_physics_secs):
+                elif "CQ1" in target_section_context or "CQ2" in target_section_context or "CK1" in target_section_context or "CK2" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Physics"]
-                elif any(x in target_section_context for x in ics_stats_secs) or "STATS" in target_section_context:
+                elif "CQ3" in target_section_context or "CK3" in target_section_context or "STAT" in target_section_context:
                     active_electives = ["Computer", "Mathematics", "Statistics"]
-                elif any(x in target_section_context for x in commerce_secs) or target_section_context.startswith("I") or "2I" in target_section_context:
+                elif "IK" in target_section_context or "IQ" in target_section_context or "I" in target_section_context:
                     active_electives = ["Accounting", "Economics", "Commerce", "B_Math"]
-                elif any(x in target_section_context for x in humanities_secs) or target_section_context.startswith("F") or "2F" in target_section_context:
+                elif "FK" in target_section_context or "FQ" in target_section_context or "F" in target_section_context:
                     active_electives = ["Education", "Isl_Elc", "Computer"]
-                elif any(x in target_section_context for x in it_secs) or target_section_context.startswith("DIT") or "2DIT" in target_section_context:
-                    active_electives = ["Information Technology", "Computer Science", "Networks"]
                 else:
                     active_electives = ["Computer", "Mathematics", "Statistics", "Physics", "Chemistry", "Biology"]
                 
                 raw_subjects = list(set(compulsory_subs + active_electives))
                 unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
-                history_bridge_map = {"Chemistry": ["Computer"], "Biology": ["Statistics"], "Physics": ["Mathematics"], "Economics": ["Chemistry", "Computer"]}
+                history_bridge_map = {"Chemistry": ["Computer"], "Biology": ["Statistics"], "Physics": ["Mathematics"]}
             else:
-                target_section_context = s_section.upper().strip()
-                if any(x in target_section_context for x in ["IB", "IG", "2IB", "2IG"]):
-                    raw_subjects = ["English", "Urdu", "Accounting", "Economics", "Commerce", "Isl_Eth", "T_Quran", "B_Math"]
-                    unique_subjects = sorted(raw_subjects, key=lambda x: (x == "B_Math", x.upper()))
-                elif any(x in target_section_context for x in ["FB", "FG", "2FB", "2FG"]):
-                    unique_subjects = ["English", "Urdu", "Education", "Isl_Elc", "Computer", "Isl_Eth", "T_Quran"]
-                else:
-                    unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
+                unique_subjects = ["English", "Urdu", "Mathematics", "Computer", "Statistics", "Isl_Eth", "T_Quran"]
                 history_bridge_map = {}
             
             table_rows_html = ""
