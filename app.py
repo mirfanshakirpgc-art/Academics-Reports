@@ -2089,8 +2089,8 @@ elif menu_choice == "Student Management":
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
     
     # =========================================================
-    # TAB 1: PROCESS CHANGES (Active management container)
-    # =========================================================
+# TAB 1: PROCESS CHANGES (Active management container)
+# =========================================================
     with manage_tab:
         st.markdown("Search for a student by ID to process section changes, mark departures, or re-activate profiles.")
         search_id = st.number_input("Enter Student ID:", min_value=1, step=1, key="manage_search_id")
@@ -2144,17 +2144,11 @@ elif menu_choice == "Student Management":
                             if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
                                 st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
                             else:
-                                # Ensure log table structure exists safely
                                 try:
                                     run_update("""
                                         CREATE TABLE IF NOT EXISTS student_logs (
                                             id SERIAL PRIMARY KEY,
-                                            student_id INT, 
-                                            change_type TEXT, 
-                                            old_value TEXT, 
-                                            new_value TEXT, 
-                                            log_date TEXT, 
-                                            remarks TEXT
+                                            student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT
                                         );
                                     """)
                                 except Exception:
@@ -2162,39 +2156,25 @@ elif menu_choice == "Student Management":
 
                                 try:
                                     run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                    
                                     run_update("""
                                         INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
                                         VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)
                                     """, {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
-                                    
                                     st.success(f"✅ Successfully updated status to **{new_status}**!")
                                     st.rerun()
                                 except Exception as e:
-                                    if "column" in str(e).lower() and "status" in str(e).lower():
-                                        try:
-                                            run_update("ALTER TABLE students ADD COLUMN status VARCHAR(20) DEFAULT 'Active';")
-                                            run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                            st.success(f"✅ Database upgraded! Status updated to **{new_status}**.")
-                                            st.rerun()
-                                        except Exception as migration_err:
-                                            st.error(f"Could not add column: {migration_err}")
-                                    else:
-                                        st.error(f"Failed to update status: {e}")
+                                    st.error(f"Failed to update status: {e}")
                 
                 # --- SECTION CHANGE MANAGEMENT CARD ---
                 with col_section:
                     with st.container(border=True):
                         st.subheader("🏫 Room & Section Transfer")
                         
-                        # Extract sections cleanly and filter out class strings (e.g. "11th")
+                        # Clean filter to remove classes like "11th" from sections dropdown
                         raw_sections = set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])
                         all_sections = sorted([str(sec) for sec in raw_sections if "th" not in str(sec).lower()])
+                        if not all_sections: all_sections = [s_sec]
                         
-                        # Fallback calculation safely handling edge parameters
-                        if not all_sections:
-                            all_sections = [s_sec]
-                            
                         default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
                         new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
                         section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
@@ -2208,37 +2188,16 @@ elif menu_choice == "Student Management":
                             else:
                                 try:
                                     run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
-                                    
                                     run_update("""
                                         INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
                                         VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
                                     """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
-                                    
-                                    st.success(f"✅ Successfully transferred student to **{new_sec}** on {section_date}!")
+                                    st.success(f"✅ Successfully transferred student to **{new_sec}**!")
                                     st.rerun()
                                 except Exception as e:
-                                    if "no such table" in str(e).lower():
-                                        try:
-                                            run_update("""
-                                                CREATE TABLE IF NOT EXISTS student_logs (
-                                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                    student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT
-                                                );
-                                            """)
-                                            run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": new_sec, "id": s_id})
-                                            run_update("""
-                                                INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                                VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
-                                            """, {"id": s_id, "old": s_sec, "new": new_sec, "date": str(section_date), "rem": section_remarks.strip()})
-                                            st.success(f"✅ Transferred student successfully to **{new_sec}**!")
-                                            st.rerun()
-                                        except Exception as log_err:
-                                            st.error(f"Failed to save record transaction: {log_err}")
-                                    else:
-                                        st.error(f"Failed to change section: {e}")
+                                    st.error(f"Failed to change section: {e}")
             else:
                 st.error(f"❌ No student profile found with ID: **{search_id}**")
-
     # =========================================================
     # TAB 2: AUDIT LOGS VIEW (Inline Row-by-Row Deletion Engine)
     # =========================================================
