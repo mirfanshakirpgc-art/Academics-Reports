@@ -1567,18 +1567,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
             }
 
-            for m_name, m_num in month_map.items():
-                t_d, a_d = 0, 0
+            # Pre-initialize matrix structure fallback
+            attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
+
+            if not attendance_df.empty:
+                s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
                 
-                if not attendance_df.empty:
-                    s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
-                    
-                    if not s_att.empty:
+                if not s_att.empty:
                     # Flat assignment completely eliminates nested indentation alignment crashes
                     s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
 
                     # Populate the calendar aggregation matrix dictionary safely
-                    for m_num, m_name in month_map.items():
+                    for m_name, m_num in month_map.items():
                         if 'attendance_date' in s_att.columns:
                             month_records = s_att[s_att['parsed_date'].dt.month == m_num]
                             t_days = len(month_records)
@@ -1591,6 +1591,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
                         if t_days > 0:
                             attendance_matrix[m_name] = {"total": t_days, "present": p_days}
+
+            # Generate the HTML cells directly mapping into the compiled matrix items
+            for m_name in month_map.keys():
+                t_d = attendance_matrix[m_name].get("total", 0)
+                a_d = attendance_matrix[m_name].get("present", 0)
+
                 overall_tot_days += t_d
                 overall_att_days += a_d
 
@@ -1647,9 +1653,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         <tr><th style="width: 14%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th style="font-weight: bold;">Overall</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td><strong>Total Days</strong></td>{tot_days_row}</tr>
-                        <tr><td><strong>Att. Days</strong></td>{att_days_row}</tr>
-                        <tr><td><strong>Age%</strong></td>{pct_days_row}</tr>
+                        <tr><td>Open Total Days</td>{tot_days_row}</tr>
+                        <tr><td>Att. Days</td>{att_days_row}</tr>
+                        <tr><td>Age%</td>{pct_days_row}</tr>
                     </tbody>
                 </table>
                 <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
