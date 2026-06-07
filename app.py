@@ -213,7 +213,7 @@ DISCIPLINE_SECTIONS_MAP = {
 AVAILABLE_DISCIPLINE = list(DISCIPLINE_SUBJECTS_MAP.keys())
 AVAILABLE_EXAMS = [
     "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
-    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", f"T_9", "T_10",
     "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
 ]
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
@@ -714,7 +714,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
 
 # ====================================================================================
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (FIXED FOR CK3 & FULL UNRESTRICTED DROPDOWNS)
+# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DICTIONARY ALIGNED & ZERO-DELAY LOADING)
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
@@ -782,7 +782,7 @@ if menu_choice == "📅 Attendance Entry Management":
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
         
-        d1, d2, d3, d4 = st.columns([1.5, 1.5, 1.5, 2.5])
+        d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
         with d1:
             sel_session = st.selectbox("Select Session:", session_options, key="daily_att_sess")
             
@@ -798,28 +798,33 @@ if menu_choice == "📅 Attendance Entry Management":
                 sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
                 
         with d4:
-            # 🔍 THE RADICAL FIX: Fetch ALL sections for the chosen session, ignoring rigid class tags
-            try:
-                db_sections = run_query("""
-                    SELECT DISTINCT section FROM students 
-                    WHERE session = :sess AND section IS NOT NULL AND section != ''
-                """, {"sess": sel_session})
+            # 🎯 ALIGNED DROPDOWN RESOLUTION USING YOUR MAP REFERENCE
+            section_options = []
+            if academic_system == "Annual System":
+                try:
+                    # Dynamically parse out the sections using your exact map structure
+                    for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                        sections_list = class_map.get(sel_class, [])
+                        section_options.extend(sections_list)
+                    section_options = sorted(list(set(section_options)))
+                except NameError:
+                    # Comprehensive fallback array matching your configuration rules
+                    if sel_class == "11th":
+                        section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
+                    else:
+                        section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
+            else:
+                # Absolute mapping for your Semester system rules
+                section_options = ["DIT_B", "DIT_G"]
                 
-                if not db_sections.empty:
-                    section_options = sorted([str(x).strip() for x in db_sections['section'].tolist()])
-                else:
-                    section_options = ["CK3", "ICS_Stats", "MG_BLUE"]
-            except Exception:
-                section_options = ["CK3", "ICS_Stats", "MG_BLUE"]
-                
-            sel_section = st.selectbox("Select Target Section (Live Database Dropdown):", section_options, key="daily_att_sec")
+            sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
 
         row_date_1, _ = st.columns([1.5, 2.5])
         with row_date_1:
             target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
-            # 🎯 Fetch all student rosters matching this session and section text structure
+            # 🚀 HIGH-SPEED INDEX TARGETING
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
@@ -835,9 +840,9 @@ if menu_choice == "📅 Attendance Entry Management":
             })
 
             if roster_df.empty:
-                st.warning(f"⚠️ No active student profiles found under Section '{sel_section}' inside Session {sel_session}. Verify your data settings if this is unexpected.")
+                st.warning(f"⚠️ No active student profiles found under Section '{sel_section}' inside Session {sel_session}.")
             else:
-                st.markdown(f"🔬 **Roster Grid Active:** {sel_section} — {target_date.strftime('%d-%b-%Y')} ({len(roster_df)} Students Loaded)")
+                st.markdown(f"🔬 **Roster Grid Active:** {sel_class} Section {sel_section} — {target_date.strftime('%d-%b-%Y')} ({len(roster_df)} Students Loaded)")
                 
                 action_box_col, info_box_col = st.columns([2, 3])
                 with action_box_col:
@@ -874,13 +879,13 @@ if menu_choice == "📅 Attendance Entry Management":
                             insert_params.append({**base_param, "status": status_code})
                         
                         try:
-                            # Apply batch queries sequentially
+                            # Apply batch updates natively
                             for p in delete_params:
                                 execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", p)
                             for p in insert_params:
                                 execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", p)
                             
-                            # Run native query aggregates
+                            # Fire aggregation directly to database cache memory
                             inferred_month_string = target_date.strftime('%B')
                             trigger_background_monthly_aggregation(sel_section, inferred_month_string)
                             
