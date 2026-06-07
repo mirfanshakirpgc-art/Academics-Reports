@@ -2095,7 +2095,7 @@ elif menu_choice == "Student Management":
                                 try:
                                     run_update("""
                                         CREATE TABLE IF NOT EXISTS student_logs (
-                                            id SERIAL PRIMARY KEY,
+                                            id INTEGER PRIMARY KEY AUTOINCREMENT,
                                             student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT
                                         );
                                     """)
@@ -2114,87 +2114,89 @@ elif menu_choice == "Student Management":
                                     st.error(f"Failed to update status: {e}")
                 
                 # --- SECTION CHANGE MANAGEMENT CARD ---
-    with col_section:
-        with st.container(border=True):
-            st.subheader("🏫 Room & Section Transfer")
-            
-            # Local reference of your exact discipline sections mapping layout
-            DISCIPLINE_SECTIONS_MAP = {
-                "MEDICAL": ["MQ1", "MQ2", "MK1"],
-                "ENGINEERING": ["EK1", "EQ1"],
-                "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
-                "ICS_STATISTICS": ["CQ3", "CK3"],
-                "COMMERCE": ["IQ1", "IK1"],
-                "HUMANITIES": ["FQ1", "FK1"]
-            }
-            
-            # 1. Normalize the student's class name to match your dictionary keys
-            u_class = str(s_class).upper().strip()
-            lookup_key = None
-            
-            if "MEDICAL" in u_class:
-                lookup_key = "MEDICAL"
-            elif "ENGINEERING" in u_class:
-                lookup_key = "ENGINEERING"
-            elif "PHYSICS" in u_class or ("ICS" in u_class and "STAT" not in u_class):
-                lookup_key = "ICS_PHYSICS"
-            elif "STAT" in u_class:
-                lookup_key = "ICS_STATISTICS"
-            elif "COMMERCE" in u_class or "I.COM" in u_class:
-                lookup_key = "COMMERCE"
-            elif "HUMANITIES" in u_class or "ARTS" in u_class:
-                lookup_key = "HUMANITIES"
-            
-            # 2. Extract sections using our smart lookup key
-            all_sections = []
-            if lookup_key and lookup_key in DISCIPLINE_SECTIONS_MAP:
-                all_sections = [str(sec).strip() for sec in DISCIPLINE_SECTIONS_MAP[lookup_key]]
-            else:
-                all_sections = ["MQ1", "MQ2", "MK1", "EK1", "EQ1", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IQ1", "IK1", "FQ1", "FK1"]
-            
-            # 3. Ensure the student's current section is always in the options list
-            if s_sec not in all_sections:
-                all_sections.append(s_sec)
-                
-            all_sections = sorted(list(set(all_sections)))
-            
-            # 4. Handle dropdown indexing safely
-            default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
-                
-            new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
-            section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
-            section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
-            
-            if st.button("🔄 Execute Section Change", use_container_width=True, type="primary"):
-                if new_sec == s_sec:
-                    st.warning("⚠️ Student is already assigned to this section.")
-                elif not section_remarks.strip():
-                    st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
-                else:
-                    try:
-                        # FIX: Passed as a direct plain Dictionary parameters mapping (No wrapping list [])
-                        run_update(
-                            "UPDATE students SET section = :new_section WHERE id = :id", 
-                            {"new_section": str(new_sec), "id": int(s_id)}
-                        )
+                with col_section:
+                    with st.container(border=True):
+                        st.subheader("🏫 Room & Section Transfer")
                         
-                        try:
-                            run_update("""
-                                INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
-                            """, {"id": int(s_id), "old": str(s_sec), "new": str(new_sec), "date": str(section_date), "rem": section_remarks.strip()})
-                        except Exception:
-                            pass
+                        # Local reference of your exact discipline sections mapping layout
+                        DISCIPLINE_SECTIONS_MAP = {
+                            "MEDICAL": ["MQ1", "MQ2", "MK1"],
+                            "ENGINEERING": ["EK1", "EQ1"],
+                            "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
+                            "ICS_STATISTICS": ["CQ3", "CK3"],
+                            "COMMERCE": ["IQ1", "IK1"],
+                            "HUMANITIES": ["FQ1", "FK1"]
+                        }
                         
-                        st.success(f"✅ Successfully transferred student to **{new_sec}**!")
+                        # 1. Normalize the student's class name to match your dictionary keys
+                        u_class = str(s_class).upper().strip()
+                        lookup_key = None
                         
-                        if "section_select_node" in st.session_state:
-                            del st.session_state["section_select_node"]
+                        if "MEDICAL" in u_class:
+                            lookup_key = "MEDICAL"
+                        elif "ENGINEERING" in u_class:
+                            lookup_key = "ENGINEERING"
+                        elif "PHYSICS" in u_class or ("ICS" in u_class and "STAT" not in u_class):
+                            lookup_key = "ICS_PHYSICS"
+                        elif "STAT" in u_class:
+                            lookup_key = "ICS_STATISTICS"
+                        elif "COMMERCE" in u_class or "I.COM" in u_class:
+                            lookup_key = "COMMERCE"
+                        elif "HUMANITIES" in u_class or "ARTS" in u_class:
+                            lookup_key = "HUMANITIES"
+                        
+                        # 2. Extract sections using our smart lookup key
+                        all_sections = []
+                        if lookup_key and lookup_key in DISCIPLINE_SECTIONS_MAP:
+                            all_sections = [str(sec).strip() for sec in DISCIPLINE_SECTIONS_MAP[lookup_key]]
+                        else:
+                            all_sections = ["MQ1", "MQ2", "MK1", "EK1", "EQ1", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IQ1", "IK1", "FQ1", "FK1"]
+                        
+                        # 3. Ensure the student's current section is always in the options list
+                        if s_sec not in all_sections:
+                            all_sections.append(s_sec)
                             
-                        st.rerun()
+                        all_sections = sorted(list(set(all_sections)))
                         
-                    except Exception as e:
-                        st.error(f"❌ Database Write Rejected the Change: {e}")
+                        # 4. Handle dropdown indexing safely
+                        default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
+                            
+                        new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
+                        section_date = st.date_input("Section Transfer Date:", key="sec_date_input")
+                        section_remarks = st.text_input("Transfer Remarks *", placeholder="Required: Reason for section change?", key="sec_rem_input")
+                        
+                        if st.button("🔄 Execute Section Change", use_container_width=True, type="primary"):
+                            if new_sec == s_sec:
+                                st.warning("⚠️ Student is already assigned to this section.")
+                            elif not section_remarks.strip():
+                                st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
+                            else:
+                                try:
+                                    run_update(
+                                        "UPDATE students SET section = :new_section WHERE id = :id", 
+                                        {"new_section": str(new_sec), "id": int(s_id)}
+                                    )
+                                    
+                                    try:
+                                        run_update("""
+                                            INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
+                                            VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
+                                        """, {"id": int(s_id), "old": str(s_sec), "new": str(new_sec), "date": str(section_date), "rem": section_remarks.strip()})
+                                    except Exception:
+                                        pass
+                                    
+                                    st.success(f"✅ Successfully transferred student to **{new_sec}**!")
+                                    
+                                    if "section_select_node" in st.session_state:
+                                        del st.session_state["section_select_node"]
+                                        
+                                    st.rerun()
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Database Write Rejected the Change: {e}")
+            else:
+                st.warning("⚠️ No student found with that ID.")
+
     # =========================================================
     # TAB 2: AUDIT LOGS VIEW (Perfectly Indented)
     # =========================================================
