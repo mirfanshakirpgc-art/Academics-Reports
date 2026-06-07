@@ -2769,34 +2769,18 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH HARDENED DATABASE REVERSAL LOGGING
+# MODULE: STUDENT PROMOTION WITH HARDENED POSTGRESQL DATABASE REVERSAL LOGGING
 # ====================================================================================
-# 🛠️ AUTO-CREATE LEDGER TABLE NATIVELY (PostgreSQL Aligned)
+elif menu_choice == "🎓 Promote Students":
+    st.title("🎓 Advanced End-of-Year Class Promotion Panel")
+    st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
+
+    # 🛠️ AUTO-CREATE LEDGER TABLE NATIVELY (PostgreSQL Validated Schema)
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS promotion_history (
                 id SERIAL PRIMARY KEY,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                student_id INTEGER,
-                old_class TEXT,
-                old_section TEXT,
-                new_class TEXT,
-                new_section TEXT,
-                batch_id TEXT
-            );
-        """)
-    except Exception as table_err:
-        st.error(f"Database initialization warning: {table_err}")
-elif menu_choice == "🎓 Promote Students":
-    st.title("🎓 Advanced End-of-Year Class Promotion Panel")
-    st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
-
-    # 🛠️ AUTO-CREATE LEDGER TABLE NATIVELY
-    try:
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS promotion_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 student_id INTEGER,
                 old_class TEXT,
                 old_section TEXT,
@@ -2911,7 +2895,7 @@ elif menu_choice == "🎓 Promote Students":
             if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary", use_container_width=True):
                 import uuid
                 student_ids_to_process = preview_df['id'].tolist()
-                batch_identifier = str(uuid.uuid4())[:8] # Generates short clear alpha-numeric batch ID
+                batch_identifier = str(uuid.uuid4())[:8] # Generates short alphanumeric batch tracking code
                 
                 for _, row in preview_df.iterrows():
                     s_id = int(row['id'])
@@ -2919,13 +2903,13 @@ elif menu_choice == "🎓 Promote Students":
                     old_sec = str(row['section'])
                     new_sec = target_section.strip().upper()
 
-                    # 1. Commit backup snapshot data rows to memory ledger
+                    # 1. Write deep state snapshot variables into database schema tracking row
                     execute_db_command("""
                         INSERT INTO promotion_history (student_id, old_class, old_section, new_class, new_section, batch_id)
                         VALUES (:s_id, :old_cls, :old_sec, :new_cls, :new_sec, :b_id)
                     """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
 
-                    # 2. Update live student structural metrics safely
+                    # 2. Reassign student production profiles criteria natively
                     execute_db_command("""
                         UPDATE students 
                         SET class = :next_cls, section = :next_sec
@@ -2943,7 +2927,7 @@ elif menu_choice == "🎓 Promote Students":
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     st.write("Below are the promotions processed. These buttons persist across sessions and system refreshes.")
 
-    # Read logging history details directly from database tables
+    # Read persistent system processing history using custom queries
     try:
         history_batches = run_query("""
             SELECT batch_id, old_section, new_section, COUNT(student_id) as student_count, MAX(timestamp) as log_time
@@ -2968,7 +2952,7 @@ elif menu_choice == "🎓 Promote Students":
                 st.markdown(f"📦 **Batch `{b_id}`:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
             with col_btn:
                 if st.button(f"🗑️ Undo Promotion", key=f"db_undo_{b_id}_{idx}"):
-                    # Target specific student snapshots belonging to this exact batch code identifier
+                    # Target explicit unique profile IDs mapped directly inside this batch snap code
                     batch_details = run_query("SELECT student_id, old_class, old_section FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
                     if not batch_details.empty:
@@ -2979,10 +2963,12 @@ elif menu_choice == "🎓 Promote Students":
                                 WHERE id = :s_id
                             """, {"old_cls": record['old_class'], "old_sec": record['old_section'], "s_id": int(record['student_id'])})
                     
-                    # Wipe log track cleanly so screen UI elements clear up beautifully
+                    # Delete tracking row from ledger table so user workspace elements refresh cleanly
                     execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to original states.")
                     st.rerun()
+    else:
+        st.info("🍃 No promotions found in the permanent database log table.")
     else:
         st.info("🍃 No promotions found in the permanent database log table.")
