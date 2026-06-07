@@ -2769,7 +2769,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH SESSION-ALIGNED REVERSAL LOGGING & CLEANUP HOOK
+# MODULE: STUDENT PROMOTION WITH SECTION-SPECIFIC LOG CLEANUP HOOK
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
@@ -2970,19 +2970,31 @@ elif menu_choice == "🎓 Promote Students":
     st.markdown("---")
 
     # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
-    header_col, clear_btn_col = st.columns([3, 1])
+    st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     
-    with header_col:
-        st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
-    with clear_btn_col:
-        # Permanent secure option to clear out broken batch history references
-        if st.button("🧹 Clear All Promotion Logs", type="secondary", use_container_width=True):
-            try:
-                execute_db_command("TRUNCATE TABLE promotion_history RESTART IDENTITY;")
-                st.success("History panel wiped out cleanly!")
-                st.rerun()
-            except Exception as clear_err:
-                st.error(f"Clear Error: {clear_err}")
+    # Fetch distinct historical source sections currently stored in the ledger to populate our cleanup selection tool
+    try:
+        logged_sections_df = run_query("SELECT DISTINCT old_section FROM promotion_history WHERE old_section IS NOT NULL ORDER BY old_section")
+        logged_sections = logged_sections_df['old_section'].tolist() if not logged_sections_df.empty else []
+    except Exception:
+        logged_sections = []
+
+    # Conditional control panel UI layer layout
+    if logged_sections:
+        cleanup_col1, cleanup_col2 = st.columns([2, 1])
+        with cleanup_col1:
+            wipe_target_sec = st.selectbox("🎯 Select Section Logs to Clear:", logged_sections, key="wipe_target_sec_dropdown")
+        with cleanup_col2:
+            st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True) # Alignment cushion
+            if st.button("🧹 Clear Logs for Section", type="secondary", use_container_width=True):
+                try:
+                    execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
+                    st.success(f"Wiped history entries for Section {wipe_target_sec} successfully!")
+                    st.rerun()
+                except Exception as clear_err:
+                    st.error(f"Clear Error: {clear_err}")
+    else:
+        st.info("🍃 No active section records inside the logs table history array yet.")
 
     st.write("Below are the promotions processed. Reverting an action syncs their session tags so they appear back on your 11th grade roster views.")
 
@@ -3032,5 +3044,3 @@ elif menu_choice == "🎓 Promote Students":
                     execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to 11th grade section `{sec_old}`.")
                     st.rerun()
-    else:
-        st.info("🍃 No promotions found in the permanent database log table.")
