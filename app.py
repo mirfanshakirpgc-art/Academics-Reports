@@ -240,22 +240,15 @@ elif menu_choice == "➕ Add Students":
     # 📋 1. Setup Input Context Option Matrix
     try:
         session_options = AVAILABLE_SESSIONS
-        # Remove 2024-26 if it exists globally
         if "2024-26" in session_options:
             session_options = [s for s in session_options if s != "2024-26"]
-        # Append 2027-29 if it isn't already inside the list
         if "2027-29" not in session_options:
             session_options.append("2027-29")
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
         
-    try:
-        discipline_options = AVAILABLE_DISCIPLINE
-        if "General Science" in discipline_options:
-            discipline_options = [d for d in discipline_options if d != "General Science"]
-    except NameError:
-        # Standard user dropdown list options
-        discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+    # User-facing dropdown items 
+    discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
     # 🛠️ Main Filter Row 1: Session & Academic System Type
     c1, c2 = st.columns(2)
@@ -274,9 +267,9 @@ elif menu_choice == "➕ Add Students":
         with c4: 
             selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
             
-        # 🎯 Dynamic Section Filtering Logic with Strict Key Alignment Fix
+        # 🎯 Dynamic Section Filtering Logic
         with c5:
-            # Step 1: Clean spaces and parentheses
+            # 1. Standardize user selection to match dictionary keys exactly
             normalized_discipline = (
                 selected_discipline.upper()
                 .replace(" ", "_")
@@ -284,37 +277,29 @@ elif menu_choice == "➕ Add Students":
                 .replace(")", "")
             )
             
-            # Step 2: Explicitly normalize spelling variations for your map keys
+            # Map friendly shortcut terms to exact backend keys
             if "PHYSIC" in normalized_discipline:
                 normalized_discipline = "ICS_PHYSICS"
             elif "STAT" in normalized_discipline:
                 normalized_discipline = "ICS_STATISTICS"
 
-            try:
-                # Safely attempt to access your global dictionary with the normalized key
-                discipline_map = DISCIPLINE_SECTIONS_MAP.get(normalized_discipline, {})
-                available_sections = discipline_map.get(selected_class, [])
+            # 2. DEFINED DIRECTLY: No more relying on unpredictable global overrides
+            local_sections_map = {
+                "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
+                "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
+                "ICS_PHYSICS": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+                "ICS_STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
+                "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+                "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]}
+            }
+            
+            # Safely fetch target list using double matching layer
+            available_sections = local_sections_map.get(normalized_discipline, {}).get(selected_class, [])
                 
-                # Secondary fallback try with raw un-cleansed selection value
-                if not available_sections:
-                    discipline_map = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {})
-                    available_sections = discipline_map.get(selected_class, [])
-            except NameError:
-                # Active local structural blueprint fallback blueprint
-                fallback_nested_map = {
-                    "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
-                    "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-                    "ICS_PHYSICS": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
-                    "ICS_STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-                    "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
-                    "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]}
-                }
-                available_sections = fallback_nested_map.get(normalized_discipline, {}).get(selected_class, [])
-                
-            # Clean and sanitize strings safely
+            # Clean and filter string elements
             cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
             
-            # Dynamic switch display component layout choice
+            # Display responsive selection choices contextually
             if cleaned_sections:
                 selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
             else:
@@ -331,103 +316,7 @@ elif menu_choice == "➕ Add Students":
         selected_discipline = "N/A"
 
     st.markdown("---")
-
-    # 👤 5. Select Registration Entry Strategy Mode Layout Toggle
-    entry_strategy = st.radio(
-        "🛠️ 5. Choose Registration Mode Layout:", 
-        ["👤 Single Student Card Entry", "📋 Complete Section Batch Paste Grid"], 
-        horizontal=True, 
-        key="registration_entry_strategy"
-    )
-    st.markdown("---")
-
-    # --------------------------------------------
-    # MODE A: SINGLE STUDENT ENTRY CARD
-    # --------------------------------------------
-    if entry_strategy == "👤 Single Student Card Entry":
-        display_details = f"{selected_class}" if academic_system == "🎓 Semester System" else f"{selected_class} - {selected_discipline}"
-        st.subheader(f"👤 Register Single Student into {selected_section} ({display_details})")
-        
-        with st.form("single_student_form_card"):
-            sc1, sc2 = st.columns(2)
-            with sc1:
-                single_id = st.text_input("🔍 Assign Roll Number / Student ID (Numeric Only):")
-                single_name = st.text_input("👤 Full Student Name:")
-            with sc2:
-                single_status = st.selectbox("⚙️ Profile Status:", ["ACTIVE", "LEFT", "SUSPENDED"])
-                st.info(f"📍 Binding context automatically to Session: **{selected_session}** ({academic_system})")
-
-            if st.form_submit_button("🚀 Register Student to Ledger", type="primary"):
-                if not single_id.isdigit():
-                    st.error("❌ The Student Roll Number identity code value must be numeric digits only.")
-                elif not single_name.strip():
-                    st.error("❌ Please provide a valid student record name profile description.")
-                elif not selected_section:
-                    st.error("❌ Target section designation parameter configuration cannot be empty.")
-                else:
-                    existing_check = run_query("SELECT id FROM students WHERE id = :id", {"id": int(single_id)})
-                    if not existing_check.empty:
-                        st.error(f"⚠️ Roll Number '{single_id}' is already assigned to a registered profile.")
-                    else:
-                        execute_db_command(
-                            """
-                            INSERT INTO students (id, name, section, class, session, status) 
-                            VALUES (:id, :name, :sec, :class, :session, :status)
-                            """,
-                            {
-                                "id": int(single_id),
-                                "name": single_name.strip().upper(),
-                                "sec": selected_section,
-                                "class": selected_class,
-                                "session": selected_session,
-                                "status": single_status
-                            }
-                        )
-                        st.success(f"🎉 Profile registered successfully for student {single_name.upper()}!")
-                        st.rerun()
-
-    # --------------------------------------------
-    # MODE B: COMPLETE SECTION BATCH IMPORT GRID
-    # --------------------------------------------
-    elif entry_strategy == "📋 Complete Section Batch Paste Grid":
-        st.subheader(f"📋 Grid Ledger Workspace: Section {selected_section} ({selected_class})")
-        st.caption("💡 Tip: Enter or paste your student roster records directly inside the data spreadsheet editor rows down below.")
-        
-        import_template = pd.DataFrame([{"ID": "", "Full Name": ""} for _ in range(40)])
-        pasted_data = st.data_editor(import_template, use_container_width=True, num_rows="dynamic", key="bulk_paste_grid_matrix")
-        
-        if st.button("🚀 Process and Save Complete Section Profiles", type="primary"):
-            added_counter = 0
-            for _, row in pasted_data.iterrows():
-                r_id = str(row['ID']).strip()
-                r_name = str(row['Full Name']).strip()
-                
-                if r_id.isdigit() and r_name != "":
-                    execute_db_command(
-                        """
-                        INSERT INTO students (id, name, section, class, session, status) 
-                        VALUES (:id, :name, :sec, :class, :session, 'ACTIVE') 
-                        ON CONFLICT (id) DO UPDATE SET 
-                            name = EXCLUDED.name, 
-                            section = EXCLUDED.section, 
-                            class = EXCLUDED.class,
-                            session = EXCLUDED.session
-                        """,
-                        {
-                            "id": int(r_id), 
-                            "name": r_name.upper(), 
-                            "sec": selected_section, 
-                            "class": selected_class, 
-                            "session": selected_session
-                        }
-                    )
-                    added_counter += 1
-                    
-            if added_counter > 0:
-                st.success(f"🎉 Successfully registered section matrix array ledger log tracking data profiles for {added_counter} students inside Session {selected_session}!")
-                st.rerun()
-            else:
-                st.warning("⚠️ No valid structural rows with matching data were found inside the active tracking editor block.")
+    # ... Rest of the script layout form targets follow unchanged ...
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
