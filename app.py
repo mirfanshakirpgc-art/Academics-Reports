@@ -2769,13 +2769,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH EXPLICIT 11TH GRADE REVERSAL OVERRIDE
+# MODULE: STUDENT PROMOTION WITH SESSION-ALIGNED REVERSAL LOGGING
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or select specific individual students while managing their target sections and tracking historical promotion batches.")
 
-    # 🛠️ AUTO-CREATE LEDGER TABLE NATIVELY (PostgreSQL Validated Schema)
+    # 🛠️ AUTO-CREATE/UPGRADE LEDGER TABLE NATIVELY (PostgreSQL Validated Schema with Session Tracking)
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS promotion_history (
@@ -2784,11 +2784,17 @@ elif menu_choice == "🎓 Promote Students":
                 student_id INTEGER,
                 old_class TEXT,
                 old_section TEXT,
+                old_session TEXT,
                 new_class TEXT,
                 new_section TEXT,
                 batch_id TEXT
             );
         """)
+        # Safety fallback check to add the old_session column if the table already existed without it
+        try:
+            execute_db_command("ALTER TABLE promotion_history ADD COLUMN old_session TEXT;")
+        except Exception:
+            pass # Column already exists
     except Exception as table_err:
         st.error(f"Database initialization warning: {table_err}")
 
@@ -2936,13 +2942,14 @@ elif menu_choice == "🎓 Promote Students":
                         s_id = int(row['id'])
                         old_cls = str(row['class']).strip()
                         old_sec = str(row['section']).strip()
+                        old_sess = str(row['session']).strip()
                         new_sec = target_section.strip().upper()
 
-                        # 1. Save data snapshot to history ledger
+                        # 1. Save data snapshot to history ledger (now includes old_session)
                         execute_db_command("""
-                            INSERT INTO promotion_history (student_id, old_class, old_section, new_class, new_section, batch_id)
-                            VALUES (:s_id, :old_cls, :old_sec, :new_cls, :new_sec, :b_id)
-                        """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
+                            INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
+                            VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
+                        """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "old_sess": old_sess, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
 
                         # 2. Apply real student updates
                         execute_db_command("""
@@ -2964,7 +2971,7 @@ elif menu_choice == "🎓 Promote Students":
 
     # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
-    st.write("Below are the promotions processed. Clicking undo will force them directly back to their original 11th grade configurations.")
+    st.write("Below are the promotions processed. Reverting an action syncs their session tags so they appear back on your 11th grade roster views.")
 
     try:
         history_batches = run_query("""
@@ -2990,25 +2997,26 @@ elif menu_choice == "🎓 Promote Students":
                 st.markdown(f"📦 **Batch `{b_id}`:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
             with col_btn:
                 if st.button(f"🗑️ Undo Promotion", key=f"db_undo_{b_id}_{idx}"):
-                    # Fetch specific student snapshots belonging to this exact batch code identifier
-                    batch_details = run_query("SELECT student_id, old_class, old_section FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
+                    batch_details = run_query("SELECT student_id, old_class, old_section, old_session FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
-                            # HARDENED REVERSAL QUERY: Explicitly forces class to '11th' and strips out spaces
+                            # Reverts session along with section and class
+                            target_session_val = str(record['old_session']).strip() if record['old_session'] else promo_session
+                            
                             execute_db_command("""
                                 UPDATE students 
                                 SET class = '11th', 
-                                    section = UPPER(TRIM(:old_sec))
+                                    section = UPPER(TRIM(:old_sec)),
+                                    session = :old_sess
                                 WHERE id = :s_id
                             """, {
                                 "old_sec": str(record['old_section']).strip(), 
+                                "old_sess": target_session_val,
                                 "s_id": int(record['student_id'])
                             })
                     
-                    # Wipe log entry cleanly from history table database ledger
                     execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
-                    
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to 11th grade section `{sec_old}`.")
                     st.rerun()
     else:
