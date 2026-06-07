@@ -1763,44 +1763,45 @@ elif menu_choice == "🪪 Student Result Cards":
             # ==========================================
             # 1. INITIALIZE SEGMENTED HTML COMPONENTS
             # ==========================================
-            html_header = f"""<!DOCTYPE html>
+            # Removed the 'f' prefix here so Python doesn't evaluate CSS brackets!
+            html_header = """<!DOCTYPE html>
 <html>
 <head>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        body {{ font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }}
-        .official-card-container {{ max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }}
-        .header-block {{ text-align: left; margin-bottom: 20px; width: 100%; }}
-        .logo-row {{ display: block; width: 100%; margin-bottom: 12px; }}
-        .logo-img {{ max-height: 48px; width: auto; display: block; margin-left: 0; }}
-        .inst-main-header {{ font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }}
-        .inst-sub-header {{ font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }}
-        .doc-type-banner {{ text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }}
-        .meta-layout-table {{ width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }}
-        .meta-layout-table td {{ border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }}
-        .underlined-value-span {{ border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }}
-        .doc-data-table {{ width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }}
-        .doc-data-table th, .doc-data-table td {{ border: 1px solid #000; padding: 6px 4px; text-align: center; }}
-        .doc-data-table th {{ font-weight: bold; background-color: #fff; }}
-        .section-header-title {{ font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }}
-        .attendance-matrix-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }}
-        .attendance-matrix-table th, .attendance-matrix-table td {{ border: 1px solid #000; padding: 5px 3px; text-align: center; }}
-        .attendance-matrix-table th {{ font-weight: bold; background-color: #fff; }}
-        .attendance-matrix-table td.row-title-cell {{ font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }}
-        .footer-signatures-table {{ width: 100%; margin-top: 45px; font-size: 14px; border: none; }}
-        .footer-signatures-table td {{ border: none; }}
-        .sig-marker-line {{ border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }}
-        .action-controls-bar {{ max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }}
-        .print-btn {{ background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }}
-        .image-single-btn {{ background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }}
-        .image-section-btn {{ background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }}
-        button:disabled {{ background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }}
-        @media print {{
-            .action-controls-bar {{ display: none !important; }}
-            .official-card-container {{ border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }}
-            .print-page-break-divider {{ page-break-after: always !important; break-after: page !important; }}
-        }}
+        body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
+        .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
+        .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
+        .logo-row { display: block; width: 100%; margin-bottom: 12px; }
+        .logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
+        .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
+        .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
+        .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
+        .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
+        .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
+        .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
+        .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
+        .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
+        .doc-data-table th { font-weight: bold; background-color: #fff; }
+        .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
+        .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+        .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
+        .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
+        .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
+        .footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
+        .footer-signatures-table td { border: none; }
+        .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
+        .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
+        .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+        .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+        .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+        button:disabled { background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }
+        @media print {
+            .action-controls-bar { display: none !important; }
+            .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+            .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
+        }
     </style>
 </head>
 <body>
