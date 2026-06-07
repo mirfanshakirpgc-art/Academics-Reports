@@ -318,12 +318,6 @@ elif menu_choice == "➕ Add Students":
     st.markdown("---")
     # ... Rest of the script layout form targets follow unchanged ...
 
-```python
-import streamlit as st
-import pandas as pd
-import datetime
-from datetime import date
-
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
