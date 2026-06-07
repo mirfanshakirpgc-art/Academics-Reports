@@ -317,7 +317,7 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
     # ... Rest of the script layout form targets follow unchanged ...
-Here is the updated code. I have introduced a **"System Type"** selector ("Annual System" vs. "Semester System") across both the Marks Entry and Attendance modules.
+I have introduced a **"System Type"** selector ("Annual System" vs. "Semester System") across both the Marks Entry and Attendance modules.
 
 ```python
 import streamlit as st
