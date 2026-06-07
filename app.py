@@ -317,10 +317,6 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
     
-    # ⚙️ Workflow Toggle Switch Switch
-    workflow_mode = st.radio("⚙️ Select Registration Workflow Mode:", ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)"], horizontal=True, key="add_stu_workflow_choice")
-    st.markdown("---")
-    
     # ⚙️ Workflow Toggle Switch
     workflow_mode = st.radio("⚙️ Select Registration Workflow Mode:", ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)"], horizontal=True, key="add_stu_workflow_choice")
     st.markdown("---")
@@ -381,52 +377,55 @@ elif menu_choice == "➕ Add Students":
         
         if uploaded_bulk_file is not None:
             try:
-    
-    # ====================================================================================
-    # 📝 INJECTED FORM HOOK: NEW PROFILE REGISTRATION MATRICULATION (CLEAN SQL MIX)
-    # ====================================================================================
-    st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
-    
-    with st.form("interactive_student_addition_form", clear_on_submit=True):
-        form_row1_left, form_row1_right = st.columns(2)
-        with form_row1_left:
-            input_roll_number = st.text_input("🆔 Class Roll Number / Student ID* (Must be Unique Numbers)")
-        with form_row1_right:
-            input_student_name = st.text_input("👤 Student Name Full Identity*")
-            
-        input_status = st.selectbox("📌 Enrollment Registration Status Status:", ["ACTIVE", "PENDING", "LEAVE"])
-            
-        st.markdown("##")
-        submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
-        
-        if submit_registration_btn:
-            if not input_roll_number.strip() or not input_student_name.strip():
-                st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
-            elif not input_roll_number.strip().isdigit():
-                st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
-            else:
-                try:
-                    # Parse configurations cleanly
-                    clean_id = int(input_roll_number.strip())
-                    clean_name = input_student_name.strip().upper()
+                # Read payload appropriately
+                if uploaded_bulk_file.name.endswith(".csv"):
+                    bulk_df = pd.read_csv(uploaded_bulk_file)
+                else:
+                    bulk_df = pd.read_excel(uploaded_bulk_file)
+                
+                # Standardize dataset headers to matching uppercase layout string values
+                bulk_df.columns = [str(col).strip().upper() for col in bulk_df.columns]
+                
+                if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
+                    st.error("❌ Template Validation Error! The upload requires a data structure mapped with clear 'ID' and 'Name' headings.")
+                else:
+                    st.markdown("##### 📊 Document Sample Row Preview")
+                    st.dataframe(bulk_df.head(8), use_container_width=True)
                     
-                    # Database statement execution (father_name and discipline removed)
-                    execute_db_command("""
-                        INSERT INTO students (id, name, class, section, session, status)
-                        VALUES (:id, :name, :class, :section, :session, :status)
-                    """, {
-                        "id": clean_id,
-                        "name": clean_name,
-                        "class": selected_class,
-                        "section": selected_section,
-                        "session": selected_session,
-                        "status": input_status
-                    })
-                    
-                    st.success(f"🎉 Success! Profile for {clean_name} has been formally instantiated into system memory ledger.")
-                    st.balloons()
-                except Exception as db_err:
-                    st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned to another active student profile record. System details: {db_err}")
+                    if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
+                        success_count = 0
+                        error_count = 0
+                        
+                        for index, row in bulk_df.iterrows():
+                            # Remove trailing floats from Excel cell formatting anomalies (.0 parsing)
+                            raw_id = str(row['ID']).strip().split('.')[0]
+                            raw_name = str(row['NAME']).strip().upper()
+                            
+                            if raw_id.isdigit() and raw_name != "":
+                                try:
+                                    execute_db_command("""
+                                        INSERT INTO students (id, name, class, section, session, status)
+                                        VALUES (:id, :name, :class, :section, :session, 'ACTIVE')
+                                    """, {
+                                        "id": int(raw_id),
+                                        "name": raw_name,
+                                        "class": selected_class,
+                                        "section": selected_section,
+                                        "session": selected_session
+                                    })
+                                    success_count += 1
+                                except Exception:
+                                    error_count += 1
+                            else:
+                                error_count += 1
+                                
+                        st.success(f"🎉 Import complete! Successfully processed and committed {success_count} student records to database.")
+                        if error_count > 0:
+                            st.warning(f"⚠️ Skipped {error_count} row records because of primary key ID duplication conflicts or empty cells.")
+                        st.balloons()
+                        
+            except Exception as read_err:
+                st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
