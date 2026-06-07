@@ -1376,9 +1376,10 @@ elif menu_choice == "📋 Section Summary Report":
         """
         components.html(analytics_html_payload, height=750, scrolling=True)
 # ==============================================================================
-# PART 1: PERFORMANCE MARKS FETCHING & DYNAMIC DISCIPLINE WHITE-LISTING
+# PART 1: SCHEMA INITIALIZATION & DISCIPLINE SUBJECT WHITELISTING
 # ==============================================================================
 try:
+    # 1. Automate database column variant discovery
     sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
     cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
     
@@ -1387,6 +1388,7 @@ try:
     obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
     tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
 
+    # 2. Fetch Multi-Test Records for all targeting students
     marks_df = run_query(f"""
         SELECT student_id, {sub_col} as subject_name, {exam_col} as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
         FROM marks
@@ -1399,49 +1401,38 @@ try:
         marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
         marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
         
-        # --- DYNAMIC 11th vs 12th COMPULSORY SUBJECTS (WITH DATABASE VARIATIONS) ---
+        # 3. Apply Context-Aware Compulsory Core Rules
         class_clean = str(sel_class_global).strip()
         if "12" in class_clean:
             compulsory_subs = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "PAK STUDIES", "TARJUMA-TUL-QURAN", "T_QURAN"]
         else:
             compulsory_subs = ["ENGLISH", "URDU", "ISLAMIAT", "ISL_ETH", "TARJUMA-TUL-QURAN", "T_QURAN"]
         
-        # --- STRATEGIC DISCIPLINE ELECTIVE FILTERING (HANDLES SHORTHAND CODES) ---
+        # 4. Map Custom Disciplinary Tracks (Handles shorthand database variants safely)
         section_clean = str(rendered_section).upper()
         allowed_electives = []
         
-        # Pre-Medical Mapping
         if "PRE-MED" in section_clean or "MG_" in section_clean or "MD" in section_clean:
             allowed_electives = ["BIOLOGY", "CHEMISTRY", "PHYSICS"]
-        
-        # Pre-Engineering Mapping
         elif "PRE-ENG" in section_clean or "EG_" in section_clean or "EN" in section_clean:
             allowed_electives = ["MATHEMATICS", "MATH", "CHEMISTRY", "PHYSICS"]
-        
-        # ICS Physics Mapping (Handles CQ codes as ICS Physics baseline)
         elif "ICS_PHYSICS" in section_clean or "CQ" in section_clean or ("CG_" in section_clean and "STAT" not in section_clean):
             allowed_electives = ["COMPUTER", "COMP", "MATHEMATICS", "MATH", "PHYSICS"]
-        
-        # ICS Stats Mapping
         elif "ICS_STATS" in section_clean or "STATS" in section_clean or "STAT" in section_clean:
             allowed_electives = ["COMPUTER", "COMP", "MATHEMATICS", "MATH", "STATISTICS", "STATS"]
-        
-        # I.Com Mapping (Handles IB codes explicitly)
         elif "ICOM" in section_clean or "CB_" in section_clean or "IB" in section_clean:
             if "12" in class_clean:
                 allowed_electives = ["ACCOUNTING", "COMMERCIAL GEOGRAPHY", "ECONOMICS", "BUSINESS STATISTICS", "B_STATS"]
             else:
                 allowed_electives = ["ACCOUNTING", "PRINCIPLES OF COMMERCE", "COMMERCE", "ECONOMICS", "BUSINESS MATH", "B_MATH"]
         
-        # Clean up and normalize database strings to match our whitelist rules
+        # Apply fuzzy check matching rules to filter out dirty row records
         if allowed_electives or compulsory_subs:
             all_allowed_subs = [s.upper() for s in (compulsory_subs + allowed_electives)]
             
-            # Fuzzy structural checking fallback for shorthand database entries
             def is_valid_subject(sub_name):
                 s_norm = str(sub_name).upper().strip()
-                if s_norm in all_allowed_subs:
-                    return True
+                if s_norm in all_allowed_subs: return True
                 if "COMP" in s_norm and "COMPUTER" in all_allowed_subs: return True
                 if "MATH" in s_norm and "MATHEMATICS" in all_allowed_subs: return True
                 if "STAT" in s_norm and "STATISTICS" in all_allowed_subs: return True
@@ -1449,7 +1440,7 @@ try:
 
             marks_df = marks_df[marks_df["subject_name"].apply(is_valid_subject)]
 
-        # 🔄 TRACK-MIGRATION LAYER: Merge Chemistry into Computer for Track Shifters
+        # 5. Track-Migration Alignment Layer (Fixes dual entries for Computer Science switchers)
         marks_df["is_migration_subject"] = False
         shifter_ids = []
         for s_id in marks_df["student_id"].unique():
@@ -1463,11 +1454,11 @@ try:
             marks_df.loc[chem_mask, "subject_name"] = "COMPUTER"
             
 except Exception as e:
-    st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
+    st.error(f"⚠️ Multi-Test Query Data Extraction breakdown. Details: {str(e)}")
 
 
 # ==============================================================================
-# PART 2: UI LAYOUT SETUP & STYLESHEET CONFIGURATION
+# PART 2: THE UI CSS DOCUMENT LAYOUT COMPONENT
 # ==============================================================================
 css_rules = """
 body { background-color: #ffffff; margin: 0; padding: 20px; color: #000000; font-family: 'Arial', sans-serif; }
@@ -1521,7 +1512,7 @@ composite_html_payload = f"""
 
 
 # ==============================================================================
-# PART 3: REPETITIVE GENERATION LOOP (STUDENT CARD DOM BLOCKS)
+# PART 3: ACADEMIC DATA LOOP ENGINE
 # ==============================================================================
 for index, s_meta in enumerate(students_to_process):
     s_id = str(s_meta["id"]).strip()
@@ -1612,7 +1603,7 @@ for index, s_meta in enumerate(students_to_process):
     if not table_rows_html:
         table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
-    # --- ATTENDANCE HANDLING ---
+    # --- HISTORICAL ATTENDANCE TRACKER ---
     tot_days_row, att_days_row, pct_days_row = "", "", ""
     overall_tot_days, overall_att_days = 0, 0
     month_map = {
@@ -1702,9 +1693,8 @@ for index, s_meta in enumerate(students_to_process):
     </div>
     """
 
-
 # ==============================================================================
-# PART 4: FRAMEWORK CLOSURE & COMPONENT RENDERING
+# PART 4: FRAMEWORK INJECTION CLOSURE & CLEAN RENDERING VIA STREAMLIT
 # ==============================================================================
 composite_html_payload += """
     </div> 
@@ -1749,10 +1739,9 @@ composite_html_payload += """
 </html>
 """
 
-# Clean any weird character encodings and inject into frame component
+# Clean any residual character spaces and output component payload safely
 composite_html_payload = composite_html_payload.replace('\xa0', ' ')
 st.components.v1.html(composite_html_payload, height=900, scrolling=True)
-
 
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
