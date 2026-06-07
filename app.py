@@ -2769,7 +2769,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH SELECTIVE ROSTER CHECKBOXES & REVERSAL LOGGING
+# MODULE: STUDENT PROMOTION WITH EXPLICIT 11TH GRADE REVERSAL OVERRIDE
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
@@ -2897,17 +2897,13 @@ elif menu_choice == "🎓 Promote Students":
         if not preview_df.empty:
             selected_student_records = []
             
-            # If promoting a section, show interactive select-all / deselect-some checkboxes
             if promo_scope == "📋 Complete Section":
                 st.markdown("##### 🗳️ Select Students to Include in this Promotion Batch:")
-                
-                # Checkbox control helper columns
-                c_all, c_none = st.columns([1, 5])
+                c_all, _ = st.columns([1, 5])
                 with c_all:
                     if st.button("Select All"):
                         st.session_state["promo_select_all"] = True
                 
-                # Render interactive roster grid
                 for idx, row in preview_df.iterrows():
                     chk_key = f"chk_{row['id']}_{idx}"
                     default_val = st.session_state.get("promo_select_all", True)
@@ -2920,11 +2916,9 @@ elif menu_choice == "🎓 Promote Students":
                     if is_selected:
                         selected_student_records.append(row)
                         
-                # Reset helper state flag seamlessly
                 if "promo_select_all" in st.session_state:
                     del st.session_state["promo_select_all"]
             else:
-                # Single student scope automatically selects the chosen profile record row
                 selected_student_records = [preview_df.iloc[0]]
                 st.dataframe(preview_df, use_container_width=True)
 
@@ -2936,21 +2930,21 @@ elif menu_choice == "🎓 Promote Students":
                 
                 if st.button(f"🚀 Execute Selected Promotion Pipeline", type="primary", use_container_width=True):
                     import uuid
-                    batch_identifier = str(uuid.uuid4())[:8] # Unique tracking sequence token string
+                    batch_identifier = str(uuid.uuid4())[:8]
                     
                     for row in selected_student_records:
                         s_id = int(row['id'])
-                        old_cls = str(row['class'])
-                        old_sec = str(row['section'])
+                        old_cls = str(row['class']).strip()
+                        old_sec = str(row['section']).strip()
                         new_sec = target_section.strip().upper()
 
-                        # 1. Write current metrics to permanent history table ledger data rows
+                        # 1. Save data snapshot to history ledger
                         execute_db_command("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, new_class, new_section, batch_id)
                             VALUES (:s_id, :old_cls, :old_sec, :new_cls, :new_sec, :b_id)
                         """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
 
-                        # 2. Reassign live student profile row parameters 
+                        # 2. Apply real student updates
                         execute_db_command("""
                             UPDATE students 
                             SET class = :next_cls, section = :next_sec
@@ -2970,9 +2964,8 @@ elif menu_choice == "🎓 Promote Students":
 
     # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
-    st.write("Below are the promotions processed. These buttons persist across sessions and system refreshes.")
+    st.write("Below are the promotions processed. Clicking undo will force them directly back to their original 11th grade configurations.")
 
-    # Read records natively from our permanent history ledger table
     try:
         history_batches = run_query("""
             SELECT batch_id, old_section, new_section, COUNT(student_id) as student_count, MAX(timestamp) as log_time
@@ -2988,8 +2981,8 @@ elif menu_choice == "🎓 Promote Students":
     if not history_batches.empty:
         for idx, row in history_batches.iterrows():
             b_id = row['batch_id']
-            sec_old = row['old_section']
-            sec_new = row['new_section']
+            sec_old = str(row['old_section']).strip()
+            sec_new = str(row['new_section']).strip()
             count = row['student_count']
             
             col_info, col_btn = st.columns([3, 1])
@@ -2997,21 +2990,26 @@ elif menu_choice == "🎓 Promote Students":
                 st.markdown(f"📦 **Batch `{b_id}`:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
             with col_btn:
                 if st.button(f"🗑️ Undo Promotion", key=f"db_undo_{b_id}_{idx}"):
-                    # Target specific student snapshots belonging to this exact batch code identifier
+                    # Fetch specific student snapshots belonging to this exact batch code identifier
                     batch_details = run_query("SELECT student_id, old_class, old_section FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
+                            # HARDENED REVERSAL QUERY: Explicitly forces class to '11th' and strips out spaces
                             execute_db_command("""
                                 UPDATE students 
-                                SET class = :old_cls, section = :old_sec
+                                SET class = '11th', 
+                                    section = UPPER(TRIM(:old_sec))
                                 WHERE id = :s_id
-                            """, {"old_cls": record['old_class'], "old_sec": record['old_section'], "s_id": int(record['student_id'])})
+                            """, {
+                                "old_sec": str(record['old_section']).strip(), 
+                                "s_id": int(record['student_id'])
+                            })
                     
-                    # Wipe log track cleanly so screen UI elements refresh cleanly
+                    # Wipe log entry cleanly from history table database ledger
                     execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
-                    st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to original states.")
+                    st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to 11th grade section `{sec_old}`.")
                     st.rerun()
     else:
         st.info("🍃 No promotions found in the permanent database log table.")
