@@ -569,10 +569,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
                     if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
-                else:
-                    discipline_ui_options = ["DIPLOMA IN IT (DIT)", "COMPUTING SCIENCE", "SOFTWARE ENGINEERING"]
-                    selected_ui_discipline = st.selectbox("Select Department:", discipline_ui_options, key="marks_disc_sel_sem")
-                    sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
 
             with c3: 
                 if academic_system == "Annual System":
