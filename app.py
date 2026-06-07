@@ -531,7 +531,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     if entry_mode == "📋 By Complete Section":
-        # Balanced 5-column layout to align every filter beautifully into a single horizontal row
         c1, c2, c3, c4, c5 = st.columns([1.5, 1.5, 2, 1.5, 2])
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
@@ -571,18 +570,15 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
                 else:
                     sel_discipline = "DIPLOMA_IN_IT_DIT"
-                    # In Semester System, Semester selection naturally takes this spot in the row
                     sel_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4", "ALL"], key="entry_sem_filter_a")
 
             with c4: 
                 if academic_system == "Annual System":
                     sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
                 else:
-                    # Dummy placeholder slot to keep the horizontal alignment consistent across options
                     st.write("") 
             
             with c5: 
-                # FIXED: Changed from loose LIKE operator to strict '=' to isolate 2026-28 from 2025-27
                 active_secs_df = run_query(
                     """
                     SELECT DISTINCT section FROM students 
@@ -612,7 +608,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
 
                 sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
                 
-            # Dynamic Subject Mapping Selector (Spans cleanly below the filter settings)
             if academic_system == "Annual System":
                 try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
                 except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
@@ -638,7 +633,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                # FIXED: Replaced loose placeholder criteria with strict session verification logic
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -784,7 +778,6 @@ if menu_choice == "📅 Attendance Entry Management":
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
         
-        # 4 Column structural mapping alignment for matching layout row
         d1, d2, d3, d4 = st.columns([1.5, 1.5, 2, 2])
         with d1:
             sel_session = st.selectbox("Select Session:", session_options, key="daily_att_sess")
@@ -801,7 +794,6 @@ if menu_choice == "📅 Attendance Entry Management":
                 sel_class = st.selectbox("Select Semester:", class_options, key="daily_att_sem")
                 
         with d4:
-            # FIXED: Changed from loose LIKE operator to strict '=' to eliminate overlapping rosters
             active_secs_df = run_query("""
                 SELECT DISTINCT section FROM students 
                 WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
@@ -821,7 +813,6 @@ if menu_choice == "📅 Attendance Entry Management":
             target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
-            # FIXED: Enforced explicit session matching check pattern here as well
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
@@ -874,6 +865,75 @@ if menu_choice == "📅 Attendance Entry Management":
                         st.success(f"🎉 Daily logs locked & Monthly summary calculated in background successfully!")
                         st.rerun()
 
+    # --------------------------------------------------------------------------------
+    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER (FULLY IMPLEMENTED & ACTIVE)
+    # --------------------------------------------------------------------------------
+    elif att_sub_type == "👤 By Single Student Roll Number":
+        st.subheader("👤 Single Student Attendance Record Manager")
+        st.markdown("---")
+        
+        col_search, _ = st.columns([2, 2])
+        with col_search:
+            single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
+            
+        if single_id and single_id.isdigit():
+            student_info = run_query("""
+                SELECT name, section, session, class FROM students WHERE id = :id
+            """, {"id": int(single_id)})
+            
+            if student_info.empty:
+                st.error("❌ This roll number does not exist inside active logs.")
+            else:
+                s_name = student_info['name'].iloc[0].upper()
+                s_section = student_info['section'].iloc[0].upper().strip()
+                s_session = student_info['session'].iloc[0]
+                s_class = student_info['class'].iloc[0]
+                
+                st.info(f"👤 **Student Profile:** {s_name}  |  **Class/Sem:** {s_class}  |  **Section:** {s_section}  |  **Session:** {s_session}")
+                
+                # Active Input Form parameters
+                st.markdown("##### 📅 Log Single Day Entry")
+                ca1, ca2, ca3 = st.columns([2, 1.5, 1.5])
+                with ca1:
+                    att_date = st.date_input("Target Date:", value=date.today(), key="single_att_date_pick")
+                with ca2:
+                    existing_status = run_query("""
+                        SELECT status FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
+                    """, {"id": int(single_id), "dt": att_date})
+                    default_idx = 0
+                    if not existing_status.empty:
+                        default_idx = 0 if existing_status['status'].iloc[0].strip().upper() == "P" else 1
+                        
+                    status_choice = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="single_att_status_pick")
+                
+                with ca3:
+                    st.markdown("##") # Visual balancing spacing spacing spacer alignment
+                    if st.button("💾 Log Log Entry", type="primary", use_container_width=True):
+                        final_status_code = "P" if "Present" in status_choice else "A"
+                        execute_db_command("""
+                            DELETE FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
+                        """, {"id": int(single_id), "dt": att_date})
+                        execute_db_command("""
+                            INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:id, :dt, :st)
+                        """, {"id": int(single_id), "dt": att_date, "st": final_status_code})
+                        
+                        # Re-calculate background matrix instantly
+                        trigger_background_monthly_aggregation(s_section, s_class, att_date.strftime('%B'))
+                        st.success(f"🎉 Roster update completed successfully for {att_date.strftime('%d-%b-%Y')}!")
+                        st.rerun()
+                        
+                # Read-only preview of month aggregate statistics blocks
+                st.markdown("---")
+                st.markdown("##### 📊 Saved Monthly Aggregates Summary Ledger")
+                history_df = run_query("""
+                    SELECT month_name AS "Month", present_days AS "Present Days", total_days AS "Total Days"
+                    FROM attendance WHERE student_id = :id ORDER BY id DESC
+                """, {"id": int(single_id)})
+                
+                if history_df.empty:
+                    st.caption("ℹ️ No monthly aggregate history rows compiled for this student yet.")
+                else:
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
