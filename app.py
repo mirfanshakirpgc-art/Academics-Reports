@@ -2118,7 +2118,6 @@ elif menu_choice == "Student Management":
                     with st.container(border=True):
                         st.subheader("🏫 Room & Section Transfer")
                         
-                        # Local reference of your exact discipline sections mapping layout
                         DISCIPLINE_SECTIONS_MAP = {
                             "MEDICAL": ["MQ1", "MQ2", "MK1"],
                             "ENGINEERING": ["EK1", "EQ1"],
@@ -2128,7 +2127,6 @@ elif menu_choice == "Student Management":
                             "HUMANITIES": ["FQ1", "FK1"]
                         }
                         
-                        # 1. Normalize the student's class name to match your dictionary keys
                         u_class = str(s_class).upper().strip()
                         lookup_key = None
                         
@@ -2145,20 +2143,16 @@ elif menu_choice == "Student Management":
                         elif "HUMANITIES" in u_class or "ARTS" in u_class:
                             lookup_key = "HUMANITIES"
                         
-                        # 2. Extract sections using our smart lookup key
                         all_sections = []
                         if lookup_key and lookup_key in DISCIPLINE_SECTIONS_MAP:
                             all_sections = [str(sec).strip() for sec in DISCIPLINE_SECTIONS_MAP[lookup_key]]
                         else:
                             all_sections = ["MQ1", "MQ2", "MK1", "EK1", "EQ1", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IQ1", "IK1", "FQ1", "FK1"]
                         
-                        # 3. Ensure the student's current section is always in the options list
                         if s_sec not in all_sections:
                             all_sections.append(s_sec)
                             
                         all_sections = sorted(list(set(all_sections)))
-                        
-                        # 4. Handle dropdown indexing safely
                         default_sec_idx = all_sections.index(s_sec) if s_sec in all_sections else 0
                             
                         new_sec = st.selectbox("Select New Section:", all_sections, index=default_sec_idx, key="section_select_node")
@@ -2169,7 +2163,7 @@ elif menu_choice == "Student Management":
                             if new_sec == s_sec:
                                 st.warning("⚠️ Student is already assigned to this section.")
                             elif not section_remarks.strip():
-                                st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
+                                id.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                             else:
                                 try:
                                     run_update(
