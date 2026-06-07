@@ -318,7 +318,7 @@ elif menu_choice == "➕ Add Students":
     st.markdown("---")
     
     # ====================================================================================
-    # 📝 INJECTED FORM HOOK: NEW PROFILE REGISTRATION MATRICULATION (WITHOUT FATHER NAME)
+    # 📝 INJECTED FORM HOOK: NEW PROFILE REGISTRATION MATRICULATION (CLEAN SQL MIX)
     # ====================================================================================
     st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
     
@@ -344,20 +344,18 @@ elif menu_choice == "➕ Add Students":
                     # Parse configurations cleanly
                     clean_id = int(input_roll_number.strip())
                     clean_name = input_student_name.strip().upper()
-                    clean_disc = selected_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
                     
-                    # Database statement execution (father_name column removed)
+                    # Database statement execution (father_name and discipline removed)
                     execute_db_command("""
-                        INSERT INTO students (id, name, class, section, session, status, discipline)
-                        VALUES (:id, :name, :class, :section, :session, :status, :discipline)
+                        INSERT INTO students (id, name, class, section, session, status)
+                        VALUES (:id, :name, :class, :section, :session, :status)
                     """, {
                         "id": clean_id,
                         "name": clean_name,
                         "class": selected_class,
                         "section": selected_section,
                         "session": selected_session,
-                        "status": input_status,
-                        "discipline": clean_disc
+                        "status": input_status
                     })
                     
                     st.success(f"🎉 Success! Profile for {clean_name} has been formally instantiated into system memory ledger.")
