@@ -1744,80 +1744,54 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ==========================================
             # 1. INITIALIZE SEGMENTED HTML COMPONENTS
             # ==========================================
-            # Safely abstracting the CSS formatting to bypass compiler quirks entirely
-            css_styles = {
-                "body_style": 'font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px;',
-                "card_container": 'max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative;',
-                "header_block": 'text-align: left; margin-bottom: 20px; width: 100%;',
-                "logo_row": 'display: block; width: 100%; margin-bottom: 12px;',
-                "logo_img": 'max-height: 48px; width: auto; display: block; margin-left: 0;',
-                "main_header": 'font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%;',
-                "sub_header": 'font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%;',
-                "doc_banner": 'text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px;',
-                "meta_table": 'width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px;',
-                "meta_td": 'border: none; padding: 3px; vertical-align: bottom; white-space: nowrap;',
-                "underlined_span": 'border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase;',
-                "data_table": 'width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px;',
-                "data_th_td": 'border: 1px solid #000; padding: 6px 4px; text-align: center;',
-                "section_title": 'font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px;',
-                "att_table": 'width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;',
-                "att_th_td": 'border: 1px solid #000; padding: 5px 3px; text-align: center;',
-                "att_title_cell": 'font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px;',
-                "footer_table": 'width: 100%; margin-top: 45px; font-size: 14px; border: none;',
-                "sig_line": 'border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold;',
-                "controls_bar": 'max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap;',
-                "btn_print": 'background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px;',
-                "btn_single": 'background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px;',
-                "btn_section": 'background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px;'
-            }
-
+            # Using clean, un-indented multi-line strings to bypass code-editor spacing corruption quirks entirely
             html_header = """<!DOCTYPE html>
-            <html>
-            <head>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-                <style>
-                    body {{ {body_style} }}
-                    .official-card-container {{ {card_container} }}
-                    .header-block {{ {header_block} }}
-                    .logo-row {{ {logo_row} }}
-                    .logo-img {{ {logo_img} }}
-                    .inst-main-header {{ {main_header} }}
-                    .inst-sub-header {{ {sub_header} }}
-                    .doc-type-banner {{ {doc_banner} }}
-                    .meta-layout-table {{ {meta_table} }}
-                    .meta-layout-table td {{ {meta_td} }}
-                    .underlined-value-span {{ {underlined_span} }}
-                    .doc-data-table {{ {data_table} }}
-                    .doc-data-table th, .doc-data-table td {{ {data_th_td} }}
-                    .doc-data-table th {{ font-weight: bold; background-color: #fff; }}
-                    .section-header-title {{ {section_title} }}
-                    .attendance-matrix-table {{ {att_table} }}
-                    .attendance-matrix-table th, .attendance-matrix-table td {{ {att_th_td} }}
-                    .attendance-matrix-table th {{ font-weight: bold; background-color: #fff; }}
-                    .attendance-matrix-table td.row-title-cell {{ {att_title_cell} }}
-                    .footer-signatures-table {{ {footer_table} }}
-                    .footer-signatures-table td {{ border: none; }}
-                    .sig-marker-line {{ {sig_line} }}
-                    .action-controls-bar {{ {controls_bar} }}
-                    .print-btn {{ {btn_print} }}
-                    .image-single-btn {{ {btn_single} }}
-                    .image-section-btn {{ {btn_section} }}
-                    button:disabled {{ background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }}
-                    @media print {{
-                        .action-controls-bar {{ display: none !important; }}
-                        .official-card-container {{ border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }}
-                        .print-page-break-divider {{ page-break-after: always !important; break-after: page !important; }}
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class="action-controls-bar">
-                    <button class="print-btn" onclick="window.print();">🖨️ Print Document (Ctrl+P)</button>
-                    <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
-                    <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
-                </div>
-            """.format(**css_styles)
+<html>
+<head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
+.official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
+.header-block { text-align: left; margin-bottom: 20px; width: 100%; }
+.logo-row { display: block; width: 100%; margin-bottom: 12px; }
+.logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
+.inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
+.inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
+.doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
+.meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
+.meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
+.underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
+.doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
+.doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
+.doc-data-table th { font-weight: bold; background-color: #fff; }
+.section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
+.attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+.attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
+.attendance-matrix-table th { font-weight: bold; background-color: #fff; }
+.attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
+.footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
+.footer-signatures-table td { border: none; }
+.sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
+.action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
+.print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+.image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+.image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+button:disabled { background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }
+@media print {
+.action-controls-bar { display: none !important; }
+.official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+.print-page-break-divider { page-break-after: always !important; break-after: page !important; }
+}
+</style>
+</head>
+<body>
+<div class="action-controls-bar">
+<button class="print-btn" onclick="window.print();">🖨️ Print Document (Ctrl+P)</button>
+<button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
+<button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
+</div>
+"""
 
             # ==========================================
             # 2. ITERATIVE DATA PROCESSING ENGINE (LOOP)
@@ -2039,60 +2013,60 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
             # 3. INTERACTIVE JAVASCRIPT EXPORT CONTROLLERS
             # ==========================================
             html_footer = """
-    <script>
-        document.getElementById('save-single-card-trigger').addEventListener('click', function() {
-            const targetCard = document.querySelector('.official-card-container');
-            if (!targetCard) return alert("No active result card engine target detected.");
-            
-            const sName = targetCard.getAttribute('data-student-name') || "student";
-            const sId = targetCard.id || "result";
-            
-            html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
-                const dlLink = document.createElement('a');
-                dlLink.download = `${sId}_${sName}.png`;
-                dlLink.href = canvas.toDataURL('image/png');
-                dlLink.click();
-            });
-        });
+<script>
+document.getElementById('save-single-card-trigger').addEventListener('click', function() {
+    const targetCard = document.querySelector('.official-card-container');
+    if (!targetCard) return alert("No active result card engine target detected.");
+    
+    const sName = targetCard.getAttribute('data-student-name') || "student";
+    const sId = targetCard.id || "result";
+    
+    html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
+        const dlLink = document.createElement('a');
+        dlLink.download = `${sId}_${sName}.png`;
+        dlLink.href = canvas.toDataURL('image/png');
+        dlLink.click();
+    });
+});
 
-        document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
-            const allCards = document.querySelectorAll('.official-card-container');
-            if (allCards.length === 0) return alert("Empty stack context scope configuration payload mapping.");
+document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
+    const allCards = document.querySelectorAll('.official-card-container');
+    if (allCards.length === 0) return alert("Empty stack context scope configuration payload mapping.");
+    
+    const actionBtn = this;
+    const primaryLabel = actionBtn.innerText;
+    actionBtn.innerText = "⏳ Generating Archive Images...";
+    actionBtn.disabled = true;
+    
+    const archiveBundle = new JSZip();
+    
+    try {
+        for(let index = 0; index < allCards.length; index++) {
+            const currentCard = allCards[index];
+            const cardIdStr = currentCard.id || `card_${index}`;
+            const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
             
-            const actionBtn = this;
-            const primaryLabel = actionBtn.innerText;
-            actionBtn.innerText = "⏳ Generating Archive Images...";
-            actionBtn.disabled = true;
+            const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
+            const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
             
-            const archiveBundle = new JSZip();
-            
-            try {
-                for(let index = 0; index < allCards.length; index++) {
-                    const currentCard = allCards[index];
-                    const cardIdStr = currentCard.id || `card_${index}`;
-                    const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
-                    
-                    const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
-                    const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
-                    
-                    archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
-                }
-                
-                const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
-                const dlLink = document.createElement('a');
-                dlLink.download = "Section_Result_Cards_Archive.zip";
-                dlLink.href = URL.createObjectURL(compiledZipBlob);
-                dlLink.click();
-                
-            } catch (error) {
-                console.error(error);
-                alert("An engine configuration runtime execution interruption occurred.");
-            } finally {
-                actionBtn.innerText = primaryLabel;
-                actionBtn.disabled = false;
-            }
-        });
-    </script>
+            archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
+        }
+        
+        const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
+        const dlLink = document.createElement('a');
+        dlLink.download = "Section_Result_Cards_Archive.zip";
+        dlLink.href = URL.createObjectURL(compiledZipBlob);
+        dlLink.click();
+        
+    } catch (error) {
+        console.error(error);
+        alert("An engine configuration runtime execution interruption occurred.");
+    } finally {
+        actionBtn.innerText = primaryLabel;
+        actionBtn.disabled = false;
+    }
+});
+</script>
 </body>
 </html>
 """
