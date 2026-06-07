@@ -319,9 +319,6 @@ elif menu_choice == "➕ Add Students":
     # ... Rest of the script layout form targets follow unchanged ...
 Here is the updated code. I have introduced a **"System Type"** selector ("Annual System" vs. "Semester System") across both the Marks Entry and Attendance modules.
 
-When "Semester System" is chosen, the system dynamically changes the available dropdown items (e.g., swapping Mid-Term/Pre-Board exam types for Semester exams, and completely filtering down to your specific **Semester Sections** like *BS-CS, BS-SE, BS-IT, and BBA*).
-
-
 ```python
 import streamlit as st
 import pandas as pd
