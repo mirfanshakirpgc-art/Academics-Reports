@@ -320,6 +320,10 @@ elif menu_choice == "➕ Add Students":
     # ⚙️ Workflow Toggle Switch Switch
     workflow_mode = st.radio("⚙️ Select Registration Workflow Mode:", ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)"], horizontal=True, key="add_stu_workflow_choice")
     st.markdown("---")
+    
+    # ⚙️ Workflow Toggle Switch
+    workflow_mode = st.radio("⚙️ Select Registration Workflow Mode:", ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)"], horizontal=True, key="add_stu_workflow_choice")
+    st.markdown("---")
 
     # ====================================================================================
     # WORKFLOW A: SINGLE STUDENT REGISTRATION
