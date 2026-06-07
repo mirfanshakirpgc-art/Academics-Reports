@@ -254,7 +254,7 @@ elif menu_choice == "➕ Add Students":
         if "General Science" in discipline_options:
             discipline_options = [d for d in discipline_options if d != "General Science"]
     except NameError:
-        # User-friendly display items for the dropdown menu
+        # Standard user dropdown list options
         discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
     # 🛠️ Main Filter Row 1: Session & Academic System Type
@@ -274,9 +274,9 @@ elif menu_choice == "➕ Add Students":
         with c4: 
             selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
             
-        # 🎯 Dynamic Section Filtering Logic with Key Normalization Fix
+        # 🎯 Dynamic Section Filtering Logic with Strict Key Alignment Fix
         with c5:
-            # Normalize "ICS (PHYSICS)" -> "ICS_PHYSICS" and "ICS (STATS)" -> "ICS_STATS"
+            # Step 1: Clean spaces and parentheses
             normalized_discipline = (
                 selected_discipline.upper()
                 .replace(" ", "_")
@@ -284,8 +284,10 @@ elif menu_choice == "➕ Add Students":
                 .replace(")", "")
             )
             
-            # Handle standardizing STATISTICS if your dictionary key uses the full word
-            if normalized_discipline == "ICS_STATS":
+            # Step 2: Explicitly normalize spelling variations for your map keys
+            if "PHYSIC" in normalized_discipline:
+                normalized_discipline = "ICS_PHYSICS"
+            elif "STAT" in normalized_discipline:
                 normalized_discipline = "ICS_STATISTICS"
 
             try:
@@ -293,12 +295,12 @@ elif menu_choice == "➕ Add Students":
                 discipline_map = DISCIPLINE_SECTIONS_MAP.get(normalized_discipline, {})
                 available_sections = discipline_map.get(selected_class, [])
                 
-                # If global lookup returned nothing, try with raw selectbox value just in case
+                # Secondary fallback try with raw un-cleansed selection value
                 if not available_sections:
                     discipline_map = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {})
                     available_sections = discipline_map.get(selected_class, [])
             except NameError:
-                # Active local fallback mapping matching your exact structural blueprint
+                # Active local structural blueprint fallback blueprint
                 fallback_nested_map = {
                     "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
                     "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
@@ -312,7 +314,7 @@ elif menu_choice == "➕ Add Students":
             # Clean and sanitize strings safely
             cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
             
-            # Show dynamic dropdown menu
+            # Dynamic switch display component layout choice
             if cleaned_sections:
                 selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
             else:
