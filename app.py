@@ -1137,7 +1137,6 @@ elif menu_choice == "📋 Section Summary Report":
                         max_total += tot       
                         has_valid_scores = True
                     elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        # Save float internally but we clean display formatting in Step 7
                         entry[short_sub] = float(val)
                         obtained_total += float(val)
                         max_total += tot       
@@ -1189,7 +1188,6 @@ elif menu_choice == "📋 Section Summary Report":
                 h_sub = h_row["subject_name"]
                 if h_sub not in [sub.upper().strip() for sub in subjects]:
                     short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub[:4])
-                    # Clean trailing float configurations here too
                     h_val = h_row['marks_obtained']
                     try:
                         h_val = str(int(float(h_val))) if float(h_val).is_integer() else str(h_val)
@@ -1205,7 +1203,6 @@ elif menu_choice == "📋 Section Summary Report":
             for lbl in short_subject_labels:
                 cell_val = row[lbl]
                 
-                # Format to Integer string if value is float/numeric number
                 if isinstance(cell_val, (int, float)):
                     cell_str = str(int(cell_val))
                 else:
@@ -1289,14 +1286,14 @@ elif menu_choice == "📋 Section Summary Report":
                 <table class="analytics-grid-table">
                     <thead>
                         <tr>
-                            <th style="width: 7%;">ID</th>
-                            <th style="text-align: left; padding-left: 12px;">Student Name</th>
-                            <th style="width: 8%;">Section</th>
-                            <th style="width: 7%;">Class</th>
+                            <th style="width: 6%;">ID</th>
+                            <th style="text-align: left; padding-left: 12px; width: 22%;">Student Name</th>
+                            <th style="width: 7%;">Section</th>
+                            <th style="width: 6%;">Class</th>
                             {thead_subjects_html}
-                            <th style="background-color: #e6f2ff; color: #0055b3; width: 8%;">Att %</th>
-                            <th style="background-color: #f1f3f5; width: 10%;">Total (Obt)</th>
-                            <th style="background-color: #f1f3f5; width: 9%;">Total Max</th>
+                            <th style="background-color: #e6f2ff; color: #0055b3; width: 7%;">Att %</th>
+                            <th style="background-color: #f1f3f5; width: 9%;">Total (Obt)</th>
+                            <th style="background-color: #f1f3f5; width: 8%;">Total Max</th>
                         </tr>
                     </thead>
                     <tbody>
