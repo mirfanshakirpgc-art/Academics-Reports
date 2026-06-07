@@ -2771,6 +2771,22 @@ if menu_choice == "👨‍🏫 Teacher Management":
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED DATABASE REVERSAL LOGGING
 # ====================================================================================
+# 🛠️ AUTO-CREATE LEDGER TABLE NATIVELY (PostgreSQL Aligned)
+    try:
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS promotion_history (
+                id SERIAL PRIMARY KEY,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                student_id INTEGER,
+                old_class TEXT,
+                old_section TEXT,
+                new_class TEXT,
+                new_section TEXT,
+                batch_id TEXT
+            );
+        """)
+    except Exception as table_err:
+        st.error(f"Database initialization warning: {table_err}")
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
