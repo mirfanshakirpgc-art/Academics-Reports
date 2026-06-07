@@ -323,7 +323,8 @@ When "Semester System" is chosen, the system dynamically changes the available d
 
 
 ```python
-import streamlit as pd
+import streamlit as st
+import pandas as pd
 import datetime
 from datetime import date
 
@@ -678,7 +679,6 @@ if menu_choice == "📅 Attendance Entry Management":
 
     elif att_sub_type == "📋 Manual Monthly Variance Override":
         st.subheader("📋 Manual Section Summary Overrides Workspace")
-        # [Manual Overrides processing details remain under default background implementation structure]
         pass
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
