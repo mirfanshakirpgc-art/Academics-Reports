@@ -422,30 +422,38 @@ elif menu_choice == "➕ Add Students":
                 st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
 
     # ====================================================================================
-    # NEW WORKFLOW C: MANAGE EXISTING STUDENTS (EDIT & DELETE HUB)
+    # WORKFLOW C: MANAGE EXISTING STUDENTS (EDIT & DELETE HUB)
     # ====================================================================================
     else:
         st.subheader(f"🛠️ Update or Remove Records — {selected_class} | Section: {selected_section}")
         
-        # Pull active section list records from database safely
+        # Safe extraction directly using SQLAlchemy or connection engine tools via pandas
         try:
-            students_query_df = get_db_data("""
+            import sqlalchemy
+            # Standardize fallback to text construct parameters safely
+            query = sqlalchemy.text("""
                 SELECT id, name, status FROM students 
                 WHERE class = :class AND section = :section AND session = :session
                 ORDER BY id ASC
-            """, {
-                "class": selected_class,
-                "section": selected_section,
-                "session": selected_session
-            })
+            """)
+            
+            # Using your existing execute_db_command engine parameters dynamically
+            if 'conn' in globals():
+                students_query_df = pd.read_sql(query, conn, params={"class": selected_class, "section": selected_section, "session": selected_session})
+            elif 'engine' in globals():
+                with engine.connect() as connection:
+                    students_query_df = pd.read_sql(query, connection, params={"class": selected_class, "section": selected_section, "session": selected_session})
+            else:
+                # Direct lookup if using database helper blocks
+                students_query_df = pd.read_sql(query, st.connection('postgresql', type='sql').engine, params={"class": selected_class, "section": selected_section, "session": selected_session})
+                
         except Exception as query_err:
-            st.error(f"Error fetching directory: {query_err}")
+            st.error(f"Error fetching directory lookup: {query_err}")
             students_query_df = pd.DataFrame()
 
         if students_query_df.empty:
             st.warning("⚠️ No active student profile records found registered under this specific Filter Option layout.")
         else:
-            # Build dropdown display dictionary array strings
             student_selector_list = [
                 f"{int(row['id'])} - {str(row['name']).upper()}" for _, row in students_query_df.iterrows()
             ]
@@ -453,19 +461,14 @@ elif menu_choice == "➕ Add Students":
             chosen_stu_string = st.selectbox("🔍 Select Student Profile to Modify:", student_selector_list)
             
             if chosen_stu_string:
-                # Extract the pure ID out of our string layout
                 selected_student_id = int(chosen_stu_string.split(" - ")[0])
-                
-                # Fetch row detail data elements matching that exact index key 
                 target_student_row = students_query_df[students_query_df['id'] == selected_student_id].iloc[0]
                 
                 st.markdown("### Modify Student Record Data")
                 
-                # Render editing form fields
                 with st.form("student_profile_edit_form"):
                     edit_name = st.text_input("👤 Change Student Full Name Identity:", value=str(target_student_row['name']).upper())
                     
-                    # Compute initial enum configuration indexes carefully
                     status_options = ["ACTIVE", "PENDING", "LEAVE"]
                     current_status = str(target_student_row['status']).upper()
                     init_status_idx = status_options.index(current_status) if current_status in status_options else 0
@@ -478,11 +481,9 @@ elif menu_choice == "➕ Add Students":
                     with col_update:
                         save_changes = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
                     with col_delete:
-                        # Extra cautionary safety switch to avoid accidental misclicks
                         confirm_delete = st.checkbox("⚠️ Check this box to confirm complete removal.")
                         erase_record = st.form_submit_button("🗑️ Delete Student From System", type="secondary", use_container_width=True)
                 
-                # Process update action loop query execution
                 if save_changes:
                     if not edit_name.strip():
                         st.error("❌ Action Rejected: Name field cannot be saved blank.")
@@ -502,17 +503,16 @@ elif menu_choice == "➕ Add Students":
                         except Exception as update_err:
                             st.error(f"❌ Failed to commit database updates: {update_err}")
                 
-                # Process delete action loop query execution safely
                 if erase_record:
                     if not confirm_delete:
                         st.error("❌ Action Blocked: You must check the confirmation safety box before deleting records.")
                     else:
                         try:
                             execute_db_command("DELETE FROM students WHERE id = :id", {"id": selected_student_id})
-                            st.success(f"🗑️ The record for Student ID `{selected_student_id}` has been permanently dropped from system tables.")
+                            st.success(f"🗑️ The record for Student ID `{selected_student_id}` has been permanently dropped.")
                             st.rerun()
                         except Exception as delete_err:
-                            st.error(f"❌ Database error encountered while executing record wipe operations: {delete_err}")
+                            st.error(f"❌ Database error encountered: {delete_err}")
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
