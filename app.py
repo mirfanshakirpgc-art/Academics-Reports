@@ -611,11 +611,20 @@ if menu_choice == "📝 Academic Exam Marks Entry":
 
                 sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
                 
+            # Dynamic Subject Mapping Switchboard
             if academic_system == "Annual System":
                 try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
                 except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
             else:
-                available_subjects = ["Information Technology Topics", "Office Automation", "C/C++ Programming", "Database Management Systems", "Operating Systems", "Computer Networks"]
+                # Dynamically match courses strictly according to the active chosen semester value
+                if sel_class == "Semester 1":
+                    available_subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
+                elif sel_class == "Semester 2":
+                    available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                elif sel_class in ["Semester 3", "Semester 4"]:
+                    available_subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
+                else: # Fallback configuration for "ALL" selection layout option matrix
+                    available_subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project", "English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
                 
             sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
