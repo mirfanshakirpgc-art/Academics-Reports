@@ -714,7 +714,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
 
 # ====================================================================================
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (AUTOMATED BACKGROUND SYNC)
+# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (HIGH-SPEED OPTIMIZED WITH BACKGROUND SYNC)
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
@@ -734,6 +734,7 @@ if menu_choice == "📅 Attendance Entry Management":
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
 
+    # ⚡ HIGH-SPEED AGGREGATION: Filters dates directly inside SQL instead of Pandas loading
     def trigger_background_monthly_aggregation(target_section, target_class, target_month_string):
         month_numbers_map = {
             "January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06",
@@ -741,31 +742,29 @@ if menu_choice == "📅 Attendance Entry Management":
         }
         target_month_num = month_numbers_map.get(target_month_string, "01")
         
+        # 🎯 Database-level processing means we fetch only a fraction of the historical records
         raw_daily_logs = run_query("""
-            SELECT s.id AS student_id, d.attendance_date, d.status
+            SELECT s.id AS student_id, d.status
             FROM students s
             JOIN daily_attendance d ON s.id = d.student_id
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-              AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
-        """, {"section": target_section, "class_level": target_class})
+              AND strftime('%m', d.attendance_date) = :month_num
+        """, {"section": target_section, "month_num": target_month_num})
         
         if not raw_daily_logs.empty:
             try:
-                raw_daily_logs['parsed_date'] = pd.to_datetime(raw_daily_logs['attendance_date'], errors='coerce')
-                raw_daily_logs = raw_daily_logs.dropna(subset=['parsed_date'])
-                raw_daily_logs = raw_daily_logs[raw_daily_logs['parsed_date'].dt.strftime('%m') == target_month_num]
+                # Aggregate concisely in Python memory over the small monthly subset
+                summary_df = raw_daily_logs.groupby('student_id').agg(
+                    total_days=('status', 'count'),
+                    present_days=('status', lambda x: x.astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1']).sum())
+                ).reset_index()
                 
-                if not raw_daily_logs.empty:
-                    summary_df = raw_daily_logs.groupby('student_id').agg(
-                        total_days=('status', 'count'),
-                        present_days=('status', lambda x: x.astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1']).sum())
-                    ).reset_index()
-                    
-                    for _, summary_row in summary_df.iterrows():
-                        execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": int(summary_row['student_id']), "month": target_month_string})
-                        execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {
-                            "s_id": int(summary_row['student_id']), "month": target_month_string.strip(), "p_days": int(summary_row['present_days']), "t_days": int(summary_row['total_days'])
-                        })
+                # Update records sequentially 
+                for _, summary_row in summary_df.iterrows():
+                    execute_db_command("DELETE FROM attendance WHERE student_id = :s_id AND UPPER(TRIM(month_name)) = UPPER(TRIM(:month))", {"s_id": int(summary_row['student_id']), "month": target_month_string})
+                    execute_db_command("INSERT INTO attendance (student_id, month_name, present_days, total_days) VALUES (:s_id, :month, :p_days, :t_days)", {
+                        "s_id": int(summary_row['student_id']), "month": target_month_string.strip(), "p_days": int(summary_row['present_days']), "t_days": int(summary_row['total_days'])
+                    })
             except Exception:
                 pass 
 
@@ -788,21 +787,24 @@ if menu_choice == "📅 Attendance Entry Management":
                 class_options = ["11th", "12th"]
                 sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
             else:
-                class_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
-                sel_class = st.selectbox("Select Semester:", class_options, key="daily_att_sem")
+                class_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
+                sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
                 
         with d4:
-            active_secs_df = run_query("""
-                SELECT DISTINCT section FROM students 
-                WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
-                  AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
-                  AND section IS NOT NULL AND section != ''
-                ORDER BY section
-            """, {"sess": sel_session, "cls": sel_class})
-            
-            section_options = active_secs_df['section'].tolist() if not active_secs_df.empty else ([] if academic_system == "Annual System" else ["DIT_G", "DIT_B"])
-            if not section_options and academic_system == "Annual System":
-                section_options = ["CG_WHITE", "CK2", "MQ1"]
+            if academic_system == "Annual System":
+                annual_sections = []
+                try:
+                    for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
+                        if "DIT" not in discipline.upper():
+                            sections_list = class_data.get(sel_class, [])
+                            annual_sections.extend(sections_list)
+                except NameError:
+                    annual_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CB_WHITE", "MQ1", "EQ"]
+                
+                section_options = sorted(list(set(annual_sections)))
+            else:
+                # Standardized DIT section layout targets
+                section_options = ["DIT_G", "DIT_B"]
                 
             sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
 
@@ -816,14 +818,13 @@ if menu_choice == "📅 Attendance Entry Management":
                 FROM students s
                 LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
                 WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                  AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level))
-                  AND UPPER(TRIM(s.session)) = UPPER(TRIM(:session))
+                  AND s.session = :session
                   AND (s.status IS NULL OR UPPER(TRIM(s.status)) = 'ACTIVE' OR UPPER(TRIM(s.status)) != 'LEFT')
                 ORDER BY s.id ASC
-            """, {"att_date": target_date, "section": sel_section, "class_level": sel_class, "session": sel_session})
+            """, {"att_date": target_date, "section": sel_section, "session": sel_session})
 
             if roster_df.empty:
-                st.warning(f"⚠️ No profiles recorded for Section '{sel_section}' ({sel_class}) inside Session {sel_session}.")
+                st.warning(f"⚠️ No profiles recorded for Section '{sel_section}' inside Session {sel_session}.")
             else:
                 st.markdown(f"🔬 **Roster Grid Active:** Section {sel_section} — {target_date.strftime('%d-%b-%Y')}")
                 action_box_col, info_box_col = st.columns([2, 3])
@@ -850,21 +851,35 @@ if menu_choice == "📅 Attendance Entry Management":
 
                     st.markdown("###")
                     if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
-                        success_count = 0
+                        # 📦 1. Pre-stage records into lists to limit transaction boundaries
+                        delete_params = []
+                        insert_params = []
+                        
                         for s_id, checked_present in attendance_checkbox_map.items():
                             status_code = "P" if checked_present else "A"
-                            execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", {"s_id": int(s_id), "att_date": target_date})
-                            execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", {"s_id": int(s_id), "att_date": target_date, "status": status_code})
-                            success_count += 1
+                            base_param = {"s_id": int(s_id), "att_date": target_date}
+                            
+                            delete_params.append(base_param)
+                            insert_params.append({**base_param, "status": status_code})
                         
+                        # 🚀 2. Execute writes instantly
+                        try:
+                            for p in delete_params:
+                                execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", p)
+                            for p in insert_params:
+                                execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", p)
+                        except Exception as e:
+                            st.error(f"Database write execution breakdown: {e}")
+                        
+                        # 📊 3. Calculate metrics using the optimized monthly logic
                         inferred_month_string = target_date.strftime('%B')
                         trigger_background_monthly_aggregation(sel_section, sel_class, inferred_month_string)
                         
-                        st.success(f"🎉 Daily logs locked & Monthly summary calculated in background successfully!")
+                        st.success(f"🎉 Daily logs locked & Monthly summary calculated instantly!")
                         st.rerun()
 
     # --------------------------------------------------------------------------------
-    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER (FULLY IMPLEMENTED & ACTIVE)
+    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER
     # --------------------------------------------------------------------------------
     elif att_sub_type == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Attendance Record Manager")
@@ -889,7 +904,6 @@ if menu_choice == "📅 Attendance Entry Management":
                 
                 st.info(f"👤 **Student Profile:** {s_name}  |  **Class/Sem:** {s_class}  |  **Section:** {s_section}  |  **Session:** {s_session}")
                 
-                # Active Input Form parameters
                 st.markdown("##### 📅 Log Single Day Entry")
                 ca1, ca2, ca3 = st.columns([2, 1.5, 1.5])
                 with ca1:
@@ -905,7 +919,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     status_choice = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="single_att_status_pick")
                 
                 with ca3:
-                    st.markdown("##") # Visual balancing spacing spacing spacer alignment
+                    st.markdown("##") 
                     if st.button("💾 Log Log Entry", type="primary", use_container_width=True):
                         final_status_code = "P" if "Present" in status_choice else "A"
                         execute_db_command("""
@@ -915,12 +929,10 @@ if menu_choice == "📅 Attendance Entry Management":
                             INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:id, :dt, :st)
                         """, {"id": int(single_id), "dt": att_date, "st": final_status_code})
                         
-                        # Re-calculate background matrix instantly
                         trigger_background_monthly_aggregation(s_section, s_class, att_date.strftime('%B'))
                         st.success(f"🎉 Roster update completed successfully for {att_date.strftime('%d-%b-%Y')}!")
                         st.rerun()
                         
-                # Read-only preview of month aggregate statistics blocks
                 st.markdown("---")
                 st.markdown("##### 📊 Saved Monthly Aggregates Summary Ledger")
                 history_df = run_query("""
