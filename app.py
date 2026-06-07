@@ -1394,32 +1394,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
         with col_dyn2:
+            # Explicitly listed annual sections to guarantee it renders safely without map dependencies
             annual_sections = ["A", "B", "C", "ICS", "Pre-Medical", "Pre-Engineering"]
             sel_sec = st.selectbox("Select Target Class Section:", options=annual_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
 
-    else:
-        with col_dyn1:
-            sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester"], key="global_sel_class")
-            
-        with col_dyn2:
-            if sel_class_global == "1st Semester":
-                filtered_sections = ["DIT_1ST"]
-            else:
-                filtered_sections = ["DIT_2ND"]
-                
-            sel_sec = st.selectbox("Select Target Section:", options=filtered_sections, index=0, key="global_sel_sec")
-            
-        with col_dyn3:
-            if sel_class_global == "1st Semester":
-                semester_courses = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-            else:
-                semester_courses = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                
-            selected_exams_list = st.multiselect("🎯 Select Courses:", options=semester_courses, default=semester_courses[:3], key="global_exams")
-
     else:  # --- SEMESTER SYSTEM BRANCH ---
         with col_dyn1:
             sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester"], key="global_sel_class")
@@ -1433,29 +1414,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_sec = st.selectbox("Select Target Section:", options=filtered_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
-            if sel_class_global == "1st Semester":
-                semester_courses = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-            else:
-                semester_courses = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                
-            selected_exams_list = st.multiselect("🎯 Select Courses:", options=semester_courses, default=semester_courses[:3], key="global_exams")
-
-    else:  # --- SEMESTER SYSTEM BRANCH ---
-        with col_dyn1:
-            # Swapped Class Level selection text strictly for Term Semesters
-            sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester"], key="global_sel_class")
-            
-        with col_dyn2:
-            # Map structural section lists directly based on target semester choices
-            if sel_class_global == "1st Semester":
-                filtered_sections = ["DIT_1ST"]
-            else:
-                filtered_sections = ["DIT_2ND"]
-                
-            sel_sec = st.selectbox("Select Target Section:", filtered_sections, key="global_sel_sec")
-            
-        with col_dyn3:
-            # Switch out standard exam codes for actual DIT Course codes/names
             if sel_class_global == "1st Semester":
                 semester_courses = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
             else:
@@ -1581,7 +1539,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Resilient Attendance Scanner Segment
+        # 2. Attendance Scanner Segment
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
@@ -1625,8 +1583,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             attendance_df = attendance_df.rename(columns={field: "status"})
                             break
             except Exception as internal_err:
-                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve. System Details: {str(internal_err)}")
+                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve: {str(internal_err)}")
 
+        # CSS Styling Configurations
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
         css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
@@ -1726,7 +1685,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         row_tds += f"<td><strong>{sub_avg}%</strong></td>"
                         table_rows_html += f"<tr>{row_tds}</tr>"
                     
-                    # Footer Summary
+                    # Footer Summary Row Configuration
                     total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
                     total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
                     total_pct_accum = 0
