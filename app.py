@@ -1069,21 +1069,17 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
     else:
-        # Load marks entries lookup database view frame with cross-engine safety text casting
         try:
             marks_df = run_query("""
                 SELECT CAST(student_id AS TEXT) as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
                 FROM marks 
                 WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
             """, {"exam": sel_exam})
-            
-            # Additional layer to ensure DataFrame types match string patterns accurately
             if not marks_df.empty:
                 marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
         except Exception:
             marks_df = pd.DataFrame()
 
-        # Fetch underlying dynamic live attendance sheets values matrix
         try:
             att_df = run_query("""
                 SELECT CAST(student_id AS TEXT) as student_key, status
@@ -1141,6 +1137,7 @@ elif menu_choice == "📋 Section Summary Report":
                         max_total += tot       
                         has_valid_scores = True
                     elif val.replace('.', '', 1).isdigit() or val.isdigit():
+                        # Save float internally but we clean display formatting in Step 7
                         entry[short_sub] = float(val)
                         obtained_total += float(val)
                         max_total += tot       
@@ -1192,7 +1189,13 @@ elif menu_choice == "📋 Section Summary Report":
                 h_sub = h_row["subject_name"]
                 if h_sub not in [sub.upper().strip() for sub in subjects]:
                     short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub[:4])
-                    old_marks_badges.append(f"{short_h_sub}: {h_row['marks_obtained']}")
+                    # Clean trailing float configurations here too
+                    h_val = h_row['marks_obtained']
+                    try:
+                        h_val = str(int(float(h_val))) if float(h_val).is_integer() else str(h_val)
+                    except ValueError:
+                        pass
+                    old_marks_badges.append(f"{short_h_sub}: {h_val}")
             
             history_str = ""
             if old_marks_badges:
@@ -1200,9 +1203,16 @@ elif menu_choice == "📋 Section Summary Report":
             
             row_subjects_cells = ""
             for lbl in short_subject_labels:
-                cell_val = str(row[lbl])
-                cell_style = "color: #e74c3c; font-weight: bold;" if cell_val in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_val == "NC" else "")
-                row_subjects_cells += f'<td style="{cell_style}">{cell_val}</td>'
+                cell_val = row[lbl]
+                
+                # Format to Integer string if value is float/numeric number
+                if isinstance(cell_val, (int, float)):
+                    cell_str = str(int(cell_val))
+                else:
+                    cell_str = str(cell_val)
+                    
+                cell_style = "color: #e74c3c; font-weight: bold;" if cell_str in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_str == "NC" else "")
+                row_subjects_cells += f'<td style="{cell_style}">{cell_str}</td>'
             
             tbody_rows_html += f"""
             <tr>
