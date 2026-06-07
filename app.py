@@ -1842,7 +1842,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 db_att = run_query(
                     SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
                     FROM attendance WHERE student_id = :id
-                """, {"id": current_id})
+                , {"id": current_id})
                 
                 att_cells = {}
                 tot_sum, pres_sum = 0, 0
@@ -1907,7 +1907,6 @@ elif menu_choice == "🪪 Student Result Cards":
                             </tr>
                         </thead>
                         <tbody>
-                """
                 
                 student_failed_any_subject = False
                 has_valid_marks_data = False
@@ -1957,7 +1956,6 @@ elif menu_choice == "🪪 Student Result Cards":
                         <td style="{style_override}">{per_disp}</td>
                         <td style="font-weight: bold; {style_override}">{status_disp}</td>
                     </tr>
-                    """
                 
                 # Grand Total calculation row
                 grand_per_disp = ""
@@ -2040,10 +2038,9 @@ elif menu_choice == "🪪 Student Result Cards":
                     </table>
                 </div>
                 <div class="print-page-break-divider"></div>
-                """
                 
             # INJECT JAVASCRIPT ASYNC IMAGE CAPTURE INTERFACE LOGIC
-            compiled_html += """
+            compiled_html += 
             <script>
                 // 1. Save Current / First visible student card layout asset configuration
                 document.getElementById('save-single-card-trigger').addEventListener('click', function() {
@@ -2103,7 +2100,6 @@ elif menu_choice == "🪪 Student Result Cards":
             </script>
             </body>
             </html>
-            """
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
