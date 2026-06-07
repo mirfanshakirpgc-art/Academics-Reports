@@ -1737,8 +1737,6 @@ composite_html_payload += """
     </script>
 </body>
 </html>
-"""
-
 # Clean any residual character spaces and output component payload safely
 composite_html_payload = composite_html_payload.replace('\xa0', ' ')
 st.components.v1.html(composite_html_payload, height=900, scrolling=True)
