@@ -1763,24 +1763,23 @@ elif menu_choice == "🪪 Student Result Cards":
             # ==========================================
             # 1. INITIALIZE SEGMENTED HTML COMPONENTS
             # ==========================================
-            # Removed the 'f' prefix here so Python doesn't evaluate CSS brackets!
             html_header = """<!DOCTYPE html>
             <html>
             <head>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
                 <style>
-                    body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-                    .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-                    .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
-                    .logo-row { display: block; width: 100%; margin-bottom: 12px; }
-                    .logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
-                    .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
-                    .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
-                    .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
-                    .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
-                    .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
-                    .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
+                    body {{ font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }}
+                    .official-card-container {{ max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }}
+                    .header-block {{ text-align: left; margin-bottom: 20px; width: 100%; }}
+                    .logo-row {{ display: block; width: 100%; margin-bottom: 12px; }}
+                    .logo-img {{ max-height: 48px; width: auto; display: block; margin-left: 0; }}
+                    .inst-main-header {{ font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }}
+                    .inst-sub-header {{ font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }}
+                    .doc-type-banner {{ text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }}
+                    .meta-layout-table {{ width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }}
+                    .meta-layout-table td {{ border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }}
+                    .underlined-value-span {{ border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }}
                 </style>
             </head>
             <body>
@@ -1790,7 +1789,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
                 </div>
             """
-
             # ==========================================
             # 2. ITERATIVE DATA PROCESSING ENGINE (LOOP)
             # ==========================================
