@@ -1376,26 +1376,60 @@ if menu_choice == "📈 Multi-Test Progress Report":
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     
     st.markdown('##### 🎛️ Filter Configuration Panel')
-    col_filter1, col_filter2, col_filter3 = st.columns(3)
+    col_system, col_filter1, col_filter2, col_filter3 = st.columns([1.2, 1.5, 1.5, 1.8])
     
-    with col_filter1:
-        sel_disc = st.selectbox("Select Discipline Context:", list(DISCIPLINE_SECTIONS_MAP.keys()), key="global_sel_disc")
-        sel_session_global = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="global_sel_sess")
-        
-    with col_filter2:
-        sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
-        
-        # Read matching target lists directly from your updated map structure
-        discipline_data = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {})
-        filtered_sections = discipline_data.get(sel_class_global, [])
-        
-        if not filtered_sections and isinstance(discipline_data, list):
-            filtered_sections = discipline_data
+    with col_system:
+        # Dynamic System Switcher
+        academic_system = st.selectbox(
+            "System Type:", 
+            ["Annual System", "Semester System"], 
+            key="mt_system_type"
+        )
+        sel_session_global = st.selectbox("Select Session:", AVAILABLE_SESSIONS, index=1, key="global_sel_sess")
 
-        sel_sec = st.selectbox("Select Target Class Section:", filtered_sections, key="global_sel_sec")
+    with col_filter1:
+        # Filter available disciplines based on the selected academic system
+        if academic_system == "Semester System":
+            available_disciplines = ["DIPLOMA IN IT (DIT)"]
+        else:
+            # Filters out DIT from your standard annual list if present
+            available_disciplines = [d for d in list(DISCIPLINE_SECTIONS_MAP.keys()) if "DIT" not in d.upper()]
+            
+        sel_disc = st.selectbox("Select Discipline Context:", available_disciplines, key="global_sel_disc")
+
+    with col_filter2:
+        if academic_system == "Semester System":
+            # Adjust class level options to represent semesters
+            sel_class_global = st.selectbox("Select Semester:", ["1st Semester", "2nd Semester"], key="global_sel_class")
+            
+            # Map structural sections directly for DIT Semesters
+            if sel_class_global == "1st Semester":
+                filtered_sections = ["DIT_1ST"]
+            else:
+                filtered_sections = ["DIT_2ND"]
+        else:
+            sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
+            
+            # Read matching target lists directly from standard dictionary map structure
+            discipline_data = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {})
+            filtered_sections = discipline_data.get(sel_class_global, [])
+            
+            if not filtered_sections and isinstance(discipline_data, list):
+                filtered_sections = discipline_data
+
+        sel_sec = st.selectbox("Select Class Section:", filtered_sections, key="global_sel_sec")
         
     with col_filter3:
-        selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
+        if academic_system == "Semester System":
+            # If Semester is chosen, swap out standard exam cycles for specific DIT Course modules
+            if sel_class_global == "1st Semester":
+                semester_courses = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+            else:
+                semester_courses = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                
+            selected_exams_list = st.multiselect("🎯 Select Courses:", options=semester_courses, default=semester_courses[:3], key="global_exams")
+        else:
+            selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
 
     st.markdown("---")
 
@@ -1450,7 +1484,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     else:
         st.markdown(f'<div style="border:1px solid #d3d3d3; padding: 20px; border-radius: 5px; margin-bottom: 20px; background-color: rgba(240, 242, 246, 0.3);">', unsafe_allow_html=True)
         st.markdown(f"##### 👥 Complete Section Processing Panel")
-        st.info(f"Ready to compile all student cards for **{sel_class_global} Year** under Section **{rendered_section}** ({sel_disc}).")
+        st.info(f"Ready to compile all student cards for **{sel_class_global}** under Section **{rendered_section}** ({sel_disc}).")
         
         submit_bulk = st.button("🚀 Compile All Section Cards", use_container_width=True, type="primary")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1492,7 +1526,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-        # 1. Performance Marks Fetching Segment (Robust Lowercasing + White Space Stripping)
+        # 1. Performance Marks Fetching Segment
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
@@ -1516,12 +1550,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Resilient Attendance Schema Scanner Segment (Fixes UndefinedColumn errors)
+        # 2. Resilient Attendance Scanner Segment
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
             
-            # Smart-scan schema identifiers to match alternative table setups
             if "attendance_date" in cols_att:
                 date_col = "attendance_date"
             elif "date_marked" in cols_att:
@@ -1563,9 +1596,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             except Exception as internal_err:
                 st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve. System Details: {str(internal_err)}")
 
-        # ==========================================
-        # 🛠️ QUIET LOGGING CHECKPOINT (INTERFACE CLEANED)
-        # ==========================================
         import logging
         logger = logging.getLogger("StreamlitApp")
         
@@ -1573,8 +1603,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             logger.warning("No marks data returned for the requested student configuration.")
         if attendance_df.empty:
             logger.warning("No attendance rows retrieved from database matching these student criteria.")
-        # ==========================================
-        # Flat CSS assignment avoids multi-line format evaluation parser issues completely
+
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
         css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
@@ -1635,7 +1664,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             grand_total_percentages = [0]
 
             if not marks_df.empty:
-                # Target slice marks records matching this active student ID key string safely
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
@@ -1650,7 +1678,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         valid_exams_count = 0
                         
                         for exam in selected_exams_list:
-                            match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+                            # Handle looking for either an Exam Code or a Semester Course Name column entry
+                            if academic_system == "Semester System":
+                                match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
+                            else:
+                                match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+                                
                             if not match_row.empty:
                                 try:
                                     obt = float(match_row.iloc[0]["marks_obtained"])
@@ -1671,8 +1704,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         row_tds += f"<td><strong>{sub_avg}%</strong></td>"
                         table_rows_html += f"<tr>{row_tds}</tr>"
                     
-                    # Core Framework Columns Aggregate Footer
-                    total_obt_tds = "<td style='text-align: left; padding-left: 8px;'><strong>Total Average %</strong></td>"
+                    # Columns Aggregate Footer
+                    total_title = "Overall Subject Avg %" if academic_system == "Semester System" else "Total Average %"
+                    total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
                     total_pct_accum = 0
                     total_counted = 0
                     
@@ -1692,9 +1726,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     total_obt_tds += f"<td><span style='font-size:14px;'><strong>{grand_avg}%</strong></span></td>"
                     total_row_html = f"<tr style='background-color:#fafafa;'>{total_obt_tds}</tr>"
 
-            # If student has no record inside database yet, append clean visual empty block indicators
             if not table_rows_html:
-                table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered exam performance records found.</td></tr>"
+                table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic performance records found.</td></tr>"
 
             # --- ATTENDANCE SYSTEM MATRIX ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
@@ -1705,24 +1738,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
             }
 
-            # Pre-initialize matrix structure fallback
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
                 
                 if not s_att.empty:
-                    # Flat assignment completely eliminates nested indentation alignment crashes
                     s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
 
-                    # Populate the calendar aggregation matrix dictionary safely
                     for m_name, m_num in month_map.items():
                         if 'attendance_date' in s_att.columns:
                             month_records = s_att[s_att['parsed_date'].dt.month == m_num]
                             t_days = len(month_records)
                             p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
                         else:
-                            # Safely read from your pre-compiled summary sync database records table instead
                             month_records = s_att[s_att['month_name'].astype(str).str.strip().str.lower() == m_name.lower()]
                             t_days = int(month_records['total_days'].sum()) if not month_records.empty else 0
                             p_days = int(month_records['present_days'].sum()) if not month_records.empty else 0
@@ -1730,7 +1759,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         if t_days > 0:
                             attendance_matrix[m_name] = {"total": t_days, "present": p_days}
 
-            # Generate the HTML cells directly mapping into the compiled matrix items
             for m_name in month_map.keys():
                 t_d = attendance_matrix[m_name].get("total", 0)
                 a_d = attendance_matrix[m_name].get("present", 0)
@@ -1759,6 +1787,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if grand_total_percentages and grand_total_percentages[-1] >= 85:
                 remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
 
+            column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
 
@@ -1776,12 +1805,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
                     <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
                     <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
-                    <div class="cck-meta-field">Class: <span class="cck-line-fill">{s_class}</span></div>
+                    <div class="cck-meta-field">Class / Term: <span class="cck-line-fill">{s_class}</span></div>
                 </div>
                 <table class="cck-report-table">
                     <thead>
                         <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
-                        <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">Subjects</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
+                        <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">{column_header_title}</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
                     </thead>
                     <tbody>{table_rows_html}{total_row_html}</tbody>
                 </table>
