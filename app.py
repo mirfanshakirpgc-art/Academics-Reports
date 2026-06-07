@@ -1744,8 +1744,7 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ==========================================
             # 1. INITIALIZE SEGMENTED HTML COMPONENTS
             # ==========================================
-            # Stripped of all CSS configuration to guarantee Python compilation success.
-            # The style properties are injected dynamically via JavaScript at the tail end.
+            # Emojis stripped out completely to bypass file encoding/unicode compiler crashes.
             html_header = """<!DOCTYPE html>
 <html>
 <head>
@@ -1754,9 +1753,9 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 </head>
 <body>
 <div class="action-controls-bar">
-<button class="print-btn" onclick="window.print();">🖨️ Print Document (Ctrl+P)</button>
-<button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
-<button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
+<button class="print-btn" onclick="window.print();">Print Document (Ctrl+P)</button>
+<button class="image-single-btn" id="save-single-card-trigger">Save Current Card as Picture</button>
+<button class="image-section-btn" id="save-section-cards-trigger">Save Complete Section Cards (ZIP)</button>
 </div>
 """
 
@@ -1979,8 +1978,6 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
             # ==========================================
             # 3. INTERACTIVE JAVASCRIPT EXPORT CONTROLLERS
             # ==========================================
-            # Styles are fully safely encoded inside JavaScript strings. 
-            # Python completely ignores JavaScript layout internals.
             html_footer = """
 <script>
 const stylingRules = `
@@ -2044,7 +2041,7 @@ document.getElementById('save-section-cards-trigger').addEventListener('click', 
     
     const actionBtn = this;
     const primaryLabel = actionBtn.innerText;
-    actionBtn.innerText = "⏳ Generating Archive Images...";
+    actionBtn.innerText = "Generating Archive Images...";
     actionBtn.disabled = true;
     
     const archiveBundle = new JSZip();
