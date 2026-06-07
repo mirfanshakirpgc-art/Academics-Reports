@@ -1582,7 +1582,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # Strict Document CSS Blueprint Engine
+        # Strict Document CSS Blueprint Engine (Updated for Header Separation)
         css_rules = """
         body { background-color: #ffffff; margin: 0; padding: 20px; color: #000000; font-family: 'Arial', sans-serif; }
         
@@ -1592,14 +1592,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
         
         .cck-container { background-color: #ffffff; border: 2px solid #000000 !important; padding: 40px; margin: 20px auto; max-width: 950px; box-sizing: border-box; page-break-after: always; display: block !important; position: relative; }
         
-        .cck-header-wrapper { position: relative; margin-bottom: 20px; min-height: 70px; display: block; }
-        .cck-logo-image-container { position: absolute; left: 0; top: 0; width: 140px; }
+        /* Fixed Header Spacing to isolate Logo from Central Title */
+        .cck-header-wrapper { position: relative; margin-bottom: 25px; min-height: 85px; display: block; width: 100%; text-align: center; }
+        .cck-logo-image-container { position: absolute; left: 0; top: 0; width: 125px; display: inline-block; z-index: 10; }
         .cck-logo-image { width: 100%; height: auto; object-fit: contain; }
-        .cck-title-block { text-align: center; margin-top: 5px; margin-bottom: 15px; }
-        .cck-main-title { font-size: 30px; font-weight: bold; margin: 0; text-align: center; color: #000000; letter-spacing: 1px; text-transform: uppercase; line-height: 1.2; }
         
-        .cck-badge-wrapper { text-align: center; margin: 25px 0 20px 0; }
-        .cck-doc-badge { display: inline-block; background-color: #cfd8dc !important; color: #000000; font-weight: bold; font-size: 15px; padding: 6px 30px; border-radius: 4px; border: 1px solid #000000 !important; text-transform: capitalize; }
+        /* Pushed Down and Cleanly Centered Title block */
+        .cck-title-block { display: block; text-align: center; width: 100%; padding-top: 25px; margin: 0 auto; }
+        .cck-main-title { font-size: 28px; font-weight: bold; margin: 0; text-align: center; color: #000000; letter-spacing: 1.5px; text-transform: uppercase; line-height: 1.2; display: inline-block; }
+        
+        /* Perfectly Centered Badge layout */
+        .cck-badge-wrapper { width: 100%; text-align: center; margin: 25px auto 20px auto; display: block; clear: both; }
+        .cck-doc-badge { display: inline-block; background-color: #cfd8dc !important; color: #000000; font-weight: bold; font-size: 15px; padding: 6px 35px; border-radius: 4px; border: 1px solid #000000 !important; text-transform: capitalize; margin: 0 auto; text-align: center; }
         
         .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 30px; font-size: 16px; row-gap: 16px; color: #000000; }
         .cck-meta-field { font-weight: normal; width: 48%; display: inline-flex; align-items: flex-end; }
