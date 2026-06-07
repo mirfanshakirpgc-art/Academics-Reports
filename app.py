@@ -1752,7 +1752,7 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
             # ==========================================
             # 2. ITERATIVE DATA PROCESSING ENGINE (LOOP)
             # ==========================================
-            html_cards_body = ""
+            cards_list = []
             
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
@@ -1769,7 +1769,6 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                 
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
                 
-                # Fixed: SQL strings are written flatly to deny indentation syntax processing
                 q_marks = "SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id"
                 raw_marks = run_query(q_marks, {"id": current_id})
                 
@@ -1805,7 +1804,7 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                 student_failed_any_subject = False
                 has_valid_marks_data = False
 
-                table_rows_html = ""
+                table_rows_list = []
                 for sub in subjects_list:
                     match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'] == selected_test)]
                     obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
@@ -1842,7 +1841,17 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                         
                     style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
                     
-                    table_rows_html += f"<tr><td style=\"text-align: left; font-weight: bold; padding-left: 10px;\">{sub}</td><td style=\"{style_override}\">{obt_disp}</td><td style=\"{style_override}\">{tot_marks_num if obt_disp != 'NC' else 'NC'}</td><td style=\"{style_override}\">{pass_marks_num if obt_disp != 'NC' else 'NC'}</td><td style=\"{style_override}\">{per_disp}</td><td style=\"font-weight: bold; {style_override}\">{status_disp}</td></tr>"
+                    row_str = "<tr>"
+                    row_str += "<td style=\"text-align: left; font-weight: bold; padding-left: 10px;\">" + str(sub) + "</td>"
+                    row_str += "<td style=\"" + style_override + "\">" + str(obt_disp) + "</td>"
+                    row_str += "<td style=\"" + style_override + "\">" + (str(tot_marks_num) if obt_disp != "NC" else "NC") + "</td>"
+                    row_str += "<td style=\"" + style_override + "\">" + (str(pass_marks_num) if obt_disp != "NC" else "NC") + "</td>"
+                    row_str += "<td style=\"" + style_override + "\">" + str(per_disp) + "</td>"
+                    row_str += "<td style=\"font-weight: bold; " + style_override + "\">" + str(status_disp) + "</td>"
+                    row_str += "</tr>"
+                    table_rows_list.append(row_str)
+
+                table_rows_html = "".join(table_rows_list)
 
                 grand_per_disp = ""
                 grand_status_disp = ""
@@ -1869,8 +1878,40 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                             else:
                                 remarks_text = "Fair performance. Has passed all subjects but possesses significant potential to increase scores."
 
-                # Flattened row HTML items to protect compilation execution structure
-                html_cards_body += f"""<div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}"><div class="header-block"><div class="logo-row"><img class="logo-img" src="{logo_base64}" alt="Concordia Logo"></div><div class="inst-main-header">CONCORDIA COLLEGE KASUR</div></div><div class="doc-type-banner"> Result Card</div><table class="meta-layout-table"><tr><td style="width: 40%;"> Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td><td style="width: 14%;"> ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td><td style="width: 16%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td><td style="width: 14%;"> Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td><td style="width: 16%;"> Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td></tr></table><table class="doc-data-table"><thead><tr><th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th><th style="width: 13%;">Obt. Marks</th><th style="width: 13%;">Total Marks</th><th style="width: 13%;">Pass Marks</th><th style="width: 13%;">Age%</th><th style="width: 13%;">Status</th></tr></thead><tbody>{table_rows_html}<tr style="background-color: #fff; font-weight: bold;"><td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td><td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td><td>{int(grand_total_marks)}</td><td>-</td><td>{grand_per_disp}</td><td>{grand_status_disp}</td></tr></tbody></table><div class="section-header-title">Attendance Report</div><table class="attendance-matrix-table"><thead><tr><th style="width: 12%;">Metric</th>{"".join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}<th style="width: 11%;">Over All Att.</th></tr></thead><tbody><tr><td class="row-title-cell">Total Days</td>{"".join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}<td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td></tr><tr><td class="row-title-cell">Att. Days</td>{"".join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}<td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td></tr><tr><td class="row-title-cell">Age%</td>{"".join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}<td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td></tr></tbody></table><div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span></div><table class="footer-signatures-table"><tr><td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td><td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td></tr></table></div><div class="print-page-break-divider"></div>"""
+                # Building the card block using standard concatenation to avoid triple-quote parser errors entirely
+                g_obt_str = str(int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks)
+                sanitized_name = name.replace(' ', '_')
+                
+                c = "<div class=\"official-card-container\" id=\"card-" + str(current_id) + "\" data-student-name=\"" + sanitized_name + "\">"
+                c += "<div class=\"header-block\"><div class=\"logo-row\"><img class=\"logo-img\" src=\"" + logo_base64 + "\" alt=\"Logo\"></div>"
+                c += "<div class=\"inst-main-header\">CONCORDIA COLLEGE KASUR</div></div><div class=\"doc-type-banner\"> Result Card</div>"
+                c += "<table class=\"meta-layout-table\"><tr>"
+                c += "<td style=\"width: 40%;\"> Name: <span class=\"underlined-value-span\" style=\"width: 82%;\">" + name + "</span></td>"
+                c += "<td style=\"width: 14%;\"> ID: <span class=\"underlined-value-span\" style=\"width: 68%;\">" + str(current_id) + "</span></td>"
+                c += "<td style=\"width: 16%;\"> Section: <span class=\"underlined-value-span\" style=\"width: 55%;\">" + section + "</span></td>"
+                c += "<td style=\"width: 14%;\"> Class: <span class=\"underlined-value-span\" style=\"width: 55%;\">" + grade_class + "</span></td>"
+                c += "<td style=\"width: 16%;\"> Test: <span class=\"underlined-value-span\" style=\"width: 65%;\">" + test_name + "</span></td>"
+                c += "</tr></table>"
+                c += "<table class=\"doc-data-table\"><thead><tr>"
+                c += "<th style=\"text-align: left; width: 35%; padding-left: 10px;\">Subjects</th><th style=\"width: 13;\">Obt. Marks</th><th style=\"width: 13%;\">Total Marks</th><th style=\"width: 13%;\">Pass Marks</th><th style=\"width: 13%;\">Age%</th><th style=\"width: 13%;\">Status</th>"
+                c += "</tr></thead><tbody>" + table_rows_html
+                c += "<tr style=\"background-color: #fff; font-weight: bold;\"><td style=\"text-align: left; padding-left: 10px;\">GRAND TOTAL</td>"
+                c += "<td>" + g_obt_str + "</td><td>" + str(int(grand_total_marks)) + "</td><td>-</td><td>" + grand_per_disp + "</td><td>" + grand_status_disp + "</td></tr></tbody></table>"
+                c += "<div class=\"section-header-title\">Attendance Report</div><table class=\"attendance-matrix-table\"><thead><tr><th style=\"width: 12%;\">Metric</th>"
+                c += "".join([("<th style=\"width: 6.7%;\">" + str(m) + "</th>") for m in AVAILABLE_MONTHS])
+                c += "<th style=\"width: 11%;\">Over All Att.</th></tr></thead><tbody><tr><td class=\"row-title-cell\">Total Days</td>"
+                c += "".join([("<td>" + str(att_cells[m]["td"]) + "</td>") for m in AVAILABLE_MONTHS])
+                c += "<td style=\"font-weight: bold;\">" + str(att_cells["Over All Att."]["td"]) + "</td></tr><tr><td class=\"row-title-cell\">Att. Days</td>"
+                c += "".join([("<td>" + str(att_cells[m]["pd"]) + "</td>") for m in AVAILABLE_MONTHS])
+                c += "<td style=\"font-weight: bold;\">" + str(att_cells["Over All Att."]["pd"]) + "</td></tr><tr><td class=\"row-title-cell\">Age%</td>"
+                c += "".join([("<td>" + str(att_cells[m]["pct"]) + "</td>") for m in AVAILABLE_MONTHS])
+                c += "<td style=\"font-weight: bold;\">" + str(att_cells["Over All Att."]["pct"]) + "</td></tr></tbody></table>"
+                c += "<div style=\"font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;\">Remarks: <span style=\"font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;\">" + remarks_text + "</span></div>"
+                c += "<table class=\"footer-signatures-table\"><tr><td style=\"text-align: left; width: 50%; visibility: hidden;\"><span class=\"sig-marker-line\">Class Incharge</span></td><td style=\"text-align: right; width: 50%;\"><span class=\"sig-marker-line\">Principal Sign</span></td></tr></table></div><div class=\"print-page-break-divider\"></div>"
+                
+                cards_list.append(c)
+
+            html_cards_body = "".join(cards_list)
 
             # ==========================================
             # 3. INTERACTIVE JAVASCRIPT EXPORT CONTROLLERS
