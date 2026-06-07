@@ -1839,7 +1839,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
                 # Fetch full complete sequence ledger dataset for horizontal formatting table matrix reconstruction
-                db_att = run_query("""
+                db_att = run_query(
                     SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
                     FROM attendance WHERE student_id = :id
                 """, {"id": current_id})
