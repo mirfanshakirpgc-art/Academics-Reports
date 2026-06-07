@@ -1697,7 +1697,7 @@ for index, s_meta in enumerate(students_to_process):
 # ==============================================================================
 # PART 4: FRAMEWORK INJECTION CLOSURE & CLEAN RENDERING VIA STREAMLIT
 # ==============================================================================
-composite_html_payload += """
+composite_html_payload += ""
     </div> 
     <script>
     function executeTargetPrint(isSingleTarget) {
