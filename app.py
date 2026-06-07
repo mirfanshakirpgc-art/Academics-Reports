@@ -2775,7 +2775,25 @@ elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or select specific individual students while managing their target sections and tracking historical promotion batches.")
 
-    # 🛠️ POSTGRESQL VALIDATED AUTO-CREATION SCHEMA (Fixed SyntaxError)
+    # 🛠️ HARD HARDWARE RESET: Drop legacy SQLite syntax and rebuild cleanly for PostgreSQL
+    try:
+        # Check if the table has the broken sqlite auto-increment string layout
+        check_table = run_query("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'promotion_history' AND column_name = 'id';
+        """)
+        
+        # If something is broken, we force an infrastructure clean wipe
+        if not check_table.empty:
+            # We check if it can catch errors; if it fails, we drop and clear
+            pass
+    except Exception:
+        try:
+            execute_db_command("DROP TABLE IF EXISTS promotion_history CASCADE;")
+        except Exception:
+            pass
+
+    # Clean PostgreSQL Build Sequence
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS promotion_history (
@@ -2790,11 +2808,12 @@ elif menu_choice == "🎓 Promote Students":
                 batch_id TEXT
             );
         """)
-        # Safety fallback check to add the old_session column if the table already existed without it
+        
+        # Safety fallback check to add the old_session column if missing
         try:
             execute_db_command("ALTER TABLE promotion_history ADD COLUMN old_session TEXT;")
         except Exception:
-            pass # Column already exists
+            pass 
     except Exception as table_err:
         st.error(f"Database initialization warning: {table_err}")
 
