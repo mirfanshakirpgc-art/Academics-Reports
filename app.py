@@ -1467,47 +1467,33 @@ except Exception as e:
 
 
 # ==============================================================================
-# PART 2: UI LAYOUT SETUP & CARD HEADER BASELINE
+# PART 2: UI LAYOUT SETUP & STYLESHEET CONFIGURATION
 # ==============================================================================
-# Strict Document CSS Blueprint Engine
 css_rules = """
 body { background-color: #ffffff; margin: 0; padding: 20px; color: #000000; font-family: 'Arial', sans-serif; }
-
 .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 900px; margin: 10px auto 25px auto; }
 .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .btn-print-single { background-color: #2e7d32; } .btn-print-bulk { background-color: #1565c0; } .btn-img-single { background-color: #e65100; } .btn-img-bulk { background-color: #6a1b9a; }
-
 .cck-container { background-color: #ffffff; border: 2px solid #000000 !important; padding: 40px; margin: 20px auto; max-width: 950px; box-sizing: border-box; page-break-after: always; display: block !important; position: relative; }
-
-/* Fixed Header Spacing to isolate Logo from Central Title */
 .cck-header-wrapper { position: relative; margin-bottom: 25px; min-height: 85px; display: block; width: 100%; text-align: center; }
 .cck-logo-image-container { position: absolute; left: 0; top: 0; width: 125px; display: inline-block; z-index: 10; }
 .cck-logo-image { width: 100%; height: auto; object-fit: contain; }
-
-/* Pushed Down and Cleanly Centered Title block */
 .cck-title-block { display: block; text-align: center; width: 100%; padding-top: 25px; margin: 0 auto; }
 .cck-main-title { font-size: 28px; font-weight: bold; margin: 0; text-align: center; color: #000000; letter-spacing: 1.5px; text-transform: uppercase; line-height: 1.2; display: inline-block; }
-
-/* Perfectly Centered Badge layout */
 .cck-badge-wrapper { width: 100%; text-align: center; margin: 25px auto 20px auto; display: block; clear: both; }
 .cck-doc-badge { display: inline-block; background-color: #cfd8dc !important; color: #000000; font-weight: bold; font-size: 15px; padding: 6px 35px; border-radius: 4px; border: 1px solid #000000 !important; text-transform: capitalize; margin: 0 auto; text-align: center; }
-
 .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 30px; font-size: 16px; row-gap: 16px; color: #000000; }
 .cck-meta-field { font-weight: normal; width: 48%; display: inline-flex; align-items: flex-end; }
 .cck-line-fill { border-bottom: 1px solid #000000 !important; flex-grow: 1; padding-left: 5px; font-weight: bold; padding-bottom: 2px; }
-
 .cck-report-table { width: 100%; border-collapse: collapse !important; border: 1px solid #000000 !important; margin-bottom: 30px; font-size: 14px; background-color: #ffffff; color: #000000; }
 .cck-report-table th, .cck-report-table td { border: 1px solid #000000 !important; padding: 10px 6px !important; text-align: center; vertical-align: middle; box-sizing: border-box; }
 .cck-report-table th { background-color: #ffffff !important; font-weight: bold; font-size: 14px; text-transform: uppercase; }
 .cck-report-table td:first-child { text-align: left !important; padding-left: 12px !important; font-weight: bold; text-transform: uppercase; width: 28%; }
 .cck-report-table tr:last-child td { font-weight: bold; }
-
 .cck-remarks-area { margin-top: 60px; font-size: 15px; display: flex; align-items: flex-end; color: #000000; width: 100%; }
 .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000 !important; margin-left: 10px; padding-left: 8px; padding-bottom: 2px; font-style: italic; }
 .cck-footer-sign { margin-top: 50px; text-align: right; font-size: 15px; font-weight: bold; padding-right: 15px; color: #000000; text-transform: capitalize; }
-
 .cck-single-print-hide { display: none !important; }
-
 @media print { 
     .action-dashboard-panel { display: none !important; } 
     body { padding: 0; margin: 0; }
@@ -1517,7 +1503,6 @@ body { background-color: #ffffff; margin: 0; padding: 20px; color: #000000; font
 """
 css_styles = f"<style>{css_rules}</style>".replace('\xa0', ' ')
 
-# Initialize Container Wrappers
 composite_html_payload = f"""
 <html>
 <head>
@@ -1536,9 +1521,8 @@ composite_html_payload = f"""
 
 
 # ==============================================================================
-# PART 3: MAIN LOOP PROCESSING (MARKS, ATTENDANCE, AND CANVAS PACKAGING)
+# PART 3: REPETITIVE GENERATION LOOP (STUDENT CARD DOM BLOCKS)
 # ==============================================================================
-# Loop Over Selected Records to Output Each Unique Sheet Card
 for index, s_meta in enumerate(students_to_process):
     s_id = str(s_meta["id"]).strip()
     raw_name = str(s_meta["name"])
@@ -1556,7 +1540,6 @@ for index, s_meta in enumerate(students_to_process):
 
     if not marks_df.empty:
         s_marks = marks_df[marks_df["student_id"] == s_id].copy()
-        
         if not s_marks.empty:
             distinct_subjects = sorted(s_marks["subject_name"].unique())
             exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -1605,7 +1588,6 @@ for index, s_meta in enumerate(students_to_process):
                 row_tds += f"<td><strong>{sub_avg}%</strong></td>"
                 table_rows_html += f"<tr>{row_tds}</tr>"
 
-            # Summary Row Calculations
             total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
             total_obt_tds = f"<td><strong>{total_title}</strong></td>"
             total_pct_accum = 0
@@ -1630,10 +1612,9 @@ for index, s_meta in enumerate(students_to_process):
     if not table_rows_html:
         table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
-    # --- ATTENDANCE PROCESSING ---
+    # --- ATTENDANCE HANDLING ---
     tot_days_row, att_days_row, pct_days_row = "", "", ""
     overall_tot_days, overall_att_days = 0, 0
-
     month_map = {
         "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
         "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
@@ -1644,7 +1625,6 @@ for index, s_meta in enumerate(students_to_process):
         s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
         if not s_att.empty:
             s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
-
             for m_name, m_num in month_map.items():
                 if 'attendance_date' in s_att.columns:
                     month_records = s_att[s_att['parsed_date'].dt.month == m_num]
@@ -1654,7 +1634,6 @@ for index, s_meta in enumerate(students_to_process):
                     month_records = s_att[s_att['month_name'].astype(str).str.strip().str.lower() == m_name.lower()]
                     t_days = int(month_records['total_days'].sum()) if not month_records.empty else 0
                     p_days = int(month_records['present_days'].sum()) if not month_records.empty else 0
-
                 if t_days > 0:
                     attendance_matrix[m_name] = {"total": t_days, "present": p_days}
 
@@ -1663,7 +1642,6 @@ for index, s_meta in enumerate(students_to_process):
         a_d = attendance_matrix[m_name].get("present", 0)
         overall_tot_days += t_d
         overall_att_days += a_d
-
         tot_days_row += f"<td>{f'{t_d:02d}' if t_d > 0 else '-'}</td>"
         att_days_row += f"<td>{f'{a_d:02d}' if t_d > 0 else '-'}</td>"
         pct_days_row += f"<td>{f'{int((a_d/t_d)*100)}%' if t_d > 0 else '-'}</td>"
@@ -1688,7 +1666,6 @@ for index, s_meta in enumerate(students_to_process):
     l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
     logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
 
-    # Append Individual Card Framework to Payload
     composite_html_payload += f"""
     <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
         <div class="cck-header-wrapper">
@@ -1706,7 +1683,7 @@ for index, s_meta in enumerate(students_to_process):
             <thead>
                 <tr><th style="width: 28%;"></th>{thead_exams_th}<th></th></tr>
                 <tr><th style="text-align: left; padding-left: 12px;">{column_header_title}</th>{thead_sub_tds}<td>Avg.%</td></tr>
-            </thead >
+            </thead>
             <tbody>{table_rows_html}{total_row_html}</tbody>
         </table>
         <div class="cck-badge-wrapper" style="margin-top: 35px; margin-bottom: 15px;"><div class="cck-doc-badge" style="background-color: transparent !important; font-size: 15px; border: none !important; text-decoration: underline; text-transform: uppercase;">Attendance Report</div></div>
@@ -1725,8 +1702,10 @@ for index, s_meta in enumerate(students_to_process):
     </div>
     """
 
-# ⚠️ CRITICAL CLOSURE: Finalize Payload Script Controls and Render Component
-# (This finishes the 'for' loop cleanly so it doesn't leak into subsequent code blocks)
+
+# ==============================================================================
+# PART 4: FRAMEWORK CLOSURE & COMPONENT RENDERING
+# ==============================================================================
 composite_html_payload += """
     </div> 
     <script>
@@ -1770,6 +1749,7 @@ composite_html_payload += """
 </html>
 """
 
+# Clean any weird character encodings and inject into frame component
 composite_html_payload = composite_html_payload.replace('\xa0', ' ')
 st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 
