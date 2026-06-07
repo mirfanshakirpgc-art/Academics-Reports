@@ -2774,7 +2774,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
 import uuid
 from datetime import datetime
 
-elif menu_choice == "🎓 Promote Students":
+    elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
 
