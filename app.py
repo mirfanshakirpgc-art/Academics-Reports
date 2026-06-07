@@ -1543,7 +1543,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-       # 1. Performance Marks Fetching Segment
+       The "NO REGISTERED ACADEMIC RECORDS FOUND" empty card issue is happening because the filtering logic is currently **too strict** for your database naming conventions.
+
+When looking closely at your database structure and sample results:
+
+1. Your database uses shorthand strings for compulsory subjects like **`ISL_ETH`** or **`ISLAMIAT`**, and **`T_QURAN`** instead of `TARJUMA-TUL-QURAN`.
+2. Your section prefixes use codes like **`CQ1`** (which stands for an ICS track) or **`IB`** (which stands for I.Com). Because the previous code did not recognize `CQ` or `IB`, it left the `allowed_electives` list empty, wiping out the card.
+
+Let's fix this by broadening our keyword matching to support **`CQ`**, **`IB`**, and mapping variations of subject names so your data loads perfectly.
+
+### The Complete Integrated Replacement Code
+
+Replace the entire snippet you provided with this optimized version:
+
+```python
+        # 1. Performance Marks Fetching Segment
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
@@ -1565,46 +1579,67 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
                 marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
                 
-                # --- DYNAMIC 11th vs 12th COMPULSORY SUBJECTS ---
+                # --- DYNAMIC 11th vs 12th COMPULSORY SUBJECTS (WITH VARIATIONS) ---
                 class_clean = str(sel_class_global).strip()
                 if "12" in class_clean:
-                    compulsory_subs = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "TARJUMA-TUL-QURAN"]
+                    compulsory_subs = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "PAK STUDIES", "TARJUMA-TUL-QURAN", "T_QURAN"]
                 else:
-                    compulsory_subs = ["ENGLISH", "URDU", "ISLAMIAT", "TARJUMA-TUL-QURAN"]
+                    compulsory_subs = ["ENGLISH", "URDU", "ISLAMIAT", "ISL_ETH", "TARJUMA-TUL-QURAN", "T_QURAN"]
                 
                 # --- STRATEGIC DISCIPLINE ELECTIVE FILTERING ---
                 section_clean = str(rendered_section).upper()
                 allowed_electives = []
                 
-                if "PRE-MED" in section_clean or "MG_" in section_clean:
+                # Pre-Medical Mapping
+                if "PRE-MED" in section_clean or "MG_" in section_clean or "MD" in section_clean:
                     allowed_electives = ["BIOLOGY", "CHEMISTRY", "PHYSICS"]
-                elif "PRE-ENG" in section_clean or "EG_" in section_clean:
-                    allowed_electives = ["MATHEMATICS", "CHEMISTRY", "PHYSICS"]
-                elif "ICS_PHYSICS" in section_clean or ("CG_" in section_clean and "STAT" not in section_clean):
-                    allowed_electives = ["COMPUTER", "MATHEMATICS", "PHYSICS"]
-                elif "ICS_STATS" in section_clean or "STATS" in section_clean or "STAT" in section_clean:
-                    allowed_electives = ["COMPUTER", "MATHEMATICS", "STATISTICS"]
-                elif "ICOM" in section_clean or "CB_" in section_clean:
-                    if "12" in class_clean:
-                        allowed_electives = ["ACCOUNTING", "COMMERCIAL GEOGRAPHY", "ECONOMICS", "BUSINESS STATISTICS"]
-                    else:
-                        allowed_electives = ["ACCOUNTING", "PRINCIPLES OF COMMERCE", "ECONOMICS", "BUSINESS MATH"]
                 
-                # Combine and strictly filter records
+                # Pre-Engineering Mapping
+                elif "PRE-ENG" in section_clean or "EG_" in section_clean or "EN" in section_clean:
+                    allowed_electives = ["MATHEMATICS", "MATH", "CHEMISTRY", "PHYSICS"]
+                
+                # ICS Physics Mapping (Handles CQ codes as ICS Physics baseline)
+                elif "ICS_PHYSICS" in section_clean or "CQ" in section_clean or ("CG_" in section_clean and "STAT" not in section_clean):
+                    allowed_electives = ["COMPUTER", "COMP", "MATHEMATICS", "MATH", "PHYSICS"]
+                
+                # ICS Stats Mapping
+                elif "ICS_STATS" in section_clean or "STATS" in section_clean or "STAT" in section_clean:
+                    allowed_electives = ["COMPUTER", "COMP", "MATHEMATICS", "MATH", "STATISTICS", "STATS"]
+                
+                # I.Com Mapping (Handles IB codes explicitly)
+                elif "ICOM" in section_clean or "CB_" in section_clean or "IB" in section_clean:
+                    if "12" in class_clean:
+                        allowed_electives = ["ACCOUNTING", "COMMERCIAL GEOGRAPHY", "ECONOMICS", "BUSINESS STATISTICS", "B_STATS"]
+                    else:
+                        allowed_electives = ["ACCOUNTING", "PRINCIPLES OF COMMERCE", "COMMERCE", "ECONOMICS", "BUSINESS MATH", "B_MATH"]
+                
+                # Clean up and normalize database strings to match our whitelist rules
                 if allowed_electives or compulsory_subs:
-                    all_allowed_subs = compulsory_subs + allowed_electives
-                    marks_df = marks_df[marks_df["subject_name"].str.upper().isin([s.upper() for s in all_allowed_subs])]
+                    all_allowed_subs = [s.upper() for s in (compulsory_subs + allowed_electives)]
+                    
+                    # Custom matching layer to handle database shortcuts (e.g. COMP matching COMPUTER)
+                    def is_valid_subject(sub_name):
+                        s_norm = str(sub_name).upper().strip()
+                        if s_norm in all_allowed_subs:
+                            return True
+                        # Fuzzy structural check for common shorthand variants
+                        if "COMP" in s_norm and "COMPUTER" in all_allowed_subs: return True
+                        if "MATH" in s_norm and "MATHEMATICS" in all_allowed_subs: return True
+                        if "STAT" in s_norm and "STATISTICS" in all_allowed_subs: return True
+                        return False
+
+                    marks_df = marks_df[marks_df["subject_name"].apply(is_valid_subject)]
 
                 # 🔄 TRACK-MIGRATION LAYER: Merge Chemistry into Computer for Track Shifters
                 marks_df["is_migration_subject"] = False
                 shifter_ids = []
                 for s_id in marks_df["student_id"].unique():
                     s_subs = marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().values
-                    if "COMPUTER" in s_subs and "CHEMISTRY" in s_subs:
+                    if any("COMP" in sub for sub in s_subs) and any("CHEM" in sub for sub in s_subs):
                         shifter_ids.append(s_id)
                 
                 if shifter_ids:
-                    chem_mask = (marks_df["student_id"].isin(shifter_ids)) & (marks_df["subject_name"].str.upper() == "CHEMISTRY")
+                    chem_mask = (marks_df["student_id"].isin(shifter_ids)) & (marks_df["subject_name"].str.upper().str.contains("CHEM"))
                     marks_df.loc[chem_mask, "is_migration_subject"] = True
                     marks_df.loc[chem_mask, "subject_name"] = "COMPUTER"
                     
@@ -1768,147 +1803,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
-            # --- ATTENDANCE REPORT MATRIX ---
-            tot_days_row, att_days_row, pct_days_row = "", "", ""
-            overall_tot_days, overall_att_days = 0, 0
 
-            month_map = {
-                "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
-                "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
-            }
-            attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
-
-            if not attendance_df.empty:
-                s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
-                if not s_att.empty:
-                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
-
-                    for m_name, m_num in month_map.items():
-                        if 'attendance_date' in s_att.columns:
-                            month_records = s_att[s_att['parsed_date'].dt.month == m_num]
-                            t_days = len(month_records)
-                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
-                        else:
-                            month_records = s_att[s_att['month_name'].astype(str).str.strip().str.lower() == m_name.lower()]
-                            t_days = int(month_records['total_days'].sum()) if not month_records.empty else 0
-                            p_days = int(month_records['present_days'].sum()) if not month_records.empty else 0
-
-                        if t_days > 0:
-                            attendance_matrix[m_name] = {"total": t_days, "present": p_days}
-
-            for m_name in month_map.keys():
-                t_d = attendance_matrix[m_name].get("total", 0)
-                a_d = attendance_matrix[m_name].get("present", 0)
-                overall_tot_days += t_d
-                overall_att_days += a_d
-
-                tot_days_row += f"<td>{f'{t_d:02d}' if t_d > 0 else '-'}</td>"
-                att_days_row += f"<td>{f'{a_d:02d}' if t_d > 0 else '-'}</td>"
-                pct_days_row += f"<td>{f'{int((a_d/t_d)*100)}%' if t_d > 0 else '-'}</td>"
-            
-            if overall_tot_days > 0:
-                tot_days_row += f"<td>{overall_tot_days:02d}</td>"
-                att_days_row += f"<td>{overall_att_days:02d}</td>"
-                pct_days_row += f"<td><strong>{int((overall_att_days / overall_tot_days) * 100)}%</strong></td>"
-            else:
-                tot_days_row += "<td>-</td>"
-                att_days_row += "<td>-</td>"
-                pct_days_row += "<td><strong>0%</strong></td>"
-
-            remarks_text = "Satisfactory academic progress observed."
-            if grand_total_percentages and grand_total_percentages[-1] >= 85:
-                remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
-
-            column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
-            thead_exams_th = "".join([f"<th>{exam}</th>" for exam in selected_exams_list])
-            thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
-
-            l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
-            logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
-
-            # Build HTML Layout Wrapper Injection Payload
-            composite_html_payload += f"""
-            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
-                <div class="cck-header-wrapper">
-                    <div class="cck-logo-image-container">{logo_markup}</div>
-                    <div class="cck-title-block"><div class="cck-main-title">CONCORDIA COLLEGE KASUR</div></div>
-                </div>
-                <div class="cck-badge-wrapper"><div class="cck-doc-badge">Result Card</div></div>
-                <div class="cck-meta-row">
-                    <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
-                    <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
-                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
-                    <div class="cck-meta-field">Class / Term: <span class="cck-line-fill">{s_class}</span></div>
-                </div>
-                <table class="cck-report-table">
-                    <thead>
-                        <tr><th style="width: 28%;"></th>{thead_exams_th}<th></th></tr>
-                        <tr><th style="text-align: left; padding-left: 12px;">{column_header_title}</th>{thead_sub_tds}<td>Avg.%</td></tr>
-                    </thead>
-                    <tbody>{table_rows_html}{total_row_html}</tbody>
-                </table>
-                <div class="cck-badge-wrapper" style="margin-top: 35px; margin-bottom: 15px;"><div class="cck-doc-badge" style="background-color: transparent !important; font-size: 15px; border: none !important; text-decoration: underline; text-transform: uppercase;">Attendance Report</div></div>
-                <table class="cck-report-table" style="font-size: 12px;">
-                    <thead>
-                        <tr><th style="width: 16%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th>Over All Att.</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>Total Days</td>{tot_days_row}</tr>
-                        <tr><td>Att. Days</td>{att_days_row}</tr>
-                        <tr><td>Age%</td>{pct_days_row}</tr>
-                    </tbody>
-                </table>
-                <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
-                <div class="cck-footer-sign"><strong>Principal Sign</strong></div>
-            </div>
-            """
-        
-        # Close out Master Frame Wrapper and Include JavaScript Engine
-        composite_html_payload += """
-            </div> 
-            <script>
-            function executeTargetPrint(isSingleTarget) {
-                var cards = document.querySelectorAll('.student-card-record');
-                if (cards.length === 0) return;
-                cards.forEach(function(card, idx) {
-                    if (isSingleTarget) {
-                        if (idx === 0) { card.classList.remove('cck-single-print-hide'); }
-                        else { card.classList.add('cck-single-print-hide'); }
-                    } else { card.classList.remove('cck-single-print-hide'); }
-                });
-                setTimeout(function() { window.print(); }, 200);
-            }
-
-            function exportDossierToImage(isSingleTarget) {
-                var cards = document.querySelectorAll('.student-card-record');
-                if (cards.length === 0) { alert('No student cards available.'); return; }
-                var targetList = [];
-                if (isSingleTarget) { targetList.push(cards[0]); } 
-                else { cards.forEach(function(c) { targetList.push(c); }); }
-                triggerImageCaptureSequence(targetList, 0);
-            }
-
-            function triggerImageCaptureSequence(targetList, currentIndex) {
-                if (currentIndex >= targetList.length) return;
-                var element = targetList[currentIndex];
-                var studName = element.getAttribute('data-name') || 'student';
-                var studId = element.getAttribute('data-id') || 'id';
-                
-                html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
-                    var link = document.createElement('a');
-                    link.download = 'Result_Card_' + studName + '_' + studId + '.png';
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
-                    setTimeout(function() { triggerImageCaptureSequence(targetList, currentIndex + 1); }, 500);
-                });
-            }
-            </script>
-        </body>
-        </html>
-        """
-        
-        composite_html_payload = composite_html_payload.replace('\xa0', ' ')
-        st.components.v1.html(composite_html_payload, height=900, scrolling=True)
+```
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
