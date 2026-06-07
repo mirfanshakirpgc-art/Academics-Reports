@@ -531,7 +531,8 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     if entry_mode == "📋 By Complete Section":
-        c1, c0, c2, c3, c4 = st.columns([1.5, 1.5, 2, 1.5, 2])
+        # Rearranged matrix to comfortably balance layout spacing without the department column
+        c1, c0, c2, c3 = st.columns([2, 2, 2.5, 2.5])
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
@@ -549,7 +550,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 with c0: academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")
                 with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
                 with c3: sel_section = st.selectbox("Select Section:", allowed_secs, key="entry_sec_filter_teacher")
-                with c4: st.info("🔒 Bound to Profile")
                 sel_class = "ALL"
             else:
                 st.warning("🚨 You do not have any active subjects or sections assigned yet.")
@@ -569,14 +569,15 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
                     if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
-
-            with c3: 
-                if academic_system == "Annual System":
+                    
+                    # Target layout sub-level options mapping
                     sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
                 else:
+                    # Bypassed department dropdown; goes directly to semester level layout choice
+                    sel_discipline = "DIPLOMA_IN_IT_DIT"
                     sel_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4", "ALL"], key="entry_sem_filter_a")
             
-            with c4: 
+            with c3: 
                 active_secs_df = run_query(
                     """
                     SELECT DISTINCT section FROM students 
@@ -596,8 +597,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     "ICS_STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
                     "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
                     "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]},
-                    "DIPLOMA_IN_IT_DIT": {"Semester 1": ["DIT_G", "DIT_B"], "Semester 2": ["DIT_G", "DIT_B"], "Semester 3": ["DIT_B"], "Semester 4": ["DIT_B"], "ALL": ["DIT_G", "DIT_B"]},
-                    "COMPUTING_SCIENCE": {"Semester 1": ["BSCS-1A"], "ALL": ["BSCS-1A"]}
+                    "DIPLOMA_IN_IT_DIT": {"Semester 1": ["DIT_G", "DIT_B"], "Semester 2": ["DIT_G", "DIT_B"], "Semester 3": ["DIT_B"], "Semester 4": ["DIT_B"], "ALL": ["DIT_G", "DIT_B"]}
                 }
                 
                 if not valid_sections_list:
@@ -619,9 +619,10 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                     available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 elif sel_class in ["Semester 3", "Semester 4"]:
                     available_subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
-                else: # Fallback configuration for "ALL" selection layout option matrix
+                else: 
                     available_subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project", "English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
                 
+            st.markdown("##")
             sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
         if sel_subject and sel_section and sel_session:
