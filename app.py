@@ -2314,110 +2314,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 
             if st.button("🔒 Authorize Data Entry Rights"):
                 target_user_id = int(t_options[selected_t])
-                
-                check_dup = run_query("""
-                    SELECT id FROM allocations 
-                    WHERE user_id = :uid AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-                """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
-                
-                if check_dup.empty:
-                    execute_db_command("""
-                        INSERT INTO allocations (user_id, subject, section) 
-                        VALUES (:uid, :sub, :sec)
-                    """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
-                    st.success(f"Access granted! {selected_t} can now manage {selected_sub} in Section {selected_sec}.")
-                    st.rerun()
-                else:
-                    st.warning("This allocation already exists.")
-                    
-            st.markdown("---")
-            st.write("#### Active Institutional Rights Log")
-            alloc_log = run_query("""
-                SELECT a.id, u.username as teacher, a.subject, a.section 
-                FROM allocations a
-                JOIN app_users u ON a.user_id = u.id
-                ORDER BY u.username ASC
-            """)
-            if not alloc_log.empty:
-                st.dataframe(alloc_log, use_container_width=True)
-        else:
-            st.info("No users with the role 'teacher' found in app_users.")
-
-    # ---------------------------------------------------------
-    # SUB-MODULE B: SECURED MARKS PORTAL
-    # ---------------------------------------------------------
-    elif sub_menu == "Teacher Marks Portal":
-        st.subheader("🔑 Secure Faculty Data Input Gateway")
-        
-        teachers_df = run_query("SELECT id, username FROM app_users WHERE role = 'teacher' ORDER BY username ASC")
-        if not teachers_df.empty:
-            t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
-            active_teacher = st.selectbox("View Portal As Teacher:", options=list(t_options.keys()))
-            uid = int(t_options[active_teacher])
-        else:
-            st.info("No teachers available.")
-            uid = None
-            
-        if uid is not None:
-            my_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": uid})
-            
-            if not my_rights.empty:
-                col_m1, col_m2 = st.columns(2)
-                with col_m1: 
-                    allocated_subs = my_rights['subject'].unique()
-                    sel_sub = st.selectbox("Assigned Subjects:", options=allocated_subs)
-                with col_m2:
-                    allocated_secs = my_rights[my_rights['subject'] == sel_sub]['section'].unique()
-                    sel_sec = st.selectbox("Assigned Sections:", options=allocated_secs)
-                
-                exams_list = AVAILABLE_EXAMS if 'AVAILABLE_EXAMS' in globals() else ["Mid Term", "Final Exam"]
-                sel_exam = st.selectbox("Target Assessment Term Type:", options=exams_list)
-                
-                students = run_query("SELECT id, name FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec)) ORDER BY id ASC", {"sec": sel_sec})
-                
-                if not students.empty:
-                    st.info(f"Displaying Roster Table for {sel_sub} — Section: {sel_sec}")
-                    
-                    marks_data = []
-                    for _, s_row in students.iterrows():
-                        sid = s_row['id']
-                        sname = s_row['name']
-                        
-                        existing = run_query("""
-                            SELECT marks_obtained, total_marks FROM marks 
-                            WHERE student_id = :sid AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND exam_type = :exam
-                        """, {"sid": sid, "sub": sel_sub, "exam": sel_exam})
-                        
-                        val_fill = "0"
-                        tot_fill = 100
-                        if not existing.empty:
-                            val_fill = str(existing['marks_obtained'].iloc[0])
-                            tot_fill = int(existing['total_marks'].iloc[0])
-                            
-                        c_left, c_right = st.columns([3, 1])
-                        with c_left: m_val = st.text_input(f"ID {sid} — {sname}:", value=val_fill, key=f"m_{sid}_{sel_sub}")
-                        with c_right: t_val = st.number_input("Total Max:", min_value=10, max_value=200, value=tot_fill, key=f"t_{sid}_{sel_sub}")
-                        
-                        marks_data.append({"sid": sid, "obtained": m_val, "total": t_val})
-                        
-                    if st.button("🎯 Finalize & Commit Marks Values"):
-                        for record in marks_data:
-                            execute_db_command("""
-                                DELETE FROM marks WHERE student_id = :sid 
-                                AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND exam_type = :exam
-                            """, {"sid": record['sid'], "sub": sel_sub, "exam": sel_exam})
-                            
-                            execute_db_command("""
-                                INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
-                                VALUES (:sid, :sub, :exam, :obt, :tot)
-                            """, {"sid": record['sid'], "sub": sel_sub, "exam": sel_exam, "obt": record['obtained'].strip().upper(), "tot": record['total']})
-                        st.success("Assessment marks record updated securely!")
-                else:
-                    st.error("No students found in this section.")
-            else:
-                st.warning("🚨 No subject assignments have been allocated to this account yet.")
-
-    # ---------------------------------------------------------
+                # ---------------------------------------------------------
     # SUB-MODULE C: TEACHER ANALYSIS
     # ---------------------------------------------------------
     elif sub_menu == "Teacher Analysis":
@@ -2437,12 +2334,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     sub = a_row['subject']
                     sec = a_row['section']
                     
-                    performance_data = run_query("""
-                        SELECT m.marks_obtained, m.total_marks FROM marks m
-                        JOIN students s ON m.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                        AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:sub))
-                    """, {"sec": sec, "sub": sub})
+                    # Flattened SQL query string to eliminate multi-line IndentationErrors
+                    performance_data = run_query("SELECT m.marks_obtained, m.total_marks FROM marks m JOIN students s ON m.student_id = s.id WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:sub))", {"sec": sec, "sub": sub})
                     
                     if not performance_data.empty:
                         performance_data['num_obt'] = pd.to_numeric(performance_data['marks_obtained'], errors='coerce')
@@ -2486,13 +2379,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 sec_placeholders = ",".join([f"'{s.upper().strip()}'" for s in sections])
                 sub_placeholders = ",".join([f"'{sub.upper().strip()}'" for sub in subjects])
                 
-                query_str = f"""
-                    SELECT m.marks_obtained, m.total_marks FROM marks m
-                    JOIN students s ON m.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) IN ({sec_placeholders})
-                    AND UPPER(TRIM(m.subject)) IN ({sub_placeholders})
-                    AND m.exam_type = :exam
-                """
+                # Flattened dynamic string interpolation query onto one clean python execution line
+                query_str = f"SELECT m.marks_obtained, m.total_marks FROM marks m JOIN students s ON m.student_id = s.id WHERE UPPER(TRIM(s.section)) IN ({sec_placeholders}) AND UPPER(TRIM(m.subject)) IN ({sub_placeholders}) AND m.exam_type = :exam"
                 
                 disc_data = run_query(query_str, {"exam": exam_term})
                 
