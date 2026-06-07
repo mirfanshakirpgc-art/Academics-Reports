@@ -1467,7 +1467,7 @@ except Exception as e:
 
 
 # ==============================================================================
-# PART 2: UI LAYOUT SETUP & DOCUMENT ENGINE LOOPS
+# PART 2: UI LAYOUT SETUP & CARD HEADER BASELINE
 # ==============================================================================
 # Strict Document CSS Blueprint Engine
 css_rules = """
@@ -1534,6 +1534,10 @@ composite_html_payload = f"""
     <div id="dossiers-master-wrapper">
 """
 
+
+# ==============================================================================
+# PART 3: MAIN LOOP PROCESSING (MARKS, ATTENDANCE, AND CANVAS PACKAGING)
+# ==============================================================================
 # Loop Over Selected Records to Output Each Unique Sheet Card
 for index, s_meta in enumerate(students_to_process):
     s_id = str(s_meta["id"]).strip()
@@ -1626,11 +1630,7 @@ for index, s_meta in enumerate(students_to_process):
     if not table_rows_html:
         table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
-
-# ==============================================================================
-# PART 3: ATTENDANCE PROCESSING & HTML CANVAS PACKAGING
-# ==============================================================================
-    # --- ATTENDANCE REPORT MATRIX ---
+    # --- ATTENDANCE PROCESSING ---
     tot_days_row, att_days_row, pct_days_row = "", "", ""
     overall_tot_days, overall_att_days = 0, 0
 
@@ -1725,7 +1725,8 @@ for index, s_meta in enumerate(students_to_process):
     </div>
     """
 
-# Finalize Payload Script Controls and Render Component
+# ⚠️ CRITICAL CLOSURE: Finalize Payload Script Controls and Render Component
+# (This finishes the 'for' loop cleanly so it doesn't leak into subsequent code blocks)
 composite_html_payload += """
     </div> 
     <script>
