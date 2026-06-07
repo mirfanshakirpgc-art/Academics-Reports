@@ -1761,7 +1761,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": base_student['class'].iloc[0]}])
 
             # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND LAYOUT
-            compiled_html = """
+            compiled_html =
             <!DOCTYPE html>
             <html>
             <head>
