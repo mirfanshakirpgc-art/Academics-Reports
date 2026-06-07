@@ -953,7 +953,6 @@ elif menu_choice == "📋 Section Summary Report":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     # --- 2. LAYOUT GENERATION & DISCIPLINE ROUTING ---
-    # Balanced 6-column layout control grid to track variables cleanly
     col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
     
     with col_sess:
@@ -979,7 +978,6 @@ elif menu_choice == "📋 Section Summary Report":
             st.info("⚡ DIT System Active")
         
     with col_b: 
-        # LIVE DATABASE ROUTING: Enforce strict equality matches to eliminate 2026-28 cross-contamination leaks
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -1010,7 +1008,6 @@ elif menu_choice == "📋 Section Summary Report":
             if not sec_options:
                 sec_options = db_sections
         else:
-            # Smart conditional system fallback assignments
             if academic_system == "Semester System":
                 sec_options = ["DIT_G", "DIT_B"]
             else:
@@ -1072,22 +1069,28 @@ elif menu_choice == "📋 Section Summary Report":
     if students_df.empty:
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
     else:
-        # Load marks entries lookup database view frame
+        # Load marks entries lookup database view frame with cross-engine safety text casting
         try:
             marks_df = run_query("""
-                SELECT TRIM(student_id)::text as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
+                SELECT CAST(student_id AS TEXT) as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
                 FROM marks 
                 WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
             """, {"exam": sel_exam})
+            
+            # Additional layer to ensure DataFrame types match string patterns accurately
+            if not marks_df.empty:
+                marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
         except Exception:
             marks_df = pd.DataFrame()
 
         # Fetch underlying dynamic live attendance sheets values matrix
         try:
             att_df = run_query("""
-                SELECT TRIM(student_id)::text as student_key, status
+                SELECT CAST(student_id AS TEXT) as student_key, status
                 FROM daily_attendance
             """, {})
+            if not att_df.empty:
+                att_df["student_key"] = att_df["student_key"].astype(str).str.strip()
         except Exception:
             att_df = pd.DataFrame()
 
@@ -1105,7 +1108,6 @@ elif menu_choice == "📋 Section Summary Report":
                 "Status": s_status
             }
             
-            # Sub-calculations layout configurations loop parameters logic
             obtained_total = 0.0
             max_total = 0.0
             has_valid_scores = False  
@@ -1120,7 +1122,7 @@ elif menu_choice == "📋 Section Summary Report":
                 elif "COMP" in sub_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
                 elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
                 
-                if marks_df is not None and not marks_df.empty:
+                if not marks_df.empty:
                     sub_match = marks_df[
                         (marks_df["student_key"] == s_id) & 
                         (marks_df["subject_name"].isin(alias_list))
@@ -1155,7 +1157,6 @@ elif menu_choice == "📋 Section Summary Report":
                 entry["Total (Obt)"] = "-"
                 entry["Total Max"] = "-"
                 
-            # Dynamic calculation metric for computing runtime live Attendance metric
             if not att_df.empty:
                 st_att_logs = att_df[att_df["student_key"] == s_id]
                 if not st_att_logs.empty:
@@ -1178,7 +1179,7 @@ elif menu_choice == "📋 Section Summary Report":
         
         tbody_rows_html = ""
         for _, row in final_report_df.iterrows():
-            st_id = row["ID"]
+            st_id = str(row["ID"]).strip()
             current_status = row["Status"]
             
             status_badge = ""
@@ -1186,7 +1187,7 @@ elif menu_choice == "📋 Section Summary Report":
                 status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
             
             old_marks_badges = []
-            hidden_marks_df = marks_df[marks_df["student_key"] == str(st_id).strip()] if (marks_df is not None and not marks_df.empty) else pd.DataFrame()
+            hidden_marks_df = marks_df[marks_df["student_key"] == s_id] if not marks_df.empty else pd.DataFrame()
             for _, h_row in hidden_marks_df.iterrows():
                 h_sub = h_row["subject_name"]
                 if h_sub not in [sub.upper().strip() for sub in subjects]:
