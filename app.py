@@ -1543,7 +1543,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-        # 1. Performance Marks Fetching Segment
+       # 1. Performance Marks Fetching Segment
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
@@ -1565,9 +1565,38 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
                 marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
                 
+                # --- DYNAMIC 11th vs 12th COMPULSORY SUBJECTS ---
+                class_clean = str(sel_class_global).strip()
+                if "12" in class_clean:
+                    compulsory_subs = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "TARJUMA-TUL-QURAN"]
+                else:
+                    compulsory_subs = ["ENGLISH", "URDU", "ISLAMIAT", "TARJUMA-TUL-QURAN"]
+                
+                # --- STRATEGIC DISCIPLINE ELECTIVE FILTERING ---
+                section_clean = str(rendered_section).upper()
+                allowed_electives = []
+                
+                if "PRE-MED" in section_clean or "MG_" in section_clean:
+                    allowed_electives = ["BIOLOGY", "CHEMISTRY", "PHYSICS"]
+                elif "PRE-ENG" in section_clean or "EG_" in section_clean:
+                    allowed_electives = ["MATHEMATICS", "CHEMISTRY", "PHYSICS"]
+                elif "ICS_PHYSICS" in section_clean or ("CG_" in section_clean and "STAT" not in section_clean):
+                    allowed_electives = ["COMPUTER", "MATHEMATICS", "PHYSICS"]
+                elif "ICS_STATS" in section_clean or "STATS" in section_clean or "STAT" in section_clean:
+                    allowed_electives = ["COMPUTER", "MATHEMATICS", "STATISTICS"]
+                elif "ICOM" in section_clean or "CB_" in section_clean:
+                    if "12" in class_clean:
+                        allowed_electives = ["ACCOUNTING", "COMMERCIAL GEOGRAPHY", "ECONOMICS", "BUSINESS STATISTICS"]
+                    else:
+                        allowed_electives = ["ACCOUNTING", "PRINCIPLES OF COMMERCE", "ECONOMICS", "BUSINESS MATH"]
+                
+                # Combine and strictly filter records
+                if allowed_electives or compulsory_subs:
+                    all_allowed_subs = compulsory_subs + allowed_electives
+                    marks_df = marks_df[marks_df["subject_name"].str.upper().isin([s.upper() for s in all_allowed_subs])]
+
                 # 🔄 TRACK-MIGRATION LAYER: Merge Chemistry into Computer for Track Shifters
                 marks_df["is_migration_subject"] = False
-                
                 shifter_ids = []
                 for s_id in marks_df["student_id"].unique():
                     s_subs = marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().values
@@ -1739,7 +1768,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
-
             # --- ATTENDANCE REPORT MATRIX ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
