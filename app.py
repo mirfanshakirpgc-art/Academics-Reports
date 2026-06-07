@@ -1584,127 +1584,57 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
         # CSS Styling Configurations
         # CSS Styling Configurations (Hardened for Streamlit HTML Container)
+        # CSS Styling Configurations (Strictly Aligned to Professional Document Specifications)
         css_rules = """
-        body { background-color: #ffffff; margin: 0; padding: 10px; color: #000000; font-family: 'Arial', sans-serif; }
-        .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; }
+        body { background-color: #ffffff; margin: 0; padding: 20px; color: #000000; font-family: 'Arial', sans-serif; }
+        
+        /* Dashboard Button Layout (Invisible during print) */
+        .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 900px; margin: 10px auto 25px auto; }
         .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-print-single { background-color: #2e7d32; } .btn-print-bulk { background-color: #1565c0; } .btn-img-single { background-color: #e65100; } .btn-img-bulk { background-color: #6a1b9a; }
         
-        /* Main Dossier Container Card Setup */
-        .cck-container { background-color: #ffffff; border: 2px solid #000000 !important; padding: 30px; margin: 20px auto; max-width: 850px; box-sizing: border-box; page-break-after: always; display: block !important; }
-        .cck-header-wrapper { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #000000; padding-bottom: 10px; }
-        .cck-logo-image-container { width: 140px; height: auto; display: flex; align-items: center; float: left; }
+        /* Main Result Card Blueprint */
+        .cck-container { background-color: #ffffff; border: 2px solid #000000 !important; padding: 40px; margin: 20px auto; max-width: 950px; box-sizing: border-box; page-break-after: always; display: block !important; position: relative; }
+        
+        /* Header Configuration */
+        .cck-header-wrapper { position: relative; margin-bottom: 20px; min-height: 70px; display: block; }
+        .cck-logo-image-container { position: absolute; left: 0; top: 0; width: 140px; }
         .cck-logo-image { width: 100%; height: auto; object-fit: contain; }
+        .cck-main-title { font-size: 30px; font-weight: bold; margin: 0; text-align: center; color: #000000; letter-spacing: 1px; text-transform: uppercase; line-height: 1.2; }
         
-        .cck-title-block { text-align: center; margin-top: 5px; margin-bottom: 15px; } 
-        .cck-main-title { font-size: 28px; font-weight: bold; margin: 0; letter-spacing: 0.5px; color: #000000; text-transform: uppercase; text-align: center; }
-        .cck-badge-wrapper { text-align: center; margin: 15px 0; }
-        .cck-doc-badge { display: inline-block; background-color: #e5e7eb; color: #000000; font-weight: bold; font-size: 16px; padding: 6px 25px; border-radius: 4px; border: 1px solid #000000; }
+        /* Document Designation Badge */
+        .cck-badge-wrapper { text-align: center; margin: 25px 0 20px 0; }
+        .cck-doc-badge { display: inline-block; background-color: #cfd8dc !important; color: #000000; font-weight: bold; font-size: 15px; padding: 6px 30px; border-radius: 4px; border: 1px solid #000000 !important; text-transform: capitalize; }
         
-        /* Metadata Profile Section */
-        .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 25px; font-size: 15px; row-gap: 12px; }
-        .cck-meta-field { font-weight: bold; color: #000000; min-width: 30%; } 
-        .cck-line-fill { border-bottom: 1px solid #000000; display: inline-block; padding-left: 5px; font-weight: bold; }
+        /* Student Information/Metadata Profile Section */
+        .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 30px; font-size: 16px; row-gap: 16px; color: #000000; }
+        .cck-meta-field { font-weight: normal; width: 48%; display: inline-flex; align-items: flex-end; }
+        .cck-meta-label { font-weight: normal; margin-right: 4px; white-space: nowrap; }
+        .cck-line-fill { border-bottom: 1px solid #000000 !important; flex-grow: 1; padding-left: 5px; font-weight: bold; padding-bottom: 2px; }
         
-        /* Grid Table Layout Setup */
-        .cck-report-table { width: 100%; border-collapse: collapse !important; margin-bottom: 25px; font-size: 14px; color: #000000; background: #ffffff; }
-        .cck-report-table th, .cck-report-table td { border: 1px solid #000000 !important; padding: 10px 8px !important; text-align: center; }
-        .cck-report-table th { background-color: #f3f4f6; font-weight: bold; } 
-        .cck-report-table td:first-child { text-align: left; padding-left: 12px !important; font-weight: bold; }
+        /* Unified Academic Grid & Attendance Table Engine */
+        .cck-report-table { width: 100%; border-collapse: collapse !important; border: 1px solid #000000 !important; margin-bottom: 30px; font-size: 14px; background-color: #ffffff; color: #000000; }
+        .cck-report-table th, .cck-report-table td { border: 1px solid #000000 !important; padding: 10px 6px !important; text-align: center; vertical-align: middle; box-sizing: border-box; }
+        .cck-report-table th { background-color: #ffffff !important; font-weight: bold; font-size: 14px; text-transform: uppercase; }
+        .cck-report-table td:first-child { text-align: left !important; padding-left: 12px !important; font-weight: bold; text-transform: uppercase; width: 28%; }
+        .cck-report-table tr:last-child td { font-weight: bold; }
         
-        /* Footer and Attendance Area */
-        .cck-remarks-area { margin-top: 40px; font-size: 14px; display: flex; align-items: flex-end; color: #000000; }
-        .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000; margin-left: 8px; padding-left: 5px; font-style: italic; }
-        .cck-footer-sign { margin-top: 40px; text-align: right; font-size: 14px; font-weight: bold; padding-right: 20px; color: #000000; }
-        @media print { .action-dashboard-panel { display: none !important; } .cck-container { border: none !important; padding: 0 !important; } }
+        /* Attendance Header Specifics */
+        .cck-attendance-title { font-size: 16px; font-weight: bold; text-align: center; margin-top: 35px; margin-bottom: 15px; text-decoration: underline; text-transform: capitalize; color: #000000; }
+        
+        /* Bottom Remarks Block & Principal Signature Line */
+        .cck-remarks-area { margin-top: 60px; font-size: 15px; display: flex; align-items: flex-end; color: #000000; width: 100%; }
+        .cck-remarks-label { font-weight: bold; white-space: nowrap; }
+        .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000 !important; margin-left: 10px; padding-left: 8px; padding-bottom: 2px; font-style: italic; }
+        .cck-footer-sign { margin-top: 50px; text-align: right; font-size: 15px; font-weight: bold; padding-right: 15px; color: #000000; text-transform: capitalize; }
+        
+        /* Print Isolation Directives */
+        @media print { 
+            .action-dashboard-panel { display: none !important; } 
+            body { padding: 0; margin: 0; }
+            .cck-container { border: 2px solid #000000 !important; padding: 40px; margin: 0; box-shadow: none; page-break-after: always; } 
+        }
         """
-        css_styles = f"<style>{css_rules}</style>".replace('\xa0', ' ')
-
-        composite_html_payload = f"""
-        <html>
-        <head>
-        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-        {css_styles}
-        </head>
-        <body>
-            <div class="action-dashboard-panel">
-                <button class="action-control-btn btn-print-single" onclick="executeTargetPrint(true)">👤 Print Single Student</button>
-                <button class="action-control-btn btn-print-bulk" onclick="executeTargetPrint(false)">👥 Print Complete Section</button>
-                <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Single as Picture</button>
-                <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Section as Pictures</button>
-            </div>
-            
-            <div id="dossiers-master-wrapper">
-        """
-
-        for index, s_meta in enumerate(students_to_process):
-            s_id = str(s_meta["id"]).strip()
-            raw_name = str(s_meta["name"])
-            s_name = " ".join(raw_name.replace("\n", " ").split())
-            
-            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
-            s_section = " ".join(raw_section.replace("\n", " ").split())
-            
-            raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
-            s_class = " ".join(raw_class.replace("\n", " ").split())
-            
-            # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
-            table_rows_html = ""
-            total_row_html = ""
-            grand_total_percentages = [0]
-
-            if not marks_df.empty:
-                s_marks = marks_df[marks_df["student_id"] == s_id].copy()
-                
-                if not s_marks.empty:
-                    distinct_subjects = sorted(s_marks["subject_name"].unique())
-                    exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
-                    exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
-                    
-                    for sub in distinct_subjects:
-                        sub_marks = s_marks[s_marks["subject_name"] == sub]
-                        row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
-                        subject_pct_accum = 0
-                        valid_exams_count = 0
-                        
-                        for exam in selected_exams_list:
-                            if academic_system == "Semester System":
-                                match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
-                            else:
-                                match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
-                                
-                            if not match_row.empty:
-                                try:
-                                    # 🎛️ If a shifty exam has both real computer marks AND chemistry marks, prioritize real computer marks
-                                    if len(match_row) > 1:
-                                        primary_slot = match_row[match_row["is_migration_subject"] != True]
-                                        migration_slot = match_row[match_row["is_migration_subject"] == True]
-                                        row_to_use = primary_slot.iloc[0] if not primary_slot.empty else migration_slot.iloc[0]
-                                    else:
-                                        row_to_use = match_row.iloc[0]
-
-                                    obt = float(row_to_use["marks_obtained"])
-                                    tot = float(row_to_use["total_marks"])
-                                    pct = int((obt / tot) * 100) if tot > 0 else 0
-                                    
-                                    # 🏷️ Apply the direct (Chem) badge if it came from the migration pool
-                                    if "is_migration_subject" in row_to_use and row_to_use["is_migration_subject"] == True:
-                                        row_tds += f"<td>{pct}% <span style='font-size:10px; font-weight:bold; color:#777;'> (Chem)</span></td>"
-                                    else:
-                                        row_tds += f"<td>{pct}%</td>"
-                                        
-                                    exam_totals_obtained[exam] += obt
-                                    exam_totals_possible[exam] += tot
-                                    subject_pct_accum += pct
-                                    valid_exams_count += 1
-                                except:
-                                    row_tds += "<td>-</td>"
-                            else:
-                                row_tds += "<td>-</td>"
-                        
-                        sub_avg = int(subject_pct_accum / valid_exams_count) if valid_exams_count > 0 else 0
-                        row_tds += f"<td><strong>{sub_avg}%</strong></td>"
-                        table_rows_html += f"<tr>{row_tds}</tr>"
                     
                     # Footer Summary Row Configuration
                     total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
