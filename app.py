@@ -1394,8 +1394,19 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
         with col_dyn2:
-            # Explicitly listed annual sections to guarantee it renders safely without map dependencies
-            annual_sections = ["A", "B", "C", "ICS", "Pre-Medical", "Pre-Engineering"]
+            # Dynamically extract actual campus sections from DISCIPLINE_SECTIONS_MAP
+            annual_sections = []
+            for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
+                if "DIT" not in discipline.upper():
+                    sections_list = class_data.get(sel_class_global, [])
+                    annual_sections.extend(sections_list)
+            
+            # Remove duplicates and sort alphabetically
+            annual_sections = sorted(list(set(annual_sections)))
+            
+            if not annual_sections:
+                annual_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CB_WHITE"]
+                
             sel_sec = st.selectbox("Select Target Class Section:", options=annual_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
@@ -1414,12 +1425,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_sec = st.selectbox("Select Target Section:", options=filtered_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
-            if sel_class_global == "1st Semester":
-                semester_courses = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-            else:
-                semester_courses = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                
-            selected_exams_list = st.multiselect("🎯 Select Courses:", options=semester_courses, default=semester_courses[:3], key="global_exams")
+            # Configured to look up standard test framework names (MT_1, MT_2...) for semesters too!
+            selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
 
     st.markdown("---")
 
