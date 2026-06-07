@@ -3,3 +3,4 @@ numpy
 streamlit
 psycopg2-binary
 sqlalchemy
+xlsxwriter
