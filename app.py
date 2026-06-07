@@ -2063,14 +2063,13 @@ elif menu_choice == "Student Management":
                 except Exception:
                     pass
                 
-                st.info(f"""
-                **📍 Student Profile Found:**
-                * **ID:** {s_id}
-                * **Name:** {s_name}
-                * **Class:** {s_class}
-                * **Section:** {s_sec}
-                * **Status:** {s_status}
-                """)
+                # Separated into individual strings to prevent multi-line indentation cache conflicts
+                st.info("📍 **Student Profile Found:**")
+                st.markdown(f"* **ID:** {s_id}")
+                st.markdown(f"* **Name:** {s_name}")
+                st.markdown(f"* **Class:** {s_class}")
+                st.markdown(f"* **Section:** {s_sec}")
+                st.markdown(f"* **Status:** {s_status}")
                 
                 st.divider()
                 col_status, col_section = st.columns(2)
