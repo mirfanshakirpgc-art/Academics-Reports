@@ -2769,7 +2769,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & DELETE ACCIDENT GUARDS
+# MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
@@ -2951,9 +2951,9 @@ elif menu_choice == "🎓 Promote Students":
 
                         execute_db_command("""
                             UPDATE students 
-                            SET class = :next_cls, section = :next_sec
+                            SET class = :next_cls, section = :next_sec, session = :new_sess
                             WHERE id = :s_id
-                        """, {"next_cls": next_class, "next_sec": new_sec, "s_id": s_id})
+                        """, {"next_cls": next_class, "next_sec": new_sec, "new_sess": promo_session, "s_id": s_id})
                     
                     st.success(f"🎉 Success! {total_selected} records reassigned to Class {next_class} (Batch: {batch_identifier}).")
                     st.rerun()
@@ -2966,7 +2966,7 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
-    # --- ⏳ SECTION 4: REVERSAL CONTROL MATRIX ---
+    # --- ⏳ SECTION 4: HARDENED REVERSAL CONTROL MATRIX ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     
     st.markdown("#### ⚙️ Administrative Global & Section Controls")
@@ -2974,11 +2974,9 @@ elif menu_choice == "🎓 Promote Students":
     
     cleanup_col1, cleanup_col2, cleanup_col3 = st.columns([2, 1, 1.2])
     with cleanup_col1:
-        # Combined list strategy ensuring IK and CK3 are permanently selectable options even if empty
         try:
             sections_master_df = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
             db_sections = sections_master_df['section'].tolist() if not sections_master_df.empty else []
-            # Merge with core fallback tracks to keep inputs alive
             master_sections_list = sorted(list(set(db_sections + ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"])))
         except Exception:
             master_sections_list = ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"]
@@ -2997,7 +2995,6 @@ elif menu_choice == "🎓 Promote Students":
 
     with cleanup_col3:
         st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
-        # Added safety confirm checkbox block below to stop accidental clicks
         confirm_purge = st.checkbox("Confirm Table Purge", key="confirm_purge_check")
         
         if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True, disabled=not confirm_purge):
@@ -3048,7 +3045,12 @@ elif menu_choice == "🎓 Promote Students":
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
-                            target_session_val = str(record['old_session']).strip() if record['old_session'] else promo_session
+                            # Hardened Fail-Safe logic for checking and repairing session values
+                            log_session_str = str(record['old_session']).strip() if record['old_session'] else ""
+                            if not log_session_str or log_session_str == "None":
+                                target_session_val = promo_session # Use current workspace filter value as absolute fallback recovery
+                            else:
+                                target_session_val = log_session_str
                             
                             execute_db_command("""
                                 UPDATE students 
