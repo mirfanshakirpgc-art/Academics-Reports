@@ -720,7 +720,7 @@ if menu_choice == "📅 Attendance Entry Management":
     
     att_sub_type = st.segmented_control(
         "Select Attendance Interval Mode:",
-        ["📅 Daily Attendance Entry", "📋 Manual Monthly Variance Override", "👤 By Single Student Roll Number"],
+        ["📅 Daily Attendance Entry", "👤 By Single Student Roll Number"],
         default="📅 Daily Attendance Entry",
         key="attendance_interval_segmented_control"
     )
@@ -862,9 +862,6 @@ if menu_choice == "📅 Attendance Entry Management":
                         st.success(f"🎉 Daily logs locked & Monthly summary calculated in background successfully!")
                         st.rerun()
 
-    elif att_sub_type == "📋 Manual Monthly Variance Override":
-        st.subheader("📋 Manual Section Summary Overrides Workspace")
-        pass
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
