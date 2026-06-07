@@ -2771,18 +2771,11 @@ if menu_choice == "👨‍🏫 Teacher Management":
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED DATABASE REVERSAL LOGGING
 # ====================================================================================
-import uuid
-from datetime import datetime
-
-    # Check the lines right above this to ensure everything is closed out properly!
-
-# Ensure the code block directly above this line is completely closed!
-    
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
 
-    # 🛠️ AUTO-CREATE STAGE: Instantly sets up the permanent database safety ledger table
+    # 🛠️ AUTO-CREATE LEDGER TABLE NATIVELY
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS promotion_history (
@@ -2798,5 +2791,182 @@ elif menu_choice == "🎓 Promote Students":
         """)
     except Exception as table_err:
         st.error(f"Database initialization warning: {table_err}")
+
+    # --- SECTION 1: SOURCE FILTERS ---
+    st.subheader("🔍 Step 1: Select Source Student Pool")
+    src_c1, src_c2, src_c3 = st.columns(3)
+    
+    with src_c1:
+        promo_session = st.selectbox("Source Academic Session:", AVAILABLE_SESSIONS, index=1, key="promo_src_sess")
+    with src_c2:
+        source_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0, key="promo_src_class")
+    with src_c3:
+        promo_scope = st.radio("Promotion Scope:", ["📋 Complete Section", "👤 Single Student"], horizontal=True)
+
+    sess_prefix = promo_session.split('-')[0] + '%' 
+    selected_section = None
+    target_student_id = None
+    
+    if promo_scope == "📋 Complete Section":
+        sections_df = run_query(
+            """
+            SELECT DISTINCT section FROM students 
+            WHERE session LIKE :sess 
+              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+            ORDER BY section
+            """,
+            {"sess": sess_prefix, "cls": source_class}
+        )
+        available_src_sections = sections_df['section'].tolist() if not sections_df.empty else []
+        selected_section = st.selectbox("Select Source Section to Promote:", available_src_sections if available_src_sections else ["No Data Found"])
+    else:
+        students_roster_df = run_query(
+            """
+            SELECT id, name FROM students 
+            WHERE session LIKE :sess 
+              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+            ORDER BY name
+            """,
+            {"sess": sess_prefix, "cls": source_class}
+        )
+        if not students_roster_df.empty:
+            student_options = {f"{row['id']} - {row['name']}": row['id'] for _, row in students_roster_df.iterrows()}
+            chosen_stu_str = st.selectbox("Search & Select Student:", list(student_options.keys()))
+            target_student_id = student_options[chosen_stu_str]
+        else:
+            st.warning("⚠️ No matching student records found.")
+
+    st.markdown("---")
+
+    # --- SECTION 2: TARGET ENVIRONMENT CONFIGURATION ---
+    st.subheader("🎯 Step 2: Configure Destination Environment")
+    
+    next_class = "12th" if source_class == "11th" else "Alumni/Left"
+    st.info(f"✨ Target Update: Status shifts from **{source_class} ➔ {next_class}** under tracking pool **{promo_session}**.")
+    
+    tgt_c1, tgt_c2 = st.columns(2)
+    
+    with tgt_c2:
+        selected_discipline = st.selectbox("Select Target Discipline Track:", AVAILABLE_DISCIPLINE, key="promo_tgt_disc")
+
+    with tgt_c1:
+        disc_upper = selected_discipline.upper() if selected_discipline else ""
+        
+        if "MEDICAL" in disc_upper:
+            available_tgt_sections = ["MQ1", "MQ2", "MK"]
+        elif "ENGINEERING" in disc_upper:
+            available_tgt_sections = ["EQ", "EK"]
+        elif "PHYSICS" in disc_upper:
+            available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"]
+        elif "STATS" in disc_upper:
+            available_tgt_sections = ["CQ3", "CK3"]
+        elif "COMMERCE" in disc_upper:
+            available_tgt_sections = ["IK", "IQ"]
+        elif "HUMANITIES" in disc_upper or "ARTS" in disc_upper:
+            available_tgt_sections = ["FK", "FQ"]
+        else:
+            available_tgt_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
+
+        target_section = st.selectbox("Assign to Destination Section:", available_tgt_sections, key="promo_tgt_sec")
+
+    # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
+    st.subheader("📊 Step 3: Roster Execution Preview")
+
+    if promo_scope == "📋 Complete Section":
+        preview_query = """
+            SELECT id, name, section, class, session FROM students 
+            WHERE session LIKE :sess 
+              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+              AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
+            ORDER BY id ASC
+        """
+        params = {"sess": sess_prefix, "cls": source_class, "sec": str(selected_section)}
+    else:
+        preview_query = "SELECT id, name, section, class, session FROM students WHERE id = :s_id"
+        params = {"s_id": target_student_id}
+
+    if (promo_scope == "📋 Complete Section" and selected_section and selected_section != "No Data Found") or (promo_scope == "👤 Single Student" and target_student_id):
+        preview_df = run_query(preview_query, params)
+        
+        if not preview_df.empty:
+            st.dataframe(preview_df, use_container_width=True)
+            st.warning(f"⚠️ **Action Scope Notice:** Running promotion updates will modify {len(preview_df)} student profiles.")
+            
+            if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary", use_container_width=True):
+                import uuid
+                student_ids_to_process = preview_df['id'].tolist()
+                batch_identifier = str(uuid.uuid4())[:8] # Generates short clear alpha-numeric batch ID
+                
+                for _, row in preview_df.iterrows():
+                    s_id = int(row['id'])
+                    old_cls = str(row['class'])
+                    old_sec = str(row['section'])
+                    new_sec = target_section.strip().upper()
+
+                    # 1. Commit backup snapshot data rows to memory ledger
+                    execute_db_command("""
+                        INSERT INTO promotion_history (student_id, old_class, old_section, new_class, new_section, batch_id)
+                        VALUES (:s_id, :old_cls, :old_sec, :new_cls, :new_sec, :b_id)
+                    """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
+
+                    # 2. Update live student structural metrics safely
+                    execute_db_command("""
+                        UPDATE students 
+                        SET class = :next_cls, section = :next_sec
+                        WHERE id = :s_id
+                        """, {"next_cls": next_class, "next_sec": new_sec, "s_id": s_id})
+                
+                st.success(f"🎉 Success! {len(student_ids_to_process)} records reassigned to Class {next_class} (Batch: {batch_identifier}).")
+                st.rerun()
+        else:
+            st.info("💡 No student records matching selected parameters found.")
+
+    st.markdown("---")
+
+    # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
+    st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
+    st.write("Below are the promotions processed. These buttons persist across sessions and system refreshes.")
+
+    # Read logging history details directly from database tables
+    try:
+        history_batches = run_query("""
+            SELECT batch_id, old_section, new_section, COUNT(student_id) as student_count, MAX(timestamp) as log_time
+            FROM promotion_history 
+            GROUP BY batch_id 
+            ORDER BY log_time DESC 
+            LIMIT 5
+        """)
+    except Exception:
+        import pandas as pd
+        history_batches = pd.DataFrame()
+
+    if not history_batches.empty:
+        for idx, row in history_batches.iterrows():
+            b_id = row['batch_id']
+            sec_old = row['old_section']
+            sec_new = row['new_section']
+            count = row['student_count']
+            
+            col_info, col_btn = st.columns([3, 1])
+            with col_info:
+                st.markdown(f"📦 **Batch `{b_id}`:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
+            with col_btn:
+                if st.button(f"🗑️ Undo Promotion", key=f"db_undo_{b_id}_{idx}"):
+                    # Target specific student snapshots belonging to this exact batch code identifier
+                    batch_details = run_query("SELECT student_id, old_class, old_section FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
+                    
+                    if not batch_details.empty:
+                        for _, record in batch_details.iterrows():
+                            execute_db_command("""
+                                UPDATE students 
+                                SET class = :old_cls, section = :old_sec
+                                WHERE id = :s_id
+                            """, {"old_cls": record['old_class'], "old_sec": record['old_section'], "s_id": int(record['student_id'])})
+                    
+                    # Wipe log track cleanly so screen UI elements clear up beautifully
+                    execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
+                    
+                    st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to original states.")
+                    st.rerun()
     else:
         st.info("🍃 No promotions found in the permanent database log table.")
