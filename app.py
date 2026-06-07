@@ -2776,6 +2776,8 @@ from datetime import datetime
 
     # Check the lines right above this to ensure everything is closed out properly!
 
+# Ensure the code block directly above this line is completely closed!
+    
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
