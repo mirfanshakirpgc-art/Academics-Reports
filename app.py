@@ -269,7 +269,6 @@ elif menu_choice == "➕ Add Students":
             
         # 🎯 Dynamic Section Filtering Logic
         with c5:
-            # 1. Standardize user selection to match dictionary keys exactly
             normalized_discipline = (
                 selected_discipline.upper()
                 .replace(" ", "_")
@@ -277,13 +276,11 @@ elif menu_choice == "➕ Add Students":
                 .replace(")", "")
             )
             
-            # Map friendly shortcut terms to exact backend keys
             if "PHYSIC" in normalized_discipline:
                 normalized_discipline = "ICS_PHYSICS"
             elif "STAT" in normalized_discipline:
                 normalized_discipline = "ICS_STATISTICS"
 
-            # 2. DEFINED DIRECTLY: No more relying on unpredictable global overrides
             local_sections_map = {
                 "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
                 "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
@@ -293,20 +290,15 @@ elif menu_choice == "➕ Add Students":
                 "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]}
             }
             
-            # Safely fetch target list using double matching layer
             available_sections = local_sections_map.get(normalized_discipline, {}).get(selected_class, [])
-                
-            # Clean and filter string elements
             cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
             
-            # Display responsive selection choices contextually
             if cleaned_sections:
                 selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
             else:
                 selected_section = st.text_input("📋 4. Enter Target Section Manually:", value="CK2", key="add_stu_sec_annual_manual").strip().upper()
     
     else:
-        # Semester System: Discipline column completely removed
         c3, c4 = st.columns(2)
         with c3: 
             selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
@@ -317,8 +309,13 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
     
-    # ⚙️ Workflow Toggle Switch
-    workflow_mode = st.radio("⚙️ Select Registration Workflow Mode:", ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)"], horizontal=True, key="add_stu_workflow_choice")
+    # ⚙️ Three-Way Workflow Toggle Switch Switch
+    workflow_mode = st.radio(
+        "⚙️ Select Registration Workflow Mode:", 
+        ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)", "🛠️ Manage Existing Students (Edit/Delete)"], 
+        horizontal=True, 
+        key="add_stu_workflow_choice"
+    )
     st.markdown("---")
 
     # ====================================================================================
@@ -369,7 +366,7 @@ elif menu_choice == "➕ Add Students":
     # ====================================================================================
     # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
     # ====================================================================================
-    else:
+    elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
         st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
         st.info("💡 Important Sheet Guidelines: Your file columns must include exactly **'ID'** and **'Name'** headings.")
         
@@ -377,13 +374,11 @@ elif menu_choice == "➕ Add Students":
         
         if uploaded_bulk_file is not None:
             try:
-                # Read payload appropriately
                 if uploaded_bulk_file.name.endswith(".csv"):
                     bulk_df = pd.read_csv(uploaded_bulk_file)
                 else:
                     bulk_df = pd.read_excel(uploaded_bulk_file)
                 
-                # Standardize dataset headers to matching uppercase layout string values
                 bulk_df.columns = [str(col).strip().upper() for col in bulk_df.columns]
                 
                 if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
@@ -397,7 +392,6 @@ elif menu_choice == "➕ Add Students":
                         error_count = 0
                         
                         for index, row in bulk_df.iterrows():
-                            # Remove trailing floats from Excel cell formatting anomalies (.0 parsing)
                             raw_id = str(row['ID']).strip().split('.')[0]
                             raw_name = str(row['NAME']).strip().upper()
                             
@@ -426,6 +420,99 @@ elif menu_choice == "➕ Add Students":
                         
             except Exception as read_err:
                 st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
+
+    # ====================================================================================
+    # NEW WORKFLOW C: MANAGE EXISTING STUDENTS (EDIT & DELETE HUB)
+    # ====================================================================================
+    else:
+        st.subheader(f"🛠️ Update or Remove Records — {selected_class} | Section: {selected_section}")
+        
+        # Pull active section list records from database safely
+        try:
+            students_query_df = get_db_data("""
+                SELECT id, name, status FROM students 
+                WHERE class = :class AND section = :section AND session = :session
+                ORDER BY id ASC
+            """, {
+                "class": selected_class,
+                "section": selected_section,
+                "session": selected_session
+            })
+        except Exception as query_err:
+            st.error(f"Error fetching directory: {query_err}")
+            students_query_df = pd.DataFrame()
+
+        if students_query_df.empty:
+            st.warning("⚠️ No active student profile records found registered under this specific Filter Option layout.")
+        else:
+            # Build dropdown display dictionary array strings
+            student_selector_list = [
+                f"{int(row['id'])} - {str(row['name']).upper()}" for _, row in students_query_df.iterrows()
+            ]
+            
+            chosen_stu_string = st.selectbox("🔍 Select Student Profile to Modify:", student_selector_list)
+            
+            if chosen_stu_string:
+                # Extract the pure ID out of our string layout
+                selected_student_id = int(chosen_stu_string.split(" - ")[0])
+                
+                # Fetch row detail data elements matching that exact index key 
+                target_student_row = students_query_df[students_query_df['id'] == selected_student_id].iloc[0]
+                
+                st.markdown("### Modify Student Record Data")
+                
+                # Render editing form fields
+                with st.form("student_profile_edit_form"):
+                    edit_name = st.text_input("👤 Change Student Full Name Identity:", value=str(target_student_row['name']).upper())
+                    
+                    # Compute initial enum configuration indexes carefully
+                    status_options = ["ACTIVE", "PENDING", "LEAVE"]
+                    current_status = str(target_student_row['status']).upper()
+                    init_status_idx = status_options.index(current_status) if current_status in status_options else 0
+                    
+                    edit_status = st.selectbox("📌 Change Registration Status Enrollment:", status_options, index=init_status_idx)
+                    
+                    st.markdown("---")
+                    col_update, col_delete = st.columns(2)
+                    
+                    with col_update:
+                        save_changes = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                    with col_delete:
+                        # Extra cautionary safety switch to avoid accidental misclicks
+                        confirm_delete = st.checkbox("⚠️ Check this box to confirm complete removal.")
+                        erase_record = st.form_submit_button("🗑️ Delete Student From System", type="secondary", use_container_width=True)
+                
+                # Process update action loop query execution
+                if save_changes:
+                    if not edit_name.strip():
+                        st.error("❌ Action Rejected: Name field cannot be saved blank.")
+                    else:
+                        try:
+                            execute_db_command("""
+                                UPDATE students 
+                                SET name = :name, status = :status
+                                WHERE id = :id
+                            """, {
+                                "name": edit_name.strip().upper(),
+                                "status": edit_status,
+                                "id": selected_student_id
+                            })
+                            st.success(f"⚡ Success! Profile record details for ID: {selected_student_id} have been updated.")
+                            st.rerun()
+                        except Exception as update_err:
+                            st.error(f"❌ Failed to commit database updates: {update_err}")
+                
+                # Process delete action loop query execution safely
+                if erase_record:
+                    if not confirm_delete:
+                        st.error("❌ Action Blocked: You must check the confirmation safety box before deleting records.")
+                    else:
+                        try:
+                            execute_db_command("DELETE FROM students WHERE id = :id", {"id": selected_student_id})
+                            st.success(f"🗑️ The record for Student ID `{selected_student_id}` has been permanently dropped from system tables.")
+                            st.rerun()
+                        except Exception as delete_err:
+                            st.error(f"❌ Database error encountered while executing record wipe operations: {delete_err}")
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
