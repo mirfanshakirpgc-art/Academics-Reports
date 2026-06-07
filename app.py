@@ -517,8 +517,6 @@ elif menu_choice == "➕ Add Students":
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
 
-I have updated the module to be completely system-aware. This version checks if `academic_system` is set to **Semester System**, correctly defaults the discipline internally to `DIPLOMA_IN_IT_DIT`, and updates both the section and course selection dropdowns seamlessly to include your DIT targets ("Data Base System", "Video Editing", etc.).
-
 ### 🛠️ Updated Code Replacement Block
 
 Replace your existing `elif menu_choice == "📝 Academic Exam Marks Entry":` block down to the end of the `Bulk Excel/CSV Import` section with this code:
