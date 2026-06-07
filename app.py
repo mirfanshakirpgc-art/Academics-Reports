@@ -317,6 +317,67 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
     
+    # ⚙️ Workflow Toggle Switch Switch
+    workflow_mode = st.radio("⚙️ Select Registration Workflow Mode:", ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)"], horizontal=True, key="add_stu_workflow_choice")
+    st.markdown("---")
+
+    # ====================================================================================
+    # WORKFLOW A: SINGLE STUDENT REGISTRATION
+    # ====================================================================================
+    if workflow_mode == "👤 Single Student Registration":
+        st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
+        
+        with st.form("interactive_student_addition_form", clear_on_submit=True):
+            form_row1_left, form_row1_right = st.columns(2)
+            with form_row1_left:
+                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
+            with form_row1_right:
+                input_student_name = st.text_input("👤 Student Name Full Identity*")
+                
+            input_status = st.selectbox("📌 Enrollment Registration Status:", ["ACTIVE", "PENDING", "LEAVE"])
+                
+            st.markdown("##")
+            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
+            
+            if submit_registration_btn:
+                if not input_roll_number.strip() or not input_student_name.strip():
+                    st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
+                elif not input_roll_number.strip().isdigit():
+                    st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+                else:
+                    try:
+                        clean_id = int(input_roll_number.strip())
+                        clean_name = input_student_name.strip().upper()
+                        
+                        execute_db_command("""
+                            INSERT INTO students (id, name, class, section, session, status)
+                            VALUES (:id, :name, :class, :section, :session, :status)
+                        """, {
+                            "id": clean_id,
+                            "name": clean_name,
+                            "class": selected_class,
+                            "section": selected_section,
+                            "session": selected_session,
+                            "status": input_status
+                        })
+                        
+                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                        st.balloons()
+                    except Exception as db_err:
+                        st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned. Details: {db_err}")
+
+    # ====================================================================================
+    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
+    # ====================================================================================
+    else:
+        st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
+        st.info("💡 Important Sheet Guidelines: Your file columns must include exactly **'ID'** and **'Name'** headings.")
+        
+        uploaded_bulk_file = st.file_uploader("Upload roster matrix spreadsheet", type=["csv", "xlsx"], key="bulk_student_file_uploader")
+        
+        if uploaded_bulk_file is not None:
+            try:
+    
     # ====================================================================================
     # 📝 INJECTED FORM HOOK: NEW PROFILE REGISTRATION MATRICULATION (CLEAN SQL MIX)
     # ====================================================================================
