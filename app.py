@@ -516,7 +516,16 @@ elif menu_choice == "➕ Add Students":
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-if menu_choice == "📝 Academic Exam Marks Entry":
+Ah, there it is! The reason why the application wasn't showing the DIT subjects in this module is because the code was checking if `academic_system == "Semester System"`, but the form logic wasn't looking at what you selected in the database—it was using hardcoded lookups and falling back to default subject configurations.
+
+I have updated the module to be completely system-aware. This version checks if `academic_system` is set to **Semester System**, correctly defaults the discipline internally to `DIPLOMA_IN_IT_DIT`, and updates both the section and course selection dropdowns seamlessly to include your DIT targets ("Data Base System", "Video Editing", etc.).
+
+### 🛠️ Updated Code Replacement Block
+
+Replace your existing `elif menu_choice == "📝 Academic Exam Marks Entry":` block down to the end of the `Bulk Excel/CSV Import` section with this code:
+
+```python
+elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
@@ -714,6 +723,8 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         if uploaded_file is not None:
             st.info("📊 Processing files runs standard automated validation rules against raw formats.")
+
+```
 
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (AUTOMATED BACKGROUND SYNC)
