@@ -1564,80 +1564,27 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
                 marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
                 marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
+                
+                # 🔄 TRACK-MIGRATION LAYER: Merge Chemistry into Computer for Track Shifters
+                marks_df["is_migration_subject"] = False
+                
+                shifter_ids = []
+                for s_id in marks_df["student_id"].unique():
+                    s_subs = marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().values
+                    if "COMPUTER" in s_subs and "CHEMISTRY" in s_subs:
+                        shifter_ids.append(s_id)
+                
+                if shifter_ids:
+                    chem_mask = (marks_df["student_id"].isin(shifter_ids)) & (marks_df["subject_name"].str.upper() == "CHEMISTRY")
+                    marks_df.loc[chem_mask, "is_migration_subject"] = True
+                    marks_df.loc[chem_mask, "subject_name"] = "COMPUTER"
+                    
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Attendance Scanner Segment
-        try:
-            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
-            
-            if "attendance_date" in cols_att:
-                date_col = "attendance_date"
-            elif "date_marked" in cols_att:
-                date_col = "date_marked"
-            elif "date" in cols_att:
-                date_col = "date"
-            elif "att_date" in cols_att:
-                date_col = "att_date"
-            else:
-                date_col = cols_att[1] if len(cols_att) > 1 else "date"
-            
-            status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
-
-            attendance_df = run_query(f"""
-                SELECT student_id, {date_col} as attendance_date, {status_col} as status
-                FROM attendance
-                WHERE student_id IN ({placeholders_str})
-            """, params_dict)
-            
-            if not attendance_df.empty:
-                attendance_df.columns = [c.lower() for c in attendance_df.columns]
-                attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
-                
-        except Exception as e:
-            try:
-                attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
-                if not attendance_df.empty:
-                    attendance_df.columns = [c.lower() for c in attendance_df.columns]
-                    attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
-                    
-                    for field in ["date_marked", "date", "att_date"]:
-                        if field in attendance_df.columns:
-                            attendance_df = attendance_df.rename(columns={field: "attendance_date"})
-                            break
-                    for field in ["status", "attendance_status"]:
-                        if field in attendance_df.columns:
-                            attendance_df = attendance_df.rename(columns={field: "status"})
-                            break
-            except Exception as internal_err:
-                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve: {str(internal_err)}")
-
         # CSS Styling Configurations
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
-        css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
-        css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
-        css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
-        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; } .btn-img-single { background-color: #e65100; }"
-        css_rules += " .btn-img-single:hover { background-color: #b33900; } .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
-        css_rules += " .cck-container { background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }"
-        css_rules += " .cck-header-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }"
-        css_rules += " .cck-logo-image-container { width: 75px; height: 75px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }"
-        css_rules += " .cck-logo-image { max-width: 100%; max-height: 100%; object-fit: contain; }"
-        css_rules += " .cck-logo-fallback-text { background-color: #e67e22; color: #ffffff; font-weight: bold; font-size: 22px; width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }"
-        css_rules += " .cck-title-block { text-align: center; } .cck-main-title { font-size: 24px; font-weight: bold; margin: 15px; letter-spacing: 0.5px; }"
-        css_rules += " .cck-sub-title { font-size: 13px; color: #444444; margin: 2px 0 0 0; } .cck-badge-wrapper { text-align: center; margin: 15px 0; }"
-        css_rules += " .cck-doc-badge { display: inline-block; background-color: #d1d5db; color: #000000; font-weight: bold; font-size: 16px; padding: 4px 20px; border-radius: 2px; }"
-        css_rules += " .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }"
-        css_rules += " .cck-meta-field { margin-right: 15px; margin-bottom: 8px; } .cck-line-fill { border-bottom: 1px solid #000000; display: inline-block; min-width: 120px; padding-left: 5px; font-weight: bold; }"
-        css_rules += " .cck-report-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }"
-        css_rules += " .cck-report-table th, .cck-report-table td { border: 1px solid #000000; padding: 6px 4px; text-align: center; }"
-        css_rules += " .cck-report-table th { background-color: #ffffff; font-weight: normal; } .cck-report-table td:first-child { text-align: left; padding-left: 8px; }"
-        css_rules += " .cck-remarks-area { margin-top: 100px; font-size: 14px; display: flex; align-items: flex-end; }"
-        css_rules += " .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000; margin-left: 8px; padding-left: 5px; font-style: italic; }"
-        css_rules += " .cck-footer-sign { margin-top: 25px; text-align: right; font-size: 14px; padding-right: 20px; }"
-        css_rules += " @media print { .action-dashboard-panel { display: none !important; } .cck-single-print-isolation { display: block !important; } .cck-single-print-hide { display: none !important; } .cck-container { border: none !important; padding: 0 !important; margin-bottom: 0 !important; } }"
-
+        # ... (Keep all your existing css_rules lines exactly here untouched) ...
         css_styles = f"<style>{css_rules}</style>".replace('\xa0', ' ')
 
         composite_html_payload = f"""
@@ -1695,11 +1642,24 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 
                             if not match_row.empty:
                                 try:
-                                    obt = float(match_row.iloc[0]["marks_obtained"])
-                                    tot = float(match_row.iloc[0]["total_marks"])
+                                    # 🎛️ If a shifty exam has both real computer marks AND chemistry marks, prioritize real computer marks
+                                    if len(match_row) > 1:
+                                        primary_slot = match_row[match_row["is_migration_subject"] != True]
+                                        migration_slot = match_row[match_row["is_migration_subject"] == True]
+                                        row_to_use = primary_slot.iloc[0] if not primary_slot.empty else migration_slot.iloc[0]
+                                    else:
+                                        row_to_use = match_row.iloc[0]
+
+                                    obt = float(row_to_use["marks_obtained"])
+                                    tot = float(row_to_use["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    row_tds += f"<td>{pct}%</td>"
+                                    # 🏷️ Apply the direct (Chem) badge if it came from the migration pool
+                                    if "is_migration_subject" in row_to_use and row_to_use["is_migration_subject"] == True:
+                                        row_tds += f"<td>{pct}% <span style='font-size:10px; font-weight:bold; color:#777;'> (Chem)</span></td>"
+                                    else:
+                                        row_tds += f"<td>{pct}%</td>"
+                                        
                                     exam_totals_obtained[exam] += obt
                                     exam_totals_possible[exam] += tot
                                     subject_pct_accum += pct
