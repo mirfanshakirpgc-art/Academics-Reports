@@ -2768,7 +2768,9 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
-# ----------------- 🎓 ADVANCED PROMOTE STUDENTS & REVERSAL PANEL -----------------
+# ====================================================================================
+# MODULE: STUDENT PROMOTION & SAFETY REVERSAL PANEL (EXACT ID UNDO BALANCED)
+# ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
@@ -2833,6 +2835,7 @@ elif menu_choice == "🎓 Promote Students":
     with tgt_c1:
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
+        # Aligned dynamically to your explicit reference dictionary rules
         if "MEDICAL" in disc_upper:
             available_tgt_sections = ["MQ1", "MQ2", "MK"]
         elif "ENGINEERING" in disc_upper:
@@ -2900,7 +2903,7 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
-    # Initialize an in-memory session log tracker if it doesn't exist
+    # Initialize state variable arrays securely
     if "promotion_history_log" not in st.session_state:
         st.session_state.promotion_history_log = []
 
@@ -2930,6 +2933,15 @@ elif menu_choice == "🎓 Promote Students":
             if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary"):
                 student_ids_to_process = preview_df['id'].tolist()
                 
+                # Snapshot details before database write operation
+                snapshot_records = []
+                for _, row in preview_df.iterrows():
+                    snapshot_records.append({
+                        "id": int(row['id']),
+                        "old_class": str(row['class']),
+                        "old_section": str(row['section'])
+                    })
+
                 for s_id in student_ids_to_process:
                     execute_db_command(
                         """
@@ -2945,57 +2957,60 @@ elif menu_choice == "🎓 Promote Students":
                         }
                     )
                 
-                # 📝 Log the action tracking data into browser memory safely
-                if promo_scope == "📋 Complete Section":
-                    st.session_state.promotion_history_log.append({
-                        "source_sec": str(selected_section),
-                        "target_sec": target_section.strip().upper(),
-                        "student_count": len(student_ids_to_process),
-                        "session_prefix": sess_prefix
-                    })
+                # 📝 Save exact structural rollback snapshots to memory
+                st.session_state.promotion_history_log.append({
+                    "source_sec": str(selected_section) if promo_scope == "📋 Complete Section" else "Single Profile",
+                    "target_sec": target_section.strip().upper(),
+                    "student_count": len(student_ids_to_process),
+                    "snapshot": snapshot_records
+                })
                 
-                st.success(f"🎉 Success! {len(student_ids_to_process)} records re-assigned safely to Class {next_class}.")
+                st.success(f"🎉 Success! {len(student_ids_to_process)} records reassigned safely to Class {next_class}.")
                 st.rerun()
         else:
             st.info("💡 No student records matching selected parameters were discovered inside the system roster.")
 
     st.markdown("---")
 
-    # --- ⏳ SECTION 4: SAFETY REVERSAL LOG (IN-MEMORY) ---
+    # --- ⏳ SECTION 4: SAFETY REVERSAL LOG (EXACT TRANSFORMATION UNDO) ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     st.write("Below are the promotions processed in your current session. Click **Undo Promotion** to instantly reverse any mistakes.")
 
     if st.session_state.promotion_history_log:
-        # Loop backwards through changes to undo the most recent first
+        # Loop backwards to ensure last-in, first-out accuracy
         for index, batch in enumerate(reversed(st.session_state.promotion_history_log)):
-            sec_11th = batch["source_sec"]
-            sec_12th = batch["target_sec"]
+            sec_old = batch["source_sec"]
+            sec_new = batch["target_sec"]
             count = batch["student_count"]
-            p_sess = batch["session_prefix"]
+            snapshots = batch["snapshot"]
             
             col_info, col_btn = st.columns([3, 1])
             with col_info:
-                st.markdown(f"📦 **Section Matrix:** `11th Grade ({sec_11th})` ➔ promoted to `12th Grade ({sec_12th})` — **{count} Students**")
+                st.markdown(f"📦 **Reversal Available:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
             with col_btn:
-                if st.button(f"🗑️ Undo Promotion", key=f"mem_undo_{sec_12th}_{index}"):
-                    # Roll back the database elements safely
-                    execute_db_command(
-                        """
-                        UPDATE students 
-                        SET class = '11th',
-                            section = :old_sec
-                        WHERE class = '12th'
-                          AND section = :curr_sec
-                          AND session LIKE :sess
-                        """,
-                        {"old_sec": sec_11th, "curr_sec": sec_12th, "sess": p_sess}
-                    )
+                # Absolute dynamic unique tracking key definition
+                if st.button(f"🗑️ Undo Promotion", key=f"fixed_undo_key_{index}_{count}"):
+                    # 🚀 Target each student individually by their explicit database ID snapshot
+                    for record in snapshots:
+                        execute_db_command(
+                            """
+                            UPDATE students 
+                            SET class = :old_cls,
+                                section = :old_sec
+                            WHERE id = :s_id
+                            """,
+                            {
+                                "old_cls": record["old_class"],
+                                "old_sec": record["old_section"],
+                                "s_id": record["id"]
+                            }
+                        )
                     
-                    # Pop from state arrays so it clears from the dashboard view
+                    # Pop the reversed item cleanly out of history queue
                     actual_index = len(st.session_state.promotion_history_log) - 1 - index
                     st.session_state.promotion_history_log.pop(actual_index)
                     
-                    st.success(f"↩️ Successfully reverted section {sec_12th} back to 11th Grade ({sec_11th})!")
+                    st.success("↩️ Reversal verified! All modified students returned back to their original sections instantly!")
                     st.rerun()
     else:
         st.info("🍃 No promotions processed yet during this active session.")
