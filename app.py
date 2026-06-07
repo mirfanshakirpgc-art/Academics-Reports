@@ -316,8 +316,60 @@ elif menu_choice == "➕ Add Students":
         selected_discipline = "N/A"
 
     st.markdown("---")
-    # ... Rest of the script layout form targets follow unchanged ...
-
+    
+    # ====================================================================================
+    # 📝 INJECTED FORM HOOK: NEW PROFILE REGISTRATION MATRICULATION
+    # ====================================================================================
+    st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
+    
+    with st.form("interactive_student_addition_form", clear_on_submit=True):
+        form_row1_left, form_row1_right = st.columns(2)
+        with form_row1_left:
+            input_roll_number = st.text_input("🆔 Class Roll Number / Student ID* (Must be Unique Numbers)")
+        with form_row1_right:
+            input_student_name = st.text_input("👤 Student Name Full Identity*")
+            
+        form_row2_left, form_row2_right = st.columns(2)
+        with form_row2_left:
+            input_father_name = st.text_input("👨 Father's Legal Name")
+        with form_row2_right:
+            input_status = st.selectbox("📌 Enrollment Registration Status Status:", ["ACTIVE", "PENDING", "LEAVE"])
+            
+        st.markdown("##")
+        submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
+        
+        if submit_registration_btn:
+            if not input_roll_number.strip() or not input_student_name.strip():
+                st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
+            elif not input_roll_number.strip().isdigit():
+                st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+            else:
+                try:
+                    # Parse configurations cleanly
+                    clean_id = int(input_roll_number.strip())
+                    clean_name = input_student_name.strip().upper()
+                    clean_fname = input_father_name.strip().upper()
+                    clean_disc = selected_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
+                    
+                    # Database statement execution
+                    execute_db_command("""
+                        INSERT INTO students (id, name, father_name, class, section, session, status, discipline)
+                        VALUES (:id, :name, :fname, :class, :section, :session, :status, :discipline)
+                    """, {
+                        "id": clean_id,
+                        "name": clean_name,
+                        "fname": clean_fname,
+                        "class": selected_class,
+                        "section": selected_section,
+                        "session": selected_session,
+                        "status": input_status,
+                        "discipline": clean_disc
+                    })
+                    
+                    st.success(f"🎉 Success! Profile for {clean_name} has been formally instantiated into system memory ledger.")
+                    st.balloons()
+                except Exception as db_err:
+                    st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned to another active student profile record. System details: {db_err}")
 
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
