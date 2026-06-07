@@ -516,7 +516,6 @@ elif menu_choice == "➕ Add Students":
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-Ah, there it is! The reason why the application wasn't showing the DIT subjects in this module is because the code was checking if `academic_system == "Semester System"`, but the form logic wasn't looking at what you selected in the database—it was using hardcoded lookups and falling back to default subject configurations.
 
 I have updated the module to be completely system-aware. This version checks if `academic_system` is set to **Semester System**, correctly defaults the discipline internally to `DIPLOMA_IN_IT_DIT`, and updates both the section and course selection dropdowns seamlessly to include your DIT targets ("Data Base System", "Video Editing", etc.).
 
