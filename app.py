@@ -934,50 +934,58 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.caption("ℹ️ No monthly aggregate history rows compiled for this student yet.")
                 else:
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
-# MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + HARDCODED FALLBACK)
+# ====================================================================================
+# MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
     import pandas as pd
     import streamlit.components.v1 as components
 
-    st.title("📋 Section Summary Report")
+    st.title("📋 Section Summary Report Ledger")
 
     # --- 1. PARAMETERS CONFIGURATION ---
-    session_options = ["2024-26", "2025-27", "2026-28"]
-    if "AVAILABLE_SESSIONS" in globals() and AVAILABLE_SESSIONS:
+    try:
         session_options = list(AVAILABLE_SESSIONS)
-
-    disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
-
-    exam_options = ["MT_1", "MT_2", "PRE_BOARD", "MATRIC"]
-    if "AVAILABLE_EXAMS" in globals() and AVAILABLE_EXAMS:
-        exam_options = list(AVAILABLE_EXAMS)
-    if "MATRIC" not in exam_options:
-        exam_options.append("MATRIC")
+        if "2024-26" in session_options:
+            session_options = [s for s in session_options if s != "2024-26"]
+    except NameError:
+        session_options = ["2025-27", "2026-28", "2027-29"]
 
     # --- 2. LAYOUT GENERATION & DISCIPLINE ROUTING ---
-    col_sess, col_class, col_a, col_b, col_c = st.columns(5)
+    # Balanced 6-column layout control grid to track variables cleanly
+    col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
     
     with col_sess:
-        selected_session = st.selectbox("Select Session:", session_options, index=1 if "2025-27" in session_options else 0, key="summary_session")
+        selected_session = st.selectbox("Select Session:", session_options, key="summary_session")
         db_session_string = str(selected_session).strip() if selected_session else "2025-27"
         
+    with col_sys:
+        academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
+        
     with col_class:
-        selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="summary_class")
+        if academic_system == "Annual System":
+            selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
+        else:
+            selected_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
         
     with col_a: 
-        raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
-        sel_disc = str(raw_disc).strip().upper() if raw_disc else "ICS_STATS"
+        if academic_system == "Annual System":
+            disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
+            raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
+            sel_disc = str(raw_disc).strip().upper()
+        else:
+            sel_disc = "DIPLOMA_IN_IT_DIT"
+            st.info("⚡ DIT System Active")
         
     with col_b: 
-        # LIVE DATABASE ROUTING: Query actual sections existing in the database for this specific class/session
+        # LIVE DATABASE ROUTING: Enforce strict equality matches to eliminate 2026-28 cross-contamination leaks
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
                 FROM students 
                 WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
-                  AND UPPER(TRIM(session)) = UPPER(TRIM(:sess_val))
+                  AND TRIM(session) = TRIM(:sess_val)
                 ORDER BY section_name ASC
             """, {"class_val": selected_class, "sess_val": db_session_string})
             
@@ -985,7 +993,6 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # If the database returns records, apply smart filters based on the selected Discipline keyword
         if db_sections:
             if "STATS" in sel_disc:
                 sec_options = [s for s in db_sections if "STATS" in s.upper() or "WHITE" in s.upper() or "3" in s]
@@ -1000,47 +1007,20 @@ elif menu_choice == "📋 Section Summary Report":
             else:
                 sec_options = db_sections
                 
-            # If our smart filter left the list empty, use all sections found for this class
             if not sec_options:
                 sec_options = db_sections
         else:
-            # --- BACKUP STATIC DICTIONARY FALLBACK (If database query returned nothing) ---
-            SECTIONS_ROUTING_MAP = {
-                "12TH": {
-                    "MEDICAL": ["MQ1", "MQ2", "MK1"],
-                    "ENGINEERING": ["EK1", "EQ1"],
-                    "ICS_PHYSICS": ["CQ1", "CQ2", "CK1", "CK2"],
-                    "ICS_STATS": ["CQ3", "CK3"],
-                    "COMMERCE": ["IQ1", "IK1"],
-                    "HUMANITIES": ["FQ1", "FK1"]
-                },
-                "11TH": {
-                    "MEDICAL": ["MG_BLUE", "MG_WHITE"],
-                    "ENGINEERING": ["EG_BLUE"],
-                    "ICS_PHYSICS": ["CG_GREEN", "CG_WHITE"],
-                    "ICS_STATS": ["CG_STATS", "CB_WHITE"],
-                    "COMMERCE": ["CB_WHITE"],
-                    "HUMANITIES": ["CB_WHITE"]
-                }
-            }
-            current_class_key = "11TH" if "11" in selected_class else "12TH"
-            sec_options = SECTIONS_ROUTING_MAP[current_class_key].get(sel_disc, [])
+            # Smart conditional system fallback assignments
+            if academic_system == "Semester System":
+                sec_options = ["DIT_G", "DIT_B"]
+            else:
+                sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
 
-        # Final layout safety backup
-        if not sec_options:
-            sec_options = ["CG_STATS", "CB_WHITE"] if "11" in selected_class else ["CK1", "CK2"]
-
-        # Dynamic state key to reset component memory when filters switch
-        dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}"
-        
-        sel_sec = st.selectbox(
-            "Select Section:", 
-            sec_options, 
-            index=0, 
-            key=dynamic_widget_key
-        )
+        dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
+        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key=dynamic_widget_key)
         
     with col_c: 
+        exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
@@ -1049,37 +1029,50 @@ elif menu_choice == "📋 Section Summary Report":
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
         "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST",
         "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN",
-        "PRINCIPLES OF ACCOUNTING": "ACC", "ECONOMICS": "ECO", "COMMERCE": "COMM"
+        "PRINCIPLES OF ACCOUNTING": "ACC", "ECONOMICS": "ECO", "COMMERCE": "COMM",
+        "ICT": "ICT", "INTRODUCTION TO MS-OFFICE": "OFFICE", "COMPUTER NETWORKS": "NETWORKS",
+        "OPERATING SYSTEM": "O.S", "INTRODUCTION TO PROGRAMMING": "PROG",
+        "DATA BASE SYSTEM": "DBMS", "VIDEO EDITING": "VIDEO", "WEB DEVELOPMENT ESSENTIAL": "WEB",
+        "GRAPHICS DESIGN": "DESIGN", "PROJECT": "PROJ"
     }
     
-    # --- 4. SUBJECT LIST ROUTING BASED ON DISCIPLINE ---
-    if "STATS" in sel_disc:
-        subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-    elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-        subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-    elif "MEDICAL" in sel_disc:
-        subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
-    elif "ENGINEERING" in sel_disc:
-        subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-    elif "COMMERCE" in sel_disc:
-        subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"]
+    # --- 4. SUBJECT LIST ROUTING BASED ON SYSTEM & DISCIPLINE ---
+    if academic_system == "Semester System":
+        if selected_class == "Semester 1":
+            subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
+        elif selected_class == "Semester 2":
+            subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+        else:
+            subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
     else:
-        subjects = ["ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
+        if "STATS" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "MEDICAL" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
+        elif "ENGINEERING" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "COMMERCE" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"]
+        else:
+            subjects = ["ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
 
     # --- 5. DATABASE INTEGRATION ENGINE ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-          AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
+          AND TRIM(session) = TRIM(:session_str)
           AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
     """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
     if students_df.empty:
-        st.info(f"💡 No active student profiles registered under Section '{sel_sec}' ({selected_class}) inside Session {selected_session}.")
+        st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
     else:
+        # Load marks entries lookup database view frame
         try:
             marks_df = run_query("""
                 SELECT TRIM(student_id)::text as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
@@ -1088,6 +1081,15 @@ elif menu_choice == "📋 Section Summary Report":
             """, {"exam": sel_exam})
         except Exception:
             marks_df = pd.DataFrame()
+
+        # Fetch underlying dynamic live attendance sheets values matrix
+        try:
+            att_df = run_query("""
+                SELECT TRIM(student_id)::text as student_key, status
+                FROM daily_attendance
+            """, {})
+        except Exception:
+            att_df = pd.DataFrame()
 
         # --- 6. PERFORMANCE GRID COMPILER ---
         summary_rows = []
@@ -1103,6 +1105,7 @@ elif menu_choice == "📋 Section Summary Report":
                 "Status": s_status
             }
             
+            # Sub-calculations layout configurations loop parameters logic
             obtained_total = 0.0
             max_total = 0.0
             has_valid_scores = False  
@@ -1112,14 +1115,10 @@ elif menu_choice == "📋 Section Summary Report":
                 short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
                 
                 alias_list = [sub_upper]
-                if "STAT" in sub_upper:
-                    alias_list.extend(["STATISTICS", "STATS"])
-                elif "PHYS" in sub_upper:
-                    alias_list.extend(["PHYSICS"])
-                elif "COMP" in sub_upper:
-                    alias_list.extend(["COMPUTER SCIENCE", "COMPUTER"])
-                elif "QURAN" in sub_upper or "QUANT" in sub_upper:
-                    alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
+                if "STAT" in sub_upper: alias_list.extend(["STATISTICS", "STATS"])
+                elif "PHYS" in sub_upper: alias_list.extend(["PHYSICS"])
+                elif "COMP" in sub_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
+                elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
                 
                 if marks_df is not None and not marks_df.empty:
                     sub_match = marks_df[
@@ -1155,6 +1154,19 @@ elif menu_choice == "📋 Section Summary Report":
             else:
                 entry["Total (Obt)"] = "-"
                 entry["Total Max"] = "-"
+                
+            # Dynamic calculation metric for computing runtime live Attendance metric
+            if not att_df.empty:
+                st_att_logs = att_df[att_df["student_key"] == s_id]
+                if not st_att_logs.empty:
+                    total_days = len(st_att_logs)
+                    present_days = len(st_att_logs[st_att_logs["status"].str.strip().str.upper().isin(["P", "PRESENT"])])
+                    pct = (present_days / total_days) * 100 if total_days > 0 else 100.0
+                    entry["Attendance"] = f"{int(pct)}%"
+                else:
+                    entry["Attendance"] = "100%"
+            else:
+                entry["Attendance"] = "100%"
                 
             summary_rows.append(entry)
             
@@ -1200,6 +1212,7 @@ elif menu_choice == "📋 Section Summary Report":
                 <td>{row['Section']}</td>
                 <td>{row['Class']}</td>
                 {row_subjects_cells}
+                <td style="font-weight: bold; background-color: #fcfcfc; color: #0066cc;">{row['Attendance']}</td>
                 <td style="font-weight: bold; background-color: #fcfcfc;">{row['Total (Obt)']}</td>
                 <td style="font-weight: bold; color: #555; background-color: #fcfcfc;">{row['Total Max']}</td>
             </tr>
@@ -1254,10 +1267,11 @@ elif menu_choice == "📋 Section Summary Report":
                     </div>
                     <div class="meta-details">
                         <b>Session:</b> {selected_session}<br>
-                        <b>Class Level History Scope:</b> {selected_class}<br>
-                        <b>Discipline:</b> {sel_disc}<br>
-                        <b>Section Block:</b> {sel_sec}<br>
-                        <b>Exam Phase:</b> {sel_exam}
+                        <b>System Framework:</b> {academic_system}<br>
+                        <b>Class Level / Scope:</b> {selected_class}<br>
+                        <b>Discipline Category:</b> {sel_disc}<br>
+                        <b>Section Identifier:</b> {sel_sec}<br>
+                        <b>Exam Target:</b> {sel_exam}
                     </div>
                 </div>
                 
@@ -1266,9 +1280,10 @@ elif menu_choice == "📋 Section Summary Report":
                         <tr>
                             <th style="width: 7%;">ID</th>
                             <th style="text-align: left; padding-left: 12px;">Student Name</th>
-                            <th style="width: 9%;">Section</th>
+                            <th style="width: 8%;">Section</th>
                             <th style="width: 7%;">Class</th>
                             {thead_subjects_html}
+                            <th style="background-color: #e6f2ff; color: #0055b3; width: 8%;">Att %</th>
                             <th style="background-color: #f1f3f5; width: 10%;">Total (Obt)</th>
                             <th style="background-color: #f1f3f5; width: 9%;">Total Max</th>
                         </tr>
@@ -1282,7 +1297,7 @@ elif menu_choice == "📋 Section Summary Report":
             <script>
                 document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
                     const targetEl = document.getElementById('printable-summary-target');
-                    const filenameStr = "Summary_Report_{sel_sec}_{selected_class}_{selected_session}_{sel_exam}.png";
+                    const filenameStr = "Summary_Report_{sel_sec}_{selected_class}_{selected_session}.png";
                     
                     html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
                         const linkHook = document.createElement('a');
