@@ -2,6 +2,7 @@
 # 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
 # ==============================================================================
 import streamlit as st
+import clean_file
 import pandas as pd
 import sqlite3
 import os
