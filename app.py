@@ -941,6 +941,7 @@ elif menu_choice == "📋 Section Summary Report":
     import streamlit as st
     import pandas as pd
     import streamlit.components.v1 as components
+    import io
 
     st.title("📋 Section Summary Report Ledger")
 
@@ -1014,7 +1015,7 @@ elif menu_choice == "📋 Section Summary Report":
                 sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
 
         dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
-        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key=dynamic_widget_key)
+        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key="dynamic_widget_key")
         
     with col_c: 
         exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
@@ -1169,8 +1170,37 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # --- 7. HTML LIVE COMPONENT INTERFACE GENERATOR ---
+        # --- NEW Feature: EXCEL PAYLOAD COMPILER HUB ---
+        # Formulate a decoupled data structure optimized for spreadsheet workflows
+        excel_export_df = final_report_df.copy()
+        
+        # Strip floating configurations safely from cell variables before rendering payload sheets
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
+        for col_lbl in short_subject_labels:
+            if col_lbl in excel_export_df.columns:
+                excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(
+                    lambda cell: int(cell) if isinstance(cell, (int, float)) else cell
+                )
+        
+        # Package bytes structures array matrix seamlessly using standard buffer utilities
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+            excel_export_df.to_excel(writer, index=False, sheet_name='Performance_Summary')
+        excel_data_payload = excel_buffer.getvalue()
+
+        # Render explicit Excel download action button cleanly into Streamlit header context
+        col_download_hook, _ = st.columns([2, 4])
+        with col_download_hook:
+            st.download_button(
+                label="📥 Download Excel Spreadsheet Summary",
+                data=excel_data_payload,
+                file_name=f"Summary_Report_{sel_sec}_{selected_class}_{db_session_string}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="summary_excel_downloader_widget",
+                use_container_width=True
+            )
+        
+        # --- 7. HTML LIVE COMPONENT INTERFACE GENERATOR ---
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
         
         tbody_rows_html = ""
