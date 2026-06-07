@@ -2769,31 +2769,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH NATIVE POSTGRES SERIAL POOLS & LOG ACTIONS
+# MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & DELETE ACCIDENT GUARDS
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or select specific individual students while managing their target sections and tracking historical promotion batches.")
 
-    # 🛠️ HARD HARDWARE RESET: Drop legacy SQLite syntax and rebuild cleanly for PostgreSQL
-    try:
-        # Check if the table has the broken sqlite auto-increment string layout
-        check_table = run_query("""
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'promotion_history' AND column_name = 'id';
-        """)
-        
-        # If something is broken, we force an infrastructure clean wipe
-        if not check_table.empty:
-            # We check if it can catch errors; if it fails, we drop and clear
-            pass
-    except Exception:
-        try:
-            execute_db_command("DROP TABLE IF EXISTS promotion_history CASCADE;")
-        except Exception:
-            pass
-
-    # Clean PostgreSQL Build Sequence
+    # 🛠️ POSTGRESQL NATIVE SCHEMA BUILDER
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS promotion_history (
@@ -2808,8 +2790,6 @@ elif menu_choice == "🎓 Promote Students":
                 batch_id TEXT
             );
         """)
-        
-        # Safety fallback check to add the old_session column if missing
         try:
             execute_db_command("ALTER TABLE promotion_history ADD COLUMN old_session TEXT;")
         except Exception:
@@ -2964,13 +2944,11 @@ elif menu_choice == "🎓 Promote Students":
                         old_sess = str(row['session']).strip()
                         new_sec = target_section.strip().upper()
 
-                        # 1. Save snapshot to history ledger
                         execute_db_command("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
                             VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
                         """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "old_sess": old_sess, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
 
-                        # 2. Modify target student variables
                         execute_db_command("""
                             UPDATE students 
                             SET class = :next_cls, section = :next_sec
@@ -2988,19 +2966,22 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
-    # --- ⏳ SECTION 4: REVERSAL LOG (DATABASE-BACKED) ---
+    # --- ⏳ SECTION 4: REVERSAL CONTROL MATRIX ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     
     st.markdown("#### ⚙️ Administrative Global & Section Controls")
-    st.write("Select a target section to wipe historical data from your system entirely.")
+    st.write("Select a targeted academic track below to purge logs or perform critical data maintenance resets.")
     
     cleanup_col1, cleanup_col2, cleanup_col3 = st.columns([2, 1, 1.2])
     with cleanup_col1:
+        # Combined list strategy ensuring IK and CK3 are permanently selectable options even if empty
         try:
-            sections_master_df = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != '' ORDER BY section")
-            master_sections_list = sections_master_df['section'].tolist() if not sections_master_df.empty else ["IK", "IQ", "CK3"]
+            sections_master_df = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
+            db_sections = sections_master_df['section'].tolist() if not sections_master_df.empty else []
+            # Merge with core fallback tracks to keep inputs alive
+            master_sections_list = sorted(list(set(db_sections + ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"])))
         except Exception:
-            master_sections_list = ["IK", "IQ", "CK3"]
+            master_sections_list = ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"]
             
         wipe_target_sec = st.selectbox("🎯 Target Section Selection Matrix:", master_sections_list, key="always_visible_wipe_dropdown")
     
@@ -3016,7 +2997,10 @@ elif menu_choice == "🎓 Promote Students":
 
     with cleanup_col3:
         st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
-        if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True):
+        # Added safety confirm checkbox block below to stop accidental clicks
+        confirm_purge = st.checkbox("Confirm Table Purge", key="confirm_purge_check")
+        
+        if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True, disabled=not confirm_purge):
             try:
                 execute_db_command("""
                     DELETE FROM students 
