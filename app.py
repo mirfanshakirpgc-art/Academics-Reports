@@ -1414,20 +1414,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     else:  # --- SEMESTER SYSTEM BRANCH ---
         with col_dyn1:
-            sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester"], key="global_sel_class")
+            # 🎯 Expanded to support all 4 semesters
+            sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="global_sel_class")
             
         with col_dyn2:
-            if sel_class_global == "1st Semester":
-                filtered_sections = ["DIT_1ST"]
-            else:
-                filtered_sections = ["DIT_2ND"]
-                
-            sel_sec = st.selectbox("Select Target Section:", options=filtered_sections, index=0, key="global_sel_sec")
+            # 🎯 Fixed: Always offer DIT_G and DIT_B for all semesters
+            semester_sections = ["DIT_G", "DIT_B"]
+            sel_sec = st.selectbox("Select Target Section:", options=semester_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
-            # Configured to look up standard test framework names (MT_1, MT_2...) for semesters too!
+            # Standard test framework names (MT_1, MT_2...) for semesters
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
-
     st.markdown("---")
 
     # Scope Selector Strategy
