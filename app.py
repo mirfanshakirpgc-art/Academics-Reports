@@ -2769,11 +2769,11 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH HARDENED POSTGRESQL DATABASE REVERSAL LOGGING
+# MODULE: STUDENT PROMOTION WITH SELECTIVE ROSTER CHECKBOXES & REVERSAL LOGGING
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
-    st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
+    st.write("Promote whole sections or select specific individual students while managing their target sections and tracking historical promotion batches.")
 
     # 🛠️ AUTO-CREATE LEDGER TABLE NATIVELY (PostgreSQL Validated Schema)
     try:
@@ -2869,10 +2869,9 @@ elif menu_choice == "🎓 Promote Students":
 
         target_section = st.selectbox("Assign to Destination Section:", available_tgt_sections, key="promo_tgt_sec")
 
-    # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
+    # --- SECTION 3: ROSTER PREVIEW & SELECTION EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
 
-    # Flag configuration variables setup
     should_show_preview = False
     preview_query = ""
     params = {}
@@ -2884,7 +2883,7 @@ elif menu_choice == "🎓 Promote Students":
             WHERE session LIKE :sess 
               AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
               AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-            ORDER BY id ASC
+            ORDER BY name ASC
         """
         params = {"sess": sess_prefix, "cls": source_class, "sec": str(selected_section)}
     elif promo_scope == "👤 Single Student" and target_student_id:
@@ -2896,35 +2895,72 @@ elif menu_choice == "🎓 Promote Students":
         preview_df = run_query(preview_query, params)
         
         if not preview_df.empty:
-            st.dataframe(preview_df, use_container_width=True)
-            st.warning(f"⚠️ **Action Scope Notice:** Running promotion updates will modify {len(preview_df)} student profiles.")
+            selected_student_records = []
             
-            if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary", use_container_width=True):
-                import uuid
-                student_ids_to_process = preview_df['id'].tolist()
-                batch_identifier = str(uuid.uuid4())[:8]
+            # If promoting a section, show interactive select-all / deselect-some checkboxes
+            if promo_scope == "📋 Complete Section":
+                st.markdown("##### 🗳️ Select Students to Include in this Promotion Batch:")
                 
-                for _, row in preview_df.iterrows():
-                    s_id = int(row['id'])
-                    old_cls = str(row['class'])
-                    old_sec = str(row['section'])
-                    new_sec = target_section.strip().upper()
+                # Checkbox control helper columns
+                c_all, c_none = st.columns([1, 5])
+                with c_all:
+                    if st.button("Select All"):
+                        st.session_state["promo_select_all"] = True
+                
+                # Render interactive roster grid
+                for idx, row in preview_df.iterrows():
+                    chk_key = f"chk_{row['id']}_{idx}"
+                    default_val = st.session_state.get("promo_select_all", True)
+                    
+                    is_selected = st.checkbox(
+                        f"🆔 {row['id']} — **{row['name']}** (Current Section: {row['section']})", 
+                        value=default_val, 
+                        key=chk_key
+                    )
+                    if is_selected:
+                        selected_student_records.append(row)
+                        
+                # Reset helper state flag seamlessly
+                if "promo_select_all" in st.session_state:
+                    del st.session_state["promo_select_all"]
+            else:
+                # Single student scope automatically selects the chosen profile record row
+                selected_student_records = [preview_df.iloc[0]]
+                st.dataframe(preview_df, use_container_width=True)
 
-                    # 1. Write deep state snapshot variables into database schema tracking row
-                    execute_db_command("""
-                        INSERT INTO promotion_history (student_id, old_class, old_section, new_class, new_section, batch_id)
-                        VALUES (:s_id, :old_cls, :old_sec, :new_cls, :new_sec, :b_id)
-                    """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
+            total_selected = len(selected_student_records)
+            st.markdown(f"📊 **Batch Status:** Ready to promote **{total_selected}** out of **{len(preview_df)}** loaded profiles.")
+            
+            if total_selected > 0:
+                st.warning(f"⚠️ **Action Scope Notice:** Running promotion updates will modify {total_selected} student profiles.")
+                
+                if st.button(f"🚀 Execute Selected Promotion Pipeline", type="primary", use_container_width=True):
+                    import uuid
+                    batch_identifier = str(uuid.uuid4())[:8] # Unique tracking sequence token string
+                    
+                    for row in selected_student_records:
+                        s_id = int(row['id'])
+                        old_cls = str(row['class'])
+                        old_sec = str(row['section'])
+                        new_sec = target_section.strip().upper()
 
-                    # 2. Reassign student production profiles criteria natively
-                    execute_db_command("""
-                        UPDATE students 
-                        SET class = :next_cls, section = :next_sec
-                        WHERE id = :s_id
+                        # 1. Write current metrics to permanent history table ledger data rows
+                        execute_db_command("""
+                            INSERT INTO promotion_history (student_id, old_class, old_section, new_class, new_section, batch_id)
+                            VALUES (:s_id, :old_cls, :old_sec, :new_cls, :new_sec, :b_id)
+                        """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
+
+                        # 2. Reassign live student profile row parameters 
+                        execute_db_command("""
+                            UPDATE students 
+                            SET class = :next_cls, section = :next_sec
+                            WHERE id = :s_id
                         """, {"next_cls": next_class, "next_sec": new_sec, "s_id": s_id})
-                
-                st.success(f"🎉 Success! {len(student_ids_to_process)} records reassigned to Class {next_class} (Batch: {batch_identifier}).")
-                st.rerun()
+                    
+                    st.success(f"🎉 Success! {total_selected} records reassigned to Class {next_class} (Batch: {batch_identifier}).")
+                    st.rerun()
+            else:
+                st.error("❌ Cannot execute pipeline. You must leave at least one student checked to run a promotion.")
         else:
             st.info("💡 No student records matching selected parameters found.")
     else:
@@ -2936,7 +2972,7 @@ elif menu_choice == "🎓 Promote Students":
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     st.write("Below are the promotions processed. These buttons persist across sessions and system refreshes.")
 
-    # Read persistent system processing history using custom queries
+    # Read records natively from our permanent history ledger table
     try:
         history_batches = run_query("""
             SELECT batch_id, old_section, new_section, COUNT(student_id) as student_count, MAX(timestamp) as log_time
@@ -2961,18 +2997,18 @@ elif menu_choice == "🎓 Promote Students":
                 st.markdown(f"📦 **Batch `{b_id}`:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
             with col_btn:
                 if st.button(f"🗑️ Undo Promotion", key=f"db_undo_{b_id}_{idx}"):
-                    # Target explicit unique profile IDs mapped directly inside this batch snap code
+                    # Target specific student snapshots belonging to this exact batch code identifier
                     batch_details = run_query("SELECT student_id, old_class, old_section FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
                             execute_db_command("""
                                 UPDATE students 
-                                \nSET class = :old_cls, section = :old_sec
+                                SET class = :old_cls, section = :old_sec
                                 WHERE id = :s_id
                             """, {"old_cls": record['old_class'], "old_sec": record['old_section'], "s_id": int(record['student_id'])})
                     
-                    # Delete tracking row from ledger table so user workspace elements refresh cleanly
+                    # Wipe log track cleanly so screen UI elements refresh cleanly
                     execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to original states.")
