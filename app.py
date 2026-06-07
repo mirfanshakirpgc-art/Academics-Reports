@@ -2769,7 +2769,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH SESSION-ALIGNED REVERSAL LOGGING
+# MODULE: STUDENT PROMOTION WITH SESSION-ALIGNED REVERSAL LOGGING & CLEANUP HOOK
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
@@ -2970,7 +2970,20 @@ elif menu_choice == "🎓 Promote Students":
     st.markdown("---")
 
     # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
-    st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
+    header_col, clear_btn_col = st.columns([3, 1])
+    
+    with header_col:
+        st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
+    with clear_btn_col:
+        # Permanent secure option to clear out broken batch history references
+        if st.button("🧹 Clear All Promotion Logs", type="secondary", use_container_width=True):
+            try:
+                execute_db_command("TRUNCATE TABLE promotion_history RESTART IDENTITY;")
+                st.success("History panel wiped out cleanly!")
+                st.rerun()
+            except Exception as clear_err:
+                st.error(f"Clear Error: {clear_err}")
+
     st.write("Below are the promotions processed. Reverting an action syncs their session tags so they appear back on your 11th grade roster views.")
 
     try:
