@@ -2769,13 +2769,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH ALWAYS-VISIBLE SECTION DB-DELETE ACTIONS
+# MODULE: STUDENT PROMOTION WITH NATIVE POSTGRES SERIAL POOLS & LOG ACTIONS
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or select specific individual students while managing their target sections and tracking historical promotion batches.")
 
-    # 🛠️ AUTO-CREATE/UPGRADE LEDGER TABLE NATIVELY (PostgreSQL Validated Schema with Session Tracking)
+    # 🛠️ POSTGRESQL VALIDATED AUTO-CREATION SCHEMA (Fixed SyntaxError)
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS promotion_history (
@@ -2945,13 +2945,13 @@ elif menu_choice == "🎓 Promote Students":
                         old_sess = str(row['session']).strip()
                         new_sec = target_section.strip().upper()
 
-                        # 1. Save data snapshot to history ledger (now includes old_session)
+                        # 1. Save snapshot to history ledger
                         execute_db_command("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
                             VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
                         """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "old_sess": old_sess, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
 
-                        # 2. Apply real student updates
+                        # 2. Modify target student variables
                         execute_db_command("""
                             UPDATE students 
                             SET class = :next_cls, section = :next_sec
@@ -2969,7 +2969,7 @@ elif menu_choice == "🎓 Promote Students":
 
     st.markdown("---")
 
-    # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
+    # --- ⏳ SECTION 4: REVERSAL LOG (DATABASE-BACKED) ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     
     st.markdown("#### ⚙️ Administrative Global & Section Controls")
@@ -2997,10 +2997,8 @@ elif menu_choice == "🎓 Promote Students":
 
     with cleanup_col3:
         st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
-        # 🔥 THE DIRECT DB PURGE DELETION BUTTON 🔥
         if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True):
             try:
-                # 1. Purge matching actual user entity rows out of the database data space completely
                 execute_db_command("""
                     DELETE FROM students 
                     WHERE id IN (
@@ -3010,9 +3008,7 @@ elif menu_choice == "🎓 Promote Students":
                     )
                 """, {"sec": wipe_target_sec})
                 
-                # 2. Clean out tracking rows now that those references are destroyed
                 execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
-                
                 st.success(f"💥 Permanent Purge Complete! All students tracked within Section {wipe_target_sec} have been erased from the system.")
                 st.rerun()
             except Exception as delete_err:
@@ -3067,4 +3063,4 @@ elif menu_choice == "🎓 Promote Students":
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to 11th grade section `{sec_old}`.")
                     st.rerun()
     else:
-        st.info("🍃 No promotions found in the permanent database log table.")
+        st.info("🍃 No active promotions found in the tracking logs.")
