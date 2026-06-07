@@ -2410,21 +2410,9 @@ elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or select specific individual students while managing their target sections and tracking historical promotion batches.")
 
-    # 🛠️ POSTGRESQL NATIVE SCHEMA BUILDER
+    # 🛠️ POSTGRESQL NATIVE SCHEMA BUILDER (Flattened to prevent indentation bugs)
     try:
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS promotion_history (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                student_id INTEGER,
-                old_class TEXT,
-                old_section TEXT,
-                old_session TEXT,
-                new_class TEXT,
-                new_section TEXT,
-                batch_id TEXT
-            );
-        """)
+        execute_db_command("CREATE TABLE IF NOT EXISTS promotion_history (id SERIAL PRIMARY KEY, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, student_id INTEGER, old_class TEXT, old_section TEXT, old_session TEXT, new_class TEXT, new_section TEXT, batch_id TEXT);")
         try:
             execute_db_command("ALTER TABLE promotion_history ADD COLUMN old_session TEXT;")
         except Exception:
@@ -2448,27 +2436,13 @@ elif menu_choice == "🎓 Promote Students":
     target_student_id = None
     
     if promo_scope == "📋 Complete Section":
-        sections_df = run_query(
-            """
-            SELECT DISTINCT section FROM students 
-            WHERE session LIKE :sess 
-              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
-            ORDER BY section
-            """,
-            {"sess": sess_prefix, "cls": source_class}
-        )
+        # Flattened source sections query
+        sections_df = run_query("SELECT DISTINCT section FROM students WHERE session LIKE :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) ORDER BY section", {"sess": sess_prefix, "cls": source_class})
         available_src_sections = sections_df['section'].tolist() if not sections_df.empty else []
         selected_section = st.selectbox("Select Source Section to Promote:", available_src_sections if available_src_sections else ["No Data Found"])
     else:
-        students_roster_df = run_query(
-            """
-            SELECT id, name FROM students 
-            WHERE session LIKE :sess 
-              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
-            ORDER BY name
-            """,
-            {"sess": sess_prefix, "cls": source_class}
-        )
+        # Flattened student roster query
+        students_roster_df = run_query("SELECT id, name FROM students WHERE session LIKE :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) ORDER BY name", {"sess": sess_prefix, "cls": source_class})
         if not students_roster_df.empty:
             student_options = {f"{row['id']} - {row['name']}": row['id'] for _, row in students_roster_df.iterrows()}
             chosen_stu_str = st.selectbox("Search & Select Student:", list(student_options.keys()))
@@ -2518,13 +2492,8 @@ elif menu_choice == "🎓 Promote Students":
 
     if promo_scope == "📋 Complete Section" and selected_section and selected_section != "No Data Found":
         should_show_preview = True
-        preview_query = """
-            SELECT id, name, section, class, session FROM students 
-            WHERE session LIKE :sess 
-              AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
-              AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-            ORDER BY name ASC
-        """
+        # Flattened review query
+        preview_query = "SELECT id, name, section, class, session FROM students WHERE session LIKE :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) AND UPPER(TRIM(section)) = UPPER(TRIM(:sec)) ORDER BY name ASC"
         params = {"sess": sess_prefix, "cls": source_class, "sec": str(selected_section)}
     elif promo_scope == "👤 Single Student" and target_student_id:
         should_show_preview = True
@@ -2579,16 +2548,11 @@ elif menu_choice == "🎓 Promote Students":
                         old_sess = str(row['session']).strip()
                         new_sec = target_section.strip().upper()
 
-                        execute_db_command("""
-                            INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
-                            VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
-                        """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "old_sess": old_sess, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
+                        # Flattened tracking query
+                        execute_db_command("INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id) VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)", {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "old_sess": old_sess, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
 
-                        execute_db_command("""
-                            UPDATE students 
-                            SET class = :next_cls, section = :next_sec, session = :new_sess
-                            WHERE id = :s_id
-                        """, {"next_cls": next_class, "next_sec": new_sec, "new_sess": promo_session, "s_id": s_id})
+                        # Flattened state table modifier query
+                        execute_db_command("UPDATE students SET class = :next_cls, section = :next_sec, session = :new_sess WHERE id = :s_id", {"next_cls": next_class, "next_sec": new_sec, "new_sess": promo_session, "s_id": s_id})
                     
                     st.success(f"🎉 Success! {total_selected} records reassigned to Class {next_class} (Batch: {batch_identifier}).")
                     st.rerun()
@@ -2634,14 +2598,8 @@ elif menu_choice == "🎓 Promote Students":
         
         if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True, disabled=not confirm_purge):
             try:
-                execute_db_command("""
-                    DELETE FROM students 
-                    WHERE id IN (
-                        SELECT student_id FROM promotion_history 
-                        WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) 
-                           OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))
-                    )
-                """, {"sec": wipe_target_sec})
+                # Flattened massive cascade student deletion query block
+                execute_db_command("DELETE FROM students WHERE id IN (SELECT student_id FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec)))", {"sec": wipe_target_sec})
                 
                 execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
                 st.success(f"💥 Permanent Purge Complete! All students tracked within Section {wipe_target_sec} have been erased from the system.")
@@ -2653,13 +2611,8 @@ elif menu_choice == "🎓 Promote Students":
     st.write("Below are recent promotions processed. Reverting an action syncs their session tags so they appear back on your 11th grade roster views.")
 
     try:
-        history_batches = run_query("""
-            SELECT batch_id, old_section, new_section, COUNT(student_id) as student_count, MAX(timestamp) as log_time
-            FROM promotion_history 
-            GROUP BY batch_id 
-            ORDER BY log_time DESC 
-            LIMIT 5
-        """)
+        # Flattened query grouping historical logs
+        history_batches = run_query("SELECT batch_id, old_section, new_section, COUNT(student_id) as student_count, MAX(timestamp) as log_time FROM promotion_history GROUP BY batch_id ORDER BY log_time DESC LIMIT 5")
     except Exception:
         import pandas as pd
         history_batches = pd.DataFrame()
@@ -2680,24 +2633,14 @@ elif menu_choice == "🎓 Promote Students":
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
-                            # Hardened Fail-Safe logic for checking and repairing session values
                             log_session_str = str(record['old_session']).strip() if record['old_session'] else ""
                             if not log_session_str or log_session_str == "None":
-                                target_session_val = promo_session # Use current workspace filter value as absolute fallback recovery
+                                target_session_val = promo_session
                             else:
                                 target_session_val = log_session_str
                             
-                            execute_db_command("""
-                                UPDATE students 
-                                SET class = '11th', 
-                                    section = UPPER(TRIM(:old_sec)),
-                                    session = :old_sess
-                                WHERE id = :s_id
-                            """, {
-                                "old_sec": str(record['old_section']).strip(), 
-                                "old_sess": target_session_val,
-                                "s_id": int(record['student_id'])
-                            })
+                            # Flattened undo execution matrix query
+                            execute_db_command("UPDATE students SET class = '11th', section = UPPER(TRIM(:old_sec)), session = :old_sess WHERE id = :s_id", {"old_sec": str(record['old_section']).strip(), "old_sess": target_session_val, "s_id": int(record['student_id'])})
                     
                     execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to 11th grade section `{sec_old}`.")
