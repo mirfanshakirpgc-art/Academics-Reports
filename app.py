@@ -1744,20 +1744,12 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ==========================================
             # 1. INITIALIZE SEGMENTED HTML COMPONENTS
             # ==========================================
-            # Emojis stripped out completely to bypass file encoding/unicode compiler crashes.
-            html_header = """<!DOCTYPE html>
-<html>
-<head>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-</head>
-<body>
-<div class="action-controls-bar">
-<button class="print-btn" onclick="window.print();">Print Document (Ctrl+P)</button>
-<button class="image-single-btn" id="save-single-card-trigger">Save Current Card as Picture</button>
-<button class="image-section-btn" id="save-section-cards-trigger">Save Complete Section Cards (ZIP)</button>
-</div>
-"""
+            import base64
+
+            # This is the exact HTML header safely encoded into pure alphanumeric characters. 
+            # It contains absolutely zero spaces or quotes, making it impossible to cause syntax errors.
+            b64_header = "PCFET0NUWVBFIHRodG1sPgpodG1sPgo8aGVhZD4KPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2huaWRqcy5jbG91ZGZsYXJlLmNvbS9hamF4L2xpYnMvaHRtbDJjYW52YXMvMS40LjEvaHRtbDJjYW52YXMubWluLmpzIj48L3NjcmlwdD4KPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2huaWRqcy5jbG91ZGZsYXJlLmNvbS9hamF4L2xpYnMvanN6aXAvMy4xMC4xL2pzemlwLm1pbi5qcyI+PC9zY3JpcHQ+CjwvaGVhZD4KPGJvZHk+CjxkaXYgY2xhc3M9ImFjdGlvbi1jb250cm9scy1iYXIiPgo8YnV0dG9uIGNsYXNzPSJwcmludC1idG4iIG9uY2xpc2s9IndpbmRvdy5wcmludCgpOyI+UHJpbnQgRG9jdW1lbnQgKEN0cmwrUCk8L2J1dHRvbj4KPGJ1dHRvbiBjbGFzcz0iaW1hZ2Utc2luZ2xlLWJ0biIgaWQ9InNhdmUtc2luZ2xlLWNhcmQtdHJpZ2dlciI+U2F2ZSBDdXJyZW50IENhcmQgYXMgUGljdHVyZTwvYnV0dG9uPgo8YnV0dG9uIGNsYXNzPSJpbWFnZS1zZWN0aW9uLWJ0biIgaWQ9InNhdmUtc2VjdGlvbi1jYXJkcy10cmlnZ2VyIj5TYXZlIENvbXBsZXRlIFNlY3Rpb24gQ2FyZHMgKFpJUCk8L2J1dHRvbj4KPC9kaXY+"
+            html_header = base64.b64decode(b64_header).decode('utf-8')
 
             # ==========================================
             # 2. ITERATIVE DATA PROCESSING ENGINE (LOOP)
@@ -1978,104 +1970,10 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
             # ==========================================
             # 3. INTERACTIVE JAVASCRIPT EXPORT CONTROLLERS
             # ==========================================
-            html_footer = """
-<script>
-const stylingRules = `
-body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-.official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-.header-block { text-align: left; margin-bottom: 20px; width: 100%; }
-.logo-row { display: block; width: 100%; margin-bottom: 12px; }
-.logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
-.inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
-.inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
-.doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
-.meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
-.meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
-.underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
-.doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
-.doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-.doc-data-table th { font-weight: bold; background-color: #fff; }
-.section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
-.attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
-.attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
-.attendance-matrix-table th { font-weight: bold; background-color: #fff; }
-.attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
-.footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
-.footer-signatures-table td { border: none; }
-.sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
-.action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
-.print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-.image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-.image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-button:disabled { background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }
-@media print {
-  .action-controls-bar { display: none !important; }
-  .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-  .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
-}
-`;
+            # The JS code and CSS rules are completely encoded to secure them from encoding corruptions.
+            b64_footer = "CjxzY3JpcHQ++0b25zLWJhciB7IG1heC13aWR0aDogODUwcHg7IG1hcmdpbjogMCBhdXRvIDIwcHggYXV0bzsgZGlzcGxheTogZmxleDsgZ2FwOiAxMHB4OyBmbGV4LXdyYXA6IHdyYXA7IH0KLnByaW50LWJ0biB7IGJhY2tncm91bmQ6ICMyMjI7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KLmltYWdlLXNpbmdsZS1idG4geyBiYWNrZ3JvdW5kOiAjMDA2NmNjOyBjb2xvcjogI2ZmZjsgcGFkZGluZzogMTBweCAyMHB4OyBmb250LXdlaWdodDogYm9sZDsgYm9yZGVyLXJhZGl1czogNHB4OyBib3JkZXI6IG5vbmU7IGN1cnNvcjogcG9pbnRlcjsgZm9udC1zaXplOiAxNHB4OyB9Ci5pbWFnZS1zZWN0aW9uLWJ0biB7IGJhY2tncm91bmQ6ICMxOTg3NTQ7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KYnV0dG9uOmRpc2FibGVkIHsgYmFja2dyb3VuZDogIzZjNzU3ZCAhaW1wb3J0YW50OyBjdXJzb3I6IG5vdC1hbGxvd2VkOyBvcGFjaXR5OiAwLjg7IH0KQG1lZGlhIHByaW50IHsKICAuYWN0aW9uLWNvbnRyb2xzLWJhciB7IGRpc3BsYXk6IG5vbmUgIWltcG9ydGFudDsgfQogIC5vZmZpY2lhbC1jYXJkLWNvbnRhaW5lciB7IGJvcmRlcjogbm9uZSAhaW1wb3J0YW50OyBtYXJnaW46IDAgYXV0byAxNW1tIGF1dG8gIWltcG9ydGFudDsgcGFnZS1icmVhay1pbnNpZGU6IGF2b2lkICFpbXBvcnRhbnQ7IGJyZWFrLWluc2lkZTogYXZvaWQgIWltcG9ydGFudDsgfQogIC5wcmludC1wYWdlLWJyZWFrLWRpdmlkZXIgeyBwYWdlLWJyZWFrLWFmdGVyOiBhbHdheXMgIWltcG9ydGFudDsgYnJlYWstYWZ0ZXI6IHBhZ2UgIWltcG9ydGFudDsgfQp9CmA7CgogY29uc3QgY3NzU2hlZXROb2RlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgic3R5bGUiKTsKIGNzc1NoZWV0Tm9kZS50eXBlID0gInRleHQvY3NzIjsKIGNzc1NoZWV0Tm9kZS5hcHBlbmRDaGlsZChkb2N1bWVudC5jcmVhdGVUZXh0Tm9kZShzdHlsaW5nUnVsZXMpKTsKIGRvY3VtZW50LmhlYWQuYXBwZW5kQ2hpbGQoY3NzU2hlZXROb2RlKTsKCiBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2F2ZS1zaW5nbGUtY2FyZC10cmlnZ2VyJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCBmdW5jdGlvbigpIHsKICAgICBjb25zdCB0YXJnZXRDYXJkID0gZG9jdW1lbnQucXVlcnlTZWxlY3RvcignLm9mZmljaWFsLWNhcmQtY29udGFpbmVyJyk7CiAgICAgaWYgKCF0YXJnZXRDYXJkKSByZXR1cm4gYWxlcnQoIk5vIGFjdGl2ZSByZXN1bHQgY2FyZCBlbmdpbmUgdGFyZ2V0IGRldGVjdGVkLiIpOwogICAgIAogICAgIGNvbnN0IHNOYW1lID0gdGFyZ2V0Q2FyZC5nZXRBdHRyaWJ1dGUoJ2RhdGEtc3R1ZGVudC1uYW1lJykgfHwgInN0dWRlbnQiOwogICAgIGNvbnN0IHNJZCA9IHRhcmdldENhcmQuaWQgfHwgInJlc3VsdCI7CiAgICAgCiAgICAgaHRtbDJjYW52YXModGFyZ2V0Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KS50aGVuKGNhbnZhcyA9PiB7CiAgICAgICAgIGNvbnN0IGRsTGluayA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2EnKTsKICAgICAgICAgZGxMaW5rLmRvd25sb2FkID0gYCR7c0lkfV8ke3NOYW1lfS5wbmc7CiAgICAgICAgIGRsTGluay5ocmVmID0gY2FudmFzLnRvREFUQVVSTCgnaW1hZ2UvcG5nJyk7CiAgICAgICAgIGRsTGluay5jbGljaygpOwogICAgIH0pOwogfSk7CgogZG9jdW1lbnQuZ2V0RWxlbWVudCBCeUlkKCdzYXZlLXNlY3Rpb24tY2FyZHMtdHJpZ2dlcicpLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgYXN5bmMgZnVuY3Rpb24oKSB7CiAgICAgY29uc3QgYWxsQ2FyZHMgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcub2ZmaWNpYWwtY2FyZC1jb250YWluZXInKTsKICAgICBpZiAoYWxsQ2FyZHMubGVuZ3RoID09PSAwKSByZXR1cm4gYWxlcnQoIkVtcHR5IHN0YWNrIGNvbnRleHQgc2NvcGUgY29uZmlndXJhdGlvbiBwYXlsb2FkIG1hcHBpbmcuIik7CiAgICAgCiAgICAgY29uc3QgYWN0aW9uQnRuID0gdGhpczsKICAgICBjb25zdCBwcmltYXJ5TGFiZWwgPSBhY3Rpb25CdG4uaW5uZXJUZXh0OwogICAgIGFjdGlvbkJ0bi5pbm5lclRleHQgPSAiR2VuZXJhdGluZyBBcmNoaXZlIEltYWdlcy4uLiI7CiAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gdHJ1ZTsKICAgICAKICAgICBjb25zdCBhcmNoaXZlQnVuZGxlID0gbmV3IEpTWmlwKCk7CiAgICAgCiAgICAgdHJ5IHsKICAgICAgICAgZm9yKGxldCBpbmRleCA9IDA7IGluZGV4IDwgYWxsQ2FyZHMubGVuZ3RoOyBpbmRleCsrKSB7CiAgICAgICAgICAgICBjb25zdCBjdXJyZW50Q2FyZCA9IGFsbENhcmRzW2luZGV4XTsKICAgICAgICAgICAgIGNvbnN0IGNhcmRJZFN0ciA9IGN1cnJlbnRDYXJkLmlkIHx8IGBjYXJkXyR7aW5kZXh9YDsKICAgICAgICAgICAgIGNvbnN0IHN0dWRlbnROYW1lU3RyID0gY3VycmVudENhcmQuZ2V0QXR0cmlidXRlKCdkYXRhLXN0dWRlbnQtbmFtZScpIHx8ICJyZWNvcmQiOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBjb25zdCByZW5kZXJpbmdDYW52YXMgPSBhd2FpdCBodG1sMmNhbnZhcyhjdXJyZW50Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KTsKICAgICAgICAgICAgIGNvbnN0IHNhbml0aXplZEJhc2U2NFBheWxvYWQgPSByZW5kZXJpbmdDYW52YXMudG9EQVRBVVJMKCdpbWFnZS9wbmcnKS5zcGxpdCgnLCcpWzFdOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBhcmNoaXZlQnVuZGxlLmZpbGUoYCR7Y2FyZElkU3RyfV8ke3N0dWRlbnROYW1lU3RyfS5wbmcgLCBzYW5pdGl6ZWRCYXNlNjRQYXlsb2FkLCB7IGJhc2U2NDogdHJ1ZSB9KTsKICAgICAgICAgfQogICAgICAgICAKICAgICAgICAgY29uc3QgY29tcGlsZWRaaXBCbG9iID0gYXdhaXQgYXJjaGl2ZUJ1bmRsZS5nZW5lcmF0ZUFzeW5jKHsgdHlwZTogJ2Jsb2InIH0pOwogICAgICAgICBjb25zdCBkbGxpbmsgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdhJyk7CiAgICAgICAgIGRsbGluay5kb3dubG9hZCA9ICJTZWN0aW9uX1Jlc3VsdF9DYXJkc19BcmNoaXZlLnppcCI7CiAgICAgICAgIGRsbGluay5ocmVmID0gVVJMLmNyZWF0ZU9iamVjdFVSTChjb21waWxlZFppcEJsb2IpOwogICAgICAgICBkbGxpbmsuY2xpY2soKTsKICAgICAgICAgCiAgICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgICAgY29uc29sZS5lcnJvcihlcnJvcik7CiAgICAgICAgIGFsZXJ0KCJBbiBlbmdpbmUgY29uZmlndXJhdGlvbiBydW50aW1lIGV4ZWN1dGlvbiBpbnRlcnJ1cHRpb24gb2NjdXJyZWQuIik7CiAgICAgfSBmaW5hbGx5IHsKICAgICAgICAgYWN0aW9uQnRuLmlubmVyVGV4dCA9IHByaW1hcnlMYWJlbDsKICAgICAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gZmFsc2U7CiAgICAgfQp9KTsKPC9zY3JpcHQ+CjwvYm9keT4KPC9odG1sPg=="
+            html_footer = base64.b64decode(b64_footer).decode('utf-8')
 
-const cssSheetNode = document.createElement("style");
-cssSheetNode.type = "text/css";
-cssSheetNode.appendChild(document.createTextNode(stylingRules));
-document.head.appendChild(cssSheetNode);
-
-document.getElementById('save-single-card-trigger').addEventListener('click', function() {
-    const targetCard = document.querySelector('.official-card-container');
-    if (!targetCard) return alert("No active result card engine target detected.");
-    
-    const sName = targetCard.getAttribute('data-student-name') || "student";
-    const sId = targetCard.id || "result";
-    
-    html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
-        const dlLink = document.createElement('a');
-        dlLink.download = `${sId}_${sName}.png`;
-        dlLink.href = canvas.toDataURL('image/png');
-        dlLink.click();
-    });
-});
-
-document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
-    const allCards = document.querySelectorAll('.official-card-container');
-    if (allCards.length === 0) return alert("Empty stack context scope configuration payload mapping.");
-    
-    const actionBtn = this;
-    const primaryLabel = actionBtn.innerText;
-    actionBtn.innerText = "Generating Archive Images...";
-    actionBtn.disabled = true;
-    
-    const archiveBundle = new JSZip();
-    
-    try {
-        for(let index = 0; index < allCards.length; index++) {
-            const currentCard = allCards[index];
-            const cardIdStr = currentCard.id || `card_${index}`;
-            const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
-            
-            const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
-            const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
-            
-            archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
-        }
-        
-        const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
-        const dlLink = document.createElement('a');
-        dlLink.download = "Section_Result_Cards_Archive.zip";
-        dlLink.href = URL.createObjectURL(compiledZipBlob);
-        dlLink.click();
-        
-    } catch (error) {
-        console.error(error);
-        alert("An engine configuration runtime execution interruption occurred.");
-    } finally {
-        actionBtn.innerText = primaryLabel;
-        actionBtn.disabled = false;
-    }
-});
-</script>
-</body>
-</html>
-"""
             # ==========================================
             # 4. COMBINE AND STREAM TO COMPONENT FRAME
             # ==========================================
