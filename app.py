@@ -2769,11 +2769,31 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION & SAFETY REVERSAL PANEL (EXACT ID UNDO BALANCED)
+# MODULE: STUDENT PROMOTION WITH HARDENED DATABASE REVERSAL LOGGING
 # ====================================================================================
+import uuid
+from datetime import datetime
+
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
     st.write("Promote whole sections or individual students while managing their target sections and tracking historical promotion batches.")
+
+    # 🛠️ AUTO-CREATE STAGE: Instantly sets up the permanent database safety ledger table
+    try:
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS promotion_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                student_id INTEGER,
+                old_class TEXT,
+                old_section TEXT,
+                new_class TEXT,
+                new_section TEXT,
+                batch_id TEXT
+            );
+        """)
+    except Exception as table_err:
+        st.error(f"Database initialization warning: {table_err}")
 
     # --- SECTION 1: SOURCE FILTERS ---
     st.subheader("🔍 Step 1: Select Source Student Pool")
@@ -2835,7 +2855,6 @@ elif menu_choice == "🎓 Promote Students":
     with tgt_c1:
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
-        # Aligned dynamically to your explicit reference dictionary rules
         if "MEDICAL" in disc_upper:
             available_tgt_sections = ["MQ1", "MQ2", "MK"]
         elif "ENGINEERING" in disc_upper:
@@ -2852,60 +2871,6 @@ elif menu_choice == "🎓 Promote Students":
             available_tgt_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
 
         target_section = st.selectbox("Assign to Destination Section:", available_tgt_sections, key="promo_tgt_sec")
-
-    # 🔄 Split Curriculum Processing Engine
-    base_subjects = DISCIPLINE_SUBJECTS_MAP.get(selected_discipline, [])
-    fixed_subjects = []
-    replaced_subjects = []
-
-    if source_class == "11th":
-        for sub in base_subjects:
-            sub_clean = sub.strip().upper().replace(".", "").replace(" ", "")
-            if "ISL" in sub_clean or "ETH" in sub_clean:
-                if "Pak. Studies" not in replaced_subjects:
-                    replaced_subjects.append("Pak. Studies")
-            elif "COMMERCE" in disc_upper and ("MAT" in sub_clean or "MATH" in sub_clean or sub_clean == "BM"):
-                replaced_subjects.append("B_Stats")
-            elif "COMMERCE" in disc_upper and ("ECO" in sub_clean or "IE" in sub_clean or "PRINCIPLES" in sub_clean or "POE" in sub_clean):
-                replaced_subjects.append("Banking")
-            elif "COMMERCE" in disc_upper and ("COM" in sub_clean or "POC" in sub_clean):
-                replaced_subjects.append("Geo")
-            else:
-                fixed_subjects.append(sub)
-                
-        if "COMMERCE" in disc_upper:
-            for forced_sub in ["B_Stats", "Banking", "Geo"]:
-                if forced_sub not in replaced_subjects:
-                    replaced_subjects.append(forced_sub)
-            fixed_subjects = [f for f in fixed_subjects if not any(k in f.upper() for k in ["MATH", "ECO", "POC", "COM", "POE"])]
-    else:
-        fixed_subjects = base_subjects
-
-    fixed_subjects = sorted(list(set(fixed_subjects)))
-    replaced_subjects = sorted(list(set(replaced_subjects)))
-
-    st.markdown("#### 📚 12th Grade Curriculum Blueprint Mapping")
-    st.markdown("**📌 Continuing/Fixed Core Subjects (Carried over from 11th):**")
-    st.code(" ➔ ".join(fixed_subjects) if fixed_subjects else "None Specified")
-    
-    st.markdown("**🔄 Replaced/Updated New Subjects (For 12th Grade Academic Session):**")
-    if "COMMERCE" in disc_upper:
-        chosen_replacements = st.multiselect(
-            "Verify or adjust the specific 12th Commerce replacement package parameters:",
-            replaced_subjects,
-            default=replaced_subjects,
-            key=f"promo_repl_box_{promo_session}"
-        )
-        target_subjects = fixed_subjects + chosen_replacements
-    else:
-        st.code(" ➔ ".join(replaced_subjects) if replaced_subjects else "None Specified")
-        target_subjects = fixed_subjects + replaced_subjects
-
-    st.markdown("---")
-
-    # Initialize state variable arrays securely
-    if "promotion_history_log" not in st.session_state:
-        st.session_state.promotion_history_log = []
 
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
@@ -2932,85 +2897,77 @@ elif menu_choice == "🎓 Promote Students":
             
             if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary"):
                 student_ids_to_process = preview_df['id'].tolist()
+                batch_identifier = str(uuid.uuid4())[:8] # Generate an explicit batch token string
                 
-                # Snapshot details before database write operation
-                snapshot_records = []
                 for _, row in preview_df.iterrows():
-                    snapshot_records.append({
-                        "id": int(row['id']),
-                        "old_class": str(row['class']),
-                        "old_section": str(row['section'])
-                    })
+                    s_id = int(row['id'])
+                    old_cls = str(row['class'])
+                    old_sec = str(row['section'])
+                    new_sec = target_section.strip().upper()
 
-                for s_id in student_ids_to_process:
-                    execute_db_command(
-                        """
+                    # 1. Store the historical state snapshot safely to DB
+                    execute_db_command("""
+                        INSERT INTO promotion_history (student_id, old_class, old_section, new_class, new_section, batch_id)
+                        VALUES (:s_id, :old_cls, :old_sec, :new_cls, :new_sec, :b_id)
+                    """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
+
+                    # 2. Reassign real student profiles database rows
+                    execute_db_command("""
                         UPDATE students 
-                        SET class = :next_cls, 
-                            section = :next_sec
+                        SET class = :next_cls, section = :next_sec
                         WHERE id = :s_id
-                        """,
-                        {
-                            "next_cls": next_class, 
-                            "next_sec": target_section.strip().upper(), 
-                            "s_id": int(s_id)
-                        }
-                    )
+                        """, {"next_cls": next_class, "next_sec": new_sec, "s_id": s_id})
                 
-                # 📝 Save exact structural rollback snapshots to memory
-                st.session_state.promotion_history_log.append({
-                    "source_sec": str(selected_section) if promo_scope == "📋 Complete Section" else "Single Profile",
-                    "target_sec": target_section.strip().upper(),
-                    "student_count": len(student_ids_to_process),
-                    "snapshot": snapshot_records
-                })
-                
-                st.success(f"🎉 Success! {len(student_ids_to_process)} records reassigned safely to Class {next_class}.")
+                st.success(f"🎉 Success! {len(student_ids_to_process)} records reassigned to Class {next_class} (Batch: {batch_identifier}).")
                 st.rerun()
         else:
-            st.info("💡 No student records matching selected parameters were discovered inside the system roster.")
+            st.info("💡 No student records matching selected parameters found.")
 
     st.markdown("---")
 
-    # --- ⏳ SECTION 4: SAFETY REVERSAL LOG (EXACT TRANSFORMATION UNDO) ---
+    # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
-    st.write("Below are the promotions processed in your current session. Click **Undo Promotion** to instantly reverse any mistakes.")
+    st.write("Below are the promotions processed. These buttons persist across sessions and system refreshes.")
 
-    if st.session_state.promotion_history_log:
-        # Loop backwards to ensure last-in, first-out accuracy
-        for index, batch in enumerate(reversed(st.session_state.promotion_history_log)):
-            sec_old = batch["source_sec"]
-            sec_new = batch["target_sec"]
-            count = batch["student_count"]
-            snapshots = batch["snapshot"]
+    # Read records natively from our persistent history ledger table
+    try:
+        history_batches = run_query("""
+            SELECT batch_id, old_section, new_section, COUNT(student_id) as student_count, MAX(timestamp) as log_time
+            FROM promotion_history 
+            GROUP BY batch_id 
+            ORDER BY log_time DESC 
+            LIMIT 5
+        """)
+    except Exception:
+        history_batches = pd.DataFrame()
+
+    if not history_batches.empty:
+        for idx, row in history_batches.iterrows():
+            b_id = row['batch_id']
+            sec_old = row['old_section']
+            sec_new = row['new_section']
+            count = row['student_count']
             
             col_info, col_btn = st.columns([3, 1])
             with col_info:
-                st.markdown(f"📦 **Reversal Available:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
+                st.markdown(f"📦 **Batch `{b_id}`:** Source `({sec_old})` ➔ Target `({sec_new})` — **{count} Students Traceable**")
             with col_btn:
-                # Absolute dynamic unique tracking key definition
-                if st.button(f"🗑️ Undo Promotion", key=f"fixed_undo_key_{index}_{count}"):
-                    # 🚀 Target each student individually by their explicit database ID snapshot
-                    for record in snapshots:
-                        execute_db_command(
-                            """
-                            UPDATE students 
-                            SET class = :old_cls,
-                                section = :old_sec
-                            WHERE id = :s_id
-                            """,
-                            {
-                                "old_cls": record["old_class"],
-                                "old_sec": record["old_section"],
-                                "s_id": record["id"]
-                            }
-                        )
+                if st.button(f"🗑️ Undo Promotion", key=f"db_undo_{b_id}_{idx}"):
+                    # Target specific student snapshots belonging to this exact batch code identifier
+                    batch_details = run_query("SELECT student_id, old_class, old_section FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     
-                    # Pop the reversed item cleanly out of history queue
-                    actual_index = len(st.session_state.promotion_history_log) - 1 - index
-                    st.session_state.promotion_history_log.pop(actual_index)
+                    if not batch_details.empty:
+                        for _, record in batch_details.iterrows():
+                            execute_db_command("""
+                                UPDATE students 
+                                SET class = :old_cls, section = :old_sec
+                                WHERE id = :s_id
+                            """, {"old_cls": record['old_class'], "old_sec": record['old_section'], "s_id": int(record['student_id'])})
                     
-                    st.success("↩️ Reversal verified! All modified students returned back to their original sections instantly!")
+                    # Wipe the undo tracking elements for this batch so it leaves the panel view clean
+                    execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
+                    
+                    st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to original states.")
                     st.rerun()
     else:
-        st.info("🍃 No promotions processed yet during this active session.")
+        st.info("🍃 No promotions found in the permanent database log table.")
