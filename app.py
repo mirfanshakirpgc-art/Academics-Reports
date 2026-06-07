@@ -1746,8 +1746,6 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
             # ==========================================
             import base64
 
-            # This is the exact HTML header safely encoded into pure alphanumeric characters. 
-            # It contains absolutely zero spaces or quotes, making it impossible to cause syntax errors.
             b64_header = "PCFET0NUWVBFIHRodG1sPgpodG1sPgo8aGVhZD4KPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2huaWRqcy5jbG91ZGZsYXJlLmNvbS9hamF4L2xpYnMvaHRtbDJjYW52YXMvMS40LjEvaHRtbDJjYW52YXMubWluLmpzIj48L3NjcmlwdD4KPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2huaWRqcy5jbG91ZGZsYXJlLmNvbS9hamF4L2xpYnMvanN6aXAvMy4xMC4xL2pzemlwLm1pbi5qcyI+PC9zY3JpcHQ+CjwvaGVhZD4KPGJvZHk+CjxkaXYgY2xhc3M9ImFjdGlvbi1jb250cm9scy1iYXIiPgo8YnV0dG9uIGNsYXNzPSJwcmludC1idG4iIG9uY2xpc2s9IndpbmRvdy5wcmludCgpOyI+UHJpbnQgRG9jdW1lbnQgKEN0cmwrUCk8L2J1dHRvbj4KPGJ1dHRvbiBjbGFzcz0iaW1hZ2Utc2luZ2xlLWJ0biIgaWQ9InNhdmUtc2luZ2xlLWNhcmQtdHJpZ2dlciI+U2F2ZSBDdXJyZW50IENhcmQgYXMgUGljdHVyZTwvYnV0dG9uPgo8YnV0dG9uIGNsYXNzPSJpbWFnZS1zZWN0aW9uLWJ0biIgaWQ9InNhdmUtc2VjdGlvbi1jYXJkcy10cmlnZ2VyIj5TYXZlIENvbXBsZXRlIFNlY3Rpb24gQ2FyZHMgKFpJUCk8L2J1dHRvbj4KPC9kaXY+"
             html_header = base64.b64decode(b64_header).decode('utf-8')
 
@@ -1770,12 +1768,13 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                         break
                 
                 subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
-                raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
-                db_att = run_query("""
-                    SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
-                    FROM attendance WHERE student_id = :id
-                """, {"id": current_id})
+                # Fixed: SQL strings are written flatly to deny indentation syntax processing
+                q_marks = "SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id"
+                raw_marks = run_query(q_marks, {"id": current_id})
+                
+                q_att = "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id"
+                db_att = run_query(q_att, {"id": current_id})
                 
                 att_cells = {}
                 tot_sum, pres_sum = 0, 0
@@ -1843,16 +1842,7 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                         
                     style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
                     
-                    table_rows_html += f"""
-                    <tr>
-                        <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
-                        <td style="{style_override}">{obt_disp}</td>
-                        <td style="{style_override}">{tot_marks_num if obt_disp != "NC" else "NC"}</td>
-                        <td style="{style_override}">{pass_marks_num if obt_disp != "NC" else "NC"}</td>
-                        <td style="{style_override}">{per_disp}</td>
-                        <td style="font-weight: bold; {style_override}">{status_disp}</td>
-                    </tr>
-                    """
+                    table_rows_html += f"<tr><td style=\"text-align: left; font-weight: bold; padding-left: 10px;\">{sub}</td><td style=\"{style_override}\">{obt_disp}</td><td style=\"{style_override}\">{tot_marks_num if obt_disp != 'NC' else 'NC'}</td><td style=\"{style_override}\">{pass_marks_num if obt_disp != 'NC' else 'NC'}</td><td style=\"{style_override}\">{per_disp}</td><td style=\"font-weight: bold; {style_override}\">{status_disp}</td></tr>"
 
                 grand_per_disp = ""
                 grand_status_disp = ""
@@ -1879,99 +1869,13 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                             else:
                                 remarks_text = "Fair performance. Has passed all subjects but possesses significant potential to increase scores."
 
-                html_cards_body += f"""
-                <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
-                    <div class="header-block">
-                        <div class="logo-row">
-                            <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
-                        </div>
-                        <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                    </div>
-                    
-                    <div class="doc-type-banner"> Result Card</div>
-                    
-                    <table class="meta-layout-table">
-                        <tr>
-                            <td style="width: 40%;"> Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                            <td style="width: 14%;"> ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
-                            <td style="width: 16%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
-                            <td style="width: 14%;"> Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 16%;"> Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td>
-                        </tr>
-                    </table>
-                    
-                    <table class="doc-data-table">
-                        <thead>
-                            <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
-                                <th style="width: 13%;">Obt. Marks</th>
-                                <th style="width: 13%;">Total Marks</th>
-                                <th style="width: 13%;">Pass Marks</th>
-                                <th style="width: 13%;">Age%</th>
-                                <th style="width: 13%;">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {table_rows_html}
-                            <tr style="background-color: #fff; font-weight: bold;">
-                                <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
-                                <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
-                                <td>{int(grand_total_marks)}</td>
-                                <td>-</td>
-                                <td>{grand_per_disp}</td>
-                                <td>{grand_status_disp}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <div class="section-header-title">Attendance Report</div>
-                    
-                    <table class="attendance-matrix-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 12%;">Metric</th>
-                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
-                                <th style="width: 11%;">Over All Att.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td class="row-title-cell">Total Days</td>
-                                {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
-                            </tr>
-                            <tr>
-                                <td class="row-title-cell">Att. Days</td>
-                                {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
-                            </tr>
-                            <tr>
-                                <td class="row-title-cell">Age%</td>
-                                {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">
-                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
-                    </div>
-                    
-                    <table class="footer-signatures-table">
-                        <tr>
-                            <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
-                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
-                        </tr>
-                    </table>
-                </div>
-                <div class="print-page-break-divider"></div>
-                """
+                # Flattened row HTML items to protect compilation execution structure
+                html_cards_body += f"""<div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}"><div class="header-block"><div class="logo-row"><img class="logo-img" src="{logo_base64}" alt="Concordia Logo"></div><div class="inst-main-header">CONCORDIA COLLEGE KASUR</div></div><div class="doc-type-banner"> Result Card</div><table class="meta-layout-table"><tr><td style="width: 40%;"> Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td><td style="width: 14%;"> ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td><td style="width: 16%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td><td style="width: 14%;"> Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td><td style="width: 16%;"> Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td></tr></table><table class="doc-data-table"><thead><tr><th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th><th style="width: 13%;">Obt. Marks</th><th style="width: 13%;">Total Marks</th><th style="width: 13%;">Pass Marks</th><th style="width: 13%;">Age%</th><th style="width: 13%;">Status</th></tr></thead><tbody>{table_rows_html}<tr style="background-color: #fff; font-weight: bold;"><td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td><td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td><td>{int(grand_total_marks)}</td><td>-</td><td>{grand_per_disp}</td><td>{grand_status_disp}</td></tr></tbody></table><div class="section-header-title">Attendance Report</div><table class="attendance-matrix-table"><thead><tr><th style="width: 12%;">Metric</th>{"".join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}<th style="width: 11%;">Over All Att.</th></tr></thead><tbody><tr><td class="row-title-cell">Total Days</td>{"".join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}<td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td></tr><tr><td class="row-title-cell">Att. Days</td>{"".join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}<td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td></tr><tr><td class="row-title-cell">Age%</td>{"".join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}<td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td></tr></tbody></table><div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span></div><table class="footer-signatures-table"><tr><td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td><td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td></tr></table></div><div class="print-page-break-divider"></div>"""
 
             # ==========================================
             # 3. INTERACTIVE JAVASCRIPT EXPORT CONTROLLERS
             # ==========================================
-            # The JS code and CSS rules are completely encoded to secure them from encoding corruptions.
-            b64_footer = "CjxzY3JpcHQ++0b25zLWJhciB7IG1heC13aWR0aDogODUwcHg7IG1hcmdpbjogMCBhdXRvIDIwcHggYXV0bzsgZGlzcGxheTogZmxleDsgZ2FwOiAxMHB4OyBmbGV4LXdyYXA6IHdyYXA7IH0KLnByaW50LWJ0biB7IGJhY2tncm91bmQ6ICMyMjI7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KLmltYWdlLXNpbmdsZS1idG4geyBiYWNrZ3JvdW5kOiAjMDA2NmNjOyBjb2xvcjogI2ZmZjsgcGFkZGluZzogMTBweCAyMHB4OyBmb250LXdlaWdodDogYm9sZDsgYm9yZGVyLXJhZGl1czogNHB4OyBib3JkZXI6IG5vbmU7IGN1cnNvcjogcG9pbnRlcjsgZm9udC1zaXplOiAxNHB4OyB9Ci5pbWFnZS1zZWN0aW9uLWJ0biB7IGJhY2tncm91bmQ6ICMxOTg3NTQ7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KYnV0dG9uOmRpc2FibGVkIHsgYmFja2dyb3VuZDogIzZjNzU3ZCAhaW1wb3J0YW50OyBjdXJzb3I6IG5vdC1hbGxvd2VkOyBvcGFjaXR5OiAwLjg7IH0KQG1lZGlhIHByaW50IHsKICAuYWN0aW9uLWNvbnRyb2xzLWJhciB7IGRpc3BsYXk6IG5vbmUgIWltcG9ydGFudDsgfQogIC5vZmZpY2lhbC1jYXJkLWNvbnRhaW5lciB7IGJvcmRlcjogbm9uZSAhaW1wb3J0YW50OyBtYXJnaW46IDAgYXV0byAxNW1tIGF1dG8gIWltcG9ydGFudDsgcGFnZS1icmVhay1pbnNpZGU6IGF2b2lkICFpbXBvcnRhbnQ7IGJyZWFrLWluc2lkZTogYXZvaWQgIWltcG9ydGFudDsgfQogIC5wcmludC1wYWdlLWJyZWFrLWRpdmlkZXIgeyBwYWdlLWJyZWFrLWFmdGVyOiBhbHdheXMgIWltcG9ydGFudDsgYnJlYWstYWZ0ZXI6IHBhZ2UgIWltcG9ydGFudDsgfQp9CmA7CgogY29uc3QgY3NzU2hlZXROb2RlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgic3R5bGUiKTsKIGNzc1NoZWV0Tm9kZS50eXBlID0gInRleHQvY3NzIjsKIGNzc1NoZWV0Tm9kZS5hcHBlbmRDaGlsZChkb2N1bWVudC5jcmVhdGVUZXh0Tm9kZShzdHlsaW5nUnVsZXMpKTsKIGRvY3VtZW50LmhlYWQuYXBwZW5kQ2hpbGQoY3NzU2hlZXROb2RlKTsKCiBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2F2ZS1zaW5nbGUtY2FyZC10cmlnZ2VyJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCBmdW5jdGlvbigpIHsKICAgICBjb25zdCB0YXJnZXRDYXJkID0gZG9jdW1lbnQucXVlcnlTZWxlY3RvcignLm9mZmljaWFsLWNhcmQtY29udGFpbmVyJyk7CiAgICAgaWYgKCF0YXJnZXRDYXJkKSByZXR1cm4gYWxlcnQoIk5vIGFjdGl2ZSByZXN1bHQgY2FyZCBlbmdpbmUgdGFyZ2V0IGRldGVjdGVkLiIpOwogICAgIAogICAgIGNvbnN0IHNOYW1lID0gdGFyZ2V0Q2FyZC5nZXRBdHRyaWJ1dGUoJ2RhdGEtc3R1ZGVudC1uYW1lJykgfHwgInN0dWRlbnQiOwogICAgIGNvbnN0IHNJZCA9IHRhcmdldENhcmQuaWQgfHwgInJlc3VsdCI7CiAgICAgCiAgICAgaHRtbDJjYW52YXModGFyZ2V0Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KS50aGVuKGNhbnZhcyA9PiB7CiAgICAgICAgIGNvbnN0IGRsTGluayA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2EnKTsKICAgICAgICAgZGxMaW5rLmRvd25sb2FkID0gYCR7c0lkfV8ke3NOYW1lfS5wbmc7CiAgICAgICAgIGRsTGluay5ocmVmID0gY2FudmFzLnRvREFUQVVSTCgnaW1hZ2UvcG5nJyk7CiAgICAgICAgIGRsTGluay5jbGljaygpOwogICAgIH0pOwogfSk7CgogZG9jdW1lbnQuZ2V0RWxlbWVudCBCeUlkKCdzYXZlLXNlY3Rpb24tY2FyZHMtdHJpZ2dlcicpLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgYXN5bmMgZnVuY3Rpb24oKSB7CiAgICAgY29uc3QgYWxsQ2FyZHMgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcub2ZmaWNpYWwtY2FyZC1jb250YWluZXInKTsKICAgICBpZiAoYWxsQ2FyZHMubGVuZ3RoID09PSAwKSByZXR1cm4gYWxlcnQoIkVtcHR5IHN0YWNrIGNvbnRleHQgc2NvcGUgY29uZmlndXJhdGlvbiBwYXlsb2FkIG1hcHBpbmcuIik7CiAgICAgCiAgICAgY29uc3QgYWN0aW9uQnRuID0gdGhpczsKICAgICBjb25zdCBwcmltYXJ5TGFiZWwgPSBhY3Rpb25CdG4uaW5uZXJUZXh0OwogICAgIGFjdGlvbkJ0bi5pbm5lclRleHQgPSAiR2VuZXJhdGluZyBBcmNoaXZlIEltYWdlcy4uLiI7CiAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gdHJ1ZTsKICAgICAKICAgICBjb25zdCBhcmNoaXZlQnVuZGxlID0gbmV3IEpTWmlwKCk7CiAgICAgCiAgICAgdHJ5IHsKICAgICAgICAgZm9yKGxldCBpbmRleCA9IDA7IGluZGV4IDwgYWxsQ2FyZHMubGVuZ3RoOyBpbmRleCsrKSB7CiAgICAgICAgICAgICBjb25zdCBjdXJyZW50Q2FyZCA9IGFsbENhcmRzW2luZGV4XTsKICAgICAgICAgICAgIGNvbnN0IGNhcmRJZFN0ciA9IGN1cnJlbnRDYXJkLmlkIHx8IGBjYXJkXyR7aW5kZXh9YDsKICAgICAgICAgICAgIGNvbnN0IHN0dWRlbnROYW1lU3RyID0gY3VycmVudENhcmQuZ2V0QXR0cmlidXRlKCdkYXRhLXN0dWRlbnQtbmFtZScpIHx8ICJyZWNvcmQiOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBjb25zdCByZW5kZXJpbmdDYW52YXMgPSBhd2FpdCBodG1sMmNhbnZhcyhjdXJyZW50Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KTsKICAgICAgICAgICAgIGNvbnN0IHNhbml0aXplZEJhc2U2NFBheWxvYWQgPSByZW5kZXJpbmdDYW52YXMudG9EQVRBVVJMKCdpbWFnZS9wbmcnKS5zcGxpdCgnLCcpWzFdOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBhcmNoaXZlQnVuZGxlLmZpbGUoYCR7Y2FyZElkU3RyfV8ke3N0dWRlbnROYW1lU3RyfS5wbmcgLCBzYW5pdGl6ZWRCYXNlNjRQYXlsb2FkLCB7IGJhc2U2NDogdHJ1ZSB9KTsKICAgICAgICAgfQogICAgICAgICAKICAgICAgICAgY29uc3QgY29tcGlsZWRaaXBCbG9iID0gYXdhaXQgYXJjaGl2ZUJ1bmRsZS5nZW5lcmF0ZUFzeW5jKHsgdHlwZTogJ2Jsb2InIH0pOwogICAgICAgICBjb25zdCBkbGxpbmsgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdhJyk7CiAgICAgICAgIGRsbGluay5kb3dubG9hZCA9ICJTZWN0aW9uX1Jlc3VsdF9DYXJkc19BcmNoaXZlLnppcCI7CiAgICAgICAgIGRsbGluay5ocmVmID0gVVJMLmNyZWF0ZU9iamVjdFVSTChjb21waWxlZFppcEJsb2IpOwogICAgICAgICBkbGxpbmsuY2xpY2soKTsKICAgICAgICAgCiAgICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgICAgY29uc29sZS5lcnJvcihlcnJvcik7CiAgICAgICAgIGFsZXJ0KCJBbiBlbmdpbmUgY29uZmlndXJhdGlvbiBydW50aW1lIGV4ZWN1dGlvbiBpbnRlcnJ1cHRpb24gb2NjdXJyZWQuIik7CiAgICAgfSBmaW5hbGx5IHsKICAgICAgICAgYWN0aW9uQnRuLmlubmVyVGV4dCA9IHByaW1hcnlMYWJlbDsKICAgICAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gZmFsc2U7CiAgICAgfQp9KTsKPC9zY3JpcHQ+CjwvYm9keT4KPC9odG1sPg=="
+            b64_footer = "CjxzY3JpcHQ++0b25zLWJhciB7IG1heC13aWR0aDogODUwcHg7IG1hcmdpbjogMCBhdXRvIDIwcHggYXV0bzsgZGlzcGxheTogZmxleDsgZ2FwOiAxMHB4OyBmbGV4LXdyYXA6IHdyYXA7IH0KLnByaW50LWJ0biB7IGJhY2tncm91bmQ6ICMyMjI7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KLmltYWdlLXNpbmdsZS1idG4geyBiYWNrZ3JvdW5kOiAjMDA2NmNjOyBjb2xvcjogI2ZmZjsgcGFkZGluZzogMTBweCAyMHB4OyBmb250LXdlaWdodDogYm9sZDsgYm9yZGVyLXJhZGl1czogNHB4OyBib3JkZXI6IG5vbmU7IGN1cnNvcjogcG9pbnRlcjsgZm9udC1zaXplOiAxNHB4OyB9Ci5pbWFnZS1zZWN0aW9uLWJ0biB7IGJhY2tncm91bmQ6ICMxOTg3NTQ7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KYnV0dG9uOmRpc2FibGVkIHsgYmFja2dyb3VuZDogIzZjNzU3ZCAhaW1wb3J0YW50OyBjdXJzb3I6IG5vdC1hbGxvd2VkOyBvcGFjaXR5OiAwLjg7IH0KQG1lZGlhIHByaW50IHsKICAuYWN0aW9uLWNvbnRyb2xzLWJhciB7IGRpc3BsYXk6IG5vbmUgIWltcG9ydGFudDsgfQogIC5vZmZpY2lhbC1jYXJkLWNvbnRhaW5lciB7IGJvcmRlcjogbm9uZSAhaW1wb3J0YW50OyBtYXJnaW46IDAgYXV0byAxNW1tIGF1dG8gIWltcG9ydGFudDsgcGFnZS1icmVhay1pbnNpZGU6IGF2b2lkICFpbXBvcnRhbnQ7IGJyZWFrLWluc2lkZTogYXZvaWQgIWltcG9ydGFudDsgfQogIC5wcmludC1wYWdlLWJyZWFrLWRpdmlkZXIgeyBwYWdlLWJyZWFrLWFmdGVyOiBhbHdheXMgIWltcG9ydGFudDsgYnJlYWstYWZ0ZXI6IHBhZ2UgIWltcG9ydGFudDsgfQp9CmA7CgogY29uc3QgY3NzU2hlZXROb2RlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgic3R5bGUiKTsKIGNzc1NoZWV0Tm9kZS50eXBlID0gInRleHQvY3NzIjsKIGNzc1NoZWV0Tm9kZS5hcHBlbmRDaGlsZChkb2N1bWVudC5jcmVhdGVUZXh0Tm9kZShzdHlsaW5nUnVsZXMpKTsKIGRvY3VtZW50LmhlYWQuYXBwZW5kQ2hpbGQoY3NzU2hlZXROb2RlKTsKCiBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2F2ZS1zaW5nbGUtY2FyZC10cmlnZ2VyJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCBmdW5jdGlvbigpIHsKICAgICBjb25zdCB0YXJnZXRDYXJkID0gZG9jdW1lbnQucXVlcnlTZWxlY3RvcignLm9mZmljaWFsLWNhcmQtY29udGFpbmVyJyk7CiAgICAgaWYgKCF0YXJnZXRDYXJkKSByZXR1cm4gYWxlcnQoIk5vIGFjdGl2ZSByZXN1bHQgY2FyZCBlbmdpbmUgdGFyZ2V0IGRldGVjdGVkLiIpOwogICAgIAogICAgIGNvbnN0IHNOYW1lID0gdGFyZ2V0Q2FyZC5nZXRBdHRyaWJ1dGUoJ2RhdGEtc3R1ZGVudC1uYW1lJykgfHwgInN0dWRlbnQiOwogICAgIGNvbnN0IHNJZCA9IHRhcmdldENhcmQuaWQgfHwgInJlc3VsdCI7CiAgICAgCiAgICAgaHRtbDJjYW52YXModGFyZ2V0Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KS50aGVuKGNhbnZhcyA9PiB7CiAgICAgICAgIGNvbnN0IGRsTGluayA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2EnKTsKICAgICAgICAgZGxMaW5rLmRvd25sb2FkID0gYCR7c0lkfV8ke3NOYW1lfS5wbmc7CiAgICAgICAgIGRsTGluay5ocmVmID0gY2FudmFzLnRvREFUQVVSTCgnaW1hZ2UvcG5nJyk7CiAgICAgICAgIGRsTGluay5jbGljaygpOwogICAgIH0pOwogfSk7CgogZG9jdW1lbnQuZ2V0RWxlbWVudCBCeUlkKCdzYXZlLXNlY3Rpb24tY2FyZHMtdHJpZ2dlcicpLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgYXN5bmMgZnVuY3Rpb24oKSB7CiAgICAgY29uc3QgYWxsQ2FyZHMgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcub2ZmaWNpYWwtY2FyZC1jb250YWluZXInKTsKICAgICBpZiAoYWxsQ2FyZHMubGVuZ3RoID09PSAwKSByZXR1cm4gYWxlcnQoIkVtcHR5IHN0YWNrIGNvbnRleHQgc2NvcGUgY29uZmlndXJhdGlvbiBwYXlsb2FkIG1hcHBpbmcuIik7CiAgICAgCiAgICAgY29uc3QgYWN0aW9uQnRuID0gdGhpczsKICAgICBjb25zdCBwcmltYXJ5TGFiZWwgPSBhY3Rpb25CdG4uaW5uZXJUZXh0OwogICAgIGFjdGlvbkJ0bi5pbm5lclRleHQgPSAiR2VuZXJhdGluZyBBcmNoaXZlIEltYWdlcy4uLiI7CiAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gdHJ1ZTsKICAgICAKICAgICBjb25zdCBhcmNoaXZlQnVuZGxlID0gbmV3IEpTWmlwKCk7CiAgICAgCiAgICAgdHJ5IHsKICAgICAgICAgZm9yKGxldCBpbmRleCA9IDA7IGluZGV4IDwgYWxsQ2FyZHMubGVuZ3RoOyBpbmRleCsrKSB7CiAgICAgICAgICAgICBjb25zdCBjdXJyZW50Q2FyZCA9IGFsbENhcmRzW2luZGV4XTsKICAgICAgICAgICAgIGNvbnN0IGNhcmRJZFN0ciA9IGN1cnJlbnRDYXJkLmlkIHx8IGBjYXJkXyR7aW5kZXh9YDsKICAgICAgICAgICAgIGNvbnN0IHN0dWRlbnROYW1lU3RyID0gY3VycmVudENhcmQuZ2V0QXR0cmlidXRlKCdkYXRhLXN0dWRlbnQtbmFtZScpIHx8ICJyZWNvcmQiOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBjb25zdCByZW5kZXJpbmdDYW52YXMgPSBhd2FpdCBodG1sMmNhbnZhcyhjdXJyZW50Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KTsKICAgICAgICAgICAgIGNvbnN0IHNhbml0aXplZEJhc2U2NFBheWxvYWQgPSByZW5kZXJpbmdDYW52YXMudG9EQVRBVVJMKCdpbWFnZS9wbmcnKS5zcGxpdCgnLCcpWzFdOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBhcmNoaXZlQnVuZGxlLmZpbGUoYCR7Y2FyZElkU3RyfV8ke3N0dWRlbnROYW1lU3RyfS5wbmcgLCBzYW5pdGl6ZEJhc2U2NFBheWxvYWQgLCB7IGJhc2U2NDogdHJ1ZSB9KTsKICAgICAgICAgfQogICAgICAgICAKICAgICAgICAgY29uc3QgY29tcGlsZWRaaXBCbG9iID0gYXdhaXQgYXJjaGl2ZUJ1bmRsZS5nZW5lcmF0ZUFzeW5jKHsgdHlwZTogJ2Jsb2InIH0pOwogICAgICAgICBjb25zdCBkbGxpbmsgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdhJyk7CiAgICAgICAgIGRsbGluay5kb3dubG9hZCA9ICJTZWN0aW9uX1Jlc3VsdF9DYXJkc19BcmNoaXZlLnppcCI7CiAgICAgICAgIGRsbGluay5ocmVmID0gVVJMLmNyZWF0ZU9iamVjdFVSTChjb21waWxlZFppcEJsb2IpOwogICAgICAgICBkbGxpbmsuY2xpY2soKTsKICAgICAgICAgCiAgICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgICAgY29uc29sZS5lcnJvcihlcnJvcik7CiAgICAgICAgIGFsZXJ0KCJBbiBlbmdpbmUgY29uZmlndXJhdGlvbiBydW50aW1lIGV4ZWN1dGlvbiBpbnRlcnJ1cHRpb24gb2NjdXJyZWQuIik7CiAgICAgfSBmaW5hbGx5IHsKICAgICAgICAgYWN0aW9uQnRuLmlubmVyVGV4dCA9IHByaW1hcnlMYWJlbDsKICAgICAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gZmFsc2U7CiAgICAgfQp9KTsKPC9zY3JpcHQ+CjwvYm9keT4KPC9odG1sPg=="
             html_footer = base64.b64decode(b64_footer).decode('utf-8')
 
             # ==========================================
