@@ -321,7 +321,6 @@ Here is the updated code. I have introduced a **"System Type"** selector ("Annua
 
 When "Semester System" is chosen, the system dynamically changes the available dropdown items (e.g., swapping Mid-Term/Pre-Board exam types for Semester exams, and completely filtering down to your specific **Semester Sections** like *BS-CS, BS-SE, BS-IT, and BBA*).
 
-Most importantly, the background processing logic remains tightly bound to the attendance save action—no extra sync buttons needed!
 
 ```python
 if menu_choice == "📝 Academic Exam Marks Entry":
