@@ -1583,8 +1583,41 @@ if menu_choice == "📈 Multi-Test Progress Report":
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
         # CSS Styling Configurations
-        css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
-        # ... (Keep all your existing css_rules lines exactly here untouched) ...
+        # CSS Styling Configurations (Hardened for Streamlit HTML Container)
+        css_rules = """
+        body { background-color: #ffffff; margin: 0; padding: 10px; color: #000000; font-family: 'Arial', sans-serif; }
+        .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; }
+        .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-print-single { background-color: #2e7d32; } .btn-print-bulk { background-color: #1565c0; } .btn-img-single { background-color: #e65100; } .btn-img-bulk { background-color: #6a1b9a; }
+        
+        /* Main Dossier Container Card Setup */
+        .cck-container { background-color: #ffffff; border: 2px solid #000000 !important; padding: 30px; margin: 20px auto; max-width: 850px; box-sizing: border-box; page-break-after: always; display: block !important; }
+        .cck-header-wrapper { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #000000; padding-bottom: 10px; }
+        .cck-logo-image-container { width: 140px; height: auto; display: flex; align-items: center; float: left; }
+        .cck-logo-image { width: 100%; height: auto; object-fit: contain; }
+        
+        .cck-title-block { text-align: center; margin-top: 5px; margin-bottom: 15px; } 
+        .cck-main-title { font-size: 28px; font-weight: bold; margin: 0; letter-spacing: 0.5px; color: #000000; text-transform: uppercase; text-align: center; }
+        .cck-badge-wrapper { text-align: center; margin: 15px 0; }
+        .cck-doc-badge { display: inline-block; background-color: #e5e7eb; color: #000000; font-weight: bold; font-size: 16px; padding: 6px 25px; border-radius: 4px; border: 1px solid #000000; }
+        
+        /* Metadata Profile Section */
+        .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 25px; font-size: 15px; row-gap: 12px; }
+        .cck-meta-field { font-weight: bold; color: #000000; min-width: 30%; } 
+        .cck-line-fill { border-bottom: 1px solid #000000; display: inline-block; padding-left: 5px; font-weight: bold; }
+        
+        /* Grid Table Layout Setup */
+        .cck-report-table { width: 100%; border-collapse: collapse !important; margin-bottom: 25px; font-size: 14px; color: #000000; background: #ffffff; }
+        .cck-report-table th, .cck-report-table td { border: 1px solid #000000 !important; padding: 10px 8px !important; text-align: center; }
+        .cck-report-table th { background-color: #f3f4f6; font-weight: bold; } 
+        .cck-report-table td:first-child { text-align: left; padding-left: 12px !important; font-weight: bold; }
+        
+        /* Footer and Attendance Area */
+        .cck-remarks-area { margin-top: 40px; font-size: 14px; display: flex; align-items: flex-end; color: #000000; }
+        .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000; margin-left: 8px; padding-left: 5px; font-style: italic; }
+        .cck-footer-sign { margin-top: 40px; text-align: right; font-size: 14px; font-weight: bold; padding-right: 20px; color: #000000; }
+        @media print { .action-dashboard-panel { display: none !important; } .cck-container { border: none !important; padding: 0 !important; } }
+        """
         css_styles = f"<style>{css_rules}</style>".replace('\xa0', ' ')
 
         composite_html_payload = f"""
