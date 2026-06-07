@@ -2087,25 +2087,17 @@ elif menu_choice == "Student Management":
                         status_remarks = st.text_input(f"Status Remarks{req_star}", placeholder="Required for Left/Re-Active actions", key="status_rem_input")
                         
                         if st.button("💾 Save Profile Status", use_container_width=True, type="secondary"):
-                            if new_status in ["Left", "Re-Active"] and not status_remarks.strip():
-                                st.error(f"❌ Action Blocked: You must provide **Status Remarks** to mark a student as '{new_status}'.")
-                            else:
-                                try:
-                                    run_update("""
-                                        CREATE TABLE IF NOT EXISTS student_logs (
-                                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                            student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT
-                                        );
-                                    """)
+                           try:
+                                    # Flattened onto a single line to kill multi-line indentation bugs
+                                    run_update("CREATE TABLE IF NOT EXISTS student_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INT, change_type TEXT, old_value TEXT, new_value TEXT, log_date TEXT, remarks TEXT);")
                                 except Exception:
                                     pass
 
                                 try:
                                     run_update("UPDATE students SET status = :status WHERE id = :id", {"status": new_status, "id": s_id})
-                                    run_update("""
-                                        INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                        VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)
-                                    """, {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
+                                    
+                                    # Flattened log insert query
+                                    run_update("INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) VALUES (:id, 'STATUS_CHANGE', :old, :new, :date, :rem)", {"id": s_id, "old": s_status, "new": new_status, "date": str(status_date), "rem": status_remarks.strip()})
                                     st.success(f"✅ Successfully updated status to **{new_status}**!")
                                     st.rerun()
                                 except Exception as e:
@@ -2161,29 +2153,21 @@ elif menu_choice == "Student Management":
                             if new_sec == s_sec:
                                 st.warning("⚠️ Student is already assigned to this section.")
                             elif not section_remarks.strip():
-                                id.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
+                                st.error("❌ Action Blocked: You must provide **Transfer Remarks** before changing sections.")
                             else:
                                 try:
-                                    run_update(
-                                        "UPDATE students SET section = :new_section WHERE id = :id", 
-                                        {"new_section": str(new_sec), "id": int(s_id)}
-                                    )
+                                    run_update("UPDATE students SET section = :new_section WHERE id = :id", {"new_section": str(new_sec), "id": int(s_id)})
                                     
                                     try:
-                                        run_update("""
-                                            INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks)
-                                            VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)
-                                        """, {"id": int(s_id), "old": str(s_sec), "new": str(new_sec), "date": str(section_date), "rem": section_remarks.strip()})
+                                        # Flattened section log insert query
+                                        run_update("INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) VALUES (:id, 'SECTION_TRANSFER', :old, :new, :date, :rem)", {"id": int(s_id), "old": str(s_sec), "new": str(new_sec), "date": str(section_date), "rem": section_remarks.strip()})
                                     except Exception:
                                         pass
                                     
                                     st.success(f"✅ Successfully transferred student to **{new_sec}**!")
-                                    
                                     if "section_select_node" in st.session_state:
                                         del st.session_state["section_select_node"]
-                                        
                                     st.rerun()
-                                    
                                 except Exception as e:
                                     st.error(f"❌ Database Write Rejected the Change: {e}")
             else:
@@ -2199,27 +2183,14 @@ elif menu_choice == "Student Management":
         filter_view = st.selectbox("Filter Log Matrix By Type:", ["All Historical Actions", "Left Students Master List", "Section Transfer Track Log"])
         
         try:
-            log_data_df = run_query("""
-                SELECT l.id AS "Log ID", l.student_id AS "ID", s.name AS "Student Name", 
-                       l.change_type AS "Action", l.old_value AS "From", 
-                       l.new_value AS "To", l.log_date AS "Date Stamp", 
-                       l.remarks AS "Staff Remarks Context"
-                FROM student_logs l
-                LEFT JOIN students s ON l.student_id = s.id
-                ORDER BY l.id DESC
-            """)
+            # Flattened main log view query
+            log_data_df = run_query("SELECT l.id AS \"Log ID\", l.student_id AS \"ID\", s.name AS \"Student Name\", l.change_type AS \"Action\", l.old_value AS \"From\", l.new_value AS \"To\", l.log_date AS \"Date Stamp\", l.remarks AS \"Staff Remarks Context\" FROM student_logs l LEFT JOIN students s ON l.student_id = s.id ORDER BY l.id DESC")
         except Exception:
             log_data_df = pd.DataFrame(columns=["Log ID", "ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
             
         try:
-            left_fallback_df = run_query("""
-                SELECT NULL AS "Log ID", id AS "ID", name AS "Student Name", 
-                       'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
-                       UPPER(TRIM(status)) AS "To", 'Legacy Record' AS "Date Stamp", 
-                       'Profile marked left before tracking initialized' AS "Staff Remarks Context"
-                FROM students
-                WHERE UPPER(TRIM(status)) = 'LEFT'
-            """)
+            # Flattened legacy fallback log view query
+            left_fallback_df = run_query("SELECT NULL AS \"Log ID\", id AS \"ID\", name AS \"Student Name\", 'STATUS_CHANGE' AS \"Action\", 'Active' AS \"From\", UPPER(TRIM(status)) AS \"To\", 'Legacy Record' AS \"Date Stamp\", 'Profile marked left before tracking initialized' AS \"Staff Remarks Context\" FROM students WHERE UPPER(TRIM(status)) = 'LEFT'")
         except Exception:
             left_fallback_df = pd.DataFrame()
         
