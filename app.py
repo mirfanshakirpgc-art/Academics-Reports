@@ -2872,7 +2872,13 @@ elif menu_choice == "🎓 Promote Students":
     # --- SECTION 3: ROSTER PREVIEW & EXECUTION ---
     st.subheader("📊 Step 3: Roster Execution Preview")
 
-    if promo_scope == "📋 Complete Section":
+    # Flag configuration variables setup
+    should_show_preview = False
+    preview_query = ""
+    params = {}
+
+    if promo_scope == "📋 Complete Section" and selected_section and selected_section != "No Data Found":
+        should_show_preview = True
         preview_query = """
             SELECT id, name, section, class, session FROM students 
             WHERE session LIKE :sess 
@@ -2881,11 +2887,12 @@ elif menu_choice == "🎓 Promote Students":
             ORDER BY id ASC
         """
         params = {"sess": sess_prefix, "cls": source_class, "sec": str(selected_section)}
-    else:
+    elif promo_scope == "👤 Single Student" and target_student_id:
+        should_show_preview = True
         preview_query = "SELECT id, name, section, class, session FROM students WHERE id = :s_id"
         params = {"s_id": target_student_id}
 
-    if (promo_scope == "📋 Complete Section" and selected_section and selected_section != "No Data Found") or (promo_scope == "👤 Single Student" and target_student_id):
+    if should_show_preview:
         preview_df = run_query(preview_query, params)
         
         if not preview_df.empty:
@@ -2895,7 +2902,7 @@ elif menu_choice == "🎓 Promote Students":
             if st.button(f"🚀 Execute Mass Promotion Pipeline", type="primary", use_container_width=True):
                 import uuid
                 student_ids_to_process = preview_df['id'].tolist()
-                batch_identifier = str(uuid.uuid4())[:8] # Generates short alphanumeric batch tracking code
+                batch_identifier = str(uuid.uuid4())[:8]
                 
                 for _, row in preview_df.iterrows():
                     s_id = int(row['id'])
@@ -2920,6 +2927,8 @@ elif menu_choice == "🎓 Promote Students":
                 st.rerun()
         else:
             st.info("💡 No student records matching selected parameters found.")
+    else:
+        st.info("💡 Please complete Step 1 and select a valid source pool to view the roster preview.")
 
     st.markdown("---")
 
@@ -2959,7 +2968,7 @@ elif menu_choice == "🎓 Promote Students":
                         for _, record in batch_details.iterrows():
                             execute_db_command("""
                                 UPDATE students 
-                                SET class = :old_cls, section = :old_sec
+                                \nSET class = :old_cls, section = :old_sec
                                 WHERE id = :s_id
                             """, {"old_cls": record['old_class'], "old_sec": record['old_section'], "s_id": int(record['student_id'])})
                     
@@ -2968,7 +2977,5 @@ elif menu_choice == "🎓 Promote Students":
                     
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to original states.")
                     st.rerun()
-    else:
-        st.info("🍃 No promotions found in the permanent database log table.")
     else:
         st.info("🍃 No promotions found in the permanent database log table.")
