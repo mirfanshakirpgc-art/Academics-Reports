@@ -2769,7 +2769,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             st.write(f"### Comparative Stream Standings — {exam_term}")
             st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
 # ====================================================================================
-# MODULE: STUDENT PROMOTION WITH SECTION-SPECIFIC LOG CLEANUP HOOK
+# MODULE: STUDENT PROMOTION WITH ALWAYS-VISIBLE SECTION DB-DELETE ACTIONS
 # ====================================================================================
 elif menu_choice == "🎓 Promote Students":
     st.title("🎓 Advanced End-of-Year Class Promotion Panel")
@@ -2972,31 +2972,54 @@ elif menu_choice == "🎓 Promote Students":
     # --- ⏳ SECTION 4: HARDENED SAFETY REVERSAL LOG (DATABASE-BACKED) ---
     st.subheader("⏳ Step 4: Active Promoted Sections Log (Safety Reversal)")
     
-    # Fetch distinct historical source sections currently stored in the ledger to populate our cleanup selection tool
-    try:
-        logged_sections_df = run_query("SELECT DISTINCT old_section FROM promotion_history WHERE old_section IS NOT NULL ORDER BY old_section")
-        logged_sections = logged_sections_df['old_section'].tolist() if not logged_sections_df.empty else []
-    except Exception:
-        logged_sections = []
+    st.markdown("#### ⚙️ Administrative Global & Section Controls")
+    st.write("Select a target section to wipe historical data from your system entirely.")
+    
+    cleanup_col1, cleanup_col2, cleanup_col3 = st.columns([2, 1, 1.2])
+    with cleanup_col1:
+        try:
+            sections_master_df = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != '' ORDER BY section")
+            master_sections_list = sections_master_df['section'].tolist() if not sections_master_df.empty else ["IK", "IQ", "CK3"]
+        except Exception:
+            master_sections_list = ["IK", "IQ", "CK3"]
+            
+        wipe_target_sec = st.selectbox("🎯 Target Section Selection Matrix:", master_sections_list, key="always_visible_wipe_dropdown")
+    
+    with cleanup_col2:
+        st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
+        if st.button("🧹 Clear Logs Only", key="clear_logs_btn", use_container_width=True):
+            try:
+                execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
+                st.success(f"Wiped history log entries involving Section {wipe_target_sec}!")
+                st.rerun()
+            except Exception as clear_err:
+                st.error(f"Clear Error: {clear_err}")
 
-    # Conditional control panel UI layer layout
-    if logged_sections:
-        cleanup_col1, cleanup_col2 = st.columns([2, 1])
-        with cleanup_col1:
-            wipe_target_sec = st.selectbox("🎯 Select Section Logs to Clear:", logged_sections, key="wipe_target_sec_dropdown")
-        with cleanup_col2:
-            st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True) # Alignment cushion
-            if st.button("🧹 Clear Logs for Section", type="secondary", use_container_width=True):
-                try:
-                    execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
-                    st.success(f"Wiped history entries for Section {wipe_target_sec} successfully!")
-                    st.rerun()
-                except Exception as clear_err:
-                    st.error(f"Clear Error: {clear_err}")
-    else:
-        st.info("🍃 No active section records inside the logs table history array yet.")
+    with cleanup_col3:
+        st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
+        # 🔥 THE DIRECT DB PURGE DELETION BUTTON 🔥
+        if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True):
+            try:
+                # 1. Purge matching actual user entity rows out of the database data space completely
+                execute_db_command("""
+                    DELETE FROM students 
+                    WHERE id IN (
+                        SELECT student_id FROM promotion_history 
+                        WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) 
+                           OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))
+                    )
+                """, {"sec": wipe_target_sec})
+                
+                # 2. Clean out tracking rows now that those references are destroyed
+                execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
+                
+                st.success(f"💥 Permanent Purge Complete! All students tracked within Section {wipe_target_sec} have been erased from the system.")
+                st.rerun()
+            except Exception as delete_err:
+                st.error(f"Database Purge Failure: {delete_err}")
 
-    st.write("Below are the promotions processed. Reverting an action syncs their session tags so they appear back on your 11th grade roster views.")
+    st.markdown("---")
+    st.write("Below are recent promotions processed. Reverting an action syncs their session tags so they appear back on your 11th grade roster views.")
 
     try:
         history_batches = run_query("""
@@ -3026,7 +3049,6 @@ elif menu_choice == "🎓 Promote Students":
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
-                            # Reverts session along with section and class
                             target_session_val = str(record['old_session']).strip() if record['old_session'] else promo_session
                             
                             execute_db_command("""
@@ -3044,3 +3066,5 @@ elif menu_choice == "🎓 Promote Students":
                     execute_db_command("DELETE FROM promotion_history WHERE batch_id = :b_id", {"b_id": b_id})
                     st.success(f"↩️ Reversal verified! Batch `{b_id}` completely restored to 11th grade section `{sec_old}`.")
                     st.rerun()
+    else:
+        st.info("🍃 No promotions found in the permanent database log table.")
