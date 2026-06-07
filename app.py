@@ -1822,8 +1822,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
                     <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
                 </div>
-            """
-
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
                 name = str(student_row['name']).upper()
