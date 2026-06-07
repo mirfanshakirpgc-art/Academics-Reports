@@ -521,6 +521,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
+    # Shared framework array to guarantee synchronization across modules
+    all_frameworks = [
+        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
+    ]
+
     try:
         session_options = AVAILABLE_SESSIONS
         if "2024-26" in session_options:
@@ -559,7 +566,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             
             with c2:
-                academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_a")
+                academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
 
             with c3: 
                 if academic_system == "Annual System":
@@ -568,71 +575,60 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
                     if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
-                else:
-                    sel_discipline = "DIPLOMA_IN_IT_DIT"
-                    sel_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4", "ALL"], key="entry_sem_filter_a")
-
-            with c4: 
-                if academic_system == "Annual System":
+                    
                     sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
                 else:
-                    st.write("") 
-            
-            with c5: 
-                active_secs_df = run_query(
-                    """
-                    SELECT DISTINCT section FROM students 
-                    WHERE session = :raw_sess
-                      AND (UPPER(TRIM(class)) = UPPER(TRIM(:cls)) OR :cls = 'ALL')
-                    ORDER BY section
-                    """,
-                    {"raw_sess": sel_session, "cls": sel_class}
-                )
-                
-                valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
-                
-                fallback_map = {
-                    "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
-                    "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-                    "ICS_PHYSICS": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
-                    "ICS_STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-                    "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
-                    "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]},
-                    "DIPLOMA_IN_IT_DIT": {"Semester 1": ["DIT_G", "DIT_B"], "Semester 2": ["DIT_G", "DIT_B"], "Semester 3": ["DIT_B"], "Semester 4": ["DIT_B"], "ALL": ["DIT_G", "DIT_B"]}
-                }
-                
-                if not valid_sections_list:
-                    class_key = "11th" if academic_system == "Annual System" else "Semester 1"
-                    if sel_class != "ALL": class_key = sel_class
-                    valid_sections_list = fallback_map.get(sel_discipline, {}).get(class_key, ["DIT_G" if academic_system == "Semester System" else "CK2"])
+                    sel_discipline = "DIPLOMA_IN_IT_DIT"
+                    sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
 
-                sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
+            with c4: 
+                # Dynamically compile target options directly from mapping architecture
+                valid_sections_list = []
+                if academic_system == "Annual System":
+                    # Lookup inside real DISCIPLINE_SECTIONS_MAP safely using standardized keys
+                    lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
+                    
+                    try:
+                        target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
+                        for c_lvl in target_class_levels:
+                            sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
+                            valid_sections_list.extend(sections_found)
+                    except NameError:
+                        pass
+                else:
+                    # Semesters are consistently bound to DIT_G and DIT_B
+                    valid_sections_list = ["DIT_G", "DIT_B"]
+
+                valid_sections_list = sorted(list(set(valid_sections_list)))
+                if not valid_sections_list:
+                    valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
                 
-            if academic_system == "Annual System":
-                try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
-                except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
-            else:
-                if sel_class == "Semester 1":
-                    available_subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
-                elif sel_class == "Semester 2":
-                    available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                elif sel_class in ["Semester 3", "Semester 4"]:
-                    available_subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
-                else: 
-                    available_subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project", "English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
+                sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
                 
-            st.markdown("---")
-            sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
+            with c5: 
+                if academic_system == "Annual System":
+                    try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
+                    except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+                else:
+                    if "1st Semester" in sel_class:
+                        available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                    elif "2nd Semester" in sel_class:
+                        available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                    else: 
+                        available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                
+                sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
-                exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
-                sel_exam = st.selectbox("Select Examination Cycle:", exam_options, key="entry_exam_sel")
+                # 🎯 FIXED: Standardized to use all_frameworks across both systems to preserve test analytics names
+                sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
             with row2_2: 
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
+                # Query structure standardized to pull by matching keys
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -640,13 +636,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
                         AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND (UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level)) OR :class_level = 'ALL')
                       AND s.session = :session
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                     ORDER BY s.id ASC
                 """, {
-                    "subject": sel_subject, "exam": sel_exam, "section": sel_section, 
-                    "class_level": sel_class, "session": sel_session
+                    "subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session
                 })
                 
                 if roster_df.empty:
@@ -689,7 +683,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
                 with c_m1: single_sub = st.text_input("Subject Identity:", value="STATISTICS", key="s_sub_val")
-                with c_m2: single_exam = st.selectbox("Exam Type:", ["MT_1", "MT_2", "PRE_BOARD", "MID_TERM", "FINAL_TERM"], key="s_exam_val")
+                with c_m2: 
+                    # 🎯 FIXED: Individual entries share the standard test options list
+                    single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
                 with c_m3: single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
                 existing_m = run_query("""
