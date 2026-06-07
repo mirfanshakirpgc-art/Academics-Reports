@@ -531,8 +531,8 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     if entry_mode == "📋 By Complete Section":
-        # Rearranged matrix to comfortably balance layout spacing without the department column
-        c1, c0, c2, c3 = st.columns([2, 2, 2.5, 2.5])
+        # Balanced 5-column layout to align every filter beautifully into a single horizontal row
+        c1, c2, c3, c4, c5 = st.columns([1.5, 1.5, 2, 1.5, 2])
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
@@ -547,9 +547,10 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 allowed_secs = sorted(list(teacher_rights['section'].unique()))
                 
                 with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_t")
-                with c0: academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")
-                with c2: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
-                with c3: sel_section = st.selectbox("Select Section:", allowed_secs, key="entry_sec_filter_teacher")
+                with c2: academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")
+                with c3: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
+                with c4: sel_section = st.selectbox("Select Section:", allowed_secs, key="entry_sec_filter_teacher")
+                with c5: st.info("🔒 Bound to Profile")
                 sel_class = "ALL"
             else:
                 st.warning("🚨 You do not have any active subjects or sections assigned yet.")
@@ -557,35 +558,39 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         else:
             with c1: 
                 sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
-                sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
             
-            with c0:
+            with c2:
                 academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_a")
 
-            with c2: 
+            with c3: 
                 if academic_system == "Annual System":
                     discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
                     selected_ui_discipline = st.selectbox("Select Discipline:", discipline_ui_options, key="marks_disc_sel")
                     sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
                     if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
-                    
-                    # Target layout sub-level options mapping
+                else:
+                    sel_discipline = "DIPLOMA_IN_IT_DIT"
+                    # In Semester System, Semester selection naturally takes this spot in the row
+                    sel_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4", "ALL"], key="entry_sem_filter_a")
+
+            with c4: 
+                if academic_system == "Annual System":
                     sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
                 else:
-                    # Bypassed department dropdown; goes directly to semester level layout choice
-                    sel_discipline = "DIPLOMA_IN_IT_DIT"
-                    sel_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4", "ALL"], key="entry_sem_filter_a")
+                    # Dummy placeholder slot to keep the horizontal alignment consistent across options
+                    st.write("") 
             
-            with c3: 
+            with c5: 
+                # FIXED: Changed from loose LIKE operator to strict '=' to isolate 2026-28 from 2025-27
                 active_secs_df = run_query(
                     """
                     SELECT DISTINCT section FROM students 
-                    WHERE (session LIKE :sess OR session = :raw_sess) 
+                    WHERE session = :raw_sess
                       AND (UPPER(TRIM(class)) = UPPER(TRIM(:cls)) OR :cls = 'ALL')
                     ORDER BY section
                     """,
-                    {"sess": sess_prefix, "raw_sess": sel_session, "cls": sel_class}
+                    {"raw_sess": sel_session, "cls": sel_class}
                 )
                 
                 valid_sections_list = active_secs_df['section'].tolist() if not active_secs_df.empty else []
@@ -607,12 +612,11 @@ if menu_choice == "📝 Academic Exam Marks Entry":
 
                 sel_section = st.selectbox("Select Section:", valid_sections_list, key="entry_sec_filter_a")
                 
-            # Dynamic Subject Mapping Switchboard
+            # Dynamic Subject Mapping Selector (Spans cleanly below the filter settings)
             if academic_system == "Annual System":
                 try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
                 except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
             else:
-                # Dynamically match courses strictly according to the active chosen semester value
                 if sel_class == "Semester 1":
                     available_subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
                 elif sel_class == "Semester 2":
@@ -622,7 +626,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 else: 
                     available_subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project", "English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
                 
-            st.markdown("##")
+            st.markdown("---")
             sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
         if sel_subject and sel_section and sel_session:
@@ -634,8 +638,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                sess_prefix = sel_session.split('-')[0] + '%' if sel_session else '%'
-                
+                # FIXED: Replaced loose placeholder criteria with strict session verification logic
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -644,12 +647,12 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                         AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
                       AND (UPPER(TRIM(s.class)) = UPPER(TRIM(:class_level)) OR :class_level = 'ALL')
-                      AND (s.session LIKE :sess_prefix OR s.session = :session)
+                      AND s.session = :session
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                     ORDER BY s.id ASC
                 """, {
                     "subject": sel_subject, "exam": sel_exam, "section": sel_section, 
-                    "class_level": sel_class, "session": sel_session, "sess_prefix": sess_prefix
+                    "class_level": sel_class, "session": sel_session
                 })
                 
                 if roster_df.empty:
@@ -781,14 +784,15 @@ if menu_choice == "📅 Attendance Entry Management":
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
         
-        c1, c0, c2, c3 = st.columns([1.5, 1.5, 1.5, 2])
-        with c1:
+        # 4 Column structural mapping alignment for matching layout row
+        d1, d2, d3, d4 = st.columns([1.5, 1.5, 2, 2])
+        with d1:
             sel_session = st.selectbox("Select Session:", session_options, key="daily_att_sess")
             
-        with c0:
+        with d2:
             academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
             
-        with c2:
+        with d3:
             if academic_system == "Annual System":
                 class_options = ["11th", "12th"]
                 sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
@@ -796,7 +800,8 @@ if menu_choice == "📅 Attendance Entry Management":
                 class_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
                 sel_class = st.selectbox("Select Semester:", class_options, key="daily_att_sem")
                 
-        with c3:
+        with d4:
+            # FIXED: Changed from loose LIKE operator to strict '=' to eliminate overlapping rosters
             active_secs_df = run_query("""
                 SELECT DISTINCT section FROM students 
                 WHERE UPPER(TRIM(session)) = UPPER(TRIM(:sess)) 
@@ -816,6 +821,7 @@ if menu_choice == "📅 Attendance Entry Management":
             target_date = st.date_input("Attendance Date:", value=date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
+            # FIXED: Enforced explicit session matching check pattern here as well
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
