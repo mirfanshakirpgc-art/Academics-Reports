@@ -1742,17 +1742,121 @@ composite_html_payload += """
 composite_html_payload = composite_html_payload.replace('\xa0', ' ')
 st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 
-# ==========================================
-            # 1. INITIALIZE SEGMENTED HTML COMPONENTS
-            # ==========================================
-            import base64
+# ==============================================================================
+# # 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
+# ==============================================================================
+import streamlit as st
+import pandas as pd
+import sqlite3
+import os
+import base64
 
-            b64_header = "PCFET0NUWVBFIHRodG1sPgpodG1sPgo8aGVhZD4KPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2huaWRqcy5jbG91ZGZsYXJlLmNvbS9hamF4L2xpYnMvaHRtbDJjYW52YXMvMS40LjEvaHRtbDJjYW52YXMubWluLmpzIj48L3NjcmlwdD4KPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2huaWRqcy5jbG91ZGZsYXJlLmNvbS9hamF4L2xpYnMvanN6aXAvMy4xMC4xL2pzemlwLm1pbi5qcyI+PC9zY3JpcHQ+CjwvaGVhZD4KPGJvZHk+CjxkaXYgY2xhc3M9ImFjdGlvbi1jb250cm9scy1iYXIiPgo8YnV0dG9uIGNsYXNzPSJwcmludC1idG4iIG9uY2xpc2s9IndpbmRvdy5wcmludCgpOyI+UHJpbnQgRG9jdW1lbnQgKEN0cmwrUCk8L2J1dHRvbj4KPGJ1dHRvbiBjbGFzcz0iaW1hZ2Utc2luZ2xlLWJ0biIgaWQ9InNhdmUtc2luZ2xlLWNhcmQtdHJpZ2dlciI+U2F2ZSBDdXJyZW50IENhcmQgYXMgUGljdHVyZTwvYnV0dG9uPgo8YnV0dG9uIGNsYXNzPSJpbWFnZS1zZWN0aW9uLWJ0biIgaWQ9InNhdmUtc2VjdGlvbi1jYXJkcy10cmlnZ2VyIj5TYXZlIENvbXBsZXRlIFNlY3Rpb24gQ2FyZHMgKFpJUCk8L2J1dHRvbj4KPC9kaXY+"
+logo_filename = "logo.png"
+logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+
+# ==============================================================================
+# DATABASE UTILITY FUNCTIONS
+# ==============================================================================
+DB_FILE = "academics.db"
+
+def get_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def run_query(query, params=None):
+    if params is None:
+        params = {}
+    with get_connection() as conn:
+        return pd.read_sql_query(query, conn, params=params)
+
+# ==============================================================================
+# CONFIGURATION MAPS & CONSTANTS
+# ==============================================================================
+AVAILABLE_MONTHS = ["MAY", "JUNE", "JULY", "AUG", "SEP", "OCT", "NOV", "DEC", "JAN", "FEB", "MAR"]
+
+DISCIPLINE_SECTIONS_MAP = {
+    "MEDICAL": ["A1", "A2", "A3", "A4", "A5", "WA1", "WA2"],
+    "ENGINEERING": ["B1", "B2", "WB1"],
+    "ICS": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "WC1", "WC2"],
+    "COMMERCE": ["D1", "D2", "WD1"],
+    "ARTS": ["E1", "WE1"]
+}
+
+DISCIPLINE_SUBJECTS_MAP = {
+    "MEDICAL": ["ENGLISH", "URDU", "ISLAMIAT", "BIOLOGY", "PHYSICS", "CHEMISTRY"],
+    "ENGINEERING": ["ENGLISH", "URDU", "ISLAMIAT", "MATH", "PHYSICS", "CHEMISTRY"],
+    "ICS": ["ENGLISH", "URDU", "ISLAMIAT", "MATH", "PHYSICS", "COMPUTER"],
+    "COMMERCE": ["ENGLISH", "URDU", "ISLAMIAT", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "BUSINESS MATH"],
+    "ARTS": ["ENGLISH", "URDU", "ISLAMIAT", "HEALTH & PHYSICAL EDUCATION", "ISLAMIC STUDIES", "CIVICS"]
+}
+
+# ==============================================================================
+# MAIN NAVIGATION CONTROL
+# ==============================================================================
+st.sidebar.title("Navigation")
+menu_choice = st.sidebar.radio("Go to", ["Dashboard", "Manage Students", "Manage Marks", "Manage Attendance", "Student Result Cards"])
+
+if menu_choice == "Dashboard":
+    st.title("Academic Performance Dashboard")
+    st.write("Welcome to the Concordia College Kasur Academic Report Engine.")
+
+elif menu_choice == "Manage Students":
+    st.title("Student Management Profile Console")
+    st.write("Interface handles dynamic student registration setups.")
+
+elif menu_choice == "Manage Marks":
+    st.title("Academic Marks Allocation Framework")
+    st.write("Configure and sync raw testing marks evaluation data matrix rows.")
+
+elif menu_choice == "Manage Attendance":
+    st.title("Attendance Track Framework Console")
+    st.write("Manage active attendance ledger configuration matrices across academic terms.")
+
+elif menu_choice == "Student Result Cards":
+    st.title("Concordia College Kasur - Dynamic Card Generator")
+    
+    # Query structural unique targets to generate drop down filters
+    try:
+        class_list = run_query("SELECT DISTINCT class FROM students")['class'].tolist()
+        test_list = run_query("SELECT DISTINCT exam_type FROM marks")['exam_type'].tolist()
+    except Exception:
+        class_list, test_list = [], []
+
+    selected_class = st.selectbox("Select Target Class Framework Profile:", class_list if class_list else ["11TH", "12TH"])
+    selected_test = st.selectbox("Select Target Evaluation Term/Test Profile:", test_list if test_list else ["PRE-BOARD", "MID-TERM"])
+    
+    # Extract distinct section subsets for layout processing operations
+    try:
+        section_df = run_query("SELECT DISTINCT section FROM students WHERE class = :cls", {"cls": selected_class})
+        section_list = section_df['section'].tolist()
+    except Exception:
+        section_list = []
+        
+    selected_section = st.selectbox("Select Target Classroom Section Node:", ["ALL"] + section_list)
+
+    if st.button("Compile Academic Report Cards Stack"):
+        # Build strict targeting queries based on standard selections
+        if selected_section == "ALL":
+            q_students = "SELECT id, name, section, class FROM students WHERE class = :cls ORDER BY section ASC, name ASC"
+            students_to_print = run_query(q_students, {"cls": selected_class})
+        else:
+            q_students = "SELECT id, name, section, class FROM students WHERE class = :cls AND section = :sec ORDER BY name ASC"
+            students_to_print = run_query(q_students, {"cls": selected_class, "sec": selected_section})
+
+        if students_to_print.empty:
+            st.warning("No matched target student parameter profiles detected within system limits.")
+        else:
+            # ==================================================================
+            # 1. INITIALIZE SEGMENTED HTML COMPONENTS
+            # ==================================================================
+            # Safe Base64 encoded HTML header containing CSS definitions
+            b64_header = "PCFET0NUWVBFIHRodG1sPgo8aHRtbD4KPGhlYWQ+CjxzY3JpcHQgc3JjPSJodHRwczovL2NobjFkanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL2h0bWwyY2FudmFzLzEuNC4xL2h0bWwyY2FudmFzLm1pbi5qcyI+PC9zY3JpcHQ+CjxzY3JpcHQgc3JjPSJodHRwczovL2NobjFkanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL2pzemlwLzMuMTAuMS9qc3ppcC5taW4uanMiPjwvc2NyaXB0Pgo8c3R5bGU+CmJvZHkgeyBmb250LWZhbWlseTogIlRpbWVzIE5ldyBSb21hbiIsIFRpbWVzLCBzZXJpZjsgY29sb3I6ICMwMDA7IGJhY2tncm91bmQtY29sb3I6ICNmZmY7IG1hcmdpbjogMDsgcGFkZGluZzogMTBweDsgfQoub2ZmaWNpYWwtY2FyZC1jb250YWluZXIgeyBtYXgtd2lkdGg6IDg1MHB4OyBtYXJnaW46IDEwcHggYXV0bzsgcGFkZGluZzogMjVweDsgYm9yZGVyOiAxcHggc29saWQgIzAwMDsgYmFja2dyb3VuZDogI2ZmZjsgcG9zaXRpb246IHJlbGF0aXZlOyB9Ci5oZWFkZXItYmxvY2sgeyB0ZXh0LWFsaWduOiBsZWZ0OyBtYXJnaW4tYm90dG9tOiAyMHB4OyB3aWR0aDogMTAwJTsgfQoubG9nby1yb3cgeyBkaXNwbGF5OiBibG9jazsgd2lkdGg6IDEwMCU7IG1hcmdpbi1ib3R0b206IDEycHg7IH0KLmxvZ28taW1nIHsgbWF4LWhlaWdodDogNDhweDsgd2lkdGg6IGF1dG87IGRpc3BsYXk6IGJsb2NrOyBtYXJnaW4tbGVmdDogMDsgfQouaW5zdC1tYWluLWhlYWRlciB7IGZvbnQtd2VpZ2h0OiBib2xkOyBmb250LXNpemU6IDI4cHg7IGxldHRlci1zcGFjaW5nOiAxcHg7IG1hcmdpbjogMDsgbGluZS1oZWlnaHQ6IDEuMTsgdGV4dC1hbGlnbjogY2VudGVyOyB3aWR0aDogMTAwJTsgfQouZG9jLXR5cGUtYmFubmVyIHsgdGV4dC1hbGlnbjogY2VudGVyOyBmb250LXdlaWdodDogYm9sZDsgZm9udC1zaXplOiAxNnB4OyB0ZXh0LXRyYW5zZm9ybTogdXBwZXJjYXNlOyBtYXJnaW46IDI1cHggMCAyMHB4IDA7IGxldHRlci1zcGFjaW5nOiAxcHg7IH0KLm1ldGEtbGF5b3V0LXRhYmxlIHsgd2lkdGg6IDEwMCU7IGJvcmRlci1jb2xsYXBzZTogY29sbGFwc2U7IGJvcmRlcjogbm9uZTsgbWFyZ2luLWJvdHRvbTogMjBweDsgZm9udC1zaXplOiAxNHB4OyB9Ci5tZXRhLWxheW91dC10YWJsZSB0ZCB7IGJvcmRlcjogbm9uZTsgcGFkZGluZzogM3B4OyB2ZXJ0aWNhbC1hbGlnbjogYm90dG9tOyB3aGl0ZS1zcGFjZTogbm93cmFwOyB9Ci51bmRlcmxpbmVkLXZhbHVlLXNwYW4geyBib3JkZXItYm90dG9tOiAxcHggc29saWQgIzAwMDsgZm9udC13ZWlnaHQ6IGJvbGQ7IHBhZGRpbmc6IDAgNHB4OyBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7IHRleHQtdHJhbnNmb3JtOiB1cHBlcmNhc2U7IH0KLmRvYy1kYXRhLXRhYmxlIHsgd2lkdGg6IDEwMCU7IGJvcmRlci1jb2xsYXBzZTogY29sbGFwc2U7IG1hcmdpbi1ib3R0b206IDIwcHg7IH0KLmRvYy1kYXRhLXRhYmxlIHRoLCAuZG9jLWRhdGEtdGFibGUgdGQgeyBib3JkZXI6IDFweCBzb2xpZCAjMDAwOyBwYWRkaW5nOiA4cHg7IHRleHQtYWxpZ246IGNlbnRlcjsgZm9udC1zaXplOiAxNHB4OyB9Ci5zZWN0aW9uLWhlYWRlci10aXRsZSB7IGZvbnQtd2VpZ2h0OiBib2xkOyBmb250LXNpemU6IDE2cHg7IG1hcmdpbjogMjVweCAwIDEwcHggMDsgfQouYXR0ZW5kYW5jZS1tYXRyaXgtdGFibGUgeyB3aWR0aDogMTAwJTsgYm9yZGVyLWNvbGxhcHNlOiBjb2xsYXBzZTsgfQouYXR0ZW5kYW5jZS1tYXRyaXgtdGFibGUgdGgsIC5hdHRlbmRhbmNlLW1hdHJpeC10YWJsZSB0ZCB7IGJvcmRlcjogMXB4IHNvbGlkICMwMDA7IHBhZGRpbmc6IDZweDsgdGV4dC1hbGlnbjogY2VudGVyOyBmb250LXNpemU6IDEycHg7IH0KLnJvdy10aXRsZS1jZWxsIHsgdGV4dC1hbGlnbjogbGVmdCAhaW1wb3J0YW50OyBmb250LXdlaWdodOiBib2xkOyBwYWRkaW5nLWxlZnQ6IDEwcHggIWltcG9ydGFudDsgfQouZm9vdGVyLXNpZ25hdHVyZXMtdGFibGUgeyB3aWR0aDogMTAwJTsgbWFyZ2luLXRvcDogNTBweDsgYm9yZGVyOiBub25lOyB9Ci5maWcLWXNpZ25hdHVyZXMtdGFibGUgdGQgeyBib3JkZXI6IG5vbmU7IH0KLnNpZy1tYXJrZXItbGluZSB7IGJvcmRlci10b3A6IDFweCBzb2xpZCAjMDAwOyBwYWRkaW5nLXRvcDogNXB4OyBmb250LXNpemU6IDE0cHg7IGRpc3BsYXk6IGlubGluZS1ibG9jazsgd2lkdGg6IDE1MHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IH0KPC9zdHlsZT4KPC9oZWFkPgo8Ym9keT4KPGRpdiBjbGFzcz0iYWN0aW9uLWNvbnRyb2xzLWJhciI+Cid1dHRvbiBjbGFzcz0icHJpbnQtYnRuIiBvbmNsaWNrPSJ3aW5kb3cucHJpbnQoKTsiPlByaW50IERvY3VtZW50IChDdHJsK1ApPC9idXR0b24+CjxidXR0b24gY2xhc3M9ImltYWdlLXNpbmdsZS1idG4iIGlkPSJzYXZlLXNpbmdsZS1jYXJkLXRyaWdnZXIiPlNhdmUgQ3VycmVudCBDYXJkIGFzIFBpY3R1cmU8L2J1dHRvbj4KPGJ1dHRvbiBjbGFzcz0iaW1hZ2Utc2VjdGlvbi1idG4iIGlkPSJzYXZlLXNlY3Rpb24tY2FyZHMtdHJpZ2dlciI+U2F2ZSBDb21wbGV0ZSBTZWN0aW9uIENhcmRzIChaSVApPC9idXR0b24+CjwvZGl2PiA="
             html_header = base64.b64decode(b64_header).decode('utf-8')
 
-            # ==========================================
+            # ==================================================================
             # 2. ITERATIVE DATA PROCESSING ENGINE (LOOP)
-            # ==========================================
+            # ==================================================================
             cards_list = []
             
             for idx, student_row in students_to_print.iterrows():
@@ -1798,8 +1902,6 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                 overall_pct_str = f"{int(attendance_percentage)}%" if tot_sum > 0 else ""
                 att_cells["Over All Att."] = {"td": str(tot_sum) if tot_sum > 0 else "", "pd": str(pres_sum) if tot_sum > 0 else "", "pct": overall_pct_str}
 
-                logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-                
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 student_failed_any_subject = False
@@ -1843,12 +1945,12 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                     style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
                     
                     row_str = "<tr>"
-                    row_str += "<td style=\"text-align: left; font-weight: bold; padding-left: 10px;\">" + str(sub) + "</td>"
-                    row_str += "<td style=\"" + style_override + "\">" + str(obt_disp) + "</td>"
-                    row_str += "<td style=\"" + style_override + "\">" + (str(tot_marks_num) if obt_disp != "NC" else "NC") + "</td>"
-                    row_str += "<td style=\"" + style_override + "\">" + (str(pass_marks_num) if obt_disp != "NC" else "NC") + "</td>"
-                    row_str += "<td style=\"" + style_override + "\">" + str(per_disp) + "</td>"
-                    row_str += "<td style=\"font-weight: bold; " + style_override + "\">" + str(status_disp) + "</td>"
+                    row_str += f"<td style=\"text-align: left; font-weight: bold; padding-left: 10px;\">{str(sub)}</td>"
+                    row_str += f"<td style=\"{style_override}\">{str(obt_disp)}</td>"
+                    row_str += f"<td style=\"{style_override}\">{(str(tot_marks_num) if obt_disp != 'NC' else 'NC')}</td>"
+                    row_str += f"<td style=\"{style_override}\">{(str(pass_marks_num) if obt_disp != 'NC' else 'NC')}</td>"
+                    row_str += f"<td style=\"{style_override}\">{str(per_disp)}</td>"
+                    row_str += f"<td style=\"font-weight: bold; {style_override}\">{str(status_disp)}</td>"
                     row_str += "</tr>"
                     table_rows_list.append(row_str)
 
@@ -1879,52 +1981,54 @@ st.components.v1.html(composite_html_payload, height=900, scrolling=True)
                             else:
                                 remarks_text = "Fair performance. Has passed all subjects but possesses significant potential to increase scores."
 
-                # Building the card block using standard concatenation to avoid triple-quote parser errors entirely
                 g_obt_str = str(int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks)
                 sanitized_name = name.replace(' ', '_')
                 
-                c = "<div class=\"official-card-container\" id=\"card-" + str(current_id) + "\" data-student-name=\"" + sanitized_name + "\">"
-                c += "<div class=\"header-block\"><div class=\"logo-row\"><img class=\"logo-img\" src=\"" + logo_base64 + "\" alt=\"Logo\"></div>"
+                c = f"<div class=\"official-card-container\" id=\"card-{str(current_id)}\" data-student-name=\"{sanitized_name}\">"
+                c += f"<div class=\"header-block\"><div class=\"logo-row\"><img class=\"logo-img\" src=\"{logo_base64}\" alt=\"Logo\"></div>"
                 c += "<div class=\"inst-main-header\">CONCORDIA COLLEGE KASUR</div></div><div class=\"doc-type-banner\"> Result Card</div>"
                 c += "<table class=\"meta-layout-table\"><tr>"
-                c += "<td style=\"width: 40%;\"> Name: <span class=\"underlined-value-span\" style=\"width: 82%;\">" + name + "</span></td>"
-                c += "<td style=\"width: 14%;\"> ID: <span class=\"underlined-value-span\" style=\"width: 68%;\">" + str(current_id) + "</span></td>"
-                c += "<td style=\"width: 16%;\"> Section: <span class=\"underlined-value-span\" style=\"width: 55%;\">" + section + "</span></td>"
-                c += "<td style=\"width: 14%;\"> Class: <span class=\"underlined-value-span\" style=\"width: 55%;\">" + grade_class + "</span></td>"
-                c += "<td style=\"width: 16%;\"> Test: <span class=\"underlined-value-span\" style=\"width: 65%;\">" + test_name + "</span></td>"
+                c += f"<td style=\"width: 40%;\"> Name: <span class=\"underlined-value-span\" style=\"width: 82%;\">{name}</span></td>"
+                c += f"<td style=\"width: 14%;\"> ID: <span class=\"underlined-value-span\" style=\"width: 68%;\">{str(current_id)}</span></td>"
+                c += f"<td style=\"width: 16%;\"> Section: <span class=\"underlined-value-span\" style=\"width: 55%;\">{section}</span></td>"
+                c += f"<td style=\"width: 14%;\"> Class: <span class=\"underlined-value-span\" style=\"width: 55%;\">{grade_class}</span></td>"
+                c += f"<td style=\"width: 16%;\"> Test: <span class=\"underlined-value-span\" style=\"width: 65%;\">{test_name}</span></td>"
                 c += "</tr></table>"
                 c += "<table class=\"doc-data-table\"><thead><tr>"
-                c += "<th style=\"text-align: left; width: 35%; padding-left: 10px;\">Subjects</th><th style=\"width: 13;\">Obt. Marks</th><th style=\"width: 13%;\">Total Marks</th><th style=\"width: 13%;\">Pass Marks</th><th style=\"width: 13%;\">Age%</th><th style=\"width: 13%;\">Status</th>"
-                c += "</tr></thead><tbody>" + table_rows_html
+                c += "<th style=\"text-align: left; width: 35%; padding-left: 10px;\">Subjects</th><th style=\"width: 13%;\">Obt. Marks</th><th style=\"width: 13%;\">Total Marks</th><th style=\"width: 13%;\">Pass Marks</th><th style=\"width: 13%;\">Age%</th><th style=\"width: 13%;\">Status</th>"
+                c += f"</tr></thead><tbody>{table_rows_html}"
                 c += "<tr style=\"background-color: #fff; font-weight: bold;\"><td style=\"text-align: left; padding-left: 10px;\">GRAND TOTAL</td>"
-                c += "<td>" + g_obt_str + "</td><td>" + str(int(grand_total_marks)) + "</td><td>-</td><td>" + grand_per_disp + "</td><td>" + grand_status_disp + "</td></tr></tbody></table>"
+                c += f"<td>{g_obt_str}</td><td>{str(int(grand_total_marks))}</td><td>-</td><td>{grand_per_disp}</td><td>{grand_status_disp}</td></tr></tbody></table>"
                 c += "<div class=\"section-header-title\">Attendance Report</div><table class=\"attendance-matrix-table\"><thead><tr><th style=\"width: 12%;\">Metric</th>"
-                c += "".join([("<th style=\"width: 6.7%;\">" + str(m) + "</th>") for m in AVAILABLE_MONTHS])
+                c += "".join([f"<th style=\"width: 6.7%;\">{str(m)}</th>" for m in AVAILABLE_MONTHS])
                 c += "<th style=\"width: 11%;\">Over All Att.</th></tr></thead><tbody><tr><td class=\"row-title-cell\">Total Days</td>"
-                c += "".join([("<td>" + str(att_cells[m]["td"]) + "</td>") for m in AVAILABLE_MONTHS])
-                c += "<td style=\"font-weight: bold;\">" + str(att_cells["Over All Att."]["td"]) + "</td></tr><tr><td class=\"row-title-cell\">Att. Days</td>"
-                c += "".join([("<td>" + str(att_cells[m]["pd"]) + "</td>") for m in AVAILABLE_MONTHS])
-                c += "<td style=\"font-weight: bold;\">" + str(att_cells["Over All Att."]["pd"]) + "</td></tr><tr><td class=\"row-title-cell\">Age%</td>"
-                c += "".join([("<td>" + str(att_cells[m]["pct"]) + "</td>") for m in AVAILABLE_MONTHS])
-                c += "<td style=\"font-weight: bold;\">" + str(att_cells["Over All Att."]["pct"]) + "</td></tr></tbody></table>"
-                c += "<div style=\"font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;\">Remarks: <span style=\"font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;\">" + remarks_text + "</span></div>"
+                c += "".join([f"<td>{str(att_cells[m]['td'])}</td>" for m in AVAILABLE_MONTHS])
+                c += f"<td style=\"font-weight: bold;\">{str(att_cells['Over All Att.']['td'])}</td></tr><tr><td class=\"row-title-cell\">Att. Days</td>"
+                c += "".join([f"<td>{str(att_cells[m]['pd'])}</td>" for m in AVAILABLE_MONTHS])
+                c += f"<td style=\"font-weight: bold;\">{str(att_cells['Over All Att.']['pd'])}</td></tr><tr><td class=\"row-title-cell\">Age%</td>"
+                c += "".join([f"<td>{str(att_cells[m]['pct'])}</td>" for m in AVAILABLE_MONTHS])
+                c += f"<td style=\"font-weight: bold;\">{str(att_cells['Over All Att.']['pct'])}</td></tr></tbody></table>"
+                c += f"<div style=\"font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;\">Remarks: <span style=\"font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;\">{remarks_text}</span></div>"
                 c += "<table class=\"footer-signatures-table\"><tr><td style=\"text-align: left; width: 50%; visibility: hidden;\"><span class=\"sig-marker-line\">Class Incharge</span></td><td style=\"text-align: right; width: 50%;\"><span class=\"sig-marker-line\">Principal Sign</span></td></tr></table></div><div class=\"print-page-break-divider\"></div>"
                 
                 cards_list.append(c)
 
             html_cards_body = "".join(cards_list)
 
-            # ==========================================
+            # ==================================================================
             # 3. INTERACTIVE JAVASCRIPT EXPORT CONTROLLERS
-            # ==========================================
-            b64_footer = "CjxzY3JpcHQ++0b25zLWJhciB7IG1heC13aWR0aDogODUwcHg7IG1hcmdpbjogMCBhdXRvIDIwcHggYXV0bzsgZGlzcGxheTogZmxleDsgZ2FwOiAxMHB4OyBmbGV4LXdyYXA6IHdyYXA7IH0KLnByaW50LWJ0biB7IGJhY2tncm91bmQ6ICMyMjI7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KLmltYWdlLXNpbmdsZS1idG4geyBiYWNrZ3JvdW5kOiAjMDA2NmNjOyBjb2xvcjogI2ZmZjsgcGFkZGluZzogMTBweCAyMHB4OyBmb250LXdlaWdodDogYm9sZDsgYm9yZGVyLXJhZGl1czogNHB4OyBib3JkZXI6IG5vbmU7IGN1cnNvcjogcG9pbnRlcjsgZm9udC1zaXplOiAxNHB4OyB9Ci5pbWFnZS1zZWN0aW9uLWJ0biB7IGJhY2tncm91bmQ6ICMxOTg3NTQ7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KYnV0dG9uOmRpc2FibGVkIHsgYmFja2dyb3VuZDogIzZjNzU3ZCAhaW1wb3J0YW50OyBjdXJzb3I6IG5vdC1hbGxvd2VkOyBvcGFjaXR5OiAwLjg7IH0KQG1lZGlhIHByaW50IHsKICAuYWN0aW9uLWNvbnRyb2xzLWJhciB7IGRpc3BsYXk6IG5vbmUgIWltcG9ydGFudDsgfQogIC5vZmZpY2lhbC1jYXJkLWNvbnRhaW5lciB7IGJvcmRlcjogbm9uZSAhaW1wb3J0YW50OyBtYXJnaW46IDAgYXV0byAxNW1tIGF1dG8gIWltcG9ydGFudDsgcGFnZS1icmVhay1pbnNpZGU6IGF2b2lkICFpbXBvcnRhbnQ7IGJyZWFrLWluc2lkZTogYXZvaWQgIWltcG9ydGFudDsgfQogIC5wcmludC1wYWdlLWJyZWFrLWRpdmlkZXIgeyBwYWdlLWJyZWFrLWFmdGVyOiBhbHdheXMgIWltcG9ydGFudDsgYnJlYWstYWZ0ZXI6IHBhZ2UgIWltcG9ydGFudDsgfQp9CmA7CgogY29uc3QgY3NzU2hlZXROb2RlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgic3R5bGUiKTsKIGNzc1NoZWV0Tm9kZS50eXBlID0gInRleHQvY3NzIjsKIGNzc1NoZWV0Tm9kZS5hcHBlbmRDaGlsZChkb2N1bWVudC5jcmVhdGVUZXh0Tm9kZShzdHlsaW5nUnVsZXMpKTsKIGRvY3VtZW50LmhlYWQuYXBwZW5kQ2hpbGQoY3NzU2hlZXROb2RlKTsKCiBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2F2ZS1zaW5nbGUtY2FyZC10cmlnZ2VyJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCBmdW5jdGlvbigpIHsKICAgICBjb25zdCB0YXJnZXRDYXJkID0gZG9jdW1lbnQucXVlcnlTZWxlY3RvcignLm9mZmljaWFsLWNhcmQtY29udGFpbmVyJyk7CiAgICAgaWYgKCF0YXJnZXRDYXJkKSByZXR1cm4gYWxlcnQoIk5vIGFjdGl2ZSByZXN1bHQgY2FyZCBlbmdpbmUgdGFyZ2V0IGRldGVjdGVkLiIpOwogICAgIAogICAgIGNvbnN0IHNOYW1lID0gdGFyZ2V0Q2FyZC5nZXRBdHRyaWJ1dGUoJ2RhdGEtc3R1ZGVudC1uYW1lJykgfHwgInN0dWRlbnQiOwogICAgIGNvbnN0IHNJZCA9IHRhcmdldENhcmQuaWQgfHwgInJlc3VsdCI7CiAgICAgCiAgICAgaHRtbDJjYW52YXModGFyZ2V0Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KS50aGVuKGNhbnZhcyA9PiB7CiAgICAgICAgIGNvbnN0IGRsTGluayA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2EnKTsKICAgICAgICAgZGxMaW5rLmRvd25sb2FkID0gYCR7c0lkfV8ke3NOYW1lfS5wbmc7CiAgICAgICAgIGRsTGluay5ocmVmID0gY2FudmFzLnRvREFUQVVSTCgnaW1hZ2UvcG5nJyk7CiAgICAgICAgIGRsTGluay5jbGljaygpOwogICAgIH0pOwogfSk7CgogZG9jdW1lbnQuZ2V0RWxlbWVudCBCeUlkKCdzYXZlLXNlY3Rpb24tY2FyZHMtdHJpZ2dlcicpLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgYXN5bmMgZnVuY3Rpb24oKSB7CiAgICAgY29uc3QgYWxsQ2FyZHMgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcub2ZmaWNpYWwtY2FyZC1jb250YWluZXInKTsKICAgICBpZiAoYWxsQ2FyZHMubGVuZ3RoID09PSAwKSByZXR1cm4gYWxlcnQoIkVtcHR5IHN0YWNrIGNvbnRleHQgc2NvcGUgY29uZmlndXJhdGlvbiBwYXlsb2FkIG1hcHBpbmcuIik7CiAgICAgCiAgICAgY29uc3QgYWN0aW9uQnRuID0gdGhpczsKICAgICBjb25zdCBwcmltYXJ5TGFiZWwgPSBhY3Rpb25CdG4uaW5uZXJUZXh0OwogICAgIGFjdGlvbkJ0bi5pbm5lclRleHQgPSAiR2VuZXJhdGluZyBBcmNoaXZlIEltYWdlcy4uLiI7CiAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gdHJ1ZTsKICAgICAKICAgICBjb25zdCBhcmNoaXZlQnVuZGxlID0gbmV3IEpTWmlwKCk7CiAgICAgCiAgICAgdHJ5IHsKICAgICAgICAgZm9yKGxldCBpbmRleCA9IDA7IGluZGV4IDwgYWxsQ2FyZHMubGVuZ3RoOyBpbmRleCsrKSB7CiAgICAgICAgICAgICBjb25zdCBjdXJyZW50Q2FyZCA9IGFsbENhcmRzW2luZGV4XTsKICAgICAgICAgICAgIGNvbnN0IGNhcmRJZFN0ciA9IGN1cnJlbnRDYXJkLmlkIHx8IGBjYXJkXyR7aW5kZXh9YDsKICAgICAgICAgICAgIGNvbnN0IHN0dWRlbnROYW1lU3RyID0gY3VycmVudENhcmQuZ2V0QXR0cmlidXRlKCdkYXRhLXN0dWRlbnQtbmFtZScpIHx8ICJyZWNvcmQiOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBjb25zdCByZW5kZXJpbmdDYW52YXMgPSBhd2FpdCBodG1sMmNhbnZhcyhjdXJyZW50Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KTsKICAgICAgICAgICAgIGNvbnN0IHNhbml0aXplZEJhc2U2NFBheWxvYWQgPSByZW5kZXJpbmdDYW52YXMudG9EQVRBVVJMKCdpbWFnZS9wbmcnKS5zcGxpdCgnLCcpWzFdOwogICAgICAgICAgICAgCiAgICAgICAgICAgICBhcmNoaXZlQnVuZGxlLmZpbGUoYCR7Y2FyZElkU3RyfV8ke3N0dWRlbnROYW1lU3RyfS5wbmcgLCBzYW5pdGl6ZEJhc2U2NFBheWxvYWQgLCB7IGJhc2U2NDogdHJ1ZSB9KTsKICAgICAgICAgfQogICAgICAgICAKICAgICAgICAgY29uc3QgY29tcGlsZWRaaXBCbG9iID0gYXdhaXQgYXJjaGl2ZUJ1bmRsZS5nZW5lcmF0ZUFzeW5jKHsgdHlwZTogJ2Jsb2InIH0pOwogICAgICAgICBjb25zdCBkbGxpbmsgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdhJyk7CiAgICAgICAgIGRsbGluay5kb3dubG9hZCA9ICJTZWN0aW9uX1Jlc3VsdF9DYXJkc19BcmNoaXZlLnppcCI7CiAgICAgICAgIGRsbGluay5ocmVmID0gVVJMLmNyZWF0ZU9iamVjdFVSTChjb21waWxlZFppcEJsb2IpOwogICAgICAgICBkbGxpbmsuY2xpY2soKTsKICAgICAgICAgCiAgICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgICAgY29uc29sZS5lcnJvcihlcnJvcik7CiAgICAgICAgIGFsZXJ0KCJBbiBlbmdpbmUgY29uZmlndXJhdGlvbiBydW50aW1lIGV4ZWN1dGlvbiBpbnRlcnJ1cHRpb24gb2NjdXJyZWQuIik7CiAgICAgfSBmaW5hbGx5IHsKICAgICAgICAgYWN0aW9uQnRuLmlubmVyVGV4dCA9IHByaW1hcnlMYWJlbDsKICAgICAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gZmFsc2U7CiAgICAgfQp9KTsKPC9zY3JpcHQ+CjwvYm9keT4KPC9odG1sPg=="
+            # ==================================================================
+            b64_footer = "CjxzY3JpcHQ++0b25zLWJhciB7IG1heC13aWR0aDogODUwcHg7IG1hcmdpbjogMCBhdXRvIDIwcHggYXV0bzsgZGlzcGxheTogZmxleDsgZ2FwOiAxMHB4OyBmbGV4LXdyYXA6IHdyYXA7IH0KLnByaW50LWJ0biB7IGJhY2tncm91bmQ6ICMyMjI7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KLmltYWdlLXNpbmdsZS1idG4geyBiYWNrZ3JvdW5kOiAjMDA2NmNjOyBjb2xvcjogI2ZmZjsgcGFkZGluZzogMTBweCAyMHB4OyBmb250LXdlaWdodDogYm9sZDsgYm9yZGVyLXJhZGl1czogNHB4OyBib3JkZXI6IG5vbmU7IGN1cnNvcjogcG9pbnRlcjsgZm9udC1zaXplOiAxNHB4OyB9Ci5pbWFnZS1zZWN0aW9uLWJ0biB7IGJhY2tncm91bmQ6ICMxOTg3NTQ7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDIwcHg7IGZvbnQtd2VpZ2h0OiBib2xkOyBib3JkZXItcmFkaXVzOiA0cHg7IGJvcmRlcjogbm9uZTsgY3Vyc29yOiBwb2ludGVyOyBmb250LXNpemU6IDE0cHg7IH0KYnV0dG9uOmRpc2FibGVkIHsgYmFja2dyb3VuZDogIzZjNzU3ZCAhaW1wb3J0YW50OyBjdXJzb3I6IG5vdC1hbGxvd2VkOyBvcGFjaXR5OiAwLjg7IH0KQG1lZGlhIHByaW50IHsKICAuYWN0aW9uLWNvbnRyb2xzLWJhciB7IGRpc3BsYXk6IG5vbmUgIWltcG9ydGFudDsgfQogIC5vZmZpY2lhbC1jYXJkLWNvbnRhaW5lciB7IGJvcmRlcjogbm9uZSAhaW1wb3J0YW50OyBtYXJnaW46IDAgYXV0byAxNW1tIGF1dG8gIWltcG9ydGFudDsgcGFnZS1icmVhay1pbnNpZGU6IGF2b2lkICFpbXBvcnRhbnQ7IGJyZWFrLWluc2lkZTogYXZvaWQgIWltcG9ydGFudDsgfQogIC5wcmludC1wYWdlLWJyZWFrLWRpdmlkZXIgeyBwYWdlLWJyZWFrLWFmdGVyOiBhbHdheXMgIWltcG9ydGFudDsgYnJlYWstYWZ0ZXI6IHBhZ2UgIWltcG9ydGFudDsgfQp9CmA7CgogY29uc3QgY3NzU2hlZXROb2RlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgic3R5bGUiKTsKIGNzc1NoZWV0Tm9kZS50eXBlID0gInRleHQvY3NzIjsKIGNzc1NoZWV0Tm9kZS5hcHBlbmRDaGlsZChkb2N1bWVudC5jcmVhdGVUZXh0Tm9kZShzdHlsaW5nUnVsZXMpKTsKIGRvY3VtZW50LmhlYWQuYXBwZW5kQ2hpbGQoY3NzU2hlZXROb2RlKTsKCiBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2F2ZS1zaW5nbGUtY2FyZC10cmlnZ2VyJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCBmdW5jdGlvbigpIHsKICAgICBjb25zdCB0YXJnZXRDYXJkID0gZG9jdW1lbnQucXVlcnlTZWxlY3RvcignLm9mZmljaWFsLWNhcmQtY29udGFpbmVyJyk7CiAgICAgaWYgKCF0YXJnZXRDYXJkKSByZXR1cm4gYWxlcnQoIk5vIGFjdGl2ZSByZXN1bHQgY2FyZCBlbmdpbmUgdGFyZ2V0IGRldGVjdGVkLiIpOwogICAgIAogICAgIGNvbnN0IHNOYW1lID0gdGFyZ2V0Q2FyZC5nZXRBdHRyaWJ1dGUoJ2RhdGEtc3R1ZGVudC1uYW1lJykgfHwgInN0dWRlbnQiOwogICAgIGNvbnN0IHNJZCA9IHRhcmdldENhcmQuaWQgfHwgInJlc3VsdCI7CiAgICAgCiAgICAgaHRtbDJjYW52YXModGFyZ2V0Q2FyZCwgeyBzY2FsZTogMiwgdXNlQ09SUzogdHJ1ZSB9KS50aGVuKGNhbnZhcyA9PiB7CiAgICAgICAgIGNvbnN0IGRsTGluayA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2EnKTsKICAgICAgICAgZGxMaW5rLmRvd25sb2FkID0gYCR7c0lkfV8ke3NOYW1lfS5wbmc7CiAgICAgICAgIGRsTGluay5ocmVmID0gY2FudmFzLnRvREFUQVVSTCgnaW1hZ2UvcG5nJyk7CiAgICAgICAgIGRsTGluay5jbGljaygpOwogICAgIH0pOwogfSk7CgogZG9jdW1lbnQuZ2V0RWxlbWVudCBCeUlkKCdzYXZlLXNlY3Rpb24tY2FyZHMtdHJpZ2dlcicpLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgYXN5bmMgZnVuY3Rpb24oKSB7CiAgICAgY29uc3QgYWxsQ2FyZHMgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcub2ZmaWNpYWwtY2FyZC1jb250YWluZXInKTsKICAgICBpZiAoYWxsQ2FyZHMubGVuZ3RoID09===ID0gImdlbmVyYXRpbmdfYXJjaGl2ZV9pbWFnZXMucG5nIjsKICAgICAgICAgICAgIAogICAgICAgICAgICAgY29uc3QgcmVuZGVyaW5nQ2FudmFzID0gYXdhaXQgaHRtbDJjYW52YXMoY3VycmVudENhcmQsIHsgc2NhbGU6IDIsIHVzZUNPUlM6IHRydWUgfSk7CiAgICAgICAgICAgICBjb25zdCBzYW5pdGl6ZWRCYXNlNjRQYXlsb2FkID0gcmVuZGVyaW5nQ2FudmFzLnRvREFUQVVSTCgnaW1hZ2UvcG5nJykuc3BsaXQoJywnKVsxXTsKICAgICAgICAgICAgIAogICAgICAgICAgICAgYXJjaGl2ZUJ1bmRsZS5maWxlKGAke2NhcmRJZFN0cn1fJHtzdHVkZW50TmFtZVN0cn0ucG5nYCAsIHNhbml0aXplZEJhc2U2NFBheWxvYWQgLCB7IGJhc2U2NDogdHJ1ZSB9KTsKICAgICAgICAgfQogICAgICAgICAKICAgICAgICAgY29uc3QgY29tcGlsZWRaaXBCbG9iID0gYXdhaXQgYXJjaGl2ZUJ1bmRsZS5nZW5lcmF0ZUFzeW5jKHsgdHlwZTogJ2Jsb2InIH0pOwogICAgICAgICBjb25zdCBkbGxpbmsgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdhJyk7CiAgICAgICAgIGRsbGluay5kb3dubG9hZCA9ICJTZWN0aW9uX1Jlc3VsdF9DYXJkc19BcmNoaWZlLnppcCI7CiAgICAgICAgIGRsbGluay5ocmVmID0gVVJMLmNyZWF0ZU9iamVjdFVSTChjb21waWxlZFppcEJsb2IpOwogICAgICAgICBkbGxpbmsuY2xpY2soKTsKICAgICAgICAgCiAgICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgICAgY29uc29sZS5lcnJvcihlcnJvcik7CiAgICAgICAgIGFsZXJ0KCJBbiBlbmdpbmUgY29uZmlndXJhdGlvbiBydW50aW1lIGV4ZWN1dGlvbiBpbnRlcnJ1cHRpb24gb2NjdXJyZWQuIik7CiAgICAgfSBmaW5hbGx5IHsKICAgICAgICAgYWN0aW9uQnRuLmlubmVyVGV4dCA9IHByaW1hcnlMYWJlbDsKICAgICAgICAgYWN0aW9uQnRuLmRpc2FibGVkID0gZmFsc2U7CiAgICAgfQp9KTsKPC9zY3JpcHQ+CjwvYm9keT4KPC9odG1sPg=="
             html_footer = base64.b64decode(b64_footer).decode('utf-8')
 
-            # ==========================================
+            # ==================================================================
             # 4. COMBINE AND STREAM TO COMPONENT FRAME
-            # ==========================================
-            compiled_html = html_header + html_cards_body + html_footer
-            st.components.v1.html(compiled_html, height=800, scrolling=True)
+            # ==================================================================
+            composite_html_payload = html_header + html_cards_body + html_footer
+            
+            # Wipe out copy-paste non-breaking space contamination characters
+            composite_html_payload = composite_html_payload.replace('\xa0', ' ')
+            st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- STUDENT MANAGEMENT -----------------
 elif menu_choice == "Student Management":
     st.title("👤 Student Management & Audit Logs")
