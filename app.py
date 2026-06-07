@@ -2044,11 +2044,10 @@ elif menu_choice == "Student Management":
         search_id = st.number_input("Enter Student ID:", min_value=1, step=1, key="manage_search_id")
         
         if search_id:
-            student_data = run_query("""
-                SELECT id, name, section, class 
-                FROM students 
-                WHERE id = :id
-            """, {"id": search_id})
+            # Flattened to a single line to completely prevent multi-line indentation errors
+            student_data = run_query("SELECT id, name, section, class FROM students WHERE id = :id", {"id": search_id})
+            
+            if not student_data.empty:
             
             if not student_data.empty:
                 s_id = int(student_data.iloc[0]["id"])
