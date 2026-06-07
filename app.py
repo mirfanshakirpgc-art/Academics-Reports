@@ -715,7 +715,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         if uploaded_file is not None:
             st.info("📊 Processing files runs standard automated validation rules against raw formats.")
 
-```
+
 
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (AUTOMATED BACKGROUND SYNC)
