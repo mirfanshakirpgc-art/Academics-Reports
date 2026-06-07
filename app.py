@@ -1394,12 +1394,31 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
         with col_dyn2:
-            # 💡 DIRECT FIX: Explicitly list your annual sections here so they always show up!
             annual_sections = ["A", "B", "C", "ICS", "Pre-Medical", "Pre-Engineering"]
             sel_sec = st.selectbox("Select Target Class Section:", options=annual_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
+
+    else:
+        with col_dyn1:
+            sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester"], key="global_sel_class")
+            
+        with col_dyn2:
+            if sel_class_global == "1st Semester":
+                filtered_sections = ["DIT_1ST"]
+            else:
+                filtered_sections = ["DIT_2ND"]
+                
+            sel_sec = st.selectbox("Select Target Section:", options=filtered_sections, index=0, key="global_sel_sec")
+            
+        with col_dyn3:
+            if sel_class_global == "1st Semester":
+                semester_courses = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+            else:
+                semester_courses = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                
+            selected_exams_list = st.multiselect("🎯 Select Courses:", options=semester_courses, default=semester_courses[:3], key="global_exams")
 
     else:  # --- SEMESTER SYSTEM BRANCH ---
         with col_dyn1:
