@@ -1582,63 +1582,138 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # CSS Styling Configurations
-        # CSS Styling Configurations (Hardened for Streamlit HTML Container)
-        # CSS Styling Configurations (Strictly Aligned to Professional Document Specifications)
+        # Strict Document CSS Blueprint Engine
         css_rules = """
         body { background-color: #ffffff; margin: 0; padding: 20px; color: #000000; font-family: 'Arial', sans-serif; }
         
-        /* Dashboard Button Layout (Invisible during print) */
         .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 900px; margin: 10px auto 25px auto; }
         .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-print-single { background-color: #2e7d32; } .btn-print-bulk { background-color: #1565c0; } .btn-img-single { background-color: #e65100; } .btn-img-bulk { background-color: #6a1b9a; }
         
-        /* Main Result Card Blueprint */
         .cck-container { background-color: #ffffff; border: 2px solid #000000 !important; padding: 40px; margin: 20px auto; max-width: 950px; box-sizing: border-box; page-break-after: always; display: block !important; position: relative; }
         
-        /* Header Configuration */
         .cck-header-wrapper { position: relative; margin-bottom: 20px; min-height: 70px; display: block; }
         .cck-logo-image-container { position: absolute; left: 0; top: 0; width: 140px; }
         .cck-logo-image { width: 100%; height: auto; object-fit: contain; }
+        .cck-title-block { text-align: center; margin-top: 5px; margin-bottom: 15px; }
         .cck-main-title { font-size: 30px; font-weight: bold; margin: 0; text-align: center; color: #000000; letter-spacing: 1px; text-transform: uppercase; line-height: 1.2; }
         
-        /* Document Designation Badge */
         .cck-badge-wrapper { text-align: center; margin: 25px 0 20px 0; }
         .cck-doc-badge { display: inline-block; background-color: #cfd8dc !important; color: #000000; font-weight: bold; font-size: 15px; padding: 6px 30px; border-radius: 4px; border: 1px solid #000000 !important; text-transform: capitalize; }
         
-        /* Student Information/Metadata Profile Section */
         .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 30px; font-size: 16px; row-gap: 16px; color: #000000; }
         .cck-meta-field { font-weight: normal; width: 48%; display: inline-flex; align-items: flex-end; }
-        .cck-meta-label { font-weight: normal; margin-right: 4px; white-space: nowrap; }
         .cck-line-fill { border-bottom: 1px solid #000000 !important; flex-grow: 1; padding-left: 5px; font-weight: bold; padding-bottom: 2px; }
         
-        /* Unified Academic Grid & Attendance Table Engine */
         .cck-report-table { width: 100%; border-collapse: collapse !important; border: 1px solid #000000 !important; margin-bottom: 30px; font-size: 14px; background-color: #ffffff; color: #000000; }
         .cck-report-table th, .cck-report-table td { border: 1px solid #000000 !important; padding: 10px 6px !important; text-align: center; vertical-align: middle; box-sizing: border-box; }
         .cck-report-table th { background-color: #ffffff !important; font-weight: bold; font-size: 14px; text-transform: uppercase; }
         .cck-report-table td:first-child { text-align: left !important; padding-left: 12px !important; font-weight: bold; text-transform: uppercase; width: 28%; }
         .cck-report-table tr:last-child td { font-weight: bold; }
         
-        /* Attendance Header Specifics */
-        .cck-attendance-title { font-size: 16px; font-weight: bold; text-align: center; margin-top: 35px; margin-bottom: 15px; text-decoration: underline; text-transform: capitalize; color: #000000; }
-        
-        /* Bottom Remarks Block & Principal Signature Line */
         .cck-remarks-area { margin-top: 60px; font-size: 15px; display: flex; align-items: flex-end; color: #000000; width: 100%; }
-        .cck-remarks-label { font-weight: bold; white-space: nowrap; }
         .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000 !important; margin-left: 10px; padding-left: 8px; padding-bottom: 2px; font-style: italic; }
         .cck-footer-sign { margin-top: 50px; text-align: right; font-size: 15px; font-weight: bold; padding-right: 15px; color: #000000; text-transform: capitalize; }
         
-        /* Print Isolation Directives */
+        .cck-single-print-hide { display: none !important; }
+        
         @media print { 
             .action-dashboard-panel { display: none !important; } 
             body { padding: 0; margin: 0; }
             .cck-container { border: 2px solid #000000 !important; padding: 40px; margin: 0; box-shadow: none; page-break-after: always; } 
+            .cck-single-print-hide { display: none !important; }
         }
         """
+        css_styles = f"<style>{css_rules}</style>".replace('\xa0', ' ')
+
+        # Initialize Container Wrappers
+        composite_html_payload = f"""
+        <html>
+        <head>
+        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        {css_styles}
+        </head>
+        <body>
+            <div class="action-dashboard-panel">
+                <button class="action-control-btn btn-print-single" onclick="executeTargetPrint(true)">👤 Print Single Student</button>
+                <button class="action-control-btn btn-print-bulk" onclick="executeTargetPrint(false)">👥 Print Complete Section</button>
+                <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Single as Picture</button>
+                <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Section as Pictures</button>
+            </div>
+            <div id="dossiers-master-wrapper">
+        """
+
+        # Loop Over Selected Records to Output Each Unique Sheet Card
+        for index, s_meta in enumerate(students_to_process):
+            s_id = str(s_meta["id"]).strip()
+            raw_name = str(s_meta["name"])
+            s_name = " ".join(raw_name.replace("\n", " ").split())
+            
+            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
+            s_section = " ".join(raw_section.replace("\n", " ").split())
+            
+            raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
+            s_class = " ".join(raw_class.replace("\n", " ").split())
+
+            # Academic Matrix Reset Vectors per Loop Sequence
+            table_rows_html = ""
+            total_row_html = ""
+            grand_total_percentages = [0]
+
+            if not marks_df.empty:
+                s_marks = marks_df[marks_df["student_id"] == s_id].copy()
+                
+                if not s_marks.empty:
+                    distinct_subjects = sorted(s_marks["subject_name"].unique())
+                    exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
+                    exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
                     
-                    # Footer Summary Row Configuration
+                    for sub in distinct_subjects:
+                        sub_marks = s_marks[s_marks["subject_name"] == sub]
+                        row_tds = f"<td>{sub}</td>"
+                        subject_pct_accum = 0
+                        valid_exams_count = 0
+                        
+                        for exam in selected_exams_list:
+                            if academic_system == "Semester System":
+                                match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
+                            else:
+                                match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+                                
+                            if not match_row.empty:
+                                try:
+                                    if len(match_row) > 1:
+                                        primary_slot = match_row[match_row["is_migration_subject"] != True]
+                                        migration_slot = match_row[match_row["is_migration_subject"] == True]
+                                        row_to_use = primary_slot.iloc[0] if not primary_slot.empty else migration_slot.iloc[0]
+                                    else:
+                                        row_to_use = match_row.iloc[0]
+
+                                    obt = float(row_to_use["marks_obtained"])
+                                    tot = float(row_to_use["total_marks"])
+                                    pct = int((obt / tot) * 100) if tot > 0 else 0
+                                    
+                                    if "is_migration_subject" in row_to_use and row_to_use["is_migration_subject"] == True:
+                                        row_tds += f"<td>{pct}% <span style='font-size:10px; font-weight:bold; color:#777;'>(Chem)</span></td>"
+                                    else:
+                                        row_tds += f"<td>{pct}%</td>"
+                                        
+                                    exam_totals_obtained[exam] += obt
+                                    exam_totals_possible[exam] += tot
+                                    subject_pct_accum += pct
+                                    valid_exams_count += 1
+                                except:
+                                    row_tds += "<td>-</td>"
+                            else:
+                                row_tds += "<td>-</td>"
+                        
+                        sub_avg = int(subject_pct_accum / valid_exams_count) if valid_exams_count > 0 else 0
+                        row_tds += f"<td><strong>{sub_avg}%</strong></td>"
+                        table_rows_html += f"<tr>{row_tds}</tr>"
+
+                    # --- 2. SUMMARY / TOTAL ROW CONFIGURATION ---
                     total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
-                    total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
+                    total_obt_tds = f"<td><strong>{total_title}</strong></td>"
                     total_pct_accum = 0
                     total_counted = 0
                     
@@ -1655,8 +1730,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             
                     grand_avg = int(total_pct_accum / total_counted) if total_counted > 0 else 0
                     grand_total_percentages = [grand_avg]
-                    total_obt_tds += f"<td><span style='font-size:14px;'><strong>{grand_avg}%</strong></span></td>"
-                    total_row_html = f"<tr style='background-color:#fafafa;'>{total_obt_tds}</tr>"
+                    total_obt_tds += f"<td><strong>{grand_avg}%</strong></td>"
+                    total_row_html = f"<tr style='background-color: #ffffff;'>{total_obt_tds}</tr>"
 
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
@@ -1713,12 +1788,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
 
             column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
-            thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
+            thead_exams_th = "".join([f"<th>{exam}</th>" for exam in selected_exams_list])
             thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
 
             l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
             logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
 
+            # Build HTML Layout Wrapper Injection Payload
             composite_html_payload += f"""
             <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
                 <div class="cck-header-wrapper">
@@ -1734,18 +1810,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 </div>
                 <table class="cck-report-table">
                     <thead>
-                        <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
-                        <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">{column_header_title}</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
+                        <tr><th style="width: 28%;"></th>{thead_exams_th}<th></th></tr>
+                        <tr><th style="text-align: left; padding-left: 12px;">{column_header_title}</th>{thead_sub_tds}<td>Avg.%</td></tr>
                     </thead>
                     <tbody>{table_rows_html}{total_row_html}</tbody>
                 </table>
-                <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;"><div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div></div>
-                <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
+                <div class="cck-badge-wrapper" style="margin-top: 35px; margin-bottom: 15px;"><div class="cck-doc-badge" style="background-color: transparent !important; font-size: 15px; border: none !important; text-decoration: underline; text-transform: uppercase;">Attendance Report</div></div>
+                <table class="cck-report-table" style="font-size: 12px;">
                     <thead>
-                        <tr><th style="width: 14%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th style="font-weight: bold;">Overall</th></tr>
+                        <tr><th style="width: 16%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th>Over All Att.</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td>Open Total Days</td>{tot_days_row}</tr>
+                        <tr><td>Total Days</td>{tot_days_row}</tr>
                         <tr><td>Att. Days</td>{att_days_row}</tr>
                         <tr><td>Age%</td>{pct_days_row}</tr>
                     </tbody>
@@ -1755,6 +1831,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             </div>
             """
         
+        # Close out Master Frame Wrapper and Include JavaScript Engine
         composite_html_payload += """
             </div> 
             <script>
@@ -1763,9 +1840,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 if (cards.length === 0) return;
                 cards.forEach(function(card, idx) {
                     if (isSingleTarget) {
-                        if (idx === 0) { card.classList.add('cck-single-print-isolation'); card.classList.remove('cck-single-print-hide'); }
-                        else { card.classList.add('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
-                    } else { card.classList.remove('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                        if (idx === 0) { card.classList.remove('cck-single-print-hide'); }
+                        else { card.classList.add('cck-single-print-hide'); }
+                    } else { card.classList.remove('cck-single-print-hide'); }
                 });
                 setTimeout(function() { window.print(); }, 200);
             }
@@ -1787,7 +1864,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
                 html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
                     var link = document.createElement('a');
-                    link.download = studId + '_' + studName + '_ProgressCard.png';
+                    link.download = 'Result_Card_' + studName + '_' + studId + '.png';
                     link.href = canvas.toDataURL('image/png');
                     link.click();
                     setTimeout(function() { triggerImageCaptureSequence(targetList, currentIndex + 1); }, 500);
