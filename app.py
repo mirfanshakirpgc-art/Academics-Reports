@@ -696,7 +696,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 CURRENT SECTION SUBJECTS ONLY (Clean drop-down menu)
+                # 🎯 STRICT SECTION SUBJECT MAPPING DROPDOWNS
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -747,7 +747,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 SMART HISTORICAL RE-ROUTING VIEW (e.g., 80 (Bio) in Mathematics Row)
+                # 🎯 REFINED ROW MAPPER (Bio -> Physics Row, Chem -> Computer Row)
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -764,17 +764,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         obt_mark = str(row['marks_obtained']).strip()
                         tot_mark = int(row['total_marks'])
                         
-                        # Apply context override labels for old subjects to show within the current rows
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
+                        # Apply row alignments according to the card schema
                         if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                             if sub_name == "BIOLOGY":
-                                display_subject = "MATHEMATICS"
-                                display_obtained = f"{obt_mark} (Bio)"
+                                display_subject = "PHYSICS"
+                                display_obtained = f"{obt_mark} (Biol.)"
                             elif sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
-                                display_obtained = f"{obt_mark} (Chem)"
+                                display_obtained = f"{obt_mark} (Chem.)"
                                 
                         processed_rows.append({
                             "Subject": display_subject,
