@@ -782,52 +782,41 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_obtained = obt_mark
                         
                         # =========================================================================
-                        # ⚡ 1. GLOBAL CROSS-OVER NORMALIZATION OVERRIDE (CRITICAL FIX)
+                        # 🚨 FORCE OVERRIDE BASED ON THE ACTIVE SYLLABUS RUNNING RIGHT NOW
                         # =========================================================================
-                        # Safely ensure that if the student has transferred across tracks, 
-                        # opposite core subjects automatically map to the active tracking slots.
-                        if s_section in ["MQ1", "MQ2", "MK1"]:
+                        # If the report card being generated expects BIOLOGY (Medical Track)
+                        # but the database row contains MATHEMATICS, force it into the BIOLOGY row.
+                        if "BIOLOGY" in inferred_subjects and "MATHEMATICS" not in inferred_subjects:
                             if sub_name == "MATHEMATICS":
                                 display_subject = "BIOLOGY"
                                 display_obtained = f"{obt_mark} (Maths)"
                             elif sub_name == "COMPUTER":
-                                display_subject = "BIOLOGY"
+                                display_subject = "BIOLOGY" 
                                 display_obtained = f"{obt_mark} (Comp.)"
-                                
-                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3"]:
-                            # If they are currently in ICS/Pre-Eng but have Medical marks history,
-                            # pull the Biology mark over into the core technical slot
-                            if sub_name == "BIOLOGY" and "BIOLOGY" not in inferred_subjects:
-                                if "MATHEMATICS" in inferred_subjects:
-                                    display_subject = "MATHEMATICS"
-                                    display_obtained = f"{obt_mark} (Bio)"
-                                elif "PHYSICS" in inferred_subjects and s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                                    display_subject = "PHYSICS"
-                                    display_obtained = f"{obt_mark} (Biol.)"
-                                elif "STATISTICS" in inferred_subjects and s_section in ["CQ3", "CK3"]:
-                                    display_subject = "STATISTICS"
-                                    display_obtained = f"{obt_mark} (Bio)"
 
-                        # =========================================================================
-                        # ⚡ 2. MULTI-TRANSFER STRUCTURAL SHIFT ENGINE (CONTEXT SPECIFIC)
-                        # =========================================================================
-                        if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
-                            if sub_name == "PHYSICS":
-                                display_subject = "STATISTICS"
-                                display_obtained = f"{obt_mark} (Phys.)"
-                            elif sub_name == "CHEMISTRY":
-                                display_subject = "COMPUTER"
-                                display_obtained = f"{obt_mark} (Chem.)"
-                                
-                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
-                            if sub_name == "CHEMISTRY":
-                                display_subject = "COMPUTER"
-                                display_obtained = f"{obt_mark} (Chem.)"
-                                
-                        elif s_section in ["EK1", "EQ1"]:  # Engineering Section Context
+                        # If the report card being generated expects MATHEMATICS/ICS 
+                        # but the database row contains BIOLOGY, pull it into the math/science slot.
+                        elif "MATHEMATICS" in inferred_subjects and "BIOLOGY" not in inferred_subjects:
                             if sub_name == "BIOLOGY":
                                 display_subject = "MATHEMATICS"
                                 display_obtained = f"{obt_mark} (Bio)"
+
+                        # =========================================================================
+                        # ⚡ STANDARD MULTI-TRANSFER STRUCTURAL SHIFT ENGINE (FALLBACKS)
+                        # =========================================================================
+                        else:
+                            if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
+                                if sub_name == "PHYSICS":
+                                    display_subject = "STATISTICS"
+                                    display_obtained = f"{obt_mark} (Phys.)"
+                                elif sub_name == "CHEMISTRY":
+                                    display_subject = "COMPUTER"
+                                    display_obtained = f"{obt_mark} (Chem.)"
+                                    
+                            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
+                                if sub_name == "CHEMISTRY":
+                                    display_subject = "COMPUTER"
+                                    display_obtained = f"{obt_mark} (Chem.)"
 
                         # 🛑 THE REMOVAL GUARD: Explicitly skip raw un-mapped Physics records for Stats students
                         if s_section in ["CQ3", "CK3"] and sub_name == "PHYSICS" and display_subject == "PHYSICS":
