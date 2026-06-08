@@ -635,7 +635,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                     ORDER BY s.id ASC
                 """, {
-                    "subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session
+                    "subject": sel_subject, "exam": exam, "section": sel_section, "session": sel_session
                 })
                 
                 if roster_df.empty:
@@ -664,13 +664,32 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
+        
+        # 🎯 ADDED: Filter row context prior to roll number evaluation
+        f_col1, f_col2, f_col3 = st.columns([1.5, 1.5, 2])
+        with f_col1:
+            single_session = st.selectbox("Filter by Session:", options=session_options, key="s_search_sess")
+        with f_col2:
+            single_system = st.selectbox("Filter by System:", options=["Annual System", "Semester System"], key="s_search_sys")
+        with f_col3:
+            if single_system == "Annual System":
+                single_class_lvl = st.selectbox("Filter by Class Level:", options=["11th", "12th"], key="s_search_class")
+            else:
+                single_class_lvl = st.selectbox("Filter by Semester:", options=["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="s_search_class")
+                
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
         
         if single_id and single_id.isdigit():
-            student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_id)})
+            # 🎯 CHANGED: Query now looks up the ID constrained explicitly by selected session and class layout contexts
+            student_info = run_query("""
+                SELECT name, section, session, class FROM students 
+                WHERE id = :id 
+                  AND session = :session 
+                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
+            """, {"id": int(single_id), "session": single_session, "class_val": single_class_lvl})
             
             if student_info.empty:
-                st.error("❌ This roll number does not exist.")
+                st.error(f"❌ Roll number #{single_id} does not exist inside {single_session} ({single_class_lvl}).")
             else:
                 s_name = student_info['name'].iloc[0].upper()
                 s_section = student_info['section'].iloc[0].upper().strip()
@@ -679,7 +698,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 1. Base group subjects architecture fallbacks
+                # Base fallback subjects list
                 inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
                 try:
                     if "BLUE" in s_section or "PRE_MED" in s_section or "MG" in s_section or "CQ" in s_section:
@@ -693,16 +712,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 except NameError:
                     pass
                 
-                # Standardize current discipline subjects to uppercase strings
                 inferred_subjects = [sub.upper().strip() for sub in inferred_subjects]
                 
-                # 🎯 2. FIXED: Scan database to include any old historical subjects recorded for this ID
+                # Include any historical subjects for which this student has logged marks
                 historical_subs_df = run_query("SELECT DISTINCT UPPER(TRIM(subject)) as historic_sub FROM marks WHERE student_id = :id", {"id": int(single_id)})
                 if not historical_subs_df.empty:
                     historical_list = historical_subs_df['historic_sub'].tolist()
                     inferred_subjects.extend(historical_list)
                 
-                # Deduplicate and sort drop-down contents alphabetically
                 inferred_subjects = sorted(list(set(inferred_subjects)))
                 
                 # --- LAYOUT MANAGEMENT ---
@@ -734,7 +751,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # Current logged history dataframe
+                # Current logged history dataframe table view
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 history_df = run_query("""
@@ -751,7 +768,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         if uploaded_file is not None:
             st.info("📊 Processing files runs standard automated validation rules against raw formats.")
-
 
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DICTIONARY ALIGNED & ZERO-DELAY LOADING)
