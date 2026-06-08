@@ -513,6 +513,23 @@ elif menu_choice == "➕ Add Students":
                             st.rerun()
                         except Exception as delete_err:
                             st.error(f"❌ Database error encountered: {delete_err}")
+Ah, seeing your complete **Module 1 (Academic Exam Marks Entry)** code explains exactly why the issue is still persisting!
+
+Look at your hardcoded rules inside the Single Roll Number worker component:
+
+```python
+if s_section in ["MQ1", "MQ2", "MK1"]:
+    inferred_subjects = ["CHEMISTRY", "BIOLOGY", "PHYSICS", ...]
+
+```
+
+Because it is explicitly checking for hardcoded 11th-grade sections like `"MQ1"` or `"CQ3"`, any student sitting in a section format like `"12TH-COMMERCE"`, `"ICS-STATS"`, or `"FSC-MED"` bypasses these tracks completely and falls into the generic `else:` block, which applies old 11th-grade combinations like `ISLAMIAT` instead of 12th-grade `PAK_ST`.
+
+Furthermore, your fallback rules are swapping old 11th-grade codes (e.g., swapping `PHYSICS` to `STATISTICS` or `CHEMISTRY` to `COMPUTER`). For promoted 12th-grade students, it must handle the new subjects like **`B_STATS`**, **`GEO`**, and **`BANKING`**.
+
+Here is the fully optimized, generalized update for **Module 1** that checks for substrings and handles 12th-grade promotions gracefully:
+
+```python
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
@@ -692,29 +709,42 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_name = student_info['name'].iloc[0].upper()
                 s_section = student_info['section'].iloc[0].upper().strip()
                 s_session = student_info['session'].iloc[0]
-                s_class = student_info['class'].iloc[0]
+                s_class = student_info['class'].iloc[0].upper()
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
+                # 🎯 FORCE PROMOTION TRACKING STRATEGY
+                is_twelfth = "12TH" in s_class or "2ND" in s_class or "12" in s_class or "12TH" in str(single_class_lvl).upper()
+                
+                is_commerce = "COM" in s_section or "COMMERCE" in s_section or "ICOM" in s_section or "IQ" in s_section or "IK" in s_section
+                is_stats = "CQ3" in s_section or "CK3" in s_section or "STAT" in s_section
+                is_medical = "MQ" in s_section or "MK" in s_section or "MED" in s_section or "FSC-MED" in s_section
+                is_engineering = "EQ" in s_section or "EK" in s_section or "ENG" in s_section
+                is_ics_physics = ("CQ1" in s_section or "CQ2" in s_section or "CK1" in s_section or "CK2" in s_section or "ICS" in s_section) and not is_stats
+                is_humanities = "FQ" in s_section or "FK" in s_section or "HUM" in s_section
+
                 # Current subjects active for the current group context
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
                 else:
-                    if s_section in ["MQ1", "MQ2", "MK1"]:
-                        inferred_subjects = ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
-                    elif s_section in ["EK1", "EQ1"]:
-                        inferred_subjects = ["CHEMISTRY", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
-                    elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                        inferred_subjects = ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
-                    elif s_section in ["CQ3", "CK3"]:
-                        inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
-                    elif s_section in ["IQ1", "IK1"]:
-                        inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
-                    elif s_section in ["FQ1", "FK1"]:
-                        inferred_subjects = ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                    if is_medical:
+                        inferred_subjects = ["BIOLOGY", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
+                    elif is_engineering:
+                        inferred_subjects = ["MATHEMATICS", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
+                    elif is_ics_physics:
+                        inferred_subjects = ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
+                    elif is_stats:
+                        inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
+                    elif is_commerce:
+                        if is_twelfth:
+                            inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                        else:
+                            inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "ISLAMIAT", "T_QURAN"]
+                    elif is_humanities:
+                        inferred_subjects = ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
                     else:
-                        inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
+                        inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_ST", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
                 
                 inferred_subjects = sorted(list(set([sub.upper().strip() for sub in inferred_subjects if sub])))
                 
@@ -731,9 +761,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 lookup_subject = single_sub
                 if single_sub == "STATISTICS":
                     lookup_subject = "PHYSICS"
-                elif single_sub == "COMPUTER" and s_section in ["CQ3", "CK3"]:
+                elif single_sub == "COMPUTER" and is_stats:
                     lookup_subject = "CHEMISTRY"
-                elif single_sub == "PHYSICS" and s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                elif single_sub == "PHYSICS" and is_ics_physics:
                     lookup_subject = "BIOLOGY"
 
                 existing_m = run_query("""
@@ -760,7 +790,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 GLOBAL TRACK HISTORY RE-MAPPING ENGINE (REMOVED EXAM_CYC RESTRICTION)
+                # 🎯 GLOBAL TRACK HISTORY RE-MAPPING ENGINE
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -781,42 +811,36 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # =========================================================================
-                        # 🔄 THE "TROJAN HORSE" OVERRIDE FOR TRANSFERRED STUDENTS
-                        # =========================================================================
-                        # If we are looking at an ICS/Engineering template layout on screen,
-                        # but this student has cross-over marks (e.g. her MT_1 'COMPUTER' or 'CHEMISTRY' marks)
-                        # hijack the MATHEMATICS display row to show the marks as "87% (Maths)"
-                        if s_section in ["CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "EQ1", "EK1"]:
-                            # Look for her score from her previous track (which shows as COMPUTER or CHEMISTRY in MT_1)
+                        # Crossover Trojan Horse Maps
+                        if is_ics_physics or is_stats or is_engineering:
                             if sub_name in ["COMPUTER", "CHEMISTRY", "MATHEMATICS"] and exam_cyc == "MT_1":
                                 display_subject = "MATHEMATICS"
                                 display_obtained = "87% (Maths)"
-                        
-                        # If the screen layout is looking at a Medical Section (MQ1, MQ2, MK1),
-                        # follow your standard mapping rules to put her Math marks into Biology.
-                        elif s_section in ["MQ1", "MQ2", "MK1"]:
+                        elif is_medical:
                             if sub_name in ["MATHEMATICS", "COMPUTER"]:
                                 display_subject = "BIOLOGY"
                                 display_obtained = f"{obt_mark} (Maths)"
 
-                        # =========================================================================
-                        # ⚡ STANDARD FALLBACK STRUCTURAL SHIFTS
-                        # =========================================================================
-                        if s_section in ["CQ3", "CK3"] and display_subject != "MATHEMATICS":
+                        # Cross-Over Structural Shifts for Track Displays
+                        if is_stats and display_subject != "MATHEMATICS":
                             if sub_name == "PHYSICS":
                                 display_subject = "STATISTICS"
                                 display_obtained = f"{obt_mark} (Phys.)"
                             elif sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
-                                
-                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2"] and display_subject != "MATHEMATICS":
+                        elif is_ics_physics and display_subject != "MATHEMATICS":
                             if sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
 
-                        # Only permit entries matching active current class tracking rules
+                        # Handle Commerce Matrix Swapping
+                        if is_commerce:
+                            if sub_name in ["POA", "ACCOUNTING"]: display_subject = "POA"
+                            elif sub_name in ["BANKING", "BANK"]: display_subject = "BANKING"
+                            elif sub_name in ["B_STATS", "BUSINESS"]: display_subject = "B_STATS"
+                            elif sub_name in ["GEO", "GEOGRAPHY"]: display_subject = "GEO"
+
                         if display_subject in inferred_subjects:
                             matrix_key = (display_subject, exam_cyc)
                             matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
@@ -837,6 +861,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         st.caption("No matching marks records exist for current section tracking profiles.")
                 else:
                     st.caption("No marks records exist in the database for this student yet.")
+
+```
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
