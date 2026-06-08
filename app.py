@@ -961,14 +961,9 @@ elif menu_choice == "📅 Attendance Entry Management":
             else:
                 sel_class = st.selectbox("Semester:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="att_sec_cl")
         
-        # Dynamic Section parsing based on Academic System to match your configuration maps
         with ac4:
             if academic_system == "Annual System":
-                # Fallback list of standard section codes if maps are out of scope
-                try:
-                    valid_sections = ["MK", "IK", "MG_BLUE", "EG_BLUE", "CG_WHITE"]
-                except Exception:
-                    valid_sections = ["MK", "IK", "MG_BLUE", "EG_BLUE", "CG_WHITE"]
+                valid_sections = ["MK", "IK", "MG_BLUE", "EG_BLUE", "CG_WHITE"]
             else:
                 valid_sections = ["DIT_G", "DIT_B"]
             sel_section = st.selectbox("Target Section:", valid_sections, key="att_sec_target")
@@ -980,12 +975,12 @@ elif menu_choice == "📅 Attendance Entry Management":
         with date_col1:
             attendance_date = st.date_input("Select Attendance Date:", key="att_sec_date")
         with date_col2:
-            st.markdown("<br>", unsafe_allowed_html=True)
+            # FIXED: Changed unsafe_allowed_html to unsafe_allow_html to eliminate the rendering crash
+            st.markdown("<br>", unsafe_allow_html=True)
             st.caption("ℹ️ Checking state applies instantly. Mark checkboxes for Present students, leave unchecked for Absentees.")
 
         if sel_section and sel_session:
             try:
-                # Query students using existing columns safely
                 target_cls = "12th" if sel_class == "ALL" else sel_class
                 if target_cls == "ALL":
                     query_students = "SELECT id, name FROM students WHERE section = :sec AND session = :sess ORDER BY id ASC"
@@ -1000,12 +995,10 @@ elif menu_choice == "📅 Attendance Entry Management":
             if not students_df.empty:
                 st.markdown(f"### 📝 Attendance Registry for {sel_section} ({attendance_date.strftime('%Y-%m-%d')})")
                 
-                # Global Action Buttons for fast ticking
                 g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
                 mark_all_p = g_col2.button("✅ Mark All Present", use_container_width=True)
                 mark_all_a = g_col3.button("❌ Mark All Absent", use_container_width=True)
                 
-                # Fetch existing attendance logs for this day to pre-populate state safely
                 try:
                     formatted_date_str = attendance_date.strftime('%Y-%m-%d')
                     existing_att_query = "SELECT student_id, status FROM attendance WHERE att_date = :date_str AND section = :sec AND session = :sess"
@@ -1016,13 +1009,11 @@ elif menu_choice == "📅 Attendance Entry Management":
 
                 attendance_payload = []
                 
-                # Interactive Input List Form
                 with st.form(key="bulk_attendance_submission_form"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
                         
-                        # Determine default visual checkbox state
                         cached_status = att_cache.get(sid, "Present")
                         if mark_all_p:
                             is_present_default = True
@@ -1050,7 +1041,6 @@ elif menu_choice == "📅 Attendance Entry Management":
                         
                         for record in attendance_payload:
                             try:
-                                # Safe Upsert operations targeting SQLite or PostgreSQL setups
                                 save_query = """
                                     INSERT INTO attendance (student_id, att_date, section, session, status)
                                     VALUES (:sid, :att_date, :sec, :sess, :status)
@@ -1069,28 +1059,25 @@ elif menu_choice == "📅 Attendance Entry Management":
                                 st.error(f"Failed to record status for Roll No {record['student_id']}: {db_err}")
                                 
                         if success_count == len(attendance_payload):
-                            st.success(f"🎉 Successfully locked entry sheets for {success_count} students!")
+                            st.success(f"🎉 Successfully saved attendance log for {success_count} students!")
                             st.rerun()
             else:
                 st.warning("⚠️ No student records located matching the chosen criteria combinations.")
 
     # ================================================================================
-    # WORKFLOW 2: ATTENDANCE BY SINGLE STUDENT ROLL NUMBER (FAST FETCH)
+    # WORKFLOW 2: ATTENDANCE BY SINGLE STUDENT ROLL NUMBER
     # ================================================================================
     elif att_mode == "👤 By Single Student Roll Number":
         st.markdown("### 🔍 Configuration Setup")
         
-        # 1. Base Setup selectors
         sc1, sc2 = st.columns(2)
         with sc1: sel_session = st.selectbox("Session:", session_options, key="single_att_sess")
         with sc2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_att_sys")
         
-        # 2. Direct Roll Number Search Input box
         search_sid = st.text_input("👤 Enter Student Roll Number / ID Code:", value="", key="single_att_roll_input").strip()
         
         if search_sid:
             try:
-                # Safe column selection query execution schema profiles 
                 fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
@@ -1110,7 +1097,6 @@ elif menu_choice == "📅 Attendance Entry Management":
                 with form_col1:
                     attendance_date = st.date_input("Select Attendance Date:", key="single_att_date_pick")
                 
-                # Fetch current logs if existing for this specific date selection combo
                 try:
                     date_str = attendance_date.strftime('%Y-%m-%d')
                     single_att_query = "SELECT status FROM attendance WHERE student_id = :sid AND att_date = :date_str"
@@ -1124,7 +1110,6 @@ elif menu_choice == "📅 Attendance Entry Management":
                 
                 is_present_init = True if current_status == "Present" else False
                 
-                # Individual data entry submission frame
                 with st.form(key="individual_student_attendance_form"):
                     st.markdown(f"##### Registering status for day: **{attendance_date.strftime('%d-%b-%Y')}**")
                     status_toggle = st.checkbox("Mark Student as Present (Uncheck to mark Absent)", value=is_present_init)
@@ -1149,12 +1134,11 @@ elif menu_choice == "📅 Attendance Entry Management":
                             st.success(f"🎉 Attendance successfully updated to '{final_status_str}' for Roll No {search_sid}!")
                             st.rerun()
                         except Exception as db_err:
-                            st.error(f"Database insertion error pattern encountered: {db_err}")
+                            st.error(f"Database insertion error encountered: {db_err}")
             else:
                 st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify entries parameters.")
         else:
             st.info("💡 Please type a valid Student Roll Number above to verify database links and unlock the calendar logging terminal panel.")
-# ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
