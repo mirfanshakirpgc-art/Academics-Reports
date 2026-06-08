@@ -696,7 +696,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 STRATEGIC TRACK DROPDOWN OVERRIDES
+                # 🎯 GENERATE ACTIVE LIST OF CURRENT SUBJECTS STUDIED BY THE SECTION
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -727,7 +727,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 with c_m3: 
                     single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
-                # 🎯 DATABASE SYNC ROUTING INTERCEPTION
+                # Dynamic translation rules to fetch database entries if viewing an MT_1 legacy score
                 lookup_subject = single_sub
                 if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                     if single_sub == "PHYSICS" and single_exam == "MT_1": lookup_subject = "BIOLOGY"
@@ -760,7 +760,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 MATRIX SQUASH PIPELINE WITH DEFENSIVE STRING SANITATION
+                # 🎯 UNIVERSAL ADAPTIVE HISTORY MATRIX ENGINE
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -773,7 +773,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     matrix_map = {}
                     
                     for idx, row in raw_history.iterrows():
-                        # Core Fix: Added aggressive defensive normalization to avoid comparison bypasses
                         sub_name = str(row['subject']).strip().upper()
                         exam_cyc = str(row['exam_type']).strip().upper()
                         obt_mark = str(row['marks_obtained']).strip()
@@ -782,24 +781,45 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # Apply clear track-specific displacement conversions
-                        if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                            if sub_name == "BIOLOGY":
-                                display_subject = "PHYSICS"
-                                display_obtained = f"{obt_mark} (Biol.)"
-                            elif sub_name == "CHEMISTRY":
-                                display_subject = "COMPUTER"
-                                display_obtained = f"{obt_mark} (Chem.)"
-                        elif s_section in ["CQ3", "CK3"]:
-                            if sub_name == "PHYSICS":
-                                display_subject = "STATISTICS"
-                                display_obtained = f"{obt_mark} (Phys.)"
-                            elif sub_name == "CHEMISTRY":
-                                display_subject = "COMPUTER"
-                                display_obtained = f"{obt_mark} (Chem.)"
+                        # 🔄 GLOBAL SMART FILTER: Force old subjects into current subjects list rows
+                        if sub_name not in inferred_subjects:
+                            # 1. Handle ICS (Statistics) Track Shift [CQ3 / CK3]
+                            if s_section in ["CQ3", "CK3"]:
+                                if sub_name == "PHYSICS":
+                                    display_subject = "STATISTICS"
+                                    display_obtained = f"{obt_mark} (Phys.)"
+                                elif sub_name == "BIOLOGY":
+                                    display_subject = "STATISTICS"
+                                    display_obtained = f"{obt_mark} (Bio)"
+                                elif sub_name == "CHEMISTRY":
+                                    display_subject = "COMPUTER"
+                                    display_obtained = f"{obt_mark} (Chem.)"
+                                    
+                            # 2. Handle ICS (Physics) Track Shift [CQ1 / CQ2 / CK1 / CK2]
+                            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                                if sub_name == "BIOLOGY":
+                                    display_subject = "PHYSICS"
+                                    display_obtained = f"{obt_mark} (Biol.)"
+                                elif sub_name == "CHEMISTRY":
+                                    display_subject = "COMPUTER"
+                                    display_obtained = f"{obt_mark} (Chem.)"
+                                    
+                            # 3. Handle Engineering Track Shift [EK1 / EQ1]
+                            elif s_section in ["EK1", "EQ1"]:
+                                if sub_name == "BIOLOGY":
+                                    display_subject = "MATHEMATICS"
+                                    display_obtained = f"{obt_mark} (Bio)"
+                                    
+                            # 4. Handle Medical Track Shift [MQ1 / MQ2 / MK1]
+                            elif s_section in ["MQ1", "MQ2", "MK1"]:
+                                if sub_name == "MATHEMATICS":
+                                    display_subject = "BIOLOGY"
+                                    display_obtained = f"{obt_mark} (Math)"
                         
-                        matrix_key = (display_subject, exam_cyc)
-                        matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
+                        # Only register the row if it successfully resolves into a current subject row
+                        if display_subject in inferred_subjects:
+                            matrix_key = (display_subject, exam_cyc)
+                            matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
                     
                     processed_rows = [{
                         "Subject": k[0],
@@ -809,6 +829,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     } for k, v in matrix_map.items()]
                     
                     history_df = pd.DataFrame(processed_rows)
+                    # Force sort to match the clear structural view of active subjects
+                    history_df['Subject'] = pd.Categorical(history_df['Subject'], categories=inferred_subjects, ordered=True)
+                    history_df = history_df.dropna(subset=['Subject']).sort_values(['Subject', 'Exam Cycle'])
+                    
                     st.dataframe(history_df, use_container_width=True)
                 else:
                     st.caption("No marks records exist in the database for this student yet.")
