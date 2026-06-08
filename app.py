@@ -1790,16 +1790,29 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
-            # Identify expected reporting layouts for different standard paths
+            is_twelfth = "12TH" in s_class.upper() or "2ND" in s_class.upper()
+            
+            # 🎯 FIX: Smart routing maps for both 11th and 12th dynamically across all disciplines
             if s_section in ["CQ3", "CK3"]:
-                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "COMPUTER", "MATHEMATICS", "STATISTICS"]
+                # ICS Statistics Track (Banish Physics completely)
+                inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "COMPUTER", "MATHEMATICS", "STATISTICS"]
             elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "COMPUTER", "MATHEMATICS"]
+                # ICS Physics Track
+                inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "PHYSICS", "COMPUTER", "MATHEMATICS"]
             elif s_section in ["MQ1", "MQ2", "MK1"]:
-                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY"]
+                # F.Sc Pre-Medical Track
+                inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY"]
             elif s_section in ["EQ1", "EK1"]:
-                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "CHEMISTRY", "MATHEMATICS"]
+                # F.Sc Pre-Engineering Track
+                inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "PHYSICS", "CHEMISTRY", "MATHEMATICS"]
+            elif "COMMERCE" in s_section or "I-COM" in s_section or "ICOM" in s_section:
+                # Commerce Tracking Strategy
+                if is_twelfth:
+                    inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN", "COMMERCIAL GEOGRAPHY", "BANKING", "BUSINESS STATISTICS"]
+                else:
+                    inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "T_QURAN", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF ECONOMICS", "PRINCIPLES OF COMMERCE"]
             else:
+                # Intelligent string fallback strategy based on raw database contents
                 inferred_subjects = sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique()) if not marks_df.empty else []
 
             # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
@@ -1816,34 +1829,44 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         sub_clean = str(row_sub).strip().upper()
                         clean_section = str(s_section).strip().upper()
                         
-                        # Institutional subject cross-over buckets
-                        GROUP_1 = ["CHEMISTRY", "COMPUTER", "POA"]
-                        GROUP_2 = ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]
-                        GROUP_3 = ["PHYSICS", "STATISTICS", "ISL_EL", "GEO"]
+                        GROUP_1 = ["CHEMISTRY", "COMPUTER", "POA", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE"]
+                        GROUP_2 = ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING", "PRINCIPLES OF ECONOMICS"]
+                        GROUP_3 = ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS"]
                         
-                        # Medical sections map directly into Chemistry, Biology, Physics lanes
+                        # Pre-Medical Tracking
                         if clean_section in ["MQ1", "MQ2", "MK1"]:
                             if sub_clean in GROUP_1: return "CHEMISTRY"
                             if sub_clean in GROUP_2: return "BIOLOGY"
                             if sub_clean in GROUP_3: return "PHYSICS"
                             
-                        # ICS Statistics tracking configurations
+                        # ICS Statistics Tracking (Locks Physics out)
                         elif clean_section in ["CQ3", "CK3"]:
                             if sub_clean in GROUP_1: return "COMPUTER"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "STATISTICS"
                             
-                        # ICS General Physics tracks
+                        # ICS Physics Tracking
                         elif clean_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                             if sub_clean in GROUP_1: return "COMPUTER"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "PHYSICS"
                             
-                        # F.Sc Pre-Engineering tracking configurations
+                        # Pre-Engineering Tracking
                         elif clean_section in ["EQ1", "EK1"]:
                             if sub_clean in GROUP_1: return "CHEMISTRY"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "PHYSICS"
+                            
+                        # Dynamic Commerce Routing (11th vs 12th)
+                        elif "COMMERCE" in clean_section or "I-COM" in clean_section or "ICOM" in clean_section:
+                            if is_twelfth:
+                                if sub_clean in GROUP_1 or "GEOGRAPHY" in sub_clean: return "COMMERCIAL GEOGRAPHY"
+                                if sub_clean in GROUP_2 or "BANKING" in sub_clean: return "BANKING"
+                                if sub_clean in GROUP_3 or "STATISTICS" in sub_clean: return "BUSINESS STATISTICS"
+                            else:
+                                if "ACCOUNTING" in sub_clean or "POA" in sub_clean: return "PRINCIPLES OF ACCOUNTING"
+                                if "ECONOMICS" in sub_clean or "POE" in sub_clean: return "PRINCIPLES OF ECONOMICS"
+                                if "COMMERCE" in sub_clean or "POC" in sub_clean: return "PRINCIPLES OF COMMERCE"
 
                         return sub_clean
 
@@ -1895,7 +1918,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         row_tds += f"<td><strong>{sub_avg}%</strong></td>"
                         table_rows_html += f"<tr>{row_tds}</tr>"
                     
-                    # Compute aggregated row summaries
+                    # Compute Summary Layouts
                     total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
                     total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
                     total_pct_accum = 0
