@@ -696,7 +696,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 TRACK DROPDOWN OVERRIDES
+                # 🎯 STRATEGIC TRACK DROPDOWN OVERRIDES
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -708,7 +708,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                         inferred_subjects = ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
                     elif s_section in ["CQ3", "CK3"]:
-                        # CRITICAL DROPDOWN FIX: This explicitly populates STATISTICS and cuts out PHYSICS entirely from the dropdown list array
                         inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
                     elif s_section in ["IQ1", "IK1"]:
                         inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
@@ -761,7 +760,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 COMPREHENSIVE MATRIX SQUASH PIPELINE FOR HISTORY VIEW
+                # 🎯 MATRIX SQUASH PIPELINE WITH DEFENSIVE STRING SANITATION
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -774,15 +773,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     matrix_map = {}
                     
                     for idx, row in raw_history.iterrows():
-                        sub_name = str(row['subject']).upper().strip()
-                        exam_cyc = str(row['exam_type']).upper().strip()
+                        # Core Fix: Added aggressive defensive normalization to avoid comparison bypasses
+                        sub_name = str(row['subject']).strip().upper()
+                        exam_cyc = str(row['exam_type']).strip().upper()
                         obt_mark = str(row['marks_obtained']).strip()
                         tot_mark = int(row['total_marks'])
                         
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # Apply dynamic displacement row mappings
+                        # Apply clear track-specific displacement conversions
                         if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                             if sub_name == "BIOLOGY":
                                 display_subject = "PHYSICS"
