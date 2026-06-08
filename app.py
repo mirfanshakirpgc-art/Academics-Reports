@@ -1712,6 +1712,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Attendance query mapping fault resolved implicitly. Details: {str(e)}")
             # =========================================================================
+Here is your complete, fully updated, and indentation-corrected **Part 3**.
+
+This version replaces your old section-checking code with the universal group matrix (`GROUP_1`, `GROUP_2`, `GROUP_3`) and perfectly lines up the indentation blocks so you won't hit any Python execution errors.
+
+### Updated Part 3: Micro-Transfer Subject Matrix & Report Generation Engine
+
+```python
+# =========================================================================
 # PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
 # =========================================================================
         # CSS Styling Configurations
@@ -1770,7 +1778,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
-            # Determine dynamic track categories array matching student section profiles
+            # Identify expected reporting layouts for different standard paths
             if s_section in ["CQ3", "CK3"]:
                 inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "COMPUTER", "MATHEMATICS", "STATISTICS"]
             elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
@@ -1782,9 +1790,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             else:
                 inferred_subjects = sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique()) if not marks_df.empty else []
 
-            # =========================================================================
-# REPLACEMENT BLOCK: UNIVERSAL ELECTIVE SWAPPING GROUPS
-# =========================================================================
+            # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
             table_rows_html = ""
             total_row_html = ""
             grand_total_percentages = [0]
@@ -1793,35 +1799,35 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
-                    # 🎯 DYNAMIC GROUP-MATCHING MATRIX FOR TRACK SWITCHES
+                    # 🎯 UNIVERSAL MULTI-TRACK GROUP SWAPPING MATRIX
                     def resolve_aliased_subjects(row_sub):
                         sub_clean = str(row_sub).strip().upper()
                         clean_section = str(s_section).strip().upper()
                         
-                        # Define your institution's shifting subject groups
+                        # Institutional subject cross-over buckets
                         GROUP_1 = ["CHEMISTRY", "COMPUTER", "POA"]
                         GROUP_2 = ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]
                         GROUP_3 = ["PHYSICS", "STATISTICS", "ISL_EL", "GEO"]
                         
-                        # --- F.Sc Pre-Medical Tracking ---
+                        # Medical sections map directly into Chemistry, Biology, Physics lanes
                         if clean_section in ["MQ1", "MQ2", "MK1"]:
                             if sub_clean in GROUP_1: return "CHEMISTRY"
                             if sub_clean in GROUP_2: return "BIOLOGY"
                             if sub_clean in GROUP_3: return "PHYSICS"
                             
-                        # --- ICS Statistics Tracking ---
+                        # ICS Statistics tracking configurations
                         elif clean_section in ["CQ3", "CK3"]:
                             if sub_clean in GROUP_1: return "COMPUTER"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "STATISTICS"
                             
-                        # --- ICS Physics Tracking ---
+                        # ICS General Physics tracks
                         elif clean_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                             if sub_clean in GROUP_1: return "COMPUTER"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "PHYSICS"
                             
-                        # --- F.Sc Pre-Engineering Tracking ---
+                        # F.Sc Pre-Engineering tracking configurations
                         elif clean_section in ["EQ1", "EK1"]:
                             if sub_clean in GROUP_1: return "CHEMISTRY"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
@@ -1841,22 +1847,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         valid_exams_count = 0
                         
                         for exam in selected_exams_list:
-    # 🎯 FIX: Match against the original 'subject_name' column for Semester System,
-    # and the 'exam_type' column for the Annual System.
-    if academic_system == "Semester System":
-        match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
-    else:
-        match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+                            if academic_system == "Semester System":
+                                match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
+                            else:
+                                match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
                                 
                             if not match_row.empty:
                                 try:
-                                    obt = float(match_row.iloc[0]["marks_obtained"])
+                                    raw_obt = str(match_row.iloc[0]["marks_obtained"]).replace('%', '').strip()
+                                    if '(' in raw_obt:
+                                        raw_obt = raw_obt.split('(')[0].strip()
+                                        
+                                    obt = float(raw_obt)
                                     tot = float(match_row.iloc[0]["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
                                     actual_sub_name = match_row.iloc[0]["subject_name"].upper()
                                     
-                                    # Formulate a beautiful helper notation if a subject got converted
                                     if actual_sub_name != sub:
                                         short_notation = "Maths" if actual_sub_name in ["COMPUTER", "MATHEMATICS"] else actual_sub_name.title()[:4] + "."
                                         row_tds += f"<td>{pct}% <span style='font-size:11px; font-weight:normal; color:#555;'>({short_notation})</span></td>"
@@ -1876,7 +1883,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         row_tds += f"<td><strong>{sub_avg}%</strong></td>"
                         table_rows_html += f"<tr>{row_tds}</tr>"
                     
-                    # Footer Summary Row Configuration
+                    # Compute aggregated row summaries
                     total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
                     total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
                     total_pct_accum = 0
@@ -1900,7 +1907,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
-                # =========================================================================
+
+```
 # PART 4: ATTENDANCE COMPILATION MATRIX & CANVAS UI FRAME
 # =========================================================================
             # --- ATTENDANCE REPORT MATRIX ---
