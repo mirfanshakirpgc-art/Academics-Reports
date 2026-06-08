@@ -648,8 +648,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                # Query structure standardized to pull
-
+                # Safe fallback lookup container for student payload matrix
+                query_students = "SELECT id, name FROM students WHERE class = :cls AND section = :sec AND session = :sess ORDER BY id ASC"
+                target_cls = "12th" if sel_class == "ALL" else sel_class
+                students_df = run_query(query_students, {"cls": target_cls, "sec": sel_section, "sess": sel_session})
+            except Exception as e:
+                students_df = pd.DataFrame()
 
 
 # ====================================================================================
