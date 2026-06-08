@@ -1818,10 +1818,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         valid_exams_count = 0
                         
                         for exam in selected_exams_list:
-                            if academic_system == "Semester System":
-                                match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
-                            else:
-                                match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+    # 🎯 FIX: Match against the original 'subject_name' column for Semester System,
+    # and the 'exam_type' column for the Annual System.
+    if academic_system == "Semester System":
+        match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
+    else:
+        match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
                                 
                             if not match_row.empty:
                                 try:
