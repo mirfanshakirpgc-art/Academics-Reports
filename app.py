@@ -2992,18 +2992,19 @@ elif menu_choice == "🎓 Promote Students":
     with tgt_c1:
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
+        # 🎯 HARDENED STRIP AND ROUTING MATRIX FOR TARGETED SECTIONS
         if "MEDICAL" in disc_upper:
-            available_tgt_sections = ["MQ1", "MQ2", "MK"]
+            available_tgt_sections = ["MQ1", "MQ2", "MK1"]
         elif "ENGINEERING" in disc_upper:
-            available_tgt_sections = ["EQ", "EK"]
-        elif "PHYSICS" in disc_upper:
-            available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"]
-        elif "STATS" in disc_upper:
-            available_tgt_sections = ["CQ3", "CK3"]
+            available_tgt_sections = ["EK1", "EQ1"]
+        elif "STATS" in disc_upper or "STATISTICS" in disc_upper:
+            available_tgt_sections = ["CQ3", "CK3"]        # ICS Statistics Track (Dropped Physics completely)
+        elif "PHYSICS" in disc_upper or "ICS_PHYSICS" in disc_upper:
+            available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"] # ICS Physics Track
         elif "COMMERCE" in disc_upper:
-            available_tgt_sections = ["IK", "IQ"]
+            available_tgt_sections = ["IK1", "IQ1"]
         elif "HUMANITIES" in disc_upper or "ARTS" in disc_upper:
-            available_tgt_sections = ["FK", "FQ"]
+            available_tgt_sections = ["FK1", "FQ1"]
         else:
             available_tgt_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
 
@@ -3112,9 +3113,9 @@ elif menu_choice == "🎓 Promote Students":
         try:
             sections_master_df = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
             db_sections = sections_master_df['section'].tolist() if not sections_master_df.empty else []
-            master_sections_list = sorted(list(set(db_sections + ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"])))
+            master_sections_list = sorted(list(set(db_sections + ["IK1", "IQ1", "CK3", "CQ3", "CK1", "CK2", "CQ1", "CQ2", "EQ1", "EK1", "MQ1", "MQ2", "MK1", "FK1", "FQ1"])))
         except Exception:
-            master_sections_list = ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"]
+            master_sections_list = ["IK1", "IQ1", "CK3", "CQ3", "CK1", "CK2", "CQ1", "CQ2", "EQ1", "EK1", "MQ1", "MQ2", "MK1", "FK1", "FQ1"]
             
         wipe_target_sec = st.selectbox("🎯 Target Section Selection Matrix:", master_sections_list, key="always_visible_wipe_dropdown")
     
@@ -3180,10 +3181,9 @@ elif menu_choice == "🎓 Promote Students":
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
-                            # Hardened Fail-Safe logic for checking and repairing session values
                             log_session_str = str(record['old_session']).strip() if record['old_session'] else ""
                             if not log_session_str or log_session_str == "None":
-                                target_session_val = promo_session # Use current workspace filter value as absolute fallback recovery
+                                target_session_val = promo_session 
                             else:
                                 target_session_val = log_session_str
                             
