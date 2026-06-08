@@ -1711,14 +1711,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     attendance_df = attendance_df.rename(columns={status_col: "status"})
         except Exception as e:
             st.error(f"⚠️ Attendance query mapping fault resolved implicitly. Details: {str(e)}")
-            # =========================================================================
-Here is your complete, fully updated, and indentation-corrected **Part 3**.
-
-This version replaces your old section-checking code with the universal group matrix (`GROUP_1`, `GROUP_2`, `GROUP_3`) and perfectly lines up the indentation blocks so you won't hit any Python execution errors.
-
-### Updated Part 3: Micro-Transfer Subject Matrix & Report Generation Engine
-
-```python
+ 
 # =========================================================================
 # PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
 # =========================================================================
