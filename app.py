@@ -820,11 +820,37 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         "Total": v["Total"]
                     } for k, v in matrix_map.items()]
                     
+                    # ... (Your loop ends here) ...
+                    processed_rows = [{
+                        "Subject": k[0],
+                        "Exam Cycle": k[1],
+                        "Obtained": v["Obtained"],
+                        "Total": v["Total"]
+                    } for k, v in matrix_map.items()]
+                    
                     if processed_rows:
                         history_df = pd.DataFrame(processed_rows)
-                        history_df['Subject'] = pd.Categorical(history_df['Subject'], categories=inferred_subjects, ordered=True)
+                        
+                        # ⚡ DYNAMIC MIXED-TRACK SYLLABUS PATCH
+                        # Create a local copy of allowed subjects so dropna() doesn't delete Biology
+                        allowed_display_subjects = list(inferred_subjects)
+                        if "BIOLOGY" not in allowed_display_subjects:
+                            allowed_display_subjects.append("BIOLOGY")
+                        if "MATHEMATICS" not in allowed_display_subjects:
+                            allowed_display_subjects.append("MATHEMATICS")
+                        
+                        # Apply categorical order using our patched list
+                        history_df['Subject'] = pd.Categorical(
+                            history_df['Subject'], 
+                            categories=allowed_display_subjects, 
+                            ordered=True
+                        )
+                        
+                        # Sort and filter cleanly
                         history_df = history_df.dropna(subset=['Subject']).sort_values(['Subject', 'Exam Cycle'])
                         st.dataframe(history_df, use_container_width=True)
+                    else:
+                        st.caption("No matching marks records exist for current section tracking profiles.")
                     else:
                         st.caption("No matching marks records exist for current section tracking profiles.")
                 else:
