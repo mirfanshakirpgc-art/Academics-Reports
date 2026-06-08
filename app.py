@@ -531,12 +531,19 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     
     if entry_mode == "📋 By Complete Section":
         
-        # --- PHASE 1: SAFE PRE-FETCH CONFIGURATIONS ---
+        # --- PHASE 1: SAFE PRE-FETCH CONFIGURATIONS & FALLBACKS ---
         try:
             session_df = run_query("SELECT DISTINCT session FROM students ORDER BY session DESC")
             session_options = session_df["session"].tolist() if not session_df.empty else ["2025-27", "2024-26", "2026-28"]
         except Exception:
             session_options = ["2025-27", "2024-26", "2026-28"]
+
+        # 💡 FIX: Global variable safety handler for exam frameworks
+        try:
+            if 'all_frameworks' not in locals() and 'all_frameworks' not in globals():
+                all_frameworks = ["MT_1", "MT_2", "MID_TERM", "PRE_BOARD", "FINAL"]
+        except Exception:
+            all_frameworks = ["MT_1", "MT_2", "MID_TERM", "PRE_BOARD", "FINAL"]
 
         st.markdown("### 🔍 Filters Setup")
         
@@ -568,7 +575,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 sel_discipline = "DIPLOMA_IN_IT_DIT"
                 st.text_input("Discipline:", value="DIT", disabled=True, key="entry_disc_dit_prod")
 
-        # --- PHASE 3: BACKGROUND CALCULATIONS (No duplicate widget renders) ---
+        # --- PHASE 3: BACKGROUND SECTIONS PARSING ---
         valid_sections_list = []
         if academic_system == "Annual System":
             lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
@@ -636,7 +643,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         with sub_col1:
             sel_subject = st.selectbox("Course / Subject Title:", available_subjects, key="entry_sub_filter_prod")
         with sub_col2:
-            sel_exam = st.selectbox("Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel_prod")
+            # Safely select dynamic index based on what is available inside all_frameworks list array context
+            default_index = 1 if len(all_frameworks) > 1 else 0
+            sel_exam = st.selectbox("Examination Cycle:", all_frameworks, index=default_index, key="entry_exam_sel_prod")
         with sub_col3:
             total_marks = st.number_input("Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks_prod")
 
@@ -661,7 +670,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     marks_cache = {}
 
                 marks_payload = []
-                with st.form(key="bulk_marks_submission_form_v3"):
+                with st.form(key="bulk_marks_submission_form_v4"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
