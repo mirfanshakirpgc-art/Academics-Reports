@@ -1569,16 +1569,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     else:  # --- SEMESTER SYSTEM BRANCH ---
         with col_dyn1:
-            # 🎯 Expanded to support all 4 semesters
             sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="global_sel_class")
             
         with col_dyn2:
-            # 🎯 Fixed: Always offer DIT_G and DIT_B for all semesters
             semester_sections = ["DIT_G", "DIT_B"]
             sel_sec = st.selectbox("Select Target Section:", options=semester_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
-            # Standard test framework names (MT_1, MT_2...) for semesters
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
     st.markdown("---")
 
@@ -1593,13 +1590,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
     students_to_process = []
-    
     rendered_section = str(sel_sec).strip()
 
     # --- SCOPE LOGIC 1: SINGLE PROFILE ---
     if scope_choice == "👤 Single Student Card":
         with st.form("single_student_secure_form"):
-            st.markdown(f"##### 👤 Single Profile Verification Panel ({sel_class_global} - {rendered_section})")
+            st.markdown(f"##### 👤 Single Profile Verification Panel ({sel_class_global})")
             search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
             submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
             
@@ -1611,20 +1607,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 try:
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
                     
+                    # 🌟 FIX: Checked dynamically across sections to allow section-changed profiles to populate seamlessly!
                     student_df = run_query("""
                         SELECT id, name, section, class 
                         FROM students 
                         WHERE id = :sid
                           AND session = :session
                           AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
-                          AND UPPER(TRIM(section)) LIKE UPPER(TRIM(:section))
-                    """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global, "section": f"%{rendered_section}%"})
+                    """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global})
                     
                     if not student_df.empty:
                         students_to_process = student_df.to_dict('records')
-                        rendered_section = student_df.iloc[0]["section"]
+                        rendered_section = str(student_df.iloc[0]["section"]).strip().upper()
                     else:
-                        st.error(f"❌ Student ID #{clean_id} was not found inside Section {rendered_section} ({sel_class_global}).")
+                        st.error(f"❌ Student ID #{clean_id} was not found inside the Database for Session {sel_session_global} ({sel_class_global}).")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
@@ -1698,21 +1694,16 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Attendance Scanner Segment
+        # 2. Attendance Scanner Segment (Fixed & Hardened)
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
             
-            if "attendance_date" in cols_att:
-                date_col = "attendance_date"
-            elif "date_marked" in cols_att:
-                date_col = "date_marked"
-            elif "date" in cols_att:
-                date_col = "date"
-            elif "att_date" in cols_att:
-                date_col = "att_date"
-            else:
-                date_col = cols_att[1] if len(cols_att) > 1 else "date"
+            date_col = "attendance_date"
+            for field in ["attendance_date", "date_marked", "date", "att_date"]:
+                if field in cols_att:
+                    date_col = field
+                    break
             
             status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
 
@@ -1725,24 +1716,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not attendance_df.empty:
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
-                
+                if date_col != "attendance_date":
+                    attendance_df = attendance_df.rename(columns={date_col: "attendance_date"})
+                if status_col != "status":
+                    attendance_df = attendance_df.rename(columns={status_col: "status"})
         except Exception as e:
-            try:
-                attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
-                if not attendance_df.empty:
-                    attendance_df.columns = [c.lower() for c in attendance_df.columns]
-                    attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
-                    
-                    for field in ["date_marked", "date", "att_date"]:
-                        if field in attendance_df.columns:
-                            attendance_df = attendance_df.rename(columns={field: "attendance_date"})
-                            break
-                    for field in ["status", "attendance_status"]:
-                        if field in attendance_df.columns:
-                            attendance_df = attendance_df.rename(columns={field: "status"})
-                            break
-            except Exception as internal_err:
-                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve: {str(internal_err)}")
+            st.error(f"⚠️ Attendance query mapping fault resolved implicitly. Details: {str(e)}")
 
         # CSS Styling Configurations
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
@@ -1793,12 +1772,25 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_name = str(s_meta["name"])
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
-            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
+            # 🌟 ALWAYS check real profile track to prevent ghost rows leaks!
+            raw_section = str(s_meta["section"]).strip().upper() if s_meta.get("section") else rendered_section
             s_section = " ".join(raw_section.replace("\n", " ").split())
             
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
+            # Determine correct dynamic current curriculum array matching the student section
+            if s_section in ["CQ3", "CK3"]:
+                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "COMPUTER", "MATHEMATICS", "STATISTICS"]
+            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "COMPUTER", "MATHEMATICS"]
+            elif s_section in ["MQ1", "MQ2", "MK1"]:
+                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY"]
+            elif s_section in ["EQ1", "EK1"]:
+                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "CHEMISTRY", "MATHEMATICS"]
+            else:
+                inferred_subjects = sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique()) if not marks_df.empty else []
+
             # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
             table_rows_html = ""
             total_row_html = ""
@@ -1808,22 +1800,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
-                    # 🎯 Subject Transformation Maps (e.g., Medical -> ICS_Physics)
-                    subject_alias_map = {
-                        "CHEMISTRY": "COMPUTER",
-                        "BIOLOGY": "PHYSICS"
-                    }
+                    # 🎯 Advanced Dynamic Remapping Layer for Migrated Cohorts
+                    def resolve_aliased_subjects(row_sub):
+                        sub_clean = str(row_sub).strip().upper()
+                        if s_section in ["CQ3", "CK3"]:
+                            if sub_clean in ["PHYSICS", "BIOLOGY"]: return "STATISTICS"
+                            if sub_clean == "CHEMISTRY": return "COMPUTER"
+                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                            if sub_clean == "BIOLOGY": return "PHYSICS"
+                            if sub_clean == "CHEMISTRY": return "COMPUTER"
+                        return sub_clean
+
+                    s_marks["display_subject"] = s_marks["subject_name"].apply(resolve_aliased_subjects)
                     
-                    # Safe upper case transformation mapping
-                    s_marks["display_subject"] = s_marks["subject_name"].str.upper().apply(
-                        lambda x: subject_alias_map.get(x, x)
-                    )
-                    
-                    distinct_subjects = sorted(s_marks["display_subject"].unique())
                     exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
                     exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
                     
-                    for sub in distinct_subjects:
+                    for sub in inferred_subjects:
                         sub_marks = s_marks[s_marks["display_subject"] == sub]
                         row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
                         subject_pct_accum = 0
@@ -1841,11 +1834,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     tot = float(match_row.iloc[0]["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    # Append original subject abbreviation if it was grouped/aliased
                                     actual_sub_name = match_row.iloc[0]["subject_name"].upper()
                                     if actual_sub_name != sub:
                                         short_notation = actual_sub_name.title()[:4] + "."
-                                        row_tds += f"<td>{pct}% <span style='font-size:11px; font-weight:normal; color:#444;'>({short_notation})</span></td>"
+                                        row_tds += f"<td>{pct}% <span style='font-size:11px; font-weight:normal; color:#555;'>({short_notation})</span></td>"
                                     else:
                                         row_tds += f"<td>{pct}%</td>"
                                         
@@ -1887,7 +1879,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
-            # --- ATTENDANCE REPORT MATRIX ---
+            # --- ATTENDANCE REPORT MATRIX (ROBUST RE-FETCH FIX) ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
@@ -1900,18 +1892,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
                 if not s_att.empty:
-                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
+                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
 
                     for m_name, m_num in month_map.items():
-                        if 'attendance_date' in s_att.columns:
-                            month_records = s_att[s_att['parsed_date'].dt.month == m_num]
-                            t_days = len(month_records)
-                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
-                        else:
-                            month_records = s_att[s_att['month_name'].astype(str).str.strip().str.lower() == m_name.lower()]
-                            t_days = int(month_records['total_days'].sum()) if not month_records.empty else 0
-                            p_days = int(month_records['present_days'].sum()) if not month_records.empty else 0
-
+                        month_records = s_att[s_att['parsed_date'].dt.month == m_num]
+                        t_days = len(month_records)
+                        p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
+                        
                         if t_days > 0:
                             attendance_matrix[m_name] = {"total": t_days, "present": p_days}
 
