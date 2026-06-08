@@ -1677,12 +1677,27 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
-                    distinct_subjects = sorted(s_marks["subject_name"].unique())
+                    # 🎯 FIXED: Map historical Pre-Medical/Pre-Engineering subjects to current ICS equivalents if needed
+                    # This combines rows but preserves the original score with an appended notation.
+                    subject_alias_map = {
+                        "CHEMISTRY": "COMPUTER",
+                        "BIOLOGY": "PHYSICS"  # Included in case other medical students switched to ICS_Physics
+                    }
+                    
+                    # Apply the mapping to the subject name for row grouping
+                    s_marks["display_subject"] = s_marks["subject_name"].upper().apply(
+                        lambda x: subject_alias_map.get(x, x)
+                    )
+                    
+                    # Distinct subjects based on the display grouping
+                    distinct_subjects = sorted(s_marks["display_subject"].unique())
+                    
                     exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
                     exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
                     
                     for sub in distinct_subjects:
-                        sub_marks = s_marks[s_marks["subject_name"] == sub]
+                        # Filter rows matching either the actual subject or its mapped counterpart
+                        sub_marks = s_marks[s_marks["display_subject"] == sub]
                         row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
                         subject_pct_accum = 0
                         valid_exams_count = 0
@@ -1699,7 +1714,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     tot = float(match_row.iloc[0]["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    row_tds += f"<td>{pct}%</td>"
+                                    # Check if the row pulled belongs to an aliased/old subject name
+                                    actual_sub_name = match_row.iloc[0]["subject_name"].upper()
+                                    if actual_sub_name != sub:
+                                        # Convert "CHEMISTRY" -> "Chem." for clean styling
+                                        short_notation = actual_sub_name.title()[:4] + "."
+                                        row_tds += f"<td>{pct}% <span style='font-size:10px; color:#555;'>({short_notation})</span></td>"
+                                    else:
+                                        row_tds += f"<td>{pct}%</td>"
+                                        
                                     exam_totals_obtained[exam] += obt
                                     exam_totals_possible[exam] += tot
                                     subject_pct_accum += pct
@@ -1734,10 +1757,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     grand_total_percentages = [grand_avg]
                     total_obt_tds += f"<td><span style='font-size:14px;'><strong>{grand_avg}%</strong></span></td>"
                     total_row_html = f"<tr style='background-color:#fafafa;'>{total_obt_tds}</tr>"
-
-            if not table_rows_html:
-                table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
-
             # --- ATTENDANCE REPORT MATRIX ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
