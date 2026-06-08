@@ -517,87 +517,67 @@ elif menu_choice == "➕ Add Students":
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
 elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry Workspace")
-    entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
+    st.subheader("📝 Academic Exam Marks Entry Workspace")
+    
+    # 1. Top Workflow Mode Selector
+    entry_mode = st.radio(
+        "🎯 Select Entry Workflow Mode:",
+        ["📋 By Complete Section", "👤 By Single Student Roll Number", "📥 Bulk Excel/CSV Import"],
+        horizontal=True,
+        key="marks_entry_workflow_mode"
+    )
+    
     st.markdown("---")
-
-    # Shared framework array to guarantee synchronization across modules
-    all_frameworks = [
-        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
-        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
-    ]
-
-    try:
-        session_options = AVAILABLE_SESSIONS
-        if "2024-26" in session_options:
-            session_options = [s for s in session_options if s != "2024-26"]
-        if "2027-29" not in session_options:
-            session_options.append("2027-29")
-    except NameError:
-        session_options = ["2025-27", "2026-28", "2027-29"]
-
+    
     if entry_mode == "📋 By Complete Section":
-        c1, c2, c3, c4, c5 = st.columns([1.5, 1.5, 2, 1.5, 2])
-        
-        current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
-        current_user_id = st.session_state.get('user_id', None)
-        
-        sel_discipline = "MEDICAL" 
-        sel_class = "ALL"
-        
-        if current_role == 'teacher' and current_user_id is not None:
-            teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
-            if not teacher_rights.empty:
-                allowed_subs = sorted(list(teacher_rights['subject'].unique()))
-                allowed_secs = sorted(list(teacher_rights['section'].unique()))
-                
-                # --- Professional Grid Filter Layout ---
-            with c1: 
-                sel_session = st.selectbox("Session:", session_options, key="entry_sess_a")
-            
-            with c2:
-                academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
+        # --- Professional Grid Filter Layout (Row 1) ---
+        c1, c2, c3, c4, c5 = st.columns(5)
 
-            with c3:
-                if academic_system == "Annual System":
-                    sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
-                else:
-                    sel_class = st.selectbox("Semester:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
+        with c1: 
+            sel_session = st.selectbox("Session:", session_options, key="entry_sess_a")
+        
+        with c2:
+            academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
 
-            with c4: 
-                if academic_system == "Annual System":
-                    discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-                    selected_ui_discipline = st.selectbox("Discipline:", discipline_ui_options, key="marks_disc_sel")
-                    sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
-                    if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
-                    elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
-                else:
-                    sel_discipline = "DIPLOMA_IN_IT_DIT"
-                    st.text_input("Discipline:", value="DIT", disabled=True, key="dit_dis_disabled")
-
-            # --- Dynamically calculate valid sections based on preceding choices ---
-            valid_sections_list = []
+        with c3:
             if academic_system == "Annual System":
-                lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
-                try:
-                    target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
-                    for c_lvl in target_class_levels:
-                        sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
-                        valid_sections_list.extend(sections_found)
-                except NameError:
-                    pass
+                sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
             else:
-                valid_sections_list = ["DIT_G", "DIT_B"]
+                sel_class = st.selectbox("Semester:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
 
-            valid_sections_list = sorted(list(set(valid_sections_list)))
-            if not valid_sections_list:
-                valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
+        with c4: 
+            if academic_system == "Annual System":
+                discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                selected_ui_discipline = st.selectbox("Discipline:", discipline_ui_options, key="marks_disc_sel")
+                sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
+                if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
+                elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
+            else:
+                sel_discipline = "DIPLOMA_IN_IT_DIT"
+                st.text_input("Discipline:", value="DIT", disabled=True, key="dit_dis_disabled")
 
-            with c5: 
-                sel_section = st.selectbox("Target Section:", valid_sections_list, key="entry_sec_filter_a")
+        # --- Dynamic Sections Parsing Engine ---
+        valid_sections_list = []
+        if academic_system == "Annual System":
+            lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
+            try:
+                target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
+                for c_lvl in target_class_levels:
+                    sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
+                    valid_sections_list.extend(sections_found)
+            except NameError:
+                pass
+        else:
+            valid_sections_list = ["DIT_G", "DIT_B"]
 
-        # --- Subject Selection Row (Full-width divider layout underneath filters) ---
+        valid_sections_list = sorted(list(set(valid_sections_list)))
+        if not valid_sections_list:
+            valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
+
+        with c5: 
+            sel_section = st.selectbox("Target Section:", valid_sections_list, key="entry_sec_filter_a")
+
+        # --- Course Selection & Assessment Parameters Row (Row 2) ---
         st.markdown("#### Course Selection & Assessment Parameters")
         sub_col1, sub_col2, sub_col3 = st.columns([2, 2, 1])
         
@@ -610,6 +590,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 base_subjects = [str(s).upper().strip() for s in base_subjects]
                 
+                # 🎯 Commerce Specific Core Splitting Switch
                 if sel_discipline == "COMMERCE":
                     if sel_class == "11th":
                         available_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
@@ -617,6 +598,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         available_subjects = ["POA", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN"]
                     else:
                         available_subjects = ["POA", "POC", "B_MATH", "POE", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "ISL_ETH", "PAK_STUDIES", "T_QURAN"]
+                # Medical, Engineering, ICS, Humanities Rotation
                 else:
                     if sel_class == "11th":
                         if "ISL_ETH" not in base_subjects: base_subjects.append("ISL_ETH")
@@ -638,63 +620,103 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             available_subjects = sorted(list(set(available_subjects)))
             sel_subject = st.selectbox("Course / Subject Title:", available_subjects, key="entry_sub_filter_a")
-                if academic_system == "Annual System":
-                    try: 
-                        base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
-                    except NameError: 
-                        base_subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "BIOLOGY"]
-                    
-                    base_subjects = [str(s).upper().strip() for s in base_subjects]
-                    
-                    # 🎯 Custom Handler for Commerce year splits
-                    if sel_discipline == "COMMERCE":
-                        if sel_class == "11th":
-                            available_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
-                        elif sel_class == "12th":
-                            available_subjects = ["POA", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN"]
-                        else:
-                            available_subjects = ["POA", "POC", "B_MATH", "POE", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "ISL_ETH", "PAK_STUDIES", "T_QURAN"]
-                    
-                    # Handler for Medical, Engineering, ICS, and Humanities
-                    else:
-                        if sel_class == "11th":
-                            if "ISL_ETH" not in base_subjects: 
-                                base_subjects.append("ISL_ETH")
-                            available_subjects = [s for s in base_subjects if s != "PAK_STUDIES"]
-                            
-                        elif sel_class == "12th":
-                            if "PAK_STUDIES" not in base_subjects: 
-                                base_subjects.append("PAK_STUDIES")
-                            available_subjects = [s for s in base_subjects if s != "ISL_ETH"]
-                            
-                        else:
-                            available_subjects = base_subjects
-                            if "ISL_ETH" not in available_subjects: available_subjects.append("ISL_ETH")
-                            if "PAK_STUDIES" not in available_subjects: available_subjects.append("PAK_STUDIES")
-                else:
-                    if "1st Semester" in sel_class:
-                        available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                    elif "2nd Semester" in sel_class:
-                        available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                    else: 
-                        available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                
-                available_subjects = sorted(list(set(available_subjects)))
-                sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
-        
+
+        with sub_col2:
+            sel_exam = st.selectbox("Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
+
+        with sub_col3:
+            total_marks = st.number_input("Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
+
+        # --- Data Compilation & Entry Interface Block ---
         if sel_subject and sel_section and sel_session:
-            row2_1, row2_2 = st.columns(2)
-            with row2_1: 
-                sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
-            with row2_2: 
-                total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
-            
             try:
+                # Standardized query pulling active students safely
                 query_students = "SELECT id, name FROM students WHERE class = :cls AND section = :sec AND session = :sess ORDER BY id ASC"
                 target_cls = "12th" if sel_class == "ALL" else sel_class
                 students_df = run_query(query_students, {"cls": target_cls, "sec": sel_section, "sess": sel_session})
             except Exception as e:
+                st.error(f"Error initializing student matrix: {e}")
                 students_df = pd.DataFrame()
+
+            if not students_df.empty:
+                st.markdown(f"### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
+                
+                # Fetch existing grades map to pre-populate inputs if available
+                try:
+                    existing_marks_query = "SELECT student_id, obtained_marks, is_absent FROM marks WHERE subject = :sub AND exam_cycle = :exam AND section = :sec AND session = :sess"
+                    existing_df = run_query(existing_marks_query, {"sub": sel_subject, "exam": sel_exam, "sec": sel_section, "sess": sel_session})
+                    marks_cache = {row['student_id']: (row['obtained_marks'], row['is_absent']) for _, row in existing_df.iterrows()}
+                except Exception:
+                    marks_cache = {}
+
+                # Create input forms matrix inside a clean layout container
+                marks_payload = []
+                with st.form(key="bulk_marks_submission_form"):
+                    for _, student in students_df.iterrows():
+                        sid = student['id']
+                        sname = student['name']
+                        
+                        # Fallback defaults to cache map values
+                        default_val, default_abs = marks_cache.get(sid, (0.0, False))
+                        
+                        r_col1, r_col2, r_col3 = st.columns([3, 2, 1])
+                        with r_col1:
+                            st.markdown(f"**{sid}** — {sname}")
+                        with r_col2:
+                            obs_val = st.number_input(
+                                f"Marks (Max {total_marks})", 
+                                min_value=0.0, 
+                                max_value=float(total_marks), 
+                                value=float(default_val), 
+                                step=0.5, 
+                                key=f"score_{sid}"
+                            )
+                        with r_col3:
+                            abs_check = st.checkbox("Absent", value=bool(default_abs), key=f"abs_{sid}")
+                        
+                        marks_payload.append({
+                            "student_id": sid,
+                            "obtained_marks": 0.0 if abs_check else obs_val,
+                            "is_absent": 1 if abs_check else 0
+                        })
+                    
+                    # Form action control button
+                    submit_btn = st.form_submit_button("💾 Save & Commit Marks Registry", use_container_width=True)
+                    
+                    if submit_btn:
+                        success_count = 0
+                        for record in marks_payload:
+                            try:
+                                # Upsert operational matrix into backend database architecture
+                                save_query = """
+                                    INSERT INTO marks (student_id, subject, exam_cycle, section, session, obtained_marks, total_marks, is_absent)
+                                    VALUES (:sid, :sub, :exam, :sec, :sess, :obs, :tot, :abs)
+                                    ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
+                                    obtained_marks = EXCLUDED.obtained_marks,
+                                    total_marks = EXCLUDED.total_marks,
+                                    is_absent = EXCLUDED.is_absent
+                                """
+                                run_action(save_query, {
+                                    "sid": record["student_id"], "sub": sel_subject, "exam": sel_exam,
+                                    "sec": sel_section, "sess": sel_session, "obs": record["obtained_marks"],
+                                    "tot": total_marks, "abs": record["is_absent"]
+                                })
+                                success_count += 1
+                            except Exception as db_err:
+                                st.error(f"Failed to record entry for Student ID {record['student_id']}: {db_err}")
+                        
+                        if success_count == len(marks_payload):
+                            st.success(f"🎉 Successfully saved marks registry entries for {success_count} students!")
+            else:
+                st.warning("⚠️ No student records located matching the chosen criteria combinations.")
+                
+    elif entry_mode == "👤 By Single Student Roll Number":
+        st.info("Single Student Entry Sub-Console Interface Active.")
+        # Place your existing Single Student logic here...
+        
+    elif entry_mode == "📥 Bulk Excel/CSV Import":
+        st.info("Bulk Data Processing File Pipeline Engine Active.")
+        # Place your existing File Import processing code here...
 
 
 # ====================================================================================
