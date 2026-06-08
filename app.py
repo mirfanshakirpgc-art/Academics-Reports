@@ -1755,6 +1755,198 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
+            # =========================================================================
+# PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
+# =========================================================================
+        # CSS Styling Configurations
+        css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
+        css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
+        css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
+        css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
+        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; }"
+        css_rules += " .btn-img-single { background-color: #e65100; } .btn-img-single:hover { background-color: #b33900; }"
+        css_rules += " .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
+        css_rules += " .cck-container { background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }"
+        css_rules += " .cck-header-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }"
+        css_rules += " .cck-logo-image-container { width: 75px; height: 75px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }"
+        css_rules += " .cck-logo-image { max-width: 100%; max-height: 100%; object-fit: contain; }"
+        css_rules += " .cck-logo-fallback-text { background-color: #e67e22; color: #ffffff; font-weight: bold; font-size: 22px; width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }"
+        css_rules += " .cck-title-block { text-align: center; } .cck-main-title { font-size: 24px; font-weight: bold; margin: 15px; letter-spacing: 0.5px; }"
+        css_rules += " .cck-sub-title { font-size: 13px; color: #444444; margin: 2px 0 0 0; } .cck-badge-wrapper { text-align: center; margin: 15px 0; }"
+        css_rules += " .cck-doc-badge { display: inline-block; background-color: #d1d5db; color: #000000; font-weight: bold; font-size: 16px; padding: 4px 20px; border-radius: 2px; }"
+        css_rules += " .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }"
+        css_rules += " .cck-meta-field { margin-right: 15px; margin-bottom: 8px; } .cck-line-fill { border-bottom: 1px solid #000000; display: inline-block; min-width: 120px; padding-left: 5px; font-weight: bold; }"
+        css_rules += " .cck-report-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }"
+        css_rules += " .cck-report-table th, .cck-report-table td { border: 1px solid #000000; padding: 6px 4px; text-align: center; }"
+        css_rules += " .cck-report-table th { background-color: #ffffff; font-weight: normal; } .cck-report-table td:first-child { text-align: left; padding-left: 8px; }"
+        css_rules += " .cck-remarks-area { margin-top: 100px; font-size: 14px; display: flex; align-items: flex-end; }"
+        css_rules += " .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000; margin-left: 8px; padding-left: 5px; font-style: italic; }"
+        css_rules += " .cck-footer-sign { margin-top: 25px; text-align: right; font-size: 14px; padding-right: 20px; }"
+        css_rules += " @media print { .action-dashboard-panel { display: none !important; } .cck-single-print-isolation { display: block !important; } .cck-single-print-hide { display: none !important; } .cck-container { border: none !important; padding: 0 !important; margin-bottom: 0 !important; } }"
+
+        css_styles = f"<style>{css_rules}</style>".replace('\xa0', ' ')
+
+        composite_html_payload = f"""
+        <html>
+        <head>
+        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        {css_styles}
+        </head>
+        <body>
+            <div class="action-dashboard-panel">
+                <button class="action-control-btn btn-print-single" onclick="executeTargetPrint(true)">👤 Print Single Student</button>
+                <button class="action-control-btn btn-print-bulk" onclick="executeTargetPrint(false)">👥 Print Complete Section</button>
+                <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Single as Picture</button>
+                <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Section as Pictures</button>
+            </div>
+            
+            <div id="dossiers-master-wrapper">
+        """
+
+        for index, s_meta in enumerate(students_to_process):
+            s_id = str(s_meta["id"]).strip()
+            raw_name = str(s_meta["name"])
+            s_name = " ".join(raw_name.replace("\n", " ").split())
+            
+            raw_section = str(s_meta["section"]).strip().upper() if s_meta.get("section") else rendered_section
+            s_section = " ".join(raw_section.replace("\n", " ").split())
+            
+            raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
+            s_class = " ".join(raw_class.replace("\n", " ").split())
+            
+            # 🎯 FORCE PROMOTION TRACKING: Check both student profile string AND the Streamlit active dashboard dropdown choice
+            active_ui_class = str(sel_class_global).upper()
+            is_twelfth = "12TH" in s_class.upper() or "2ND" in s_class.upper() or "12" in s_class.upper() or "12TH" in active_ui_class or "2ND YEAR" in active_ui_class or "12" in active_ui_class
+            
+            # Detect tracks using robust matching tags
+            is_commerce = "COM" in s_section or "COMMERCE" in s_section or "ICOM" in s_section or "I-COM" in s_section or ("POA" in sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique().tolist()) if not marks_df.empty else False)
+            is_stats = "CQ3" in s_section or "CK3" in s_section or "STAT" in s_section or "STATS" in s_section
+            is_medical = "MQ" in s_section or "MK" in s_section or "MED" in s_section or "BIOLOGY" in s_section
+            is_engineering = "EQ" in s_section or "EK" in s_section or "ENG" in s_section or ("MATHEMATICS" in s_section and not is_stats)
+
+            # Assign correct dynamic structural content grids
+            if is_stats:
+                inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
+            elif is_commerce:
+                if is_twelfth:
+                    inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                else:
+                    inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "ISLAMIAT", "T_QURAN"]
+            elif is_medical:
+                inferred_subjects = ["BIOLOGY", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
+            elif is_engineering:
+                inferred_subjects = ["MATHEMATICS", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
+            else:
+                inferred_subjects = sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique()) if not marks_df.empty else []
+
+            # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
+            table_rows_html = ""
+            total_row_html = ""
+            grand_total_percentages = [0]
+
+            if not marks_df.empty:
+                s_marks = marks_df[marks_df["student_id"] == s_id].copy()
+                
+                if not s_marks.empty:
+                    # 🎯 UNIVERSAL MULTI-TRACK GROUP SWAPPING MATRIX
+                    def resolve_aliased_subjects(row_sub):
+                        sub_clean = str(row_sub).strip().upper()
+                        
+                        if is_medical:
+                            if sub_clean in ["CHEMISTRY", "COMPUTER", "POA"]: return "CHEMISTRY"
+                            if sub_clean in ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]: return "BIOLOGY"
+                            if sub_clean in ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "B_STATS"]: return "PHYSICS"
+                            
+                        elif is_stats:
+                            if sub_clean in ["CHEMISTRY", "COMPUTER", "POA"]: return "COMPUTER"
+                            if sub_clean in ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]: return "MATHEMATICS"
+                            if sub_clean in ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "B_STATS"]: return "STATISTICS"
+                            
+                        elif is_engineering:
+                            if sub_clean in ["CHEMISTRY", "COMPUTER", "POA"]: return "CHEMISTRY"
+                            if sub_clean in ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]: return "MATHEMATICS"
+                            if sub_clean in ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "B_STATS"]: return "PHYSICS"
+                            
+                        elif is_commerce:
+                            if "POA" in sub_clean or "ACCOUNTING" in sub_clean: return "POA"
+                            if "BANKING" in sub_clean or "BANK" in sub_clean: return "BANKING"
+                            if "B_STATS" in sub_clean or "BUSINESS" in sub_clean: return "B_STATS"
+                            if "GEO" in sub_clean or "GEOGRAPHY" in sub_clean: return "GEO"
+
+                        return sub_clean
+
+                    s_marks["display_subject"] = s_marks["subject_name"].apply(resolve_aliased_subjects)
+                    
+                    exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
+                    exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
+                    
+                    for sub in inferred_subjects:
+                        sub_marks = s_marks[s_marks["display_subject"] == sub]
+                        row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
+                        subject_pct_accum = 0
+                        valid_exams_count = 0
+                        
+                        for exam in selected_exams_list:
+                            if academic_system == "Semester System":
+                                match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
+                            else:
+                                match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+                                
+                            if not match_row.empty:
+                                try:
+                                    raw_obt = str(match_row.iloc[0]["marks_obtained"]).replace('%', '').strip()
+                                    if '(' in raw_obt:
+                                        raw_obt = raw_obt.split('(')[0].strip()
+                                        
+                                    obt = float(raw_obt)
+                                    tot = float(match_row.iloc[0]["total_marks"])
+                                    pct = int((obt / tot) * 100) if tot > 0 else 0
+                                    
+                                    actual_sub_name = match_row.iloc[0]["subject_name"].upper()
+                                    
+                                    if actual_sub_name != sub:
+                                        short_notation = "Maths" if actual_sub_name in ["COMPUTER", "MATHEMATICS"] else actual_sub_name.title()[:4] + "."
+                                        row_tds += f"<td>{pct}% <span style='font-size:11px; font-weight:normal; color:#555;'>({short_notation})</span></td>"
+                                    else:
+                                        row_tds += f"<td>{pct}%</td>"
+                                        
+                                    exam_totals_obtained[exam] += obt
+                                    exam_totals_possible[exam] += tot
+                                    subject_pct_accum += pct
+                                    valid_exams_count += 1
+                                except:
+                                    row_tds += "<td>-</td>"
+                            else:
+                                row_tds += "<td>-</td>"
+                        
+                        sub_avg = int(subject_pct_accum / valid_exams_count) if valid_exams_count > 0 else 0
+                        row_tds += f"<td><strong>{sub_avg}%</strong></td>"
+                        table_rows_html += f"<tr>{row_tds}</tr>"
+                    
+                    # Compute Summary Layouts
+                    total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
+                    total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
+                    total_pct_accum = 0
+                    total_counted = 0
+                    
+                    for exam in selected_exams_list:
+                        e_obt = exam_totals_obtained[exam]
+                        e_tot = exam_totals_possible[exam]
+                        if e_tot > 0:
+                            e_pct = int((e_obt / e_tot) * 100)
+                            total_obt_tds += f"<td><strong>{e_pct}%</strong></td>"
+                            total_pct_accum += e_pct
+                            total_counted += 1
+                        else:
+                            total_obt_tds += "<td>-</td>"
+                            
+                    grand_avg = int(total_pct_accum / total_counted) if total_counted > 0 else 0
+                    grand_total_percentages = [grand_avg]
+                    total_obt_tds += f"<td><span style='font-size:14px;'><strong>{grand_avg}%</strong></span></td>"
+                    total_row_html = f"<tr style='background-color:#fafafa;'>{total_obt_tds}</tr>"
+
+            if not table_rows_html:
+                table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
 # PART 4: ATTENDANCE COMPILATION MATRIX & CANVAS UI FRAME
 # =========================================================================
