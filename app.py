@@ -696,7 +696,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 GENERATE ACTIVE LIST OF CURRENT SUBJECTS STUDIED BY THE SECTION
+                # Current subjects active for the current group context
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -727,14 +727,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 with c_m3: 
                     single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
-                # Dynamic translation rules to fetch database entries if viewing an MT_1 legacy score
+                # Dynamic translation rules to intercept entry reads/saves seamlessly 
                 lookup_subject = single_sub
-                if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                    if single_sub == "PHYSICS" and single_exam == "MT_1": lookup_subject = "BIOLOGY"
-                    elif single_sub == "COMPUTER" and single_exam == "MT_1": lookup_subject = "CHEMISTRY"
-                elif s_section in ["CQ3", "CK3"]:
-                    if single_sub == "STATISTICS" and single_exam == "MT_1": lookup_subject = "PHYSICS"
-                    elif single_sub == "COMPUTER" and single_exam == "MT_1": lookup_subject = "CHEMISTRY"
+                if single_sub == "STATISTICS" and single_exam == "MT_1":
+                    lookup_subject = "PHYSICS"
+                elif single_sub == "COMPUTER" and single_exam == "MT_1":
+                    lookup_subject = "CHEMISTRY"
+                elif single_sub == "PHYSICS" and single_exam == "MT_1" and s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                    lookup_subject = "BIOLOGY"
 
                 existing_m = run_query("""
                     SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -760,7 +760,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 UNIVERSAL ADAPTIVE HISTORY MATRIX ENGINE
+                # 🎯 UNIVERSAL DYNAMIC INDEX-BASED HISTORY DISPLACEMENT MATRICES
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -781,42 +781,33 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # 🔄 GLOBAL SMART FILTER: Force old subjects into current subjects list rows
-                        if sub_name not in inferred_subjects:
-                            # 1. Handle ICS (Statistics) Track Shift [CQ3 / CK3]
-                            if s_section in ["CQ3", "CK3"]:
+                        # 🔄 INDEX-BASED TRACK SLOPPING ALGORITHM
+                        # This maps historical subjects purely based on what elective slot they occupied.
+                        if exam_cyc == "MT_1":
+                            if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
                                 if sub_name == "PHYSICS":
                                     display_subject = "STATISTICS"
                                     display_obtained = f"{obt_mark} (Phys.)"
-                                elif sub_name == "BIOLOGY":
-                                    display_subject = "STATISTICS"
-                                    display_obtained = f"{obt_mark} (Bio)"
                                 elif sub_name == "CHEMISTRY":
                                     display_subject = "COMPUTER"
                                     display_obtained = f"{obt_mark} (Chem.)"
-                                    
-                            # 2. Handle ICS (Physics) Track Shift [CQ1 / CQ2 / CK1 / CK2]
-                            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
                                 if sub_name == "BIOLOGY":
                                     display_subject = "PHYSICS"
                                     display_obtained = f"{obt_mark} (Biol.)"
                                 elif sub_name == "CHEMISTRY":
                                     display_subject = "COMPUTER"
                                     display_obtained = f"{obt_mark} (Chem.)"
-                                    
-                            # 3. Handle Engineering Track Shift [EK1 / EQ1]
-                            elif s_section in ["EK1", "EQ1"]:
+                            elif s_section in ["EK1", "EQ1"]:  # Engineering Section Context
                                 if sub_name == "BIOLOGY":
                                     display_subject = "MATHEMATICS"
                                     display_obtained = f"{obt_mark} (Bio)"
-                                    
-                            # 4. Handle Medical Track Shift [MQ1 / MQ2 / MK1]
-                            elif s_section in ["MQ1", "MQ2", "MK1"]:
+                            elif s_section in ["MQ1", "MQ2", "MK1"]:  # Medical Section Context
                                 if sub_name == "MATHEMATICS":
                                     display_subject = "BIOLOGY"
                                     display_obtained = f"{obt_mark} (Math)"
                         
-                        # Only register the row if it successfully resolves into a current subject row
+                        # Only permit entries matching active current class tracking rules
                         if display_subject in inferred_subjects:
                             matrix_key = (display_subject, exam_cyc)
                             matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
@@ -829,7 +820,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     } for k, v in matrix_map.items()]
                     
                     history_df = pd.DataFrame(processed_rows)
-                    # Force sort to match the clear structural view of active subjects
                     history_df['Subject'] = pd.Categorical(history_df['Subject'], categories=inferred_subjects, ordered=True)
                     history_df = history_df.dropna(subset=['Subject']).sort_values(['Subject', 'Exam Cycle'])
                     
@@ -842,7 +832,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         if uploaded_file is not None:
             st.info("📊 Processing files runs standard automated validation rules against raw formats.")
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DICTIONARY ALIGNED & ZERO-DELAY LOADING)
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
