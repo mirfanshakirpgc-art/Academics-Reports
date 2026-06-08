@@ -1683,46 +1683,53 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # Attendance Scanner Segment (Aggressive Native Column Scanner)
+        # Attendance Scanner Segment (Zero-SQL Guesswork, Bulletproof Python Mapping)
         try:
-            # Let's run a direct query to inspect the actual system table columns
-            columns_schema = run_query("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'attendance'
-            """, {})
-            
-            cols_att = []
-            if not columns_schema.empty:
-                cols_att = [str(c).lower().strip() for c in columns_schema.iloc[:, 0].tolist()]
-            
-            # Match the date token based on real structural contents
-            real_date_col = "date"  # Default fallback standard
-            for variant in ["date", "date_marked", "att_date", "attendance_date", "attendance_day"]:
-                if variant in cols_att:
-                    real_date_col = variant
-                    break
-                    
-            # Match status token
-            real_status_col = "status"
-            for variant in ["status", "attendance_status", "att_status"]:
-                if variant in cols_att:
-                    real_status_col = variant
-                    break
-
-            # Execute the targeted compile query using verified schema tokens
-            attendance_df = run_query(f"""
-                SELECT student_id, {real_date_col} as attendance_date, {real_status_col} as status
-                FROM attendance
+            # 🎯 Pull the raw rows directly using star selection to bypass string column errors
+            raw_att_df = run_query(f"""
+                SELECT * FROM attendance
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
             
-            if not attendance_df.empty:
-                attendance_df.columns = [c.lower() for c in attendance_df.columns]
+            if not raw_att_df.empty:
+                # Convert all found column headers to clean lowercase strings
+                normalized_cols = {str(c).lower().strip(): str(c) for c in raw_att_df.columns}
+                
+                # Locate the actual column identities from the active database frame
+                found_student_id = normalized_cols.get("student_id")
+                
+                found_date = None
+                for variant in ["date", "date_marked", "att_date", "attendance_date", "attendance_day", "attendance_date "]:
+                    if variant in normalized_cols:
+                        found_date = normalized_cols[variant]
+                        break
+                        
+                found_status = None
+                for variant in ["status", "attendance_status", "att_status"]:
+                    if variant in normalized_cols:
+                        found_status = normalized_cols[variant]
+                        break
+                
+                # Re-map the frame using whatever exact casing PostgreSQL gave back
+                extract_cols = []
+                rename_map = {}
+                
+                if found_student_id:
+                    extract_cols.append(found_student_id)
+                    rename_map[found_student_id] = "student_id"
+                if found_date:
+                    extract_cols.append(found_date)
+                    rename_map[found_date] = "attendance_date"
+                if found_status:
+                    extract_cols.append(found_status)
+                    rename_map[found_status] = "status"
+                    
+                # Filter down to just what we need and rename cleanly in Python memory
+                attendance_df = raw_att_df[extract_cols].rename(columns=rename_map)
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                 
         except Exception as e:
-            st.error(f"⚠️ Attendance schema compilation fallback activated. Details: {str(e)}")
+            st.error(f"⚠️ Attendance pipeline build error: {str(e)}")
  
 # =========================================================================
 # PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
