@@ -634,13 +634,28 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             if not students_df.empty:
                 st.markdown(f"### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                 
+                # --- INITIALIZE STATE TRACKERS FOR GLOBAL BUTTON ACTIONS ---
+                if "trigger_all_abs" not in st.session_state:
+                    st.session_state["trigger_all_abs"] = False
+                if "trigger_all_nc" not in st.session_state:
+                    st.session_state["trigger_all_nc"] = False
+
+                # Callback routines to reset/toggle state flags
+                def click_mark_all_absent():
+                    st.session_state["trigger_all_abs"] = True
+                    st.session_state["trigger_all_nc"] = False
+
+                def click_mark_all_nc():
+                    st.session_state["trigger_all_nc"] = True
+                    st.session_state["trigger_all_abs"] = False
+
                 # --- GLOBAL ACTIONS ROW ---
                 st.markdown("##### ⚡ Global Actions")
                 g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
                 with g_col2:
-                    global_abs_trigger = st.button("👤 Mark All Absent", use_container_width=True)
+                    st.button("👤 Mark All Absent", use_container_width=True, on_click=click_mark_all_absent)
                 with g_col3:
-                    global_nc_trigger = st.button("🚫 Mark All NC", use_container_width=True)
+                    st.button("🚫 Mark All NC", use_container_width=True, on_click=click_mark_all_nc)
                 
                 try:
                     existing_marks_query = "SELECT student_id, obtained_marks, is_absent FROM marks WHERE subject = :sub AND exam_cycle = :exam AND section = :sec AND session = :sess"
@@ -649,20 +664,22 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 except Exception: marks_cache = {}
 
                 marks_payload = []
-                with st.form(key="bulk_marks_submission_form_v7"):
+                with st.form(key="bulk_marks_submission_form_v8"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
                         default_val, default_abs = marks_cache.get(sid, (0, False))
                         
-                        # Apply global triggers if clicked
-                        is_nc_default = True if (float(default_val) == -1.0 or global_nc_trigger) else False
-                        is_abs_default = True if (bool(default_abs) or global_abs_trigger) else False
-                        
-                        if global_nc_trigger:
+                        # Calculate default selections based on interactive session states
+                        if st.session_state["trigger_all_nc"]:
+                            is_nc_default = True
                             is_abs_default = False
-                        if global_abs_trigger:
+                        elif st.session_state["trigger_all_abs"]:
                             is_nc_default = False
+                            is_abs_default = True
+                        else:
+                            is_nc_default = True if float(default_val) == -1.0 else False
+                            is_abs_default = bool(default_abs)
                             
                         ui_marks_default = "0" if (is_nc_default or is_abs_default) else str(int(default_val))
                         
@@ -670,7 +687,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         with r_col1: 
                             st.markdown(f"**{sid}** — {sname}")
                         with r_col2: 
-                            # 🎯 REMOVED + - : Replaced number_input with text_input to get rid of the step buttons
                             obs_val_str = st.text_input(
                                 f"Marks (Max {total_marks})", 
                                 value=ui_marks_default, 
@@ -704,6 +720,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     submit_btn = st.form_submit_button("💾 Save & Commit Marks Registry", use_container_width=True)
                     if submit_btn:
+                        # Clear active global action trackers upon save
+                        st.session_state["trigger_all_abs"] = False
+                        st.session_state["trigger_all_nc"] = False
+                        
                         success_count = 0
                         for record in marks_payload:
                             try:
