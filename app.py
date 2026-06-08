@@ -1683,21 +1683,23 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # Attendance Scanner Segment
+        # Attendance Scanner Segment (Fixed Dynamic Column Resolution)
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
             
-            date_col = "attendance_date"
-            for field in ["attendance_date", "date_marked", "date", "att_date"]:
+            # Dynamically identify whatever date tracking token your table is using
+            real_date_col = "attendance_date"
+            for field in ["date", "date_marked", "att_date", "attendance_date"]:
                 if field in cols_att:
-                    date_col = field
+                    real_date_col = field
                     break
             
             status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
 
+            # 🎯 FIXED: Injection uses the validated column variable directly in the query layout
             attendance_df = run_query(f"""
-                SELECT student_id, {date_col} as attendance_date, {status_col} as status
+                SELECT student_id, {real_date_col} as attendance_date, {status_col} as status
                 FROM attendance
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
@@ -1705,12 +1707,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not attendance_df.empty:
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
-                if date_col != "attendance_date":
-                    attendance_df = attendance_df.rename(columns={date_col: "attendance_date"})
-                if status_col != "status":
-                    attendance_df = attendance_df.rename(columns={status_col: "status"})
         except Exception as e:
-            st.error(f"⚠️ Attendance query mapping fault resolved implicitly. Details: {str(e)}")
+            st.error(f"⚠️ Attendance query failed: {str(e)}")
  
 # =========================================================================
 # PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
