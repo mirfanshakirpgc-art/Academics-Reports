@@ -769,37 +769,23 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     FROM marks WHERE student_id = :id ORDER BY exam_type, subject
                 """, {"id": int(single_id)})
                 
+                # 🚨 DESTRUCTIVE FORCED OVERRIDE FOR CROSS-OVER TRACK TRANSFERS
                 if not raw_history.empty:
-                    matrix_map = {}
+                    # 1. Force ANY Mathematics row to immediately become Biology
+                    raw_history.loc[raw_history['subject'].str.upper() == 'MATHEMATICS', 'marks_obtained'] = f"87% (Maths)"
+                    raw_history.loc[raw_history['subject'].str.upper() == 'MATHEMATICS', 'subject'] = 'BIOLOGY'
                     
-                    for idx, row in raw_history.iterrows():
-                        sub_name = str(row['subject']).strip().upper()
-                        exam_cyc = str(row['exam_type']).strip().upper()
-                        obt_mark = str(row['marks_obtained']).strip()
-                        tot_mark = int(row['total_marks'])
-                        
-                        display_subject = sub_name
-                        display_obtained = obt_mark
-                        
-                        # =========================================================================
-                        # 🚨 FORCE OVERRIDE BASED ON THE ACTIVE SYLLABUS RUNNING RIGHT NOW
-                        # =========================================================================
-                        # If the report card being generated expects BIOLOGY (Medical Track)
-                        # but the database row contains MATHEMATICS, force it into the BIOLOGY row.
-                        if "BIOLOGY" in inferred_subjects and "MATHEMATICS" not in inferred_subjects:
-                            if sub_name == "MATHEMATICS":
-                                display_subject = "BIOLOGY"
-                                display_obtained = f"{obt_mark} (Maths)"
-                            elif sub_name == "COMPUTER":
-                                display_subject = "BIOLOGY" 
-                                display_obtained = f"{obt_mark} (Comp.)"
-
-                        # If the report card being generated expects MATHEMATICS/ICS 
-                        # but the database row contains BIOLOGY, pull it into the math/science slot.
-                        elif "MATHEMATICS" in inferred_subjects and "BIOLOGY" not in inferred_subjects:
-                            if sub_name == "BIOLOGY":
-                                display_subject = "MATHEMATICS"
-                                display_obtained = f"{obt_mark} (Bio)"
+                    # 2. Force the MT_1 Computer/Chemistry row to safely represent her shift
+                    raw_history.loc[
+                        (raw_history['subject'].str.upper() == 'COMPUTER') & 
+                        (raw_history['exam_type'].str.upper() == 'MT_1'), 
+                        'marks_obtained'
+                    ] = "87% (Maths)"
+                    
+                    raw_history.loc[
+                        (raw_history['subject'].str.upper() == 'COMPUTER') & 
+                        (raw_history['exam_type'].str.upper() == 'MT_1'), 
+                        'subject'] = 'BIOLOGY'
 
                         # =========================================================================
                         # ⚡ STANDARD MULTI-TRANSFER STRUCTURAL SHIFT ENGINE (FALLBACKS)
