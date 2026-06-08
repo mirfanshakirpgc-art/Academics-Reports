@@ -605,11 +605,41 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
                 
-            with c5: 
+           with c5: 
                 if academic_system == "Annual System":
-                    try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
-                    except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+                    try: 
+                        # Try to read the master dictionary mapping if it exists
+                        base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
+                    except NameError: 
+                        # Standard fallback list if the dictionary isn't defined globally
+                        base_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+                    
+                    # Convert all subjects to uppercase for standardized dropdown matching
+                    base_subjects = [s.upper() for s in base_subjects]
+                    
+                    # 🎯 Filter subjects dynamically based on 11th vs 12th Class Level selection
+                    if sel_class == "11th":
+                        # Standard 11th configuration (Include Islamic Studies/Eth, remove 12th specific components)
+                        if "ISL_ETH" not in base_subjects:
+                            base_subjects.append("ISL_ETH")
+                        available_subjects = [s for s in base_subjects if s not in ["PAK_STUDIES", "T_QURAN"]]
+                        
+                    elif sel_class == "12th":
+                        # Standard 12th configuration (Include Pak Studies & Tarjuma-tul-Quran, remove 11th specific)
+                        if "PAK_STUDIES" not in base_subjects:
+                            base_subjects.append("PAK_STUDIES")
+                        if "T_QURAN" not in base_subjects:
+                            base_subjects.append("T_QURAN")
+                        available_subjects = [s for s in base_subjects if s != "ISL_ETH"]
+                        
+                    else:
+                        # Fallback case if "ALL" class level is selected (display everything)
+                        available_subjects = base_subjects
+                        if "ISL_ETH" not in available_subjects: available_subjects.append("ISL_ETH")
+                        if "PAK_STUDIES" not in available_subjects: available_subjects.append("PAK_STUDIES")
+                        if "T_QURAN" not in available_subjects: available_subjects.append("T_QURAN")
                 else:
+                    # Semester System Logic
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
                     elif "2nd Semester" in sel_class:
@@ -617,12 +647,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     else: 
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 
+                # Enforce unique elements and sort them clean alphabetically
+                available_subjects = sorted(list(set(available_subjects)))
+                
                 sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
-                # 🎯 FIXED: Standardized to use all_frameworks across both systems to preserve test analytics names
                 sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
             with row2_2: 
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
