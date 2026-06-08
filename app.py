@@ -531,32 +531,44 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     
     if entry_mode == "📋 By Complete Section":
         
-        # --- PHASE 1: SAFE PRE-FETCH LOGIC (No UI columns here) ---
+        # --- PHASE 1: SAFE PRE-FETCH CONFIGURATIONS ---
         try:
             session_df = run_query("SELECT DISTINCT session FROM students ORDER BY session DESC")
             session_options = session_df["session"].tolist() if not session_df.empty else ["2025-27", "2024-26", "2026-28"]
         except Exception:
             session_options = ["2025-27", "2024-26", "2026-28"]
 
-        # Temporary initialization of session choice to prevent script stoppage
-        temp_sess = st.selectbox("Session:", session_options, key="entry_sess_a_temp")
+        st.markdown("### 🔍 Filters Setup")
         
-        # Establish layout structural criteria early
-        academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a_temp")
-
-        if academic_system == "Annual System":
-            sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a_temp")
-            discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-            selected_ui_discipline = st.selectbox("Discipline:", discipline_ui_options, key="marks_disc_sel_temp")
+        # --- PHASE 2: SINGLE-RENDER PROFESSIONAL GRID LAYOUT ---
+        c1, c2, c3, c4, c5 = st.columns(5)
+        
+        with c1:
+            sel_session = st.selectbox("Session:", session_options, key="entry_sess_prod")
             
-            sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
-            if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
-            elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
-        else:
-            sel_class = st.selectbox("Semester:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a_temp")
-            sel_discipline = "DIPLOMA_IN_IT_DIT"
+        with c2:
+            academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="entry_sys_prod")
+            
+        with c3:
+            if academic_system == "Annual System":
+                sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_cl_prod")
+            else:
+                sel_class = st.selectbox("Semester:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_cl_prod")
+                
+        with c4:
+            if academic_system == "Annual System":
+                discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                selected_ui_discipline = st.selectbox("Discipline:", discipline_ui_options, key="entry_disc_prod")
+                
+                # Standardize strings for mapping dictionary lookup
+                sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
+                if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
+                elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
+            else:
+                sel_discipline = "DIPLOMA_IN_IT_DIT"
+                st.text_input("Discipline:", value="DIT", disabled=True, key="entry_disc_dit_prod")
 
-        # Calculate section list values dynamically 
+        # --- PHASE 3: BACKGROUND CALCULATIONS (No duplicate widget renders) ---
         valid_sections_list = []
         if academic_system == "Annual System":
             lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
@@ -574,9 +586,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         if not valid_sections_list:
             valid_sections_list = ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
 
-        sel_section = st.selectbox("Target Section:", valid_sections_list, key="entry_sec_filter_a_temp")
+        # Render Section selector cleanly into the 5th column slot
+        with c5:
+            sel_section = st.selectbox("Target Section:", valid_sections_list, key="entry_sec_prod")
 
-        # --- PHASE 2: SUBJECT COMPILATION SWITCH ---
+        # --- PHASE 4: BACKGROUND SUBJECT PROCESSING ---
         if academic_system == "Annual System":
             try: 
                 base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
@@ -585,6 +599,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             base_subjects = [str(s).upper().strip() for s in base_subjects]
             
+            # Commerce Dynamic Year Splits Handling
             if sel_discipline == "COMMERCE":
                 if sel_class == "11th":
                     available_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
@@ -612,38 +627,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
         
         available_subjects = sorted(list(set(available_subjects)))
-        
-        # Clear out temporary layout elements 
-        st.empty() 
 
-        # --- PHASE 3: FINAL PROFESSIONAL CLEAN GRID PRESENTATION ---
-        st.markdown("### 🔍 Filters Setup")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            sel_session = st.selectbox("Session:", session_options, index=session_options.index(temp_sess) if temp_sess in session_options else 0, key="entry_sess_prod")
-        with c2:
-            academic_system_final = st.selectbox("Academic System:", ["Annual System", "Semester System"], index=0 if academic_system == "Annual System" else 1, key="entry_sys_prod")
-        with c3:
-            if academic_system_final == "Annual System":
-                class_options = ["11th", "12th", "ALL"]
-                sel_class_final = st.selectbox("Class Level:", class_options, index=class_options.index(sel_class) if sel_class in class_options else 0, key="entry_cl_prod")
-            else:
-                sem_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"]
-                sel_class_final = st.selectbox("Semester:", sem_options, index=sem_options.index(sel_class) if sel_class in sem_options else 0, key="entry_sem_prod")
-        with c4:
-            if academic_system_final == "Annual System":
-                discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-                selected_ui_discipline_final = st.selectbox("Discipline:", discipline_ui_options, index=discipline_ui_options.index(selected_ui_discipline) if selected_ui_discipline in discipline_ui_options else 0, key="entry_disc_prod")
-                sel_discipline_final = selected_ui_discipline_final.upper().replace(" ", "_").replace("(", "").replace(")", "")
-                if "PHYSIC" in sel_discipline_final: sel_discipline_final = "ICS_PHYSICS"
-                elif "STAT" in sel_discipline_final: sel_discipline_final = "ICS_STATISTICS"
-            else:
-                sel_discipline_final = "DIPLOMA_IN_IT_DIT"
-                st.text_input("Discipline:", value="DIT", disabled=True, key="entry_disc_dit_prod")
-        with c5:
-            sel_section_final = st.selectbox("Target Section:", valid_sections_list, index=valid_sections_list.index(sel_section) if sel_section in valid_sections_list else 0, key="entry_sec_prod")
-
-        # --- Course Selection & Assessment Parameters Row ---
+        # --- PHASE 5: SECONDARY ASSESSMENT PARAMETERS ---
         st.markdown("---")
         st.markdown("#### Course Selection & Assessment Parameters")
         sub_col1, sub_col2, sub_col3 = st.columns([2, 2, 1])
@@ -655,28 +640,28 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         with sub_col3:
             total_marks = st.number_input("Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks_prod")
 
-        # --- Data Compilation & Entry Interface Block ---
-        if sel_subject and sel_section_final and sel_session:
+        # --- PHASE 6: STUDENT DATA COMPILATION ENGINE & UI ---
+        if sel_subject and sel_section and sel_session:
             try:
                 query_students = "SELECT id, name FROM students WHERE class = :cls AND section = :sec AND session = :sess ORDER BY id ASC"
-                target_cls = "12th" if sel_class_final == "ALL" else sel_class_final
-                students_df = run_query(query_students, {"cls": target_cls, "sec": sel_section_final, "sess": sel_session})
+                target_cls = "12th" if sel_class == "ALL" else sel_class
+                students_df = run_query(query_students, {"cls": target_cls, "sec": sel_section, "sess": sel_session})
             except Exception as e:
                 st.error(f"Error initializing student matrix: {e}")
                 students_df = pd.DataFrame()
 
             if not students_df.empty:
-                st.markdown(f"### 📝 Enter Obtained Marks for {sel_section_final} — {sel_subject} ({sel_exam})")
+                st.markdown(f"### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                 
                 try:
                     existing_marks_query = "SELECT student_id, obtained_marks, is_absent FROM marks WHERE subject = :sub AND exam_cycle = :exam AND section = :sec AND session = :sess"
-                    existing_df = run_query(existing_marks_query, {"sub": sel_subject, "exam": sel_exam, "sec": sel_section_final, "sess": sel_session})
+                    existing_df = run_query(existing_marks_query, {"sub": sel_subject, "exam": sel_exam, "sec": sel_section, "sess": sel_session})
                     marks_cache = {row['student_id']: (row['obtained_marks'], row['is_absent']) for _, row in existing_df.iterrows()}
                 except Exception:
                     marks_cache = {}
 
                 marks_payload = []
-                with st.form(key="bulk_marks_submission_form_v2"):
+                with st.form(key="bulk_marks_submission_form_v3"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
@@ -712,7 +697,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 """
                                 run_action(save_query, {
                                     "sid": record["student_id"], "sub": sel_subject, "exam": sel_exam,
-                                    "sec": sel_section_final, "sess": sel_session, "obs": record["obtained_marks"],
+                                    "sec": sel_section, "sess": sel_session, "obs": record["obtained_marks"],
                                     "tot": total_marks, "abs": record["is_absent"]
                                 })
                                 success_count += 1
@@ -724,6 +709,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.rerun()
             else:
                 st.warning("⚠️ No student records located matching the chosen criteria combinations.")
+                
+    elif entry_mode == "👤 By Single Student Roll Number":
+        st.info("Single Student Entry Sub-Console Interface Active.")
+        
+    elif entry_mode == "📥 Bulk Excel/CSV Import":
+        st.info("Bulk Data Processing File Pipeline Engine Active.")
 
     # --------------------------------------------------------------------------------
     # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER
