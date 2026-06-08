@@ -696,7 +696,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 CURRENT SECTION SUBJECTS ONLY
+                # 🎯 STRATEGIC TRACK-BOUND DROPDOWN SUBJECTS
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -727,7 +727,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 with c_m3: 
                     single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
-                # 🎯 RE-ROUTING DATABASE LOAD SEARCH STRATEGY
+                # 🎯 ADVANCED CONDITIONAL INTERCEPTION FOR THE DROPDOWNS
                 lookup_subject = single_sub
                 if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                     if single_sub == "PHYSICS" and single_exam == "MT_1": lookup_subject = "BIOLOGY"
@@ -760,7 +760,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 FIXED SQUASH MATRIX FOR VISUAL RENDERING (Ensures accurate alignment inside CQ3/CK3 rows)
+                # 🎯 COMPLETE MATRIX RE-ROUTING PIPELINE FOR VISUALIZATION SQUASHING
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -781,7 +781,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # Dynamic Routing Override Engine
+                        # Apply custom displacement row mapping overrides
                         if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                             if sub_name == "BIOLOGY":
                                 display_subject = "PHYSICS"
@@ -797,7 +797,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
                         
-                        # Building key based on the altered display target to collapse them cleanly
+                        # Core fix: Use the final overridden display_subject as the unique key to prevent separate lines!
                         matrix_key = (display_subject, exam_cyc)
                         matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
                     
