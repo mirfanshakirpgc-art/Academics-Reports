@@ -696,31 +696,39 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 COMPREHENSIVE SUBJECT LIST GENERATION
-                # We start with a baseline of all core subjects across common streams
-                inferred_subjects = [
-                    "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", 
-                    "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"
-                ]
+                # 🎯 EXACT DISCIPLINE-WISE SUBJECT MAPS INTEGRATION
+                inferred_subjects = []
                 
-                # Dynamically append mapped subjects from global configuration structural types if available
-                try:
-                    for key in ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"]:
-                        mapped_subs = DISCIPLINE_SUBJECTS_MAP.get(key, [])
-                        inferred_subjects.extend([str(m).upper().strip() for m in mapped_subs])
-                except NameError:
-                    pass
+                if single_system == "Semester System" or "DIT" in s_section:
+                    inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
+                else:
+                    # Annual System: Parse exact matches according to the structural matrix rules
+                    if s_section in ["MQ1", "MQ2", "MK1"]:
+                        inferred_subjects = ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                    elif s_section in ["EK1", "EQ1"]:
+                        inferred_subjects = ["CHEMISTRY", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                    elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                        inferred_subjects = ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                    elif s_section in ["CQ3", "CK3"]:
+                        inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                    elif s_section in ["IQ1", "IK1"]:
+                        inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                    elif s_section in ["FQ1", "FK1"]:
+                        inferred_subjects = ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
+                    else:
+                        # Baseline global configuration fallback if section tag doesn't match standard prefixes
+                        inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
                 
-                # Standardize strings
+                # Standardize current arrays to clean uppercase values
                 inferred_subjects = [sub.upper().strip() for sub in inferred_subjects if sub]
                 
-                # 🎯 PULL HISTORICAL RECORDS (Ensures odd combinations like Anaiba's are fully covered)
+                # 🎯 SCAN HISTORICAL DATA: Dynamically merge any extra crossed subjects recorded in the database
                 historical_subs_df = run_query("SELECT DISTINCT UPPER(TRIM(subject)) as historic_sub FROM marks WHERE student_id = :id", {"id": int(single_id)})
                 if not historical_subs_df.empty:
                     historical_list = historical_subs_df['historic_sub'].tolist()
                     inferred_subjects.extend(historical_list)
                 
-                # Cleanup lists to build clear unique elements
+                # Deduplicate and sort drop-down menu items cleanly
                 inferred_subjects = sorted(list(set(inferred_subjects)))
                 
                 # --- LAYOUT MANAGEMENT ---
