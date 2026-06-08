@@ -585,7 +585,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Dynamically compile target options directly from mapping architecture
                 valid_sections_list = []
                 if academic_system == "Annual System":
-                    # Lookup inside real DISCIPLINE_SECTIONS_MAP safely using standardized keys
                     lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
                     
                     try:
@@ -596,7 +595,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     except NameError:
                         pass
                 else:
-                    # Semesters are consistently bound to DIT_G and DIT_B
                     valid_sections_list = ["DIT_G", "DIT_B"]
 
                 valid_sections_list = sorted(list(set(valid_sections_list)))
@@ -622,13 +620,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
-                # 🎯 FIXED: Standardized to use all_frameworks across both systems to preserve test analytics names
                 sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
             with row2_2: 
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                # Query structure standardized to pull by matching keys
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -670,8 +666,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
+        
         if single_id and single_id.isdigit():
             student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_id)})
+            
             if student_info.empty:
                 st.error("❌ This roll number does not exist.")
             else:
@@ -679,31 +677,69 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_section = student_info['section'].iloc[0].upper().strip()
                 s_session = student_info['session'].iloc[0]
                 s_class = student_info['class'].iloc[0]
+                
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
+                # Determine standard available subjects to render in the selectbox drop-down
+                # Handles the fallback safely if map dictionaries are missing
+                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
+                try:
+                    # Look up by section text pattern match or class properties
+                    if "BLUE" in s_section or "PRE_MED" in s_section or "MG" in s_section:
+                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("MEDICAL", inferred_subjects)
+                    elif "ENG" in s_section or "EG" in s_section:
+                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("ENGINEERING", inferred_subjects)
+                    elif "ICS_PHYSICS" in s_section or "ICS" in s_section:
+                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("ICS_PHYSICS", inferred_subjects)
+                    elif "STAT" in s_section:
+                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("ICS_STATISTICS", inferred_subjects)
+                except NameError:
+                    pass
+                
+                # Capitalize all subject options for standardized handling
+                inferred_subjects = sorted(list(set([sub.upper() for sub in inferred_subjects])))
+                
+                # --- LAYOUT MANAGEMENT ---
                 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-                with c_m1: single_sub = st.text_input("Subject Identity:", value="STATISTICS", key="s_sub_val")
+                with c_m1: 
+                    # 🎯 CHANGED: Swapped text input for a full subject dropdown menu
+                    single_sub = st.selectbox("Subject Identity:", options=inferred_subjects, key="s_sub_val")
                 with c_m2: 
-                    # 🎯 FIXED: Individual entries share the standard test options list
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
-                with c_m3: single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
+                with c_m3: 
+                    single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
                 existing_m = run_query("""
                     SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                 """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
+                
                 init_m_val = str(existing_m['marks_obtained'].iloc[0]) if not existing_m.empty else ""
-                with c_m4: single_obtained = st.text_input("Obtained Marks:", value=init_m_val, key="s_obt_val")
+                with c_m4: 
+                    single_obtained = st.text_input("Obtained Marks:", value=init_m_val, key="s_obt_val")
                 
                 if st.button("💾 Save Individual Marks Record", type="primary"):
                     execute_db_command("""
                         DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                     """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
+                    
                     if single_obtained.strip() != "":
                         execute_db_command("""
                             INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
                         """, {"id": int(single_id), "sub": single_sub.strip().upper(), "exam": single_exam.strip().upper(), "score": single_obtained.strip().upper(), "tot": float(single_total)})
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
+                
+                # 🎯 ADDED: A small helpful visual grid showing current logged history for that student
+                st.markdown("---")
+                st.markdown("##### 📊 Current Logged Marks History for Student")
+                history_df = run_query("""
+                    SELECT subject AS "Subject", exam_type AS "Exam Cycle", marks_obtained AS "Obtained", total_marks AS "Total"
+                    FROM marks WHERE student_id = :id ORDER BY subject, exam_type
+                """, {"id": int(single_id)})
+                if not history_df.empty:
+                    st.dataframe(history_df, use_container_width=True)
+                else:
+                    st.caption("No marks records exist in the database for this student yet.")
 
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Upload Exam Marks Matrix")
