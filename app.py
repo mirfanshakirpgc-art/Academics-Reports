@@ -607,8 +607,27 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
             with c5: 
                 if academic_system == "Annual System":
-                    try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
-                    except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+                    try: 
+                        base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
+                    except NameError: 
+                        base_subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "BIOLOGY"]
+                    
+                    base_subjects = [str(s).upper().strip() for s in base_subjects]
+                    
+                    if sel_class == "11th":
+                        if "ISL_ETH" not in base_subjects: 
+                            base_subjects.append("ISL_ETH")
+                        available_subjects = [s for s in base_subjects if s != "PAK_STUDIES"]
+                        
+                    elif sel_class == "12th":
+                        if "PAK_STUDIES" not in base_subjects: 
+                            base_subjects.append("PAK_STUDIES")
+                        available_subjects = [s for s in base_subjects if s != "ISL_ETH"]
+                        
+                    else:
+                        available_subjects = base_subjects
+                        if "ISL_ETH" not in available_subjects: available_subjects.append("ISL_ETH")
+                        if "PAK_STUDIES" not in available_subjects: available_subjects.append("PAK_STUDIES")
                 else:
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
@@ -617,6 +636,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     else: 
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 
+                available_subjects = sorted(list(set(available_subjects)))
                 sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
         if sel_subject and sel_section and sel_session:
@@ -628,88 +648,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                # Query structure standardized to pull by matching keys
-                roster_df = run_query("""
-                    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-                    FROM students s
-                    LEFT JOIN marks m ON s.id = m.student_id 
-                        AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
-                        AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND s.session = :session
-                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
-                    ORDER BY s.id ASC
-                """, {
-                    "subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session
-                })
-                
-                if roster_df.empty:
-                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session {sel_session}.")
-                else:
-                    st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
-                    with st.form("bulk_marks_form"):
-                        updated_marks = {}
-                        for idx, row in roster_df.iterrows():
-                            col_s1, col_s2 = st.columns([3, 1])
-                            col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                            current_val = str(row['Marks']) if pd.notna(row['Marks']) else ""
-                            updated_marks[row['ID']] = col_s2.text_input("Obtained", value=current_val, key=f"marks_{row['ID']}", label_visibility="collapsed")
-                        
-                        if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary"):
-                            for s_id, score in updated_marks.items():
-                                score_clean = str(score).strip().upper()
-                                execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
-                                if score_clean != "":
-                                    execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
-                                                      {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip().upper(), "score": score_clean, "total": float(total_marks)})
-                            st.success("🎉 Section marks recorded successfully!")
-                            st.rerun()
-            except Exception as e:
-                st.error(f"Database sync issue: {e}")
-
-    elif entry_mode == "👤 By Single Student Roll Number":
-        st.subheader("👤 Single Student Marks Record Manager")
-        single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
-        if single_id and single_id.isdigit():
-            student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_id)})
-            if student_info.empty:
-                st.error("❌ This roll number does not exist.")
-            else:
-                s_name = student_info['name'].iloc[0].upper()
-                s_section = student_info['section'].iloc[0].upper().strip()
-                s_session = student_info['session'].iloc[0]
-                s_class = student_info['class'].iloc[0]
-                st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
-                
-                c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-                with c_m1: single_sub = st.text_input("Subject Identity:", value="STATISTICS", key="s_sub_val")
-                with c_m2: 
-                    # 🎯 FIXED: Individual entries share the standard test options list
-                    single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
-                with c_m3: single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
-                
-                existing_m = run_query("""
-                    SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
-                init_m_val = str(existing_m['marks_obtained'].iloc[0]) if not existing_m.empty else ""
-                with c_m4: single_obtained = st.text_input("Obtained Marks:", value=init_m_val, key="s_obt_val")
-                
-                if st.button("💾 Save Individual Marks Record", type="primary"):
-                    execute_db_command("""
-                        DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                    """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
-                    if single_obtained.strip() != "":
-                        execute_db_command("""
-                            INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
-                        """, {"id": int(single_id), "sub": single_sub.strip().upper(), "exam": single_exam.strip().upper(), "score": single_obtained.strip().upper(), "tot": float(single_total)})
-                    st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
-                    st.rerun()
-
-    elif entry_mode == "📤 Bulk Excel/CSV Import":
-        st.subheader("📤 Bulk Upload Exam Marks Matrix")
-        uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
-        if uploaded_file is not None:
-            st.info("📊 Processing files runs standard automated validation rules against raw formats.")
+                # Query structure standardized to pull
 
 
 
