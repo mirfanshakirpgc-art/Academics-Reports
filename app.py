@@ -582,7 +582,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
 
             with c4: 
-                # Dynamically compile target options directly from mapping architecture
                 valid_sections_list = []
                 if academic_system == "Annual System":
                     lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
@@ -680,12 +679,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # Determine standard available subjects to render in the selectbox drop-down
-                # Handles the fallback safely if map dictionaries are missing
+                # 1. Base group subjects architecture fallbacks
                 inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
                 try:
-                    # Look up by section text pattern match or class properties
-                    if "BLUE" in s_section or "PRE_MED" in s_section or "MG" in s_section:
+                    if "BLUE" in s_section or "PRE_MED" in s_section or "MG" in s_section or "CQ" in s_section:
                         inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("MEDICAL", inferred_subjects)
                     elif "ENG" in s_section or "EG" in s_section:
                         inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("ENGINEERING", inferred_subjects)
@@ -696,13 +693,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 except NameError:
                     pass
                 
-                # Capitalize all subject options for standardized handling
-                inferred_subjects = sorted(list(set([sub.upper() for sub in inferred_subjects])))
+                # Standardize current discipline subjects to uppercase strings
+                inferred_subjects = [sub.upper().strip() for sub in inferred_subjects]
+                
+                # 🎯 2. FIXED: Scan database to include any old historical subjects recorded for this ID
+                historical_subs_df = run_query("SELECT DISTINCT UPPER(TRIM(subject)) as historic_sub FROM marks WHERE student_id = :id", {"id": int(single_id)})
+                if not historical_subs_df.empty:
+                    historical_list = historical_subs_df['historic_sub'].tolist()
+                    inferred_subjects.extend(historical_list)
+                
+                # Deduplicate and sort drop-down contents alphabetically
+                inferred_subjects = sorted(list(set(inferred_subjects)))
                 
                 # --- LAYOUT MANAGEMENT ---
                 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
                 with c_m1: 
-                    # 🎯 CHANGED: Swapped text input for a full subject dropdown menu
                     single_sub = st.selectbox("Subject Identity:", options=inferred_subjects, key="s_sub_val")
                 with c_m2: 
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
@@ -729,7 +734,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 ADDED: A small helpful visual grid showing current logged history for that student
+                # Current logged history dataframe
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 history_df = run_query("""
@@ -746,7 +751,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         if uploaded_file is not None:
             st.info("📊 Processing files runs standard automated validation rules against raw formats.")
-
 
 
 # ====================================================================================
