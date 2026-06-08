@@ -513,23 +513,6 @@ elif menu_choice == "➕ Add Students":
                             st.rerun()
                         except Exception as delete_err:
                             st.error(f"❌ Database error encountered: {delete_err}")
-Ah, seeing your complete **Module 1 (Academic Exam Marks Entry)** code explains exactly why the issue is still persisting!
-
-Look at your hardcoded rules inside the Single Roll Number worker component:
-
-```python
-if s_section in ["MQ1", "MQ2", "MK1"]:
-    inferred_subjects = ["CHEMISTRY", "BIOLOGY", "PHYSICS", ...]
-
-```
-
-Because it is explicitly checking for hardcoded 11th-grade sections like `"MQ1"` or `"CQ3"`, any student sitting in a section format like `"12TH-COMMERCE"`, `"ICS-STATS"`, or `"FSC-MED"` bypasses these tracks completely and falls into the generic `else:` block, which applies old 11th-grade combinations like `ISLAMIAT` instead of 12th-grade `PAK_ST`.
-
-Furthermore, your fallback rules are swapping old 11th-grade codes (e.g., swapping `PHYSICS` to `STATISTICS` or `CHEMISTRY` to `COMPUTER`). For promoted 12th-grade students, it must handle the new subjects like **`B_STATS`**, **`GEO`**, and **`BANKING`**.
-
-Here is the fully optimized, generalized update for **Module 1** that checks for substrings and handles 12th-grade promotions gracefully:
-
-```python
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
@@ -599,8 +582,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
 
             with c4: 
+                # Dynamically compile target options directly from mapping architecture
                 valid_sections_list = []
                 if academic_system == "Annual System":
+                    # Lookup inside real DISCIPLINE_SECTIONS_MAP safely using standardized keys
                     lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
                     
                     try:
@@ -611,6 +596,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     except NameError:
                         pass
                 else:
+                    # Semesters are consistently bound to DIT_G and DIT_B
                     valid_sections_list = ["DIT_G", "DIT_B"]
 
                 valid_sections_list = sorted(list(set(valid_sections_list)))
@@ -636,11 +622,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
+                # 🎯 FIXED: Standardized to use all_frameworks across both systems to preserve test analytics names
                 sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
             with row2_2: 
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
+                # Query structure standardized to pull by matching keys
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -681,188 +669,52 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
-        
-        f_col1, f_col2, f_col3 = st.columns([1.5, 1.5, 2])
-        with f_col1:
-            single_session = st.selectbox("Filter by Session:", options=session_options, key="s_search_sess")
-        with f_col2:
-            single_system = st.selectbox("Filter by System:", options=["Annual System", "Semester System"], key="s_search_sys")
-        with f_col3:
-            if single_system == "Annual System":
-                single_class_lvl = st.selectbox("Filter by Class Level:", options=["11th", "12th"], key="s_search_class")
-            else:
-                single_class_lvl = st.selectbox("Filter by Semester:", options=["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="s_search_class")
-                
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
-        
         if single_id and single_id.isdigit():
-            student_info = run_query("""
-                SELECT name, section, session, class FROM students 
-                WHERE id = :id 
-                  AND session = :session 
-                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
-            """, {"id": int(single_id), "session": single_session, "class_val": single_class_lvl})
-            
+            student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_id)})
             if student_info.empty:
-                st.error(f"❌ Roll number #{single_id} does not exist inside {single_session} ({single_class_lvl}).")
+                st.error("❌ This roll number does not exist.")
             else:
                 s_name = student_info['name'].iloc[0].upper()
                 s_section = student_info['section'].iloc[0].upper().strip()
                 s_session = student_info['session'].iloc[0]
-                s_class = student_info['class'].iloc[0].upper()
-                
+                s_class = student_info['class'].iloc[0]
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 FORCE PROMOTION TRACKING STRATEGY
-                is_twelfth = "12TH" in s_class or "2ND" in s_class or "12" in s_class or "12TH" in str(single_class_lvl).upper()
-                
-                is_commerce = "COM" in s_section or "COMMERCE" in s_section or "ICOM" in s_section or "IQ" in s_section or "IK" in s_section
-                is_stats = "CQ3" in s_section or "CK3" in s_section or "STAT" in s_section
-                is_medical = "MQ" in s_section or "MK" in s_section or "MED" in s_section or "FSC-MED" in s_section
-                is_engineering = "EQ" in s_section or "EK" in s_section or "ENG" in s_section
-                is_ics_physics = ("CQ1" in s_section or "CQ2" in s_section or "CK1" in s_section or "CK2" in s_section or "ICS" in s_section) and not is_stats
-                is_humanities = "FQ" in s_section or "FK" in s_section or "HUM" in s_section
-
-                # Current subjects active for the current group context
-                inferred_subjects = []
-                if single_system == "Semester System" or "DIT" in s_section:
-                    inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
-                else:
-                    if is_medical:
-                        inferred_subjects = ["BIOLOGY", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-                    elif is_engineering:
-                        inferred_subjects = ["MATHEMATICS", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-                    elif is_ics_physics:
-                        inferred_subjects = ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-                    elif is_stats:
-                        inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-                    elif is_commerce:
-                        if is_twelfth:
-                            inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
-                        else:
-                            inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "ISLAMIAT", "T_QURAN"]
-                    elif is_humanities:
-                        inferred_subjects = ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-                    else:
-                        inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_ST", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
-                
-                inferred_subjects = sorted(list(set([sub.upper().strip() for sub in inferred_subjects if sub])))
-                
-                # --- LAYOUT MANAGEMENT ---
                 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-                with c_m1: 
-                    single_sub = st.selectbox("Subject Identity:", options=inferred_subjects, key="s_sub_val")
+                with c_m1: single_sub = st.text_input("Subject Identity:", value="STATISTICS", key="s_sub_val")
                 with c_m2: 
+                    # 🎯 FIXED: Individual entries share the standard test options list
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
-                with c_m3: 
-                    single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
+                with c_m3: single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
-                # Dynamic translation rules to intercept entry reads/saves seamlessly 
-                lookup_subject = single_sub
-                if single_sub == "STATISTICS":
-                    lookup_subject = "PHYSICS"
-                elif single_sub == "COMPUTER" and is_stats:
-                    lookup_subject = "CHEMISTRY"
-                elif single_sub == "PHYSICS" and is_ics_physics:
-                    lookup_subject = "BIOLOGY"
-
                 existing_m = run_query("""
                     SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                """, {"id": int(single_id), "sub": lookup_subject, "exam": single_exam})
-                
+                """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
                 init_m_val = str(existing_m['marks_obtained'].iloc[0]) if not existing_m.empty else ""
-                with c_m4: 
-                    single_obtained = st.text_input("Obtained Marks:", value=init_m_val, key="s_obt_val")
+                with c_m4: single_obtained = st.text_input("Obtained Marks:", value=init_m_val, key="s_obt_val")
                 
                 if st.button("💾 Save Individual Marks Record", type="primary"):
                     execute_db_command("""
                         DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                     """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
-                    if lookup_subject != single_sub:
-                        execute_db_command("""
-                            DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                        """, {"id": int(single_id), "sub": lookup_subject, "exam": single_exam})
-                    
                     if single_obtained.strip() != "":
                         execute_db_command("""
                             INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
                         """, {"id": int(single_id), "sub": single_sub.strip().upper(), "exam": single_exam.strip().upper(), "score": single_obtained.strip().upper(), "tot": float(single_total)})
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
-                
-                # 🎯 GLOBAL TRACK HISTORY RE-MAPPING ENGINE
-                st.markdown("---")
-                st.markdown("##### 📊 Current Logged Marks History for Student")
-                
-                raw_history = run_query("""
-                    SELECT subject, exam_type, marks_obtained, total_marks 
-                    FROM marks WHERE student_id = :id ORDER BY exam_type, subject
-                """, {"id": int(single_id)})
-                
-                if not raw_history.empty:
-                    matrix_map = {}
-                    
-                    for idx, row in raw_history.iterrows():
-                        sub_name = str(row['subject']).strip().upper()
-                        exam_cyc = str(row['exam_type']).strip().upper()
-                        obt_mark = str(row['marks_obtained']).strip()
-                        tot_mark = int(row['total_marks'])
-                        
-                        display_subject = sub_name
-                        display_obtained = obt_mark
-                        
-                        # Crossover Trojan Horse Maps
-                        if is_ics_physics or is_stats or is_engineering:
-                            if sub_name in ["COMPUTER", "CHEMISTRY", "MATHEMATICS"] and exam_cyc == "MT_1":
-                                display_subject = "MATHEMATICS"
-                                display_obtained = "87% (Maths)"
-                        elif is_medical:
-                            if sub_name in ["MATHEMATICS", "COMPUTER"]:
-                                display_subject = "BIOLOGY"
-                                display_obtained = f"{obt_mark} (Maths)"
 
-                        # Cross-Over Structural Shifts for Track Displays
-                        if is_stats and display_subject != "MATHEMATICS":
-                            if sub_name == "PHYSICS":
-                                display_subject = "STATISTICS"
-                                display_obtained = f"{obt_mark} (Phys.)"
-                            elif sub_name == "CHEMISTRY":
-                                display_subject = "COMPUTER"
-                                display_obtained = f"{obt_mark} (Chem.)"
-                        elif is_ics_physics and display_subject != "MATHEMATICS":
-                            if sub_name == "CHEMISTRY":
-                                display_subject = "COMPUTER"
-                                display_obtained = f"{obt_mark} (Chem.)"
+    elif entry_mode == "📤 Bulk Excel/CSV Import":
+        st.subheader("📤 Bulk Upload Exam Marks Matrix")
+        uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
+        if uploaded_file is not None:
+            st.info("📊 Processing files runs standard automated validation rules against raw formats.")
 
-                        # Handle Commerce Matrix Swapping
-                        if is_commerce:
-                            if sub_name in ["POA", "ACCOUNTING"]: display_subject = "POA"
-                            elif sub_name in ["BANKING", "BANK"]: display_subject = "BANKING"
-                            elif sub_name in ["B_STATS", "BUSINESS"]: display_subject = "B_STATS"
-                            elif sub_name in ["GEO", "GEOGRAPHY"]: display_subject = "GEO"
 
-                        if display_subject in inferred_subjects:
-                            matrix_key = (display_subject, exam_cyc)
-                            matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
-                    
-                    processed_rows = [{
-                        "Subject": k[0],
-                        "Exam Cycle": k[1],
-                        "Obtained": v["Obtained"],
-                        "Total": v["Total"]
-                    } for k, v in matrix_map.items()]
-                    
-                    if processed_rows:
-                        history_df = pd.DataFrame(processed_rows)
-                        history_df['Subject'] = pd.Categorical(history_df['Subject'], categories=inferred_subjects, ordered=True)
-                        history_df = history_df.dropna(subset=['Subject']).sort_values(['Subject', 'Exam Cycle'])
-                        st.dataframe(history_df, use_container_width=True)
-                    else:
-                        st.caption("No matching marks records exist for current section tracking profiles.")
-                else:
-                    st.caption("No marks records exist in the database for this student yet.")
 
-```
+# ====================================================================================
+# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DICTIONARY ALIGNED & ZERO-DELAY LOADING)
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
@@ -1523,9 +1375,7 @@ elif menu_choice == "📋 Section Summary Report":
         </html>
         """
         components.html(analytics_html_payload, height=750, scrolling=True)
-# =========================================================================
-# PART 1: INTERFACE FILTERS & SCOPE FORM VALIDATION CONTEXT
-# =========================================================================
+# ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
@@ -1550,16 +1400,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     st.markdown('##### 🎛️ Filter Configuration Panel')
     
-    # Base Configuration Options (System & Session)
+    # 1. Base Configuration Options (System & Session)
     col_base1, col_base2 = st.columns(2)
     with col_base1:
         sel_session_global = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="global_sel_sess")
     with col_base2:
         academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="mt_system_type")
 
+    # Separator line to keep things visually structured
     st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
 
-    # Sequential Options based on Academic System Choice
+    # 2. Sequential Options based on Academic System Choice
     col_dyn1, col_dyn2, col_dyn3 = st.columns(3)
 
     if academic_system == "Annual System":
@@ -1567,13 +1418,16 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
         with col_dyn2:
+            # Dynamically extract actual campus sections from DISCIPLINE_SECTIONS_MAP
             annual_sections = []
             for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
                 if "DIT" not in discipline.upper():
                     sections_list = class_data.get(sel_class_global, [])
                     annual_sections.extend(sections_list)
             
+            # Remove duplicates and sort alphabetically
             annual_sections = sorted(list(set(annual_sections)))
+            
             if not annual_sections:
                 annual_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CB_WHITE"]
                 
@@ -1584,15 +1438,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     else:  # --- SEMESTER SYSTEM BRANCH ---
         with col_dyn1:
+            # 🎯 Expanded to support all 4 semesters
             sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="global_sel_class")
             
         with col_dyn2:
+            # 🎯 Fixed: Always offer DIT_G and DIT_B for all semesters
             semester_sections = ["DIT_G", "DIT_B"]
             sel_sec = st.selectbox("Select Target Section:", options=semester_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
+            # Standard test framework names (MT_1, MT_2...) for semesters
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
-            
     st.markdown("---")
 
     # Scope Selector Strategy
@@ -1606,12 +1462,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
     students_to_process = []
+    
     rendered_section = str(sel_sec).strip()
 
     # --- SCOPE LOGIC 1: SINGLE PROFILE ---
     if scope_choice == "👤 Single Student Card":
         with st.form("single_student_secure_form"):
-            st.markdown(f"##### 👤 Single Profile Verification Panel ({sel_class_global})")
+            st.markdown(f"##### 👤 Single Profile Verification Panel ({sel_class_global} - {rendered_section})")
             search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
             submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
             
@@ -1622,19 +1479,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
             else:
                 try:
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
+                    
                     student_df = run_query("""
                         SELECT id, name, section, class 
                         FROM students 
                         WHERE id = :sid
                           AND session = :session
                           AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
-                    """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global})
+                          AND UPPER(TRIM(section)) LIKE UPPER(TRIM(:section))
+                    """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global, "section": f"%{rendered_section}%"})
                     
                     if not student_df.empty:
                         students_to_process = student_df.to_dict('records')
-                        rendered_section = str(student_df.iloc[0]["section"]).strip().upper()
+                        rendered_section = student_df.iloc[0]["section"]
                     else:
-                        st.error(f"❌ Student ID #{clean_id} was not found inside the Database for Session {sel_session_global} ({sel_class_global}).")
+                        st.error(f"❌ Student ID #{clean_id} was not found inside Section {rendered_section} ({sel_class_global}).")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
@@ -1663,9 +1522,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 st.error(f"💡 No registered student profiles found matching section '{rendered_section}' for Session {sel_session_global} ({sel_class_global}).")
 
     st.markdown('</div>', unsafe_allow_html=True)
-    # =========================================================================
-# PART 2: ASYNC DATA AGGREGATION PIPELINE (MARKS & ATTENDANCE)
-# =========================================================================
+
+    # --- DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
     if students_to_process and not selected_exams_list:
         st.warning("⚠️ Select at least one metric from the configuration panel to compile report views.")
         
@@ -1685,7 +1543,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-        # Performance Marks Fetching Segment
+        # 1. Performance Marks Fetching Segment
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
@@ -1709,89 +1567,59 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # Attendance Scanner Segment (Zero-SQL Guesswork, Bulletproof Python Mapping)
+        # 2. Attendance Scanner Segment
         try:
-            # 🎯 Pull the raw rows directly using star selection to bypass string column errors
-            raw_att_df = run_query(f"""
-                SELECT * FROM attendance
+            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
+            cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
+            
+            if "attendance_date" in cols_att:
+                date_col = "attendance_date"
+            elif "date_marked" in cols_att:
+                date_col = "date_marked"
+            elif "date" in cols_att:
+                date_col = "date"
+            elif "att_date" in cols_att:
+                date_col = "att_date"
+            else:
+                date_col = cols_att[1] if len(cols_att) > 1 else "date"
+            
+            status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
+
+            attendance_df = run_query(f"""
+                SELECT student_id, {date_col} as attendance_date, {status_col} as status
+                FROM attendance
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
             
-            if not raw_att_df.empty:
-                # Convert all found column headers to clean lowercase strings
-                normalized_cols = {str(c).lower().strip(): str(c) for c in raw_att_df.columns}
-                
-                # Locate the actual column identities from the active database frame
-                found_student_id = normalized_cols.get("student_id")
-                
-                found_date = None
-                for variant in ["date", "date_marked", "att_date", "attendance_date", "attendance_day", "attendance_date "]:
-                    if variant in normalized_cols:
-                        found_date = normalized_cols[variant]
-                        break
-                        
-                found_status = None
-                for variant in ["status", "attendance_status", "att_status"]:
-                    if variant in normalized_cols:
-                        found_status = normalized_cols[variant]
-                        break
-                
-                # Re-map the frame using whatever exact casing PostgreSQL gave back
-                extract_cols = []
-                rename_map = {}
-                
-                if found_student_id:
-                    extract_cols.append(found_student_id)
-                    rename_map[found_student_id] = "student_id"
-                if found_date:
-                    extract_cols.append(found_date)
-                    rename_map[found_date] = "attendance_date"
-                if found_status:
-                    extract_cols.append(found_status)
-                    rename_map[found_status] = "status"
-                    
-                # Filter down to just what we need and rename cleanly in Python memory
-                attendance_df = raw_att_df[extract_cols].rename(columns=rename_map)
+            if not attendance_df.empty:
+                attendance_df.columns = [c.lower() for c in attendance_df.columns]
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                 
         except Exception as e:
-            st.error(f"⚠️ Attendance pipeline build error: {str(e)}")
- 
-# Performance Marks Fetching Segment
-        try:
-            sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
-            cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
-            
-            # 🎯 FIX: Explicitly checking for 'subject' first based on your SQL schema
-            sub_col = "subject" if "subject" in cols_marks else ("subject_name" if "subject_name" in cols_marks else "subject")
-            exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
-            obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
-            tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
+            try:
+                attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
+                if not attendance_df.empty:
+                    attendance_df.columns = [c.lower() for c in attendance_df.columns]
+                    attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
+                    
+                    for field in ["date_marked", "date", "att_date"]:
+                        if field in attendance_df.columns:
+                            attendance_df = attendance_df.rename(columns={field: "attendance_date"})
+                            break
+                    for field in ["status", "attendance_status"]:
+                        if field in attendance_df.columns:
+                            attendance_df = attendance_df.rename(columns={field: "status"})
+                            break
+            except Exception as internal_err:
+                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve: {str(internal_err)}")
 
-            marks_df = run_query(f"""
-                SELECT student_id, {sub_col} as subject_name, {exam_col} as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
-                FROM marks
-                WHERE student_id IN ({placeholders_str})
-            """, params_dict)
-            
-            if not marks_df.empty:
-                marks_df.columns = [c.lower() for c in marks_df.columns]
-                marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
-                marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
-                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
-        except Exception as e:
-            st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
-            # =========================================================================
-# PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
-# =========================================================================
         # CSS Styling Configurations
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
         css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
         css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
-        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; }"
-        css_rules += " .btn-img-single { background-color: #e65100; } .btn-img-single:hover { background-color: #b33900; }"
-        css_rules += " .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
+        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; } .btn-img-single { background-color: #e65100; }"
+        css_rules += " .btn-img-single:hover { background-color: #b33900; } .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
         css_rules += " .cck-container { background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }"
         css_rules += " .cck-header-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }"
         css_rules += " .cck-logo-image-container { width: 75px; height: 75px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }"
@@ -1834,37 +1662,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_name = str(s_meta["name"])
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
-            raw_section = str(s_meta["section"]).strip().upper() if s_meta.get("section") else rendered_section
+            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
             s_section = " ".join(raw_section.replace("\n", " ").split())
             
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
-            # 🎯 FORCE PROMOTION TRACKING: Check both student profile string AND the Streamlit active dashboard dropdown choice
-            active_ui_class = str(sel_class_global).upper()
-            is_twelfth = "12TH" in s_class.upper() or "2ND" in s_class.upper() or "12" in s_class.upper() or "12TH" in active_ui_class or "2ND YEAR" in active_ui_class or "12" in active_ui_class
-            
-            # Detect tracks using robust matching tags
-            is_commerce = "COM" in s_section or "COMMERCE" in s_section or "ICOM" in s_section or "I-COM" in s_section or ("POA" in sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique().tolist()) if not marks_df.empty else False)
-            is_stats = "CQ3" in s_section or "CK3" in s_section or "STAT" in s_section or "STATS" in s_section
-            is_medical = "MQ" in s_section or "MK" in s_section or "MED" in s_section or "BIOLOGY" in s_section
-            is_engineering = "EQ" in s_section or "EK" in s_section or "ENG" in s_section or ("MATHEMATICS" in s_section and not is_stats)
-
-            # Assign correct dynamic structural content grids
-            if is_stats:
-                inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-            elif is_commerce:
-                if is_twelfth:
-                    inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
-                else:
-                    inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "ISLAMIAT", "T_QURAN"]
-            elif is_medical:
-                inferred_subjects = ["BIOLOGY", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-            elif is_engineering:
-                inferred_subjects = ["MATHEMATICS", "CHEMISTRY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST" if is_twelfth else "ISLAMIAT", "T_QURAN"]
-            else:
-                inferred_subjects = sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique()) if not marks_df.empty else []
-
             # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
             table_rows_html = ""
             total_row_html = ""
@@ -1874,40 +1677,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
-                    # 🎯 UNIVERSAL MULTI-TRACK GROUP SWAPPING MATRIX
-                    def resolve_aliased_subjects(row_sub):
-                        sub_clean = str(row_sub).strip().upper()
-                        
-                        if is_medical:
-                            if sub_clean in ["CHEMISTRY", "COMPUTER", "POA"]: return "CHEMISTRY"
-                            if sub_clean in ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]: return "BIOLOGY"
-                            if sub_clean in ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "B_STATS"]: return "PHYSICS"
-                            
-                        elif is_stats:
-                            if sub_clean in ["CHEMISTRY", "COMPUTER", "POA"]: return "COMPUTER"
-                            if sub_clean in ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]: return "MATHEMATICS"
-                            if sub_clean in ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "B_STATS"]: return "STATISTICS"
-                            
-                        elif is_engineering:
-                            if sub_clean in ["CHEMISTRY", "COMPUTER", "POA"]: return "CHEMISTRY"
-                            if sub_clean in ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]: return "MATHEMATICS"
-                            if sub_clean in ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "B_STATS"]: return "PHYSICS"
-                            
-                        elif is_commerce:
-                            if "POA" in sub_clean or "ACCOUNTING" in sub_clean: return "POA"
-                            if "BANKING" in sub_clean or "BANK" in sub_clean: return "BANKING"
-                            if "B_STATS" in sub_clean or "BUSINESS" in sub_clean: return "B_STATS"
-                            if "GEO" in sub_clean or "GEOGRAPHY" in sub_clean: return "GEO"
-
-                        return sub_clean
-
-                    s_marks["display_subject"] = s_marks["subject_name"].apply(resolve_aliased_subjects)
-                    
+                    distinct_subjects = sorted(s_marks["subject_name"].unique())
                     exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
                     exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
                     
-                    for sub in inferred_subjects:
-                        sub_marks = s_marks[s_marks["display_subject"] == sub]
+                    for sub in distinct_subjects:
+                        sub_marks = s_marks[s_marks["subject_name"] == sub]
                         row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
                         subject_pct_accum = 0
                         valid_exams_count = 0
@@ -1920,22 +1695,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 
                             if not match_row.empty:
                                 try:
-                                    raw_obt = str(match_row.iloc[0]["marks_obtained"]).replace('%', '').strip()
-                                    if '(' in raw_obt:
-                                        raw_obt = raw_obt.split('(')[0].strip()
-                                        
-                                    obt = float(raw_obt)
+                                    obt = float(match_row.iloc[0]["marks_obtained"])
                                     tot = float(match_row.iloc[0]["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    actual_sub_name = match_row.iloc[0]["subject_name"].upper()
-                                    
-                                    if actual_sub_name != sub:
-                                        short_notation = "Maths" if actual_sub_name in ["COMPUTER", "MATHEMATICS"] else actual_sub_name.title()[:4] + "."
-                                        row_tds += f"<td>{pct}% <span style='font-size:11px; font-weight:normal; color:#555;'>({short_notation})</span></td>"
-                                    else:
-                                        row_tds += f"<td>{pct}%</td>"
-                                        
+                                    row_tds += f"<td>{pct}%</td>"
                                     exam_totals_obtained[exam] += obt
                                     exam_totals_possible[exam] += tot
                                     subject_pct_accum += pct
@@ -1949,7 +1713,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         row_tds += f"<td><strong>{sub_avg}%</strong></td>"
                         table_rows_html += f"<tr>{row_tds}</tr>"
                     
-                    # Compute Summary Layouts
+                    # Footer Summary Row Configuration
                     total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
                     total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
                     total_pct_accum = 0
@@ -1974,8 +1738,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
-# PART 4: ATTENDANCE COMPILATION MATRIX & CANVAS UI FRAME
-# =========================================================================
             # --- ATTENDANCE REPORT MATRIX ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
@@ -1989,13 +1751,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
                 if not s_att.empty:
-                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
+                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
 
                     for m_name, m_num in month_map.items():
-                        month_records = s_att[s_att['parsed_date'].dt.month == m_num]
-                        t_days = len(month_records)
-                        p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
-                        
+                        if 'attendance_date' in s_att.columns:
+                            month_records = s_att[s_att['parsed_date'].dt.month == m_num]
+                            t_days = len(month_records)
+                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
+                        else:
+                            month_records = s_att[s_att['month_name'].astype(str).str.strip().str.lower() == m_name.lower()]
+                            t_days = int(month_records['total_days'].sum()) if not month_records.empty else 0
+                            p_days = int(month_records['present_days'].sum()) if not month_records.empty else 0
+
                         if t_days > 0:
                             attendance_matrix[m_name] = {"total": t_days, "present": p_days}
 
@@ -3090,19 +2857,18 @@ elif menu_choice == "🎓 Promote Students":
     with tgt_c1:
         disc_upper = selected_discipline.upper() if selected_discipline else ""
         
-        # 🎯 HARDENED STRIP AND ROUTING MATRIX FOR TARGETED SECTIONS
         if "MEDICAL" in disc_upper:
-            available_tgt_sections = ["MQ1", "MQ2", "MK1"]
+            available_tgt_sections = ["MQ1", "MQ2", "MK"]
         elif "ENGINEERING" in disc_upper:
-            available_tgt_sections = ["EK1", "EQ1"]
-        elif "STATS" in disc_upper or "STATISTICS" in disc_upper:
-            available_tgt_sections = ["CQ3", "CK3"]        # ICS Statistics Track (Dropped Physics completely)
-        elif "PHYSICS" in disc_upper or "ICS_PHYSICS" in disc_upper:
-            available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"] # ICS Physics Track
+            available_tgt_sections = ["EQ", "EK"]
+        elif "PHYSICS" in disc_upper:
+            available_tgt_sections = ["CQ1", "CQ2", "CK1", "CK2"]
+        elif "STATS" in disc_upper:
+            available_tgt_sections = ["CQ3", "CK3"]
         elif "COMMERCE" in disc_upper:
-            available_tgt_sections = ["IK1", "IQ1"]
+            available_tgt_sections = ["IK", "IQ"]
         elif "HUMANITIES" in disc_upper or "ARTS" in disc_upper:
-            available_tgt_sections = ["FK1", "FQ1"]
+            available_tgt_sections = ["FK", "FQ"]
         else:
             available_tgt_sections = sorted(list(set([sec for sublist in DISCIPLINE_SECTIONS_MAP.values() for sec in sublist])))
 
@@ -3211,9 +2977,9 @@ elif menu_choice == "🎓 Promote Students":
         try:
             sections_master_df = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
             db_sections = sections_master_df['section'].tolist() if not sections_master_df.empty else []
-            master_sections_list = sorted(list(set(db_sections + ["IK1", "IQ1", "CK3", "CQ3", "CK1", "CK2", "CQ1", "CQ2", "EQ1", "EK1", "MQ1", "MQ2", "MK1", "FK1", "FQ1"])))
+            master_sections_list = sorted(list(set(db_sections + ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"])))
         except Exception:
-            master_sections_list = ["IK1", "IQ1", "CK3", "CQ3", "CK1", "CK2", "CQ1", "CQ2", "EQ1", "EK1", "MQ1", "MQ2", "MK1", "FK1", "FQ1"]
+            master_sections_list = ["IK", "IQ", "CK3", "CK1", "CK2", "EQ", "EK"]
             
         wipe_target_sec = st.selectbox("🎯 Target Section Selection Matrix:", master_sections_list, key="always_visible_wipe_dropdown")
     
@@ -3279,9 +3045,10 @@ elif menu_choice == "🎓 Promote Students":
                     
                     if not batch_details.empty:
                         for _, record in batch_details.iterrows():
+                            # Hardened Fail-Safe logic for checking and repairing session values
                             log_session_str = str(record['old_session']).strip() if record['old_session'] else ""
                             if not log_session_str or log_session_str == "None":
-                                target_session_val = promo_session 
+                                target_session_val = promo_session # Use current workspace filter value as absolute fallback recovery
                             else:
                                 target_session_val = log_session_str
                             
