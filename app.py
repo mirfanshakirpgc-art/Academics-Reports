@@ -696,7 +696,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 CURRENT SECTION SUBJECTS ONLY (Keeps dropdown list clean)
+                # 🎯 CURRENT SECTION SUBJECTS ONLY
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -727,13 +727,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 with c_m3: 
                     single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
-                # 🎯 DATABASE CHECK FIX: If editing an ICS subject row, we must search for its alternate old medical mark as well
+                # 🎯 RE-ROUTING DATABASE SEARCH CHECKS BEFORE RENDER
                 lookup_subject = single_sub
                 if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                    if single_sub == "PHYSICS" and single_exam == "MT_1":
-                        lookup_subject = "BIOLOGY"
-                    elif single_sub == "COMPUTER" and single_exam == "MT_1":
-                        lookup_subject = "CHEMISTRY"
+                    if single_sub == "PHYSICS" and single_exam == "MT_1": lookup_subject = "BIOLOGY"
+                    elif single_sub == "COMPUTER" and single_exam == "MT_1": lookup_subject = "CHEMISTRY"
+                elif s_section in ["CQ3", "CK3"]:
+                    if single_sub == "STATISTICS" and single_exam == "MT_1": lookup_subject = "PHYSICS"
+                    elif single_sub == "COMPUTER" and single_exam == "MT_1": lookup_subject = "CHEMISTRY"
 
                 existing_m = run_query("""
                     SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -744,7 +745,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     single_obtained = st.text_input("Obtained Marks:", value=init_m_val, key="s_obt_val")
                 
                 if st.button("💾 Save Individual Marks Record", type="primary"):
-                    # Delete both possible variations to prevent orphaned entries in the database
                     execute_db_command("""
                         DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                     """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
@@ -754,14 +754,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         """, {"id": int(single_id), "sub": lookup_subject, "exam": single_exam})
                     
                     if single_obtained.strip() != "":
-                        # Save it under the current track subject to ensure standard reports compile seamlessly
                         execute_db_command("""
                             INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
                         """, {"id": int(single_id), "sub": single_sub.strip().upper(), "exam": single_exam.strip().upper(), "score": single_obtained.strip().upper(), "tot": float(single_total)})
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 SMART HISTORICAL DATA ENGINE AGGREGATION
+                # 🎯 RE-ROUTING HISTORY AGGREGATION ENGINE (Supports ICS Physics & ICS Stats replacement rows)
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -771,7 +770,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 """, {"id": int(single_id)})
                 
                 if not raw_history.empty:
-                    # Dict matrix to squash duplicate redirected rows into the target layout row
                     matrix_map = {}
                     
                     for idx, row in raw_history.iterrows():
@@ -783,7 +781,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # Route migrations cleanly
+                        # Apply custom displacement wrappers cleanly 
                         if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                             if sub_name == "BIOLOGY":
                                 display_subject = "PHYSICS"
@@ -791,11 +789,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             elif sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
+                        elif s_section in ["CQ3", "CK3"]:
+                            if sub_name == "PHYSICS":
+                                display_subject = "STATISTICS"
+                                display_obtained = f"{obt_mark} (Phys.)"
+                            elif sub_name == "CHEMISTRY":
+                                display_subject = "COMPUTER"
+                                display_obtained = f"{obt_mark} (Chem.)"
                         
                         matrix_key = (display_subject, exam_cyc)
                         matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
                     
-                    # Convert mapped unique rows back to flat visualization layout
                     processed_rows = [{
                         "Subject": k[0],
                         "Exam Cycle": k[1],
