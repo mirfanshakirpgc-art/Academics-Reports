@@ -764,10 +764,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
-                # 🎯 GLOBAL TRACK HISTORY RE-MAPPING ENGINE (REMOVED EXAM_CYC RESTRICTION)
-                st.markdown("---")
-                st.markdown("##### 📊 Current Logged Marks History for Student")
-                
                 raw_history = run_query("""
                     SELECT subject, exam_type, marks_obtained, total_marks 
                     FROM marks WHERE student_id = :id ORDER BY exam_type, subject
@@ -785,7 +781,36 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # ⚡ MULTI-TRANSFER STRUCTURAL SHIFT ENGINE (UPDATED)
+                        # =========================================================================
+                        # ⚡ 1. GLOBAL CROSS-OVER NORMALIZATION OVERRIDE (CRITICAL FIX)
+                        # =========================================================================
+                        # Safely ensure that if the student has transferred across tracks, 
+                        # opposite core subjects automatically map to the active tracking slots.
+                        if s_section in ["MQ1", "MQ2", "MK1"]:
+                            if sub_name == "MATHEMATICS":
+                                display_subject = "BIOLOGY"
+                                display_obtained = f"{obt_mark} (Maths)"
+                            elif sub_name == "COMPUTER":
+                                display_subject = "BIOLOGY"
+                                display_obtained = f"{obt_mark} (Comp.)"
+                                
+                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3"]:
+                            # If they are currently in ICS/Pre-Eng but have Medical marks history,
+                            # pull the Biology mark over into the core technical slot
+                            if sub_name == "BIOLOGY" and "BIOLOGY" not in inferred_subjects:
+                                if "MATHEMATICS" in inferred_subjects:
+                                    display_subject = "MATHEMATICS"
+                                    display_obtained = f"{obt_mark} (Bio)"
+                                elif "PHYSICS" in inferred_subjects and s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                                    display_subject = "PHYSICS"
+                                    display_obtained = f"{obt_mark} (Biol.)"
+                                elif "STATISTICS" in inferred_subjects and s_section in ["CQ3", "CK3"]:
+                                    display_subject = "STATISTICS"
+                                    display_obtained = f"{obt_mark} (Bio)"
+
+                        # =========================================================================
+                        # ⚡ 2. MULTI-TRANSFER STRUCTURAL SHIFT ENGINE (CONTEXT SPECIFIC)
+                        # =========================================================================
                         if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
                             if sub_name == "PHYSICS":
                                 display_subject = "STATISTICS"
@@ -793,38 +818,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             elif sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
-                            elif sub_name == "BIOLOGY":
-                                display_subject = "STATISTICS"
-                                display_obtained = f"{obt_mark} (Bio)"
-                            elif sub_name == "MATHEMATICS":
-                                # Catch cross-over engineering/ICS marks if evaluated here
-                                display_subject = "BIOLOGY"
-                                display_obtained = f"{obt_mark} (Maths)"
                                 
                         elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
-                            if sub_name == "BIOLOGY":
-                                display_subject = "PHYSICS"
-                                display_obtained = f"{obt_mark} (Biol.)"
-                            elif sub_name == "CHEMISTRY":
+                            if sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
-                            elif sub_name == "MATHEMATICS":
-                                display_subject = "BIOLOGY"
-                                display_obtained = f"{obt_mark} (Maths)"
                                 
                         elif s_section in ["EK1", "EQ1"]:  # Engineering Section Context
                             if sub_name == "BIOLOGY":
                                 display_subject = "MATHEMATICS"
                                 display_obtained = f"{obt_mark} (Bio)"
-                                
-                        elif s_section in ["MQ1", "MQ2", "MK1"]:  # Medical Section Context
-                            if sub_name == "MATHEMATICS":
-                                display_subject = "BIOLOGY"
-                                display_obtained = f"{obt_mark} (Maths)"
-                            elif sub_name == "COMPUTER":
-                                display_subject = "BIOLOGY"
-                                display_obtained = f"{obt_mark} (Comp.)"
-                        
+
                         # 🛑 THE REMOVAL GUARD: Explicitly skip raw un-mapped Physics records for Stats students
                         if s_section in ["CQ3", "CK3"] and sub_name == "PHYSICS" and display_subject == "PHYSICS":
                             continue
@@ -850,12 +854,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         st.caption("No matching marks records exist for current section tracking profiles.")
                 else:
                     st.caption("No marks records exist in the database for this student yet.")
-
-    elif entry_mode == "📤 Bulk Excel/CSV Import":
-        st.subheader("📤 Bulk Upload Exam Marks Matrix")
-        uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
-        if uploaded_file is not None:
-            st.info("📊 Processing files runs standard automated validation rules against raw formats.")
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management Panel")
