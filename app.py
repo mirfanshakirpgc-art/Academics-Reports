@@ -1782,7 +1782,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
             else:
                 inferred_subjects = sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique()) if not marks_df.empty else []
 
-            # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
+            # =========================================================================
+# REPLACEMENT BLOCK: UNIVERSAL ELECTIVE SWAPPING GROUPS
+# =========================================================================
             table_rows_html = ""
             total_row_html = ""
             grand_total_percentages = [0]
@@ -1791,19 +1793,40 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
-                    # 🎯 FIXED COHORT ALIASED REMAPPING PATTERNS FOR CROSS-OVER TRACKS
+                    # 🎯 DYNAMIC GROUP-MATCHING MATRIX FOR TRACK SWITCHES
                     def resolve_aliased_subjects(row_sub):
                         sub_clean = str(row_sub).strip().upper()
-                        if s_section in ["MQ1", "MQ2", "MK1"]:
-                            # Force old non-medical identifiers directly into the Biology reporting lane
-                            if sub_clean in ["COMPUTER", "MATHEMATICS"]: 
-                                return "BIOLOGY"
-                        elif s_section in ["CQ3", "CK3"]:
-                            if sub_clean in ["PHYSICS", "BIOLOGY"]: return "STATISTICS"
-                            if sub_clean == "CHEMISTRY": return "COMPUTER"
-                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                            if sub_clean == "BIOLOGY": return "PHYSICS"
-                            if sub_clean == "CHEMISTRY": return "COMPUTER"
+                        clean_section = str(s_section).strip().upper()
+                        
+                        # Define your institution's shifting subject groups
+                        GROUP_1 = ["CHEMISTRY", "COMPUTER", "POA"]
+                        GROUP_2 = ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING"]
+                        GROUP_3 = ["PHYSICS", "STATISTICS", "ISL_EL", "GEO"]
+                        
+                        # --- F.Sc Pre-Medical Tracking ---
+                        if clean_section in ["MQ1", "MQ2", "MK1"]:
+                            if sub_clean in GROUP_1: return "CHEMISTRY"
+                            if sub_clean in GROUP_2: return "BIOLOGY"
+                            if sub_clean in GROUP_3: return "PHYSICS"
+                            
+                        # --- ICS Statistics Tracking ---
+                        elif clean_section in ["CQ3", "CK3"]:
+                            if sub_clean in GROUP_1: return "COMPUTER"
+                            if sub_clean in GROUP_2: return "MATHEMATICS"
+                            if sub_clean in GROUP_3: return "STATISTICS"
+                            
+                        # --- ICS Physics Tracking ---
+                        elif clean_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                            if sub_clean in GROUP_1: return "COMPUTER"
+                            if sub_clean in GROUP_2: return "MATHEMATICS"
+                            if sub_clean in GROUP_3: return "PHYSICS"
+                            
+                        # --- F.Sc Pre-Engineering Tracking ---
+                        elif clean_section in ["EQ1", "EK1"]:
+                            if sub_clean in GROUP_1: return "CHEMISTRY"
+                            if sub_clean in GROUP_2: return "MATHEMATICS"
+                            if sub_clean in GROUP_3: return "PHYSICS"
+
                         return sub_clean
 
                     s_marks["display_subject"] = s_marks["subject_name"].apply(resolve_aliased_subjects)
