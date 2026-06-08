@@ -634,54 +634,57 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             if not students_df.empty:
                 st.markdown(f"### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                 
-                # --- INITIALIZE STATE TRACKERS FOR GLOBAL BUTTON ACTIONS ---
-                if "trigger_all_abs" not in st.session_state:
-                    st.session_state["trigger_all_abs"] = False
-                if "trigger_all_nc" not in st.session_state:
-                    st.session_state["trigger_all_nc"] = False
-
-                # Callback routines to reset/toggle state flags
-                def click_mark_all_absent():
-                    st.session_state["trigger_all_abs"] = True
-                    st.session_state["trigger_all_nc"] = False
-
-                def click_mark_all_nc():
-                    st.session_state["trigger_all_nc"] = True
-                    st.session_state["trigger_all_abs"] = False
-
-                # --- GLOBAL ACTIONS ROW ---
-                st.markdown("##### ⚡ Global Actions")
-                g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
-                with g_col2:
-                    st.button("👤 Mark All Absent", use_container_width=True, on_click=click_mark_all_absent)
-                with g_col3:
-                    st.button("🚫 Mark All NC", use_container_width=True, on_click=click_mark_all_nc)
-                
                 try:
                     existing_marks_query = "SELECT student_id, obtained_marks, is_absent FROM marks WHERE subject = :sub AND exam_cycle = :exam AND section = :sec AND session = :sess"
                     existing_df = run_query(existing_marks_query, {"sub": sel_subject, "exam": sel_exam, "sec": sel_section, "sess": sel_session})
                     marks_cache = {row['student_id']: (row['obtained_marks'], row['is_absent']) for _, row in existing_df.iterrows()}
                 except Exception: marks_cache = {}
 
+                # --- 🎯 STAGE 1: BACKEND SESSION STATE ENGINE INITIALIZATION ---
+                for idx, student in students_df.iterrows():
+                    sid = student['id']
+                    cached_val, cached_abs = marks_cache.get(sid, (0, False))
+                    
+                    # Create custom unique session state key tags for every interactive element row
+                    abs_key = f"abs_state_{sid}"
+                    nc_key = f"nc_state_{sid}"
+                    score_key = f"score_state_{sid}"
+                    
+                    # Populate initial values from database cache if not already assigned in session memory
+                    if abs_key not in st.session_state:
+                        st.session_state[abs_key] = bool(cached_abs)
+                    if nc_key not in st.session_state:
+                        st.session_state[nc_key] = True if float(cached_val) == -1.0 else False
+                    if score_key not in st.session_state:
+                        st.session_state[score_key] = "0" if (st.session_state[nc_key] or st.session_state[abs_key]) else str(int(cached_val))
+
+                # --- 🎯 STAGE 2: GLOBAL CLICK CALLBACK ROUTINES ---
+                def apply_global_absent():
+                    for _, s in students_df.iterrows():
+                        st.session_state[f"abs_state_{s['id']}"] = True
+                        st.session_state[f"nc_state_{s['id']}"] = False
+                        st.session_state[f"score_state_{s['id']}"] = "0"
+
+                def apply_global_nc():
+                    for _, s in students_df.iterrows():
+                        st.session_state[f"abs_state_{s['id']}"] = False
+                        st.session_state[f"nc_state_{s['id']}"] = True
+                        st.session_state[f"score_state_{s['id']}"] = "0"
+
+                # --- GLOBAL ACTIONS UI BUTTON ROW ---
+                st.markdown("##### ⚡ Global Actions")
+                g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
+                with g_col2:
+                    st.button("👤 Mark All Absent", use_container_width=True, on_click=apply_global_absent)
+                with g_col3:
+                    st.button("🚫 Mark All NC", use_container_width=True, on_click=apply_global_nc)
+                
+                # --- STAGE 3: RENDER REGISTRY ROWS MAPPED DIRECTLY TO SESSION STATE ---
                 marks_payload = []
-                with st.form(key="bulk_marks_submission_form_v8"):
+                with st.form(key="bulk_marks_submission_form_v9"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
-                        default_val, default_abs = marks_cache.get(sid, (0, False))
-                        
-                        # Calculate default selections based on interactive session states
-                        if st.session_state["trigger_all_nc"]:
-                            is_nc_default = True
-                            is_abs_default = False
-                        elif st.session_state["trigger_all_abs"]:
-                            is_nc_default = False
-                            is_abs_default = True
-                        else:
-                            is_nc_default = True if float(default_val) == -1.0 else False
-                            is_abs_default = bool(default_abs)
-                            
-                        ui_marks_default = "0" if (is_nc_default or is_abs_default) else str(int(default_val))
                         
                         r_col1, r_col2, r_col3, r_col4 = st.columns([3, 2, 1, 1])
                         with r_col1: 
@@ -689,16 +692,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         with r_col2: 
                             obs_val_str = st.text_input(
                                 f"Marks (Max {total_marks})", 
-                                value=ui_marks_default, 
-                                key=f"score_{sid}",
+                                key=f"score_state_{sid}",  # Tied to state key
                                 label_visibility="collapsed"
                             )
                         with r_col3: 
-                            abs_check = st.checkbox("Absent", value=is_abs_default, key=f"abs_{sid}")
+                            abs_check = st.checkbox("Absent", key=f"abs_state_{sid}")  # Tied to state key
                         with r_col4: 
-                            nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
+                            nc_check = st.checkbox("NC", key=f"nc_state_{sid}")  # Tied to state key
                         
-                        # Validation logic parsing text_input safely back to numeric database values
+                        # Parse inputs for current state execution payload calculations
                         try:
                             clean_score = int(''.join(filter(str.isdigit, obs_val_str))) if obs_val_str else 0
                             if clean_score > int(total_marks):
@@ -720,10 +722,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     submit_btn = st.form_submit_button("💾 Save & Commit Marks Registry", use_container_width=True)
                     if submit_btn:
-                        # Clear active global action trackers upon save
-                        st.session_state["trigger_all_abs"] = False
-                        st.session_state["trigger_all_nc"] = False
-                        
                         success_count = 0
                         for record in marks_payload:
                             try:
@@ -737,9 +735,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     "sid": record["student_id"], "sub": sel_subject, "exam": sel_exam, "sec": sel_section,
                                     "sess": sel_session, "obs": record["obtained_marks"], "tot": total_marks, "abs": record["is_absent"]
                                 })
+                                
+                                # Reset session states on successful database commits
+                                del st.session_state[f"abs_state_{record['student_id']}"]
+                                del st.session_state[f"nc_state_{record['student_id']}"]
+                                del st.session_state[f"score_state_{record['student_id']}"]
+                                
                                 success_count += 1
                             except Exception as db_err:
                                 st.error(f"Failed to record entry for Student ID {record['student_id']}: {db_err}")
+                        
                         if success_count == len(marks_payload):
                             st.success(f"🎉 Successfully saved marks registry entries for {success_count} students!")
                             st.rerun()
