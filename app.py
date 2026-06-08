@@ -614,20 +614,31 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     base_subjects = [str(s).upper().strip() for s in base_subjects]
                     
-                    if sel_class == "11th":
-                        if "ISL_ETH" not in base_subjects: 
-                            base_subjects.append("ISL_ETH")
-                        available_subjects = [s for s in base_subjects if s != "PAK_STUDIES"]
-                        
-                    elif sel_class == "12th":
-                        if "PAK_STUDIES" not in base_subjects: 
-                            base_subjects.append("PAK_STUDIES")
-                        available_subjects = [s for s in base_subjects if s != "ISL_ETH"]
-                        
+                    # 🎯 Custom Handler for Commerce year splits
+                    if sel_discipline == "COMMERCE":
+                        if sel_class == "11th":
+                            available_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
+                        elif sel_class == "12th":
+                            available_subjects = ["POA", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN"]
+                        else:
+                            available_subjects = ["POA", "POC", "B_MATH", "POE", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "ISL_ETH", "PAK_STUDIES", "T_QURAN"]
+                    
+                    # Handler for Medical, Engineering, ICS, and Humanities
                     else:
-                        available_subjects = base_subjects
-                        if "ISL_ETH" not in available_subjects: available_subjects.append("ISL_ETH")
-                        if "PAK_STUDIES" not in available_subjects: available_subjects.append("PAK_STUDIES")
+                        if sel_class == "11th":
+                            if "ISL_ETH" not in base_subjects: 
+                                base_subjects.append("ISL_ETH")
+                            available_subjects = [s for s in base_subjects if s != "PAK_STUDIES"]
+                            
+                        elif sel_class == "12th":
+                            if "PAK_STUDIES" not in base_subjects: 
+                                base_subjects.append("PAK_STUDIES")
+                            available_subjects = [s for s in base_subjects if s != "ISL_ETH"]
+                            
+                        else:
+                            available_subjects = base_subjects
+                            if "ISL_ETH" not in available_subjects: available_subjects.append("ISL_ETH")
+                            if "PAK_STUDIES" not in available_subjects: available_subjects.append("PAK_STUDIES")
                 else:
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
@@ -642,13 +653,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
-                # 🎯 FIXED: Standardized to use all_frameworks across both systems to preserve test analytics names
                 sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
             with row2_2: 
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                # Safe fallback lookup container for student payload matrix
                 query_students = "SELECT id, name FROM students WHERE class = :cls AND section = :sec AND session = :sess ORDER BY id ASC"
                 target_cls = "12th" if sel_class == "ALL" else sel_class
                 students_df = run_query(query_students, {"cls": target_cls, "sec": sel_section, "sess": sel_session})
