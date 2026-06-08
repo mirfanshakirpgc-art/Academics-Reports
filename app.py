@@ -1790,29 +1790,30 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
-            is_twelfth = "12TH" in s_class.upper() or "2ND" in s_class.upper()
+            is_twelfth = "12TH" in s_class.upper() or "2ND" in s_class.upper() or "12" in s_class.upper()
             
-            # 🎯 FIX: Smart routing maps for both 11th and 12th dynamically across all disciplines
-            if s_section in ["CQ3", "CK3"]:
-                # ICS Statistics Track (Banish Physics completely)
+            # 🎯 DETECT TRACK BASED ON AGGRESSIVE SUBSTRING SEARCH (Fixes hardcoding failure)
+            is_commerce = "COM" in s_section or "I-COM" in s_section or "ICOM" in s_section or "COMMERCE" in s_section
+            is_medical = "MQ" in s_section or "MK" in s_section or "MED" in s_section or "PRE-MED" in s_section
+            is_engineering = "EQ" in s_section or "EK" in s_section or "ENG" in s_section or "PRE-ENG" in s_section
+            is_stats = "CQ3" in s_section or "CK3" in s_section or "STAT" in s_section or "STATS" in s_section
+            is_ics_physics = ("CQ1" in s_section or "CQ2" in s_section or "CK1" in s_section or "CK2" in s_section or "ICS" in s_section) and not is_stats
+
+            # Assign correct core subject templates dynamically
+            if is_stats:
                 inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "COMPUTER", "MATHEMATICS", "STATISTICS"]
-            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
-                # ICS Physics Track
+            elif is_ics_physics:
                 inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "PHYSICS", "COMPUTER", "MATHEMATICS"]
-            elif s_section in ["MQ1", "MQ2", "MK1"]:
-                # F.Sc Pre-Medical Track
+            elif is_medical:
                 inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY"]
-            elif s_section in ["EQ1", "EK1"]:
-                # F.Sc Pre-Engineering Track
+            elif is_engineering:
                 inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES" if is_twelfth else "ISLAMIAT", "T_QURAN", "PHYSICS", "CHEMISTRY", "MATHEMATICS"]
-            elif "COMMERCE" in s_section or "I-COM" in s_section or "ICOM" in s_section:
-                # Commerce Tracking Strategy
+            elif is_commerce:
                 if is_twelfth:
                     inferred_subjects = ["ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN", "COMMERCIAL GEOGRAPHY", "BANKING", "BUSINESS STATISTICS"]
                 else:
                     inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "T_QURAN", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF ECONOMICS", "PRINCIPLES OF COMMERCE"]
             else:
-                # Intelligent string fallback strategy based on raw database contents
                 inferred_subjects = sorted(marks_df[marks_df["student_id"] == s_id]["subject_name"].str.upper().unique()) if not marks_df.empty else []
 
             # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
@@ -1827,42 +1828,36 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     # 🎯 UNIVERSAL MULTI-TRACK GROUP SWAPPING MATRIX
                     def resolve_aliased_subjects(row_sub):
                         sub_clean = str(row_sub).strip().upper()
-                        clean_section = str(s_section).strip().upper()
                         
                         GROUP_1 = ["CHEMISTRY", "COMPUTER", "POA", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE"]
                         GROUP_2 = ["BIOLOGY", "MATHEMATICS", "EDUCATION", "BANKING", "PRINCIPLES OF ECONOMICS"]
                         GROUP_3 = ["PHYSICS", "STATISTICS", "ISL_EL", "GEO", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS"]
                         
-                        # Pre-Medical Tracking
-                        if clean_section in ["MQ1", "MQ2", "MK1"]:
+                        if is_medical:
                             if sub_clean in GROUP_1: return "CHEMISTRY"
                             if sub_clean in GROUP_2: return "BIOLOGY"
                             if sub_clean in GROUP_3: return "PHYSICS"
                             
-                        # ICS Statistics Tracking (Locks Physics out)
-                        elif clean_section in ["CQ3", "CK3"]:
+                        elif is_stats:
                             if sub_clean in GROUP_1: return "COMPUTER"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "STATISTICS"
                             
-                        # ICS Physics Tracking
-                        elif clean_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                        elif is_ics_physics:
                             if sub_clean in GROUP_1: return "COMPUTER"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "PHYSICS"
                             
-                        # Pre-Engineering Tracking
-                        elif clean_section in ["EQ1", "EK1"]:
+                        elif is_engineering:
                             if sub_clean in GROUP_1: return "CHEMISTRY"
                             if sub_clean in GROUP_2: return "MATHEMATICS"
                             if sub_clean in GROUP_3: return "PHYSICS"
                             
-                        # Dynamic Commerce Routing (11th vs 12th)
-                        elif "COMMERCE" in clean_section or "I-COM" in clean_section or "ICOM" in clean_section:
+                        elif is_commerce:
                             if is_twelfth:
                                 if sub_clean in GROUP_1 or "GEOGRAPHY" in sub_clean: return "COMMERCIAL GEOGRAPHY"
-                                if sub_clean in GROUP_2 or "BANKING" in sub_clean: return "BANKING"
-                                if sub_clean in GROUP_3 or "STATISTICS" in sub_clean: return "BUSINESS STATISTICS"
+                                if sub_clean in GROUP_2 or "BANKING" in sub_clean or "BANK" in sub_clean: return "BANKING"
+                                if sub_clean in GROUP_3 or "STAT" in sub_clean: return "BUSINESS STATISTICS"
                             else:
                                 if "ACCOUNTING" in sub_clean or "POA" in sub_clean: return "PRINCIPLES OF ACCOUNTING"
                                 if "ECONOMICS" in sub_clean or "POE" in sub_clean: return "PRINCIPLES OF ECONOMICS"
