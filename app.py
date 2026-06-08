@@ -645,7 +645,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 except Exception: marks_cache = {}
 
                 marks_payload = []
-                with st.form(key="bulk_marks_submission_form_v12"):
+                with st.form(key="bulk_marks_submission_form_v13"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
@@ -711,73 +711,75 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.warning("⚠️ No student records located matching the chosen criteria combinations.")
 
     # ================================================================================
-    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE (DYNAMIC RE-FETCH FETCH)
+    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE (SAFE SCHEMALESS FETCH)
     # ================================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.markdown("### 🔍 Configuration Setup")
         
-        # 1. Row Selection: Only Session and Academic Track requested up front
+        # 1. Row Selection: Only Session and Academic Track up front
         sc1, sc2 = st.columns(2)
         with sc1: sel_session = st.selectbox("Session:", session_options, key="single_sess_filter")
         with sc2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_filter")
         
-        # 2. Direct Roll Number input text box to initiate data fetch pipelines
+        # 2. Text input box for Roll Number
         search_sid = st.text_input("👤 Enter Student Roll Number / ID Code:", value="", key="single_roll_search_input").strip()
         
         if search_sid:
             try:
-                # Query database directly to fetch student metadata metrics
-                fetch_query = "SELECT name, class, section, discipline FROM students WHERE id = :sid AND session = :sess LIMIT 1"
+                # FIXED: Removed non-existent "discipline" column to prevent SQL crashes
+                fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
-                st.error(f"Error querying student profile database context: {e}")
+                st.error(f"Error querying student profile context: {e}")
                 student_profile_df = pd.DataFrame()
                 
             if not student_profile_df.empty:
-                # Store structural variables retrieved dynamically from database metrics rows
                 s_name = student_profile_df.iloc[0]["name"]
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
-                s_discipline = str(student_profile_df.iloc[0]["discipline"]).upper().strip()
+                
+                # Deduce structural discipline path using the section name prefixes dynamically
+                s_sec_upper = str(s_section).upper().strip()
+                if "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: s_discipline = "MEDICAL"
+                elif "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: s_discipline = "ENGINEERING"
+                elif "IK" in s_sec_upper or "COMMERCE" in s_sec_upper or "CG" in s_sec_upper: s_discipline = "COMMERCE"
+                elif "ICS" in s_sec_upper: s_discipline = "ICS_PHYSICS"
+                else: s_discipline = "HUMANITIES"
                 
                 st.markdown("---")
-                # Information banner confirming metadata profile fetch validation match
                 st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
                 
-                # Dynamic mapping lookup logic for course titles matching student profiles context
+                # Parse available subject options matching inferred tracking attributes
                 if academic_system == "Annual System":
-                    try: base_subjects = DISCIPLINE_SUBJECTS_MAP.get(s_discipline, ["ENGLISH", "URDU", "PHYSICS"])
-                    except NameError: base_subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "BIOLOGY"]
-                    base_subjects = [str(s).upper().strip() for s in base_subjects]
-                    
                     if "COMMERCE" in s_discipline:
                         if s_class == "11th": student_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
                         elif s_class == "12th": student_subjects = ["POA", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN"]
                         else: student_subjects = ["POA", "POC", "B_MATH", "POE", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "ISL_ETH", "PAK_STUDIES", "T_QURAN"]
                     else:
+                        base_list = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "MATHEMATICS", "COMPUTER SCIENCE"]
                         if s_class == "11th":
-                            if "ISL_ETH" not in base_subjects: base_subjects.append("ISL_ETH")
-                            student_subjects = [s for s in base_subjects if s != "PAK_STUDIES"]
+                            base_list.append("ISL_ETH")
+                            student_subjects = [sub for sub in base_list if sub != "PAK_STUDIES"]
                         elif s_class == "12th":
-                            if "PAK_STUDIES" not in base_subjects: base_subjects.append("PAK_STUDIES")
-                            student_subjects = [s for s in base_subjects if s != "ISL_ETH"]
+                            base_list.append("PAK_STUDIES")
+                            student_subjects = [sub for sub in base_list if sub != "ISL_ETH"]
                         else:
-                            student_subjects = base_subjects
+                            student_subjects = base_list
                 else:
                     if "1ST" in str(s_class).upper(): student_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
                     elif "2ND" in str(s_class).upper(): student_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                     else: student_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 
-                student_subjects = sorted(list(set(student_subjects)))
+                student_subjects = sorted(list(set([str(s).upper() for s in student_subjects])))
                 
-                # Render Parameters for current assessment registry targeting
+                # Render parameters selection boxes
                 st.markdown("#### 📝 Select Assessment Course & Assessment Framework")
                 sc3, sc4, sc5 = st.columns([2, 2, 1])
                 with sc3: sel_subject = st.selectbox("Course / Subject Title:", student_subjects, key="single_sub_dropdown")
                 with sc4: sel_exam = st.selectbox("Examination Cycle:", all_frameworks, key="single_exam_dropdown")
                 with sc5: total_marks = st.number_input("Total Marks Capacity:", min_value=1, max_value=200, value=100, step=1, key="single_total_max_marks")
                 
-                # Fetch existing historical scores for the student's selected subject/exam combo
+                # Gather marks cache history records specifically for this student combo
                 try:
                     marks_lookup_query = "SELECT obtained_marks, is_absent FROM marks WHERE student_id = :sid AND subject = :sub AND exam_cycle = :exam"
                     marks_record_df = run_query(marks_lookup_query, {"sid": search_sid, "sub": sel_subject, "exam": sel_exam})
@@ -793,7 +795,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 is_abs_init = bool(cached_absent)
                 ui_val_init = "0" if (is_nc_init or is_abs_init) else str(int(cached_score))
                 
-                # Marks Entry Submission Form Panel Container
+                # Render Marks Entry form panel
                 st.markdown(f"##### 🎯 Input Marks Metrics for {sel_subject} ({sel_exam})")
                 with st.form(key="individual_student_form_panel"):
                     form_c1, form_c2, form_c3 = st.columns([2, 1, 1])
@@ -831,9 +833,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         except Exception as db_err:
                             st.error(f"Database validation connection failure execution error: {db_err}")
             else:
-                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify numbers input parameters.")
+                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify your entry.")
         else:
-            st.info("💡 Please type a Student Roll Number above to fetch profile track metrics options and unlock entry options panel layers.")
+            st.info("💡 Please type a Student Roll Number above to fetch profile track metrics options and unlock the entry options panel layers.")
 
     # ================================================================================
     # WORKFLOW 3: BULK EXCEL / CSV IMPORT
