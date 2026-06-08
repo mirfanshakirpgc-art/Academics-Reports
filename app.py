@@ -769,44 +769,52 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     FROM marks WHERE student_id = :id ORDER BY exam_type, subject
                 """, {"id": int(single_id)})
                 
-                # 🚨 DESTRUCTIVE FORCED OVERRIDE FOR CROSS-OVER TRACK TRANSFERS
                 if not raw_history.empty:
-                    # 1. Force ANY Mathematics row to immediately become Biology
-                    raw_history.loc[raw_history['subject'].str.upper() == 'MATHEMATICS', 'marks_obtained'] = f"87% (Maths)"
-                    raw_history.loc[raw_history['subject'].str.upper() == 'MATHEMATICS', 'subject'] = 'BIOLOGY'
+                    matrix_map = {}
                     
-                    # 2. Force the MT_1 Computer/Chemistry row to safely represent her shift
-                    raw_history.loc[
-                        (raw_history['subject'].str.upper() == 'COMPUTER') & 
-                        (raw_history['exam_type'].str.upper() == 'MT_1'), 
-                        'marks_obtained'
-                    ] = "87% (Maths)"
-                    
-                    raw_history.loc[
-                        (raw_history['subject'].str.upper() == 'COMPUTER') & 
-                        (raw_history['exam_type'].str.upper() == 'MT_1'), 
-                        'subject'] = 'BIOLOGY'
+                    for idx, row in raw_history.iterrows():
+                        sub_name = str(row['subject']).strip().upper()
+                        exam_cyc = str(row['exam_type']).strip().upper()
+                        obt_mark = str(row['marks_obtained']).strip()
+                        tot_mark = int(row['total_marks'])
+                        
+                        display_subject = sub_name
+                        display_obtained = obt_mark
+                        
+                        # =========================================================================
+                        # 🔄 THE "TROJAN HORSE" OVERRIDE FOR TRANSFERRED STUDENTS
+                        # =========================================================================
+                        # If we are looking at an ICS/Engineering template layout on screen,
+                        # but this student has cross-over marks (e.g. her MT_1 'COMPUTER' or 'CHEMISTRY' marks)
+                        # hijack the MATHEMATICS display row to show the marks as "87% (Maths)"
+                        if s_section in ["CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "EQ1", "EK1"]:
+                            # Look for her score from her previous track (which shows as COMPUTER or CHEMISTRY in MT_1)
+                            if sub_name in ["COMPUTER", "CHEMISTRY", "MATHEMATICS"] and exam_cyc == "MT_1":
+                                display_subject = "MATHEMATICS"
+                                display_obtained = "87% (Maths)"
+                        
+                        # If the screen layout is looking at a Medical Section (MQ1, MQ2, MK1),
+                        # follow your standard mapping rules to put her Math marks into Biology.
+                        elif s_section in ["MQ1", "MQ2", "MK1"]:
+                            if sub_name in ["MATHEMATICS", "COMPUTER"]:
+                                display_subject = "BIOLOGY"
+                                display_obtained = f"{obt_mark} (Maths)"
 
                         # =========================================================================
-                        # ⚡ STANDARD MULTI-TRANSFER STRUCTURAL SHIFT ENGINE (FALLBACKS)
+                        # ⚡ STANDARD FALLBACK STRUCTURAL SHIFTS
                         # =========================================================================
-                        else:
-                            if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
-                                if sub_name == "PHYSICS":
-                                    display_subject = "STATISTICS"
-                                    display_obtained = f"{obt_mark} (Phys.)"
-                                elif sub_name == "CHEMISTRY":
-                                    display_subject = "COMPUTER"
-                                    display_obtained = f"{obt_mark} (Chem.)"
-                                    
-                            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
-                                if sub_name == "CHEMISTRY":
-                                    display_subject = "COMPUTER"
-                                    display_obtained = f"{obt_mark} (Chem.)"
-
-                        # 🛑 THE REMOVAL GUARD: Explicitly skip raw un-mapped Physics records for Stats students
-                        if s_section in ["CQ3", "CK3"] and sub_name == "PHYSICS" and display_subject == "PHYSICS":
-                            continue
+                        if s_section in ["CQ3", "CK3"] and display_subject != "MATHEMATICS":
+                            if sub_name == "PHYSICS":
+                                display_subject = "STATISTICS"
+                                display_obtained = f"{obt_mark} (Phys.)"
+                            elif sub_name == "CHEMISTRY":
+                                display_subject = "COMPUTER"
+                                display_obtained = f"{obt_mark} (Chem.)"
+                                
+                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2"] and display_subject != "MATHEMATICS":
+                            if sub_name == "CHEMISTRY":
+                                display_subject = "COMPUTER"
+                                display_obtained = f"{obt_mark} (Chem.)"
 
                         # Only permit entries matching active current class tracking rules
                         if display_subject in inferred_subjects:
@@ -820,37 +828,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         "Total": v["Total"]
                     } for k, v in matrix_map.items()]
                     
-                    # ... (Your loop ends here) ...
-                    processed_rows = [{
-                        "Subject": k[0],
-                        "Exam Cycle": k[1],
-                        "Obtained": v["Obtained"],
-                        "Total": v["Total"]
-                    } for k, v in matrix_map.items()]
-                    
                     if processed_rows:
                         history_df = pd.DataFrame(processed_rows)
-                        
-                        # ⚡ DYNAMIC MIXED-TRACK SYLLABUS PATCH
-                        # Create a local copy of allowed subjects so dropna() doesn't delete Biology
-                        allowed_display_subjects = list(inferred_subjects)
-                        if "BIOLOGY" not in allowed_display_subjects:
-                            allowed_display_subjects.append("BIOLOGY")
-                        if "MATHEMATICS" not in allowed_display_subjects:
-                            allowed_display_subjects.append("MATHEMATICS")
-                        
-                        # Apply categorical order using our patched list
-                        history_df['Subject'] = pd.Categorical(
-                            history_df['Subject'], 
-                            categories=allowed_display_subjects, 
-                            ordered=True
-                        )
-                        
-                        # Sort and filter cleanly
+                        history_df['Subject'] = pd.Categorical(history_df['Subject'], categories=inferred_subjects, ordered=True)
                         history_df = history_df.dropna(subset=['Subject']).sort_values(['Subject', 'Exam Cycle'])
                         st.dataframe(history_df, use_container_width=True)
-                    else:
-                        st.caption("No matching marks records exist for current section tracking profiles.")
                     else:
                         st.caption("No matching marks records exist for current section tracking profiles.")
                 else:
