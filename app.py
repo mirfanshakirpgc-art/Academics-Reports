@@ -781,7 +781,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # Apply track evaluation across ALL exam cycles seamlessly
+                        # ⚡ COMPLETE TRACK MIGRATION RE-MAPPING MATRIX (NO EXAM CYCLE RESTRICTIONS)
                         if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
                             if sub_name == "PHYSICS":
                                 display_subject = "STATISTICS"
@@ -792,6 +792,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             elif sub_name == "BIOLOGY":
                                 display_subject = "STATISTICS"
                                 display_obtained = f"{obt_mark} (Bio)"
+                                
                         elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
                             if sub_name == "BIOLOGY":
                                 display_subject = "PHYSICS"
@@ -799,15 +800,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             elif sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
+                                
                         elif s_section in ["EK1", "EQ1"]:  # Engineering Section Context
                             if sub_name == "BIOLOGY":
                                 display_subject = "MATHEMATICS"
                                 display_obtained = f"{obt_mark} (Bio)"
+                                
                         elif s_section in ["MQ1", "MQ2", "MK1"]:  # Medical Section Context
                             if sub_name == "MATHEMATICS":
                                 display_subject = "BIOLOGY"
                                 display_obtained = f"{obt_mark} (Math)"
                         
+                        # 🛑 CRITICAL FILTER: Drop original 'PHYSICS' rows if student is currently in CQ3/CK3
+                        if s_section in ["CQ3", "CK3"] and sub_name == "PHYSICS" and display_subject == "PHYSICS":
+                            continue
+
                         # Only permit entries matching active current class tracking rules
                         if display_subject in inferred_subjects:
                             matrix_key = (display_subject, exam_cyc)
