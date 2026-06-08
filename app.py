@@ -634,10 +634,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             if not students_df.empty:
                 st.markdown(f"### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                 
-                # --- NEW GLOBAL UTILITY FOR NC OVERRIDE ---
-                col_nc_left, col_nc_right = st.columns([3, 1])
-                with col_nc_right:
-                    global_nc_trigger = st.button("🚫 Mark Entire Class as NC", use_container_width=True, help="Sets all students below to Not Conducted automatically")
+                # --- GLOBAL ACTIONS ROW ---
+                st.markdown("##### ⚡ Global Actions")
+                g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
+                with g_col2:
+                    global_abs_trigger = st.button("👤 Mark All Absent", use_container_width=True)
+                with g_col3:
+                    global_nc_trigger = st.button("🚫 Mark All NC", use_container_width=True)
                 
                 try:
                     existing_marks_query = "SELECT student_id, obtained_marks, is_absent FROM marks WHERE subject = :sub AND exam_cycle = :exam AND section = :sec AND session = :sess"
@@ -646,28 +649,57 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 except Exception: marks_cache = {}
 
                 marks_payload = []
-                with st.form(key="bulk_marks_submission_form_v6"):
+                with st.form(key="bulk_marks_submission_form_v7"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
                         default_val, default_abs = marks_cache.get(sid, (0, False))
                         
-                        # Force NC state true across row lists if global actions are requested
+                        # Apply global triggers if clicked
                         is_nc_default = True if (float(default_val) == -1.0 or global_nc_trigger) else False
-                        ui_marks_default = 0 if is_nc_default else int(default_val)
+                        is_abs_default = True if (bool(default_abs) or global_abs_trigger) else False
+                        
+                        if global_nc_trigger:
+                            is_abs_default = False
+                        if global_abs_trigger:
+                            is_nc_default = False
+                            
+                        ui_marks_default = "0" if (is_nc_default or is_abs_default) else str(int(default_val))
                         
                         r_col1, r_col2, r_col3, r_col4 = st.columns([3, 2, 1, 1])
-                        with r_col1: st.markdown(f"**{sid}** — {sname}")
-                        with r_col2: obs_val = st.number_input(f"Marks (Max {total_marks})", min_value=0, max_value=int(total_marks), value=int(ui_marks_default), step=1, key=f"score_{sid}")
-                        with r_col3: abs_check = st.checkbox("Absent", value=bool(default_abs) if not global_nc_trigger else False, key=f"abs_{sid}")
-                        with r_col4: nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
+                        with r_col1: 
+                            st.markdown(f"**{sid}** — {sname}")
+                        with r_col2: 
+                            # 🎯 REMOVED + - : Replaced number_input with text_input to get rid of the step buttons
+                            obs_val_str = st.text_input(
+                                f"Marks (Max {total_marks})", 
+                                value=ui_marks_default, 
+                                key=f"score_{sid}",
+                                label_visibility="collapsed"
+                            )
+                        with r_col3: 
+                            abs_check = st.checkbox("Absent", value=is_abs_default, key=f"abs_{sid}")
+                        with r_col4: 
+                            nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
                         
-                        final_saved_score = obs_val
-                        if nc_check: final_saved_score = -1.0
-                        elif abs_check: final_saved_score = 0.0
+                        # Validation logic parsing text_input safely back to numeric database values
+                        try:
+                            clean_score = int(''.join(filter(str.isdigit, obs_val_str))) if obs_val_str else 0
+                            if clean_score > int(total_marks):
+                                clean_score = int(total_marks)
+                        except ValueError:
+                            clean_score = 0
+
+                        final_saved_score = clean_score
+                        if nc_check: 
+                            final_saved_score = -1.0
+                        elif abs_check: 
+                            final_saved_score = 0.0
 
                         marks_payload.append({
-                            "student_id": sid, "obtained_marks": final_saved_score, "is_absent": 1 if (abs_check and not nc_check) else 0
+                            "student_id": sid, 
+                            "obtained_marks": final_saved_score, 
+                            "is_absent": 1 if (abs_check and not nc_check) else 0
                         })
                     
                     submit_btn = st.form_submit_button("💾 Save & Commit Marks Registry", use_container_width=True)
@@ -698,40 +730,35 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         st.info("Single Student Entry Sub-Console Interface Active.")
         
     # ================================================================================
-    # WORKFLOW 3: BULK EXCEL / CSV IMPORT (FULLY IMPLEMENTED)
+    # WORKFLOW 3: BULK EXCEL / CSV IMPORT
     # ================================================================================
     elif entry_mode == "📥 Bulk Excel/CSV Import":
         st.markdown("### 📥 Bulk Marks Excel Upload Pipeline")
         
-        # 1. Pipeline Context Variables Selection Row
         ec1, ec2, ec3, ec4 = st.columns(4)
         with ec1: upload_session = st.selectbox("Select Target Session:", session_options, key="xl_sess")
         with ec2: upload_class = st.selectbox("Select Target Class/Semester:", ["11th", "12th", "1st Semester", "2nd Semester"], key="xl_class")
         with ec3: upload_exam = st.selectbox("Select Assessment Cycle:", all_frameworks, key="xl_exam")
         with ec4: upload_tot_marks = st.number_input("Confirm Total Marks Capacity:", min_value=1, max_value=200, value=100, step=1, key="xl_tot")
         
-        # 2. Section and Subject parameters fields
         ec5, ec6 = st.columns(2)
         with ec5: upload_section = st.text_input("Enter Section Name Code (e.g. MK, IK, DIT_B):", key="xl_sec").strip().upper()
         with ec6: upload_subject = st.text_input("Enter Exact Subject Code (e.g. CHEMISTRY, POA):", key="xl_sub").strip().upper()
         
         st.markdown("---")
         
-        # Helper Instructions
         with st.expander("💡 View Formatting Excel Guidelines"):
             st.markdown("""
             Your uploaded spreadsheet file **must contain** the following exact column naming headers:
-            * `student_id` : The numeric unique university identifier key code.
+            * `student_id` : The numeric unique identifier key code.
             * `obtained_marks` : Input a numeric score, `0` for Absentees, or write **`NC`** if the test wasn't conducted.
             * `is_absent` : Put `1` if student was absent, otherwise keep it `0` (leave `0` if marked as `NC`).
             """)
             
-            # Dynamic template file generator creation setup
             template_df = pd.DataFrame(columns=["student_id", "obtained_marks", "is_absent"])
             csv_data = template_df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Standard Excel Blank Template.csv", data=csv_data, file_name="academic_marks_template.csv", mime="text/csv")
             
-        # 3. File Input Pipeline Object Element
         uploaded_file = st.file_uploader("📤 Choose formatted CSV/Excel spreadsheet data file:", type=["csv", "xlsx"])
         
         if uploaded_file is not None:
@@ -741,7 +768,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     df = pd.read_excel(uploaded_file)
                 
-                # Normalize column strings formatting
                 df.columns = [str(c).strip().lower() for c in df.columns]
                 
                 required_cols = ["student_id", "obtained_marks", "is_absent"]
@@ -752,12 +778,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     if st.button("🚀 Push Uploaded Marks Data into System", use_container_width=True):
                         success_imports = 0
                         for _, row in df.iterrows():
-                            # Extract clean raw variables
                             sid_val = str(row["student_id"]).strip()
                             raw_marks = str(row["obtained_marks"]).strip().upper()
                             abs_flag = int(row["is_absent"]) if pd.notna(row["is_absent"]) else 0
                             
-                            # Standardize numeric values for NC translations
                             if raw_marks == "NC":
                                 db_final_score = -1.0
                                 abs_flag = 0
@@ -784,7 +808,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 st.error(f"Error importing row identifier record {sid_val}: {db_err}")
                                 
                         if success_imports > 0:
-                            st.success(f"🎉 Bulk Processing Completed! Imported {success_imports} student data entries into database system maps safely.")
+                            st.success(f"🎉 Bulk Processing Completed! Imported {success_imports} student data entries safely.")
                 else:
                     st.error(f"❌ Missing layout schema column fields. File must contain exactly: {required_cols}")
             except Exception as read_err:
