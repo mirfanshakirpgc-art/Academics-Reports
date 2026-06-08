@@ -696,13 +696,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 EXACT DISCIPLINE-WISE SUBJECT MAPS INTEGRATION
+                # 🎯 CURRENT SECTION SUBJECTS ONLY (Clean drop-down menu)
                 inferred_subjects = []
-                
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
                 else:
-                    # Annual System: Parse exact matches according to the structural matrix rules
                     if s_section in ["MQ1", "MQ2", "MK1"]:
                         inferred_subjects = ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
                     elif s_section in ["EK1", "EQ1"]:
@@ -716,20 +714,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     elif s_section in ["FQ1", "FK1"]:
                         inferred_subjects = ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
                     else:
-                        # Baseline global configuration fallback if section tag doesn't match standard prefixes
                         inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
                 
-                # Standardize current arrays to clean uppercase values
-                inferred_subjects = [sub.upper().strip() for sub in inferred_subjects if sub]
-                
-                # 🎯 SCAN HISTORICAL DATA: Dynamically merge any extra crossed subjects recorded in the database
-                historical_subs_df = run_query("SELECT DISTINCT UPPER(TRIM(subject)) as historic_sub FROM marks WHERE student_id = :id", {"id": int(single_id)})
-                if not historical_subs_df.empty:
-                    historical_list = historical_subs_df['historic_sub'].tolist()
-                    inferred_subjects.extend(historical_list)
-                
-                # Deduplicate and sort drop-down menu items cleanly
-                inferred_subjects = sorted(list(set(inferred_subjects)))
+                inferred_subjects = sorted(list(set([sub.upper().strip() for sub in inferred_subjects if sub])))
                 
                 # --- LAYOUT MANAGEMENT ---
                 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
@@ -760,14 +747,43 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # Current logged history dataframe table view
+                # 🎯 SMART HISTORICAL RE-ROUTING VIEW (e.g., 80 (Bio) in Mathematics Row)
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
-                history_df = run_query("""
-                    SELECT subject AS "Subject", exam_type AS "Exam Cycle", marks_obtained AS "Obtained", total_marks AS "Total"
-                    FROM marks WHERE student_id = :id ORDER BY subject, exam_type
+                
+                raw_history = run_query("""
+                    SELECT subject, exam_type, marks_obtained, total_marks 
+                    FROM marks WHERE student_id = :id ORDER BY exam_type, subject
                 """, {"id": int(single_id)})
-                if not history_df.empty:
+                
+                if not raw_history.empty:
+                    processed_rows = []
+                    for idx, row in raw_history.iterrows():
+                        sub_name = str(row['subject']).upper().strip()
+                        exam_cyc = str(row['exam_type']).upper().strip()
+                        obt_mark = str(row['marks_obtained']).strip()
+                        tot_mark = int(row['total_marks'])
+                        
+                        # Apply context override labels for old subjects to show within the current rows
+                        display_subject = sub_name
+                        display_obtained = obt_mark
+                        
+                        if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                            if sub_name == "BIOLOGY":
+                                display_subject = "MATHEMATICS"
+                                display_obtained = f"{obt_mark} (Bio)"
+                            elif sub_name == "CHEMISTRY":
+                                display_subject = "COMPUTER"
+                                display_obtained = f"{obt_mark} (Chem)"
+                                
+                        processed_rows.append({
+                            "Subject": display_subject,
+                            "Exam Cycle": exam_cyc,
+                            "Obtained": display_obtained,
+                            "Total": tot_mark
+                        })
+                    
+                    history_df = pd.DataFrame(processed_rows)
                     st.dataframe(history_df, use_container_width=True)
                 else:
                     st.caption("No marks records exist in the database for this student yet.")
@@ -777,7 +793,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
         if uploaded_file is not None:
             st.info("📊 Processing files runs standard automated validation rules against raw formats.")
-
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DICTIONARY ALIGNED & ZERO-DELAY LOADING)
 # ====================================================================================
