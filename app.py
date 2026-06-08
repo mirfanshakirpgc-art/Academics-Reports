@@ -635,7 +635,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
                     ORDER BY s.id ASC
                 """, {
-                    "subject": sel_subject, "exam": exam, "section": sel_section, "session": sel_session
+                    "subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session
                 })
                 
                 if roster_df.empty:
@@ -665,7 +665,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
         
-        # 🎯 ADDED: Filter row context prior to roll number evaluation
         f_col1, f_col2, f_col3 = st.columns([1.5, 1.5, 2])
         with f_col1:
             single_session = st.selectbox("Filter by Session:", options=session_options, key="s_search_sess")
@@ -680,7 +679,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
         
         if single_id and single_id.isdigit():
-            # 🎯 CHANGED: Query now looks up the ID constrained explicitly by selected session and class layout contexts
             student_info = run_query("""
                 SELECT name, section, session, class FROM students 
                 WHERE id = :id 
@@ -698,28 +696,31 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # Base fallback subjects list
-                inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"]
+                # 🎯 COMPREHENSIVE SUBJECT LIST GENERATION
+                # We start with a baseline of all core subjects across common streams
+                inferred_subjects = [
+                    "ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", 
+                    "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER", "MATHEMATICS", "STATISTICS"
+                ]
+                
+                # Dynamically append mapped subjects from global configuration structural types if available
                 try:
-                    if "BLUE" in s_section or "PRE_MED" in s_section or "MG" in s_section or "CQ" in s_section:
-                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("MEDICAL", inferred_subjects)
-                    elif "ENG" in s_section or "EG" in s_section:
-                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("ENGINEERING", inferred_subjects)
-                    elif "ICS_PHYSICS" in s_section or "ICS" in s_section:
-                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("ICS_PHYSICS", inferred_subjects)
-                    elif "STAT" in s_section:
-                        inferred_subjects = DISCIPLINE_SUBJECTS_MAP.get("ICS_STATISTICS", inferred_subjects)
+                    for key in ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATISTICS", "COMMERCE", "HUMANITIES"]:
+                        mapped_subs = DISCIPLINE_SUBJECTS_MAP.get(key, [])
+                        inferred_subjects.extend([str(m).upper().strip() for m in mapped_subs])
                 except NameError:
                     pass
                 
-                inferred_subjects = [sub.upper().strip() for sub in inferred_subjects]
+                # Standardize strings
+                inferred_subjects = [sub.upper().strip() for sub in inferred_subjects if sub]
                 
-                # Include any historical subjects for which this student has logged marks
+                # 🎯 PULL HISTORICAL RECORDS (Ensures odd combinations like Anaiba's are fully covered)
                 historical_subs_df = run_query("SELECT DISTINCT UPPER(TRIM(subject)) as historic_sub FROM marks WHERE student_id = :id", {"id": int(single_id)})
                 if not historical_subs_df.empty:
                     historical_list = historical_subs_df['historic_sub'].tolist()
                     inferred_subjects.extend(historical_list)
                 
+                # Cleanup lists to build clear unique elements
                 inferred_subjects = sorted(list(set(inferred_subjects)))
                 
                 # --- LAYOUT MANAGEMENT ---
