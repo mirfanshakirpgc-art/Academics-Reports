@@ -696,7 +696,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
                 
-                # 🎯 STRATEGIC TRACK-BOUND DROPDOWN SUBJECTS
+                # 🎯 TRACK DROPDOWN OVERRIDES
                 inferred_subjects = []
                 if single_system == "Semester System" or "DIT" in s_section:
                     inferred_subjects = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -708,6 +708,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                         inferred_subjects = ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
                     elif s_section in ["CQ3", "CK3"]:
+                        # CRITICAL DROPDOWN FIX: This explicitly populates STATISTICS and cuts out PHYSICS entirely from the dropdown list array
                         inferred_subjects = ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
                     elif s_section in ["IQ1", "IK1"]:
                         inferred_subjects = ["POA", "BANKING", "B_STATS", "GEO", "URDU", "ENGLISH", "PAK_ST", "T_QURAN"]
@@ -727,7 +728,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 with c_m3: 
                     single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
-                # 🎯 ADVANCED CONDITIONAL INTERCEPTION FOR THE DROPDOWNS
+                # 🎯 DATABASE SYNC ROUTING INTERCEPTION
                 lookup_subject = single_sub
                 if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                     if single_sub == "PHYSICS" and single_exam == "MT_1": lookup_subject = "BIOLOGY"
@@ -760,7 +761,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 COMPLETE MATRIX RE-ROUTING PIPELINE FOR VISUALIZATION SQUASHING
+                # 🎯 COMPREHENSIVE MATRIX SQUASH PIPELINE FOR HISTORY VIEW
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -781,7 +782,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # Apply custom displacement row mapping overrides
+                        # Apply dynamic displacement row mappings
                         if s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                             if sub_name == "BIOLOGY":
                                 display_subject = "PHYSICS"
@@ -797,7 +798,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
                         
-                        # Core fix: Use the final overridden display_subject as the unique key to prevent separate lines!
                         matrix_key = (display_subject, exam_cyc)
                         matrix_map[matrix_key] = {"Obtained": display_obtained, "Total": tot_mark}
                     
