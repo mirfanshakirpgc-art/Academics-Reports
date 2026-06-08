@@ -729,11 +729,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 # Dynamic translation rules to intercept entry reads/saves seamlessly 
                 lookup_subject = single_sub
-                if single_sub == "STATISTICS" and single_exam == "MT_1":
+                if single_sub == "STATISTICS":
                     lookup_subject = "PHYSICS"
-                elif single_sub == "COMPUTER" and single_exam == "MT_1":
+                elif single_sub == "COMPUTER" and s_section in ["CQ3", "CK3"]:
                     lookup_subject = "CHEMISTRY"
-                elif single_sub == "PHYSICS" and single_exam == "MT_1" and s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
+                elif single_sub == "PHYSICS" and s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
                     lookup_subject = "BIOLOGY"
 
                 existing_m = run_query("""
@@ -760,7 +760,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
                     st.rerun()
                 
-                # 🎯 UNIVERSAL DYNAMIC INDEX-BASED HISTORY DISPLACEMENT MATRICES
+                # 🎯 GLOBAL TRACK HISTORY RE-MAPPING ENGINE (REMOVED EXAM_CYC RESTRICTION)
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
@@ -781,31 +781,32 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # 🔄 INDEX-BASED TRACK SLOPPING ALGORITHM
-                        # This maps historical subjects purely based on what elective slot they occupied.
-                        if exam_cyc == "MT_1":
-                            if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
-                                if sub_name == "PHYSICS":
-                                    display_subject = "STATISTICS"
-                                    display_obtained = f"{obt_mark} (Phys.)"
-                                elif sub_name == "CHEMISTRY":
-                                    display_subject = "COMPUTER"
-                                    display_obtained = f"{obt_mark} (Chem.)"
-                            elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
-                                if sub_name == "BIOLOGY":
-                                    display_subject = "PHYSICS"
-                                    display_obtained = f"{obt_mark} (Biol.)"
-                                elif sub_name == "CHEMISTRY":
-                                    display_subject = "COMPUTER"
-                                    display_obtained = f"{obt_mark} (Chem.)"
-                            elif s_section in ["EK1", "EQ1"]:  # Engineering Section Context
-                                if sub_name == "BIOLOGY":
-                                    display_subject = "MATHEMATICS"
-                                    display_obtained = f"{obt_mark} (Bio)"
-                            elif s_section in ["MQ1", "MQ2", "MK1"]:  # Medical Section Context
-                                if sub_name == "MATHEMATICS":
-                                    display_subject = "BIOLOGY"
-                                    display_obtained = f"{obt_mark} (Math)"
+                        # Apply track evaluation across ALL exam cycles seamlessly
+                        if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
+                            if sub_name == "PHYSICS":
+                                display_subject = "STATISTICS"
+                                display_obtained = f"{obt_mark} (Phys.)"
+                            elif sub_name == "CHEMISTRY":
+                                display_subject = "COMPUTER"
+                                display_obtained = f"{obt_mark} (Chem.)"
+                            elif sub_name == "BIOLOGY":
+                                display_subject = "STATISTICS"
+                                display_obtained = f"{obt_mark} (Bio)"
+                        elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
+                            if sub_name == "BIOLOGY":
+                                display_subject = "PHYSICS"
+                                display_obtained = f"{obt_mark} (Biol.)"
+                            elif sub_name == "CHEMISTRY":
+                                display_subject = "COMPUTER"
+                                display_obtained = f"{obt_mark} (Chem.)"
+                        elif s_section in ["EK1", "EQ1"]:  # Engineering Section Context
+                            if sub_name == "BIOLOGY":
+                                display_subject = "MATHEMATICS"
+                                display_obtained = f"{obt_mark} (Bio)"
+                        elif s_section in ["MQ1", "MQ2", "MK1"]:  # Medical Section Context
+                            if sub_name == "MATHEMATICS":
+                                display_subject = "BIOLOGY"
+                                display_obtained = f"{obt_mark} (Math)"
                         
                         # Only permit entries matching active current class tracking rules
                         if display_subject in inferred_subjects:
@@ -819,11 +820,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         "Total": v["Total"]
                     } for k, v in matrix_map.items()]
                     
-                    history_df = pd.DataFrame(processed_rows)
-                    history_df['Subject'] = pd.Categorical(history_df['Subject'], categories=inferred_subjects, ordered=True)
-                    history_df = history_df.dropna(subset=['Subject']).sort_values(['Subject', 'Exam Cycle'])
-                    
-                    st.dataframe(history_df, use_container_width=True)
+                    if processed_rows:
+                        history_df = pd.DataFrame(processed_rows)
+                        history_df['Subject'] = pd.Categorical(history_df['Subject'], categories=inferred_subjects, ordered=True)
+                        history_df = history_df.dropna(subset=['Subject']).sort_values(['Subject', 'Exam Cycle'])
+                        st.dataframe(history_df, use_container_width=True)
+                    else:
+                        st.caption("No matching marks records exist for current section tracking profiles.")
                 else:
                     st.caption("No marks records exist in the database for this student yet.")
 
