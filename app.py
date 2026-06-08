@@ -764,6 +764,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.markdown("---")
                 st.markdown("##### 📊 Current Logged Marks History for Student")
                 
+                # 🎯 GLOBAL TRACK HISTORY RE-MAPPING ENGINE (REMOVED EXAM_CYC RESTRICTION)
+                st.markdown("---")
+                st.markdown("##### 📊 Current Logged Marks History for Student")
+                
                 raw_history = run_query("""
                     SELECT subject, exam_type, marks_obtained, total_marks 
                     FROM marks WHERE student_id = :id ORDER BY exam_type, subject
@@ -781,7 +785,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # ⚡ COMPLETE TRACK MIGRATION RE-MAPPING MATRIX (NO EXAM CYCLE RESTRICTIONS)
+                        # ⚡ MULTI-TRANSFER STRUCTURAL SHIFT ENGINE
                         if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
                             if sub_name == "PHYSICS":
                                 display_subject = "STATISTICS"
@@ -811,7 +815,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 display_subject = "BIOLOGY"
                                 display_obtained = f"{obt_mark} (Math)"
                         
-                        # 🛑 CRITICAL FILTER: Drop original 'PHYSICS' rows if student is currently in CQ3/CK3
+                        # 🛑 THE REMOVAL GUARD: Explicitly skip raw un-mapped Physics records for Stats students
                         if s_section in ["CQ3", "CK3"] and sub_name == "PHYSICS" and display_subject == "PHYSICS":
                             continue
 
