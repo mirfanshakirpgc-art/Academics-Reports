@@ -1497,7 +1497,9 @@ elif menu_choice == "📋 Section Summary Report":
         </html>
         """
         components.html(analytics_html_payload, height=750, scrolling=True)
-# ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+# =========================================================================
+# PART 1: INTERFACE FILTERS & SCOPE FORM VALIDATION CONTEXT
+# =========================================================================
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
@@ -1522,17 +1524,16 @@ if menu_choice == "📈 Multi-Test Progress Report":
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     st.markdown('##### 🎛️ Filter Configuration Panel')
     
-    # 1. Base Configuration Options (System & Session)
+    # Base Configuration Options (System & Session)
     col_base1, col_base2 = st.columns(2)
     with col_base1:
         sel_session_global = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="global_sel_sess")
     with col_base2:
         academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="mt_system_type")
 
-    # Separator line to keep things visually structured
     st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
 
-    # 2. Sequential Options based on Academic System Choice
+    # Sequential Options based on Academic System Choice
     col_dyn1, col_dyn2, col_dyn3 = st.columns(3)
 
     if academic_system == "Annual System":
@@ -1540,16 +1541,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
         with col_dyn2:
-            # Dynamically extract actual campus sections from DISCIPLINE_SECTIONS_MAP
             annual_sections = []
             for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
                 if "DIT" not in discipline.upper():
                     sections_list = class_data.get(sel_class_global, [])
                     annual_sections.extend(sections_list)
             
-            # Remove duplicates and sort alphabetically
             annual_sections = sorted(list(set(annual_sections)))
-            
             if not annual_sections:
                 annual_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CB_WHITE"]
                 
@@ -1568,6 +1566,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
         with col_dyn3:
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
+            
     st.markdown("---")
 
     # Scope Selector Strategy
@@ -1597,8 +1596,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             else:
                 try:
                     query_id = int(clean_id) if clean_id.isdigit() else clean_id
-                    
-                    # 🌟 FIX: Checked dynamically across sections to allow section-changed profiles to populate seamlessly!
                     student_df = run_query("""
                         SELECT id, name, section, class 
                         FROM students 
@@ -1640,8 +1637,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 st.error(f"💡 No registered student profiles found matching section '{rendered_section}' for Session {sel_session_global} ({sel_class_global}).")
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
+    # =========================================================================
+# PART 2: ASYNC DATA AGGREGATION PIPELINE (MARKS & ATTENDANCE)
+# =========================================================================
     if students_to_process and not selected_exams_list:
         st.warning("⚠️ Select at least one metric from the configuration panel to compile report views.")
         
@@ -1661,7 +1659,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
-        # 1. Performance Marks Fetching Segment
+        # Performance Marks Fetching Segment
         try:
             sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
             cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
@@ -1685,7 +1683,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Attendance Scanner Segment (Fixed & Hardened)
+        # Attendance Scanner Segment
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
@@ -1713,14 +1711,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     attendance_df = attendance_df.rename(columns={status_col: "status"})
         except Exception as e:
             st.error(f"⚠️ Attendance query mapping fault resolved implicitly. Details: {str(e)}")
-
+            # =========================================================================
+# PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
+# =========================================================================
         # CSS Styling Configurations
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
         css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
         css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
-        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; } .btn-img-single { background-color: #e65100; }"
-        css_rules += " .btn-img-single:hover { background-color: #b33900; } .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
+        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; }"
+        css_rules += " .btn-img-single { background-color: #e65100; } .btn-img-single:hover { background-color: #b33900; }"
+        css_rules += " .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
         css_rules += " .cck-container { background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }"
         css_rules += " .cck-header-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }"
         css_rules += " .cck-logo-image-container { width: 75px; height: 75px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }"
@@ -1763,14 +1764,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
             raw_name = str(s_meta["name"])
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
-            # 🌟 ALWAYS check real profile track to prevent ghost rows leaks!
             raw_section = str(s_meta["section"]).strip().upper() if s_meta.get("section") else rendered_section
             s_section = " ".join(raw_section.replace("\n", " ").split())
             
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
             
-            # Determine correct dynamic current curriculum array matching the student section
+            # Determine dynamic track categories array matching student section profiles
             if s_section in ["CQ3", "CK3"]:
                 inferred_subjects = ["ENGLISH", "URDU", "ISLAMIAT", "PAK_STUDIES", "T_QURAN", "COMPUTER", "MATHEMATICS", "STATISTICS"]
             elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
@@ -1791,10 +1791,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
-                    # 🎯 Advanced Dynamic Remapping Layer for Migrated Cohorts
+                    # 🎯 FIXED COHORT ALIASED REMAPPING PATTERNS FOR CROSS-OVER TRACKS
                     def resolve_aliased_subjects(row_sub):
                         sub_clean = str(row_sub).strip().upper()
-                        if s_section in ["CQ3", "CK3"]:
+                        if s_section in ["MQ1", "MQ2", "MK1"]:
+                            # Force old non-medical identifiers directly into the Biology reporting lane
+                            if sub_clean in ["COMPUTER", "MATHEMATICS"]: 
+                                return "BIOLOGY"
+                        elif s_section in ["CQ3", "CK3"]:
                             if sub_clean in ["PHYSICS", "BIOLOGY"]: return "STATISTICS"
                             if sub_clean == "CHEMISTRY": return "COMPUTER"
                         elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:
@@ -1826,8 +1830,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
                                     actual_sub_name = match_row.iloc[0]["subject_name"].upper()
+                                    
+                                    # Formulate a beautiful helper notation if a subject got converted
                                     if actual_sub_name != sub:
-                                        short_notation = actual_sub_name.title()[:4] + "."
+                                        short_notation = "Maths" if actual_sub_name in ["COMPUTER", "MATHEMATICS"] else actual_sub_name.title()[:4] + "."
                                         row_tds += f"<td>{pct}% <span style='font-size:11px; font-weight:normal; color:#555;'>({short_notation})</span></td>"
                                     else:
                                         row_tds += f"<td>{pct}%</td>"
@@ -1869,8 +1875,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
-
-            # --- ATTENDANCE REPORT MATRIX (ROBUST RE-FETCH FIX) ---
+                # =========================================================================
+# PART 4: ATTENDANCE COMPILATION MATRIX & CANVAS UI FRAME
+# =========================================================================
+            # --- ATTENDANCE REPORT MATRIX ---
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
