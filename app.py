@@ -1683,23 +1683,36 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # Attendance Scanner Segment (Fixed Dynamic Column Resolution)
+        # Attendance Scanner Segment (Aggressive Native Column Scanner)
         try:
-            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
+            # Let's run a direct query to inspect the actual system table columns
+            columns_schema = run_query("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'attendance'
+            """, {})
             
-            # Dynamically identify whatever date tracking token your table is using
-            real_date_col = "attendance_date"
-            for field in ["date", "date_marked", "att_date", "attendance_date"]:
-                if field in cols_att:
-                    real_date_col = field
+            cols_att = []
+            if not columns_schema.empty:
+                cols_att = [str(c).lower().strip() for c in columns_schema.iloc[:, 0].tolist()]
+            
+            # Match the date token based on real structural contents
+            real_date_col = "date"  # Default fallback standard
+            for variant in ["date", "date_marked", "att_date", "attendance_date", "attendance_day"]:
+                if variant in cols_att:
+                    real_date_col = variant
                     break
-            
-            status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
+                    
+            # Match status token
+            real_status_col = "status"
+            for variant in ["status", "attendance_status", "att_status"]:
+                if variant in cols_att:
+                    real_status_col = variant
+                    break
 
-            # 🎯 FIXED: Injection uses the validated column variable directly in the query layout
+            # Execute the targeted compile query using verified schema tokens
             attendance_df = run_query(f"""
-                SELECT student_id, {real_date_col} as attendance_date, {status_col} as status
+                SELECT student_id, {real_date_col} as attendance_date, {real_status_col} as status
                 FROM attendance
                 WHERE student_id IN ({placeholders_str})
             """, params_dict)
@@ -1707,8 +1720,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not attendance_df.empty:
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
+                
         except Exception as e:
-            st.error(f"⚠️ Attendance query failed: {str(e)}")
+            st.error(f"⚠️ Attendance schema compilation fallback activated. Details: {str(e)}")
  
 # =========================================================================
 # PART 3: MICRO-TRANSFER SUBJECT MATRIX & REPORT GENERATION ENGINE
