@@ -1901,7 +1901,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
-```
 # PART 4: ATTENDANCE COMPILATION MATRIX & CANVAS UI FRAME
 # =========================================================================
             # --- ATTENDANCE REPORT MATRIX ---
