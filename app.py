@@ -785,7 +785,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_subject = sub_name
                         display_obtained = obt_mark
                         
-                        # ⚡ MULTI-TRANSFER STRUCTURAL SHIFT ENGINE
+                        # ⚡ MULTI-TRANSFER STRUCTURAL SHIFT ENGINE (UPDATED)
                         if s_section in ["CQ3", "CK3"]:  # ICS Statistics Section Context
                             if sub_name == "PHYSICS":
                                 display_subject = "STATISTICS"
@@ -796,6 +796,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             elif sub_name == "BIOLOGY":
                                 display_subject = "STATISTICS"
                                 display_obtained = f"{obt_mark} (Bio)"
+                            elif sub_name == "MATHEMATICS":
+                                # Catch cross-over engineering/ICS marks if evaluated here
+                                display_subject = "BIOLOGY"
+                                display_obtained = f"{obt_mark} (Maths)"
                                 
                         elif s_section in ["CQ1", "CQ2", "CK1", "CK2"]:  # ICS Physics Section Context
                             if sub_name == "BIOLOGY":
@@ -804,6 +808,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             elif sub_name == "CHEMISTRY":
                                 display_subject = "COMPUTER"
                                 display_obtained = f"{obt_mark} (Chem.)"
+                            elif sub_name == "MATHEMATICS":
+                                display_subject = "BIOLOGY"
+                                display_obtained = f"{obt_mark} (Maths)"
                                 
                         elif s_section in ["EK1", "EQ1"]:  # Engineering Section Context
                             if sub_name == "BIOLOGY":
@@ -813,7 +820,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         elif s_section in ["MQ1", "MQ2", "MK1"]:  # Medical Section Context
                             if sub_name == "MATHEMATICS":
                                 display_subject = "BIOLOGY"
-                                display_obtained = f"{obt_mark} (Math)"
+                                display_obtained = f"{obt_mark} (Maths)"
+                            elif sub_name == "COMPUTER":
+                                display_subject = "BIOLOGY"
+                                display_obtained = f"{obt_mark} (Comp.)"
                         
                         # 🛑 THE REMOVAL GUARD: Explicitly skip raw un-mapped Physics records for Stats students
                         if s_section in ["CQ3", "CK3"] and sub_name == "PHYSICS" and display_subject == "PHYSICS":
