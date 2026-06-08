@@ -605,36 +605,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
                 
-            That `unexpected indent` means one of the inner `else:` blocks is sitting slightly too far to the right or has a stray space in front of it compared to its corresponding `if` statement.
-
-Here is the exact code block with all indentation spaces standardized. Copy this block and paste it directly over the old one—this will line up every `if`, `elif`, and `else` statement perfectly.
-
-### Paste this exact block:
-
-```python
             with c5: 
                 if academic_system == "Annual System":
-                    try: 
-                        base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
-                    except NameError: 
-                        base_subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "BIOLOGY"]
-                    
-                    base_subjects = [str(s).upper().strip() for s in base_subjects]
-                    
-                    if sel_class == "11th":
-                        if "ISL_ETH" not in base_subjects: 
-                            base_subjects.append("ISL_ETH")
-                        available_subjects = [s for s in base_subjects if s != "PAK_STUDIES"]
-                        
-                    elif sel_class == "12th":
-                        if "PAK_STUDIES" not in base_subjects: 
-                            base_subjects.append("PAK_STUDIES")
-                        available_subjects = [s for s in base_subjects if s != "ISL_ETH"]
-                        
-                    else:
-                        available_subjects = base_subjects
-                        if "ISL_ETH" not in available_subjects: available_subjects.append("ISL_ETH")
-                        if "PAK_STUDIES" not in available_subjects: available_subjects.append("PAK_STUDIES")
+                    try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
+                    except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
                 else:
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
@@ -643,9 +617,7 @@ Here is the exact code block with all indentation spaces standardized. Copy this
                     else: 
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 
-                available_subjects = sorted(list(set(available_subjects)))
                 sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
-
         
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
