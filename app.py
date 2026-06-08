@@ -618,6 +618,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 
                 sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
+                    else: 
+                        available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                
+                sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
