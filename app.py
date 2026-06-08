@@ -552,60 +552,92 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                 allowed_secs = sorted(list(teacher_rights['section'].unique()))
                 
-                with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_t")
-                with c2: academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")
-                with c3: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
-                with c4: sel_section = st.selectbox("Select Section:", allowed_secs, key="entry_sec_filter_teacher")
-                with c5: st.info("🔒 Bound to Profile")
-                sel_class = "ALL"
-            else:
-                st.warning("🚨 You do not have any active subjects or sections assigned yet.")
-                sel_subject, sel_section, sel_session, sel_class = None, None, None, None
-        else:
+                # --- Professional Grid Filter Layout ---
             with c1: 
-                sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
+                sel_session = st.selectbox("Session:", session_options, key="entry_sess_a")
             
             with c2:
-                academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
+                academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
 
-            with c3: 
+            with c3:
+                if academic_system == "Annual System":
+                    sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
+                else:
+                    sel_class = st.selectbox("Semester:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
+
+            with c4: 
                 if academic_system == "Annual System":
                     discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-                    selected_ui_discipline = st.selectbox("Select Discipline:", discipline_ui_options, key="marks_disc_sel")
+                    selected_ui_discipline = st.selectbox("Discipline:", discipline_ui_options, key="marks_disc_sel")
                     sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
                     if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
-                    
-                    sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
                 else:
                     sel_discipline = "DIPLOMA_IN_IT_DIT"
-                    sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
+                    st.text_input("Discipline:", value="DIT", disabled=True, key="dit_dis_disabled")
 
-            with c4: 
-                # Dynamically compile target options directly from mapping architecture
-                valid_sections_list = []
-                if academic_system == "Annual System":
-                    # Lookup inside real DISCIPLINE_SECTIONS_MAP safely using standardized keys
-                    lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
-                    
-                    try:
-                        target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
-                        for c_lvl in target_class_levels:
-                            sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
-                            valid_sections_list.extend(sections_found)
-                    except NameError:
-                        pass
-                else:
-                    # Semesters are consistently bound to DIT_G and DIT_B
-                    valid_sections_list = ["DIT_G", "DIT_B"]
+            # --- Dynamically calculate valid sections based on preceding choices ---
+            valid_sections_list = []
+            if academic_system == "Annual System":
+                lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
+                try:
+                    target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
+                    for c_lvl in target_class_levels:
+                        sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
+                        valid_sections_list.extend(sections_found)
+                except NameError:
+                    pass
+            else:
+                valid_sections_list = ["DIT_G", "DIT_B"]
 
-                valid_sections_list = sorted(list(set(valid_sections_list)))
-                if not valid_sections_list:
-                    valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
-                
-                sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
-                
+            valid_sections_list = sorted(list(set(valid_sections_list)))
+            if not valid_sections_list:
+                valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
+
             with c5: 
+                sel_section = st.selectbox("Target Section:", valid_sections_list, key="entry_sec_filter_a")
+
+        # --- Subject Selection Row (Full-width divider layout underneath filters) ---
+        st.markdown("#### Course Selection & Assessment Parameters")
+        sub_col1, sub_col2, sub_col3 = st.columns([2, 2, 1])
+        
+        with sub_col1:
+            if academic_system == "Annual System":
+                try: 
+                    base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
+                except NameError: 
+                    base_subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "BIOLOGY"]
+                
+                base_subjects = [str(s).upper().strip() for s in base_subjects]
+                
+                if sel_discipline == "COMMERCE":
+                    if sel_class == "11th":
+                        available_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
+                    elif sel_class == "12th":
+                        available_subjects = ["POA", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN"]
+                    else:
+                        available_subjects = ["POA", "POC", "B_MATH", "POE", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "ISL_ETH", "PAK_STUDIES", "T_QURAN"]
+                else:
+                    if sel_class == "11th":
+                        if "ISL_ETH" not in base_subjects: base_subjects.append("ISL_ETH")
+                        available_subjects = [s for s in base_subjects if s != "PAK_STUDIES"]
+                    elif sel_class == "12th":
+                        if "PAK_STUDIES" not in base_subjects: base_subjects.append("PAK_STUDIES")
+                        available_subjects = [s for s in base_subjects if s != "ISL_ETH"]
+                    else:
+                        available_subjects = base_subjects
+                        if "ISL_ETH" not in available_subjects: available_subjects.append("ISL_ETH")
+                        if "PAK_STUDIES" not in available_subjects: available_subjects.append("PAK_STUDIES")
+            else:
+                if "1st Semester" in sel_class:
+                    available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                elif "2nd Semester" in sel_class:
+                    available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                else: 
+                    available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+            
+            available_subjects = sorted(list(set(available_subjects)))
+            sel_subject = st.selectbox("Course / Subject Title:", available_subjects, key="entry_sub_filter_a")
                 if academic_system == "Annual System":
                     try: 
                         base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
