@@ -522,6 +522,17 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
+Ah, that's my bad! I mistakenly included my conversational response text directly inside or right above your Python file, which is causing Streamlit to throw a `SyntaxError` when it parses the script.
+
+To fix this, make sure your `app.py` file contains **only** the actual Python code block and none of the conversational prose.
+
+Here is the clean, unadorned code block. Completely replace the problematic area in your file with this:
+
+```python
+import streamlit as st
+import pandas as pd
+from datetime import date
+
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
@@ -735,7 +746,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         
         if search_sid:
             try:
-                # FIXED: Removed non-existent "discipline" column to prevent SQL crashes
                 fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
@@ -747,7 +757,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
-                # Deduce structural discipline path using the section name prefixes dynamically
                 s_sec_upper = str(s_section).upper().strip()
                 if "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: s_discipline = "MEDICAL"
                 elif "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: s_discipline = "ENGINEERING"
@@ -758,7 +767,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 st.markdown("---")
                 st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
                 
-                # Parse available subject options matching inferred tracking attributes
                 if academic_system == "Annual System":
                     if "COMMERCE" in s_discipline:
                         if s_class == "11th": student_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
@@ -781,14 +789,12 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 
                 student_subjects = sorted(list(set([str(s).upper() for s in student_subjects])))
                 
-                # Render parameters selection boxes
                 st.markdown("#### 📝 Select Assessment Course & Assessment Framework")
                 sc3, sc4, sc5 = st.columns([2, 2, 1])
                 with sc3: sel_subject = st.selectbox("Course / Subject Title:", student_subjects, key="single_sub_dropdown")
                 with sc4: sel_exam = st.selectbox("Examination Cycle:", all_frameworks, key="single_exam_dropdown")
                 with sc5: total_marks = st.number_input("Total Marks Capacity:", min_value=1, max_value=200, value=100, step=1, key="single_total_max_marks")
                 
-                # Gather marks cache history records specifically for this student combo
                 try:
                     marks_lookup_query = "SELECT obtained_marks, is_absent FROM marks WHERE student_id = :sid AND subject = :sub AND exam_cycle = :exam"
                     marks_record_df = run_query(marks_lookup_query, {"sid": search_sid, "sub": sel_subject, "exam": sel_exam})
@@ -804,7 +810,6 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 is_abs_init = bool(cached_absent)
                 ui_val_init = "0" if (is_nc_init or is_abs_init) else str(int(cached_score))
                 
-                # Render Marks Entry form panel
                 st.markdown(f"##### 🎯 Input Marks Metrics for {sel_subject} ({sel_exam})")
                 with st.form(key="individual_student_form_panel"):
                     form_c1, form_c2, form_c3 = st.columns([2, 1, 1])
@@ -998,7 +1003,6 @@ elif att_sub_type == "👤 By Single Student Roll Number":
             else:
                 st.dataframe(history_df, use_container_width=True, hide_index=True)
 
-```
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
