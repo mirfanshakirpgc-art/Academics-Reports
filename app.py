@@ -542,6 +542,23 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     except Exception:
         all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
 
+    # Helper function to execute database writes safely across potential routing endpoints
+    def execute_db_write(query_string, params_dict):
+        try:
+            if 'run_action' in locals() or 'run_action' in globals():
+                run_action(query_string, params_dict)
+            elif 'db_execute' in locals() or 'db_execute' in globals():
+                db_execute(query_string, params_dict)
+            else:
+                # Direct update execution proxy using the known-working query parser engine
+                run_query(query_string, params_dict)
+        except Exception:
+            if 'conn' in locals() or 'conn' in globals():
+                from sqlalchemy import text
+                globals().get('conn').execute(text(query_string), params_dict)
+            else:
+                raise NameError("Database update execution system routing could not be auto-resolved.")
+
     # ================================================================================
     # WORKFLOW 1: MANUAL ENTRY BY COMPLETE SECTION
     # ================================================================================
@@ -697,7 +714,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
                                     obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
                                 """
-                                run_action(save_query, {
+                                execute_db_write(save_query, {
                                     "sid": record["student_id"], "sub": sel_subject, "exam": sel_exam, "sec": sel_section,
                                     "sess": sel_session, "obs": record["obtained_marks"], "tot": total_marks, "abs": record["is_absent"]
                                 })
@@ -716,17 +733,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     elif entry_mode == "👤 By Single Student Roll Number":
         st.markdown("### 🔍 Configuration Setup")
         
-        # 1. Row Selection: Only Session and Academic Track up front
         sc1, sc2 = st.columns(2)
         with sc1: sel_session = st.selectbox("Session:", session_options, key="single_sess_filter")
         with sc2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_filter")
         
-        # 2. Text input box for Roll Number
         search_sid = st.text_input("👤 Enter Student Roll Number / ID Code:", value="", key="single_roll_search_input").strip()
         
         if search_sid:
             try:
-                # FIXED: Removed non-existent "discipline" column to prevent SQL crashes
                 fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
@@ -738,7 +752,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
-                # Deduce structural discipline path using the section name prefixes dynamically
                 s_sec_upper = str(s_section).upper().strip()
                 if "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: s_discipline = "MEDICAL"
                 elif "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: s_discipline = "ENGINEERING"
@@ -749,7 +762,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.markdown("---")
                 st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
                 
-                # Parse available subject options matching inferred tracking attributes
                 if academic_system == "Annual System":
                     if "COMMERCE" in s_discipline:
                         if s_class == "11th": student_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
@@ -772,14 +784,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 student_subjects = sorted(list(set([str(s).upper() for s in student_subjects])))
                 
-                # Render parameters selection boxes
                 st.markdown("#### 📝 Select Assessment Course & Assessment Framework")
                 sc3, sc4, sc5 = st.columns([2, 2, 1])
                 with sc3: sel_subject = st.selectbox("Course / Subject Title:", student_subjects, key="single_sub_dropdown")
                 with sc4: sel_exam = st.selectbox("Examination Cycle:", all_frameworks, key="single_exam_dropdown")
                 with sc5: total_marks = st.number_input("Total Marks Capacity:", min_value=1, max_value=200, value=100, step=1, key="single_total_max_marks")
                 
-                # Gather marks cache history records specifically for this student combo
                 try:
                     marks_lookup_query = "SELECT obtained_marks, is_absent FROM marks WHERE student_id = :sid AND subject = :sub AND exam_cycle = :exam"
                     marks_record_df = run_query(marks_lookup_query, {"sid": search_sid, "sub": sel_subject, "exam": sel_exam})
@@ -795,7 +805,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 is_abs_init = bool(cached_absent)
                 ui_val_init = "0" if (is_nc_init or is_abs_init) else str(int(cached_score))
                 
-                # Render Marks Entry form panel
                 st.markdown(f"##### 🎯 Input Marks Metrics for {sel_subject} ({sel_exam})")
                 with st.form(key="individual_student_form_panel"):
                     form_c1, form_c2, form_c3 = st.columns([2, 1, 1])
@@ -824,7 +833,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
                                 obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
                             """
-                            run_action(save_query, {
+                            execute_db_write(save_query, {
                                 "sid": search_sid, "sub": sel_subject, "exam": sel_exam, "sec": s_section,
                                 "sess": sel_session, "obs": final_score, "tot": total_marks, "abs": 1 if (single_abs and not single_nc) else 0
                             })
@@ -907,7 +916,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
                                     obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
                                 """
-                                run_action(save_query, {
+                                execute_db_write(save_query, {
                                     "sid": sid_val, "sub": upload_subject, "exam": upload_exam, "sec": upload_section,
                                     "sess": upload_session, "obs": db_final_score, "tot": upload_tot_marks, "abs": abs_flag
                                 })
@@ -921,7 +930,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.error(f"❌ Missing layout schema column fields. File must contain exactly: {required_cols}")
             except Exception as read_err:
                 st.error(f"❌ File streaming execution processing failure error: {read_err}")
-
     # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT
 # ====================================================================================
