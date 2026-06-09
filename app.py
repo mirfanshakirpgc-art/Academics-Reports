@@ -1293,23 +1293,23 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("Select Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Live Database Aggregation Pipeline
+    # ⚡ Fixed Live Database Aggregation Pipeline
     raw_data = run_query("""
         SELECT 
             s.class AS "Class",
             s.section AS "Section",
             COALESCE(s.section_in_charge, '---') AS "In Charge",
             COUNT(s.id) AS "Total Enrolled",
-            SUM(CASE WHEN UPPER(TRIM(s.status)) IN ('LEFT', 'DROPOUT') THEN 1 ELSE 0 END) AS "Left",
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(s.status, ''))) IN ('LEFT', 'DROPOUT') THEN 1 ELSE 0 END) AS "Left",
             SUM(CASE WHEN s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT') THEN 1 ELSE 0 END) AS "Total Active",
             SUM(CASE WHEN (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT')) 
-                          AND UPPER(TRIM(d.status)) IN ('P', 'PRESENT', '1') THEN 1 ELSE 0 END) AS "Present",
+                          AND UPPER(TRIM(COALESCE(d.status, ''))) IN ('P', 'PRESENT', '1') THEN 1 ELSE 0 END) AS "Present",
             SUM(CASE WHEN (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT')) 
-                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0') THEN 1 ELSE 0 END) AS "Absent"
+                          AND UPPER(TRIM(COALESCE(d.status, ''))) IN ('A', 'ABSENT', '0') THEN 1 ELSE 0 END) AS "Absent"
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
         WHERE UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
-        GROUP BY s.class, s.section, s.section_in_charge
+        GROUP BY s.class, s.section, COALESCE(s.section_in_charge, '---')
     """, {"att_date": str(report_date), "session": str(report_session).strip()})
 
     if raw_data.empty:
@@ -1358,7 +1358,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 c_absent += int(row['Absent'])
                 
                 ledger_rows.append({
-                    "Class": category if is_first else "",  # Elegant visual grouping replication
+                    "Class": category if is_first else "",  # Visual grouping replication
                     "Section": str(row['Section']).upper(),
                     "In Charge": str(row['In Charge']),
                     "Total Enrolled": int(row['Total Enrolled']),
