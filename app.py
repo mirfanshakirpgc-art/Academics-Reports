@@ -753,7 +753,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_section = student_profile_df.iloc[0]["section"]
                 
                 # Deduce structural discipline path using refined section rules
-s_sec_upper = str(s_section).upper().strip()
+                s_sec_upper = str(s_section).upper().strip()
 
 if s_sec_upper.startswith("M") or "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: 
     s_discipline = "MEDICAL"
