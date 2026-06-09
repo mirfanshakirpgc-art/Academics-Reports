@@ -839,6 +839,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         
         if uploaded_file is not None:
             try:
+                import pandas as pd
                 if uploaded_file.name.endswith('.csv'):
                     df_raw = pd.read_csv(uploaded_file)
                 else:
