@@ -538,9 +538,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
     try:
         if 'all_frameworks' not in locals() and 'all_frameworks' not in globals():
-            all_frameworks = ["MT_1", "MT_2", "MID_TERM", "PRE_BOARD", "FINAL"]
+            all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
     except Exception:
-        all_frameworks = ["MT_1", "MT_2", "MID_TERM", "PRE_BOARD", "FINAL"]
+        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
 
     # ================================================================================
     # WORKFLOW 1: MANUAL ENTRY BY COMPLETE SECTION
