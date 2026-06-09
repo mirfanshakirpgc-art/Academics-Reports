@@ -607,8 +607,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
             with c5: 
                 if academic_system == "Annual System":
-                    try: available_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["English", "Urdu", "Physics"])
-                    except NameError: available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
+                    try:
+                        # 🔄 Automatically append year suffix based on class level selection to support subject transitions
+                        suffix = "_12TH" if sel_class == "12th" else "_11TH"
+                        lookup_key = f"{sel_discipline}{suffix}"
+                        
+                        available_subjects = DISCIPLINE_SUBJECTS_MAP.get(lookup_key, ["English", "Urdu", "Physics"])
+                    except NameError: 
+                        available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
                 else:
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
@@ -707,9 +713,130 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Upload Exam Marks Matrix")
+        
+        with st.expander("ℹ️ View Expected File Schema & Rules", expanded=True):
+            st.markdown("""
+            Your uploaded sheet **must** contain the following exact column headings:
+            * `Roll Number` or `Student ID` (Integer corresponding to Student Roll Number)
+            * `Subject` (e.g., *Physics, Pak_St, Banking, Education, T_Quran*)
+            * `Exam Type` (Must exactly match an entry in the system cycle list below)
+            * `Total Marks` (Numeric limit value)
+            * `Marks Obtained` (Numeric value, or `A` / `ABSENT` for absent students)
+            """)
+            st.caption(f"**Valid System Cycles:** {', '.join(all_frameworks)}")
+
         uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
+        
         if uploaded_file is not None:
-            st.info("📊 Processing files runs standard automated validation rules against raw formats.")
+            try:
+                # Parse into standard DataFrame depending on file format Extension
+                if uploaded_file.name.endswith('.csv'):
+                    df_raw = pd.read_csv(uploaded_file)
+                else:
+                    df_raw = pd.read_excel(uploaded_file)
+                
+                # Standardize column headers to strip spaces and convert to uppercase for easier mapping
+                df_raw.columns = [str(c).strip().upper() for c in df_raw.columns]
+                
+                # Identify and resolve flexible column variants
+                id_col = next((c for c in ['ROLL NUMBER', 'STUDENT ID', 'ID', 'ROLL_NO'] if c in df_raw.columns), None)
+                sub_col = next((c for c in ['SUBJECT', 'COURSE', 'SUBJECT NAME'] if c in df_raw.columns), None)
+                exam_col = next((c for c in ['EXAM TYPE', 'EXAMINATION CYCLE', 'EXAM', 'EXAM_TYPE'] if c in df_raw.columns), None)
+                tot_col = next((c for c in ['TOTAL MARKS', 'TOTAL_MARKS', 'TOTAL'] if c in df_raw.columns), None)
+                obt_col = next((c for c in ['MARKS OBTAINED', 'MARKS', 'OBTAINED', 'OBTAINED MARKS'] if c in df_raw.columns), None)
+                
+                if not all([id_col, sub_col, exam_col, tot_col, obt_col]):
+                    st.error("❌ Failed to parse file. Missing one or more required columns: Roll Number, Subject, Exam Type, Total Marks, and Marks Obtained.")
+                elif df_raw.empty:
+                    st.warning("⚠️ The uploaded spreadsheet file contains no rows of data.")
+                else:
+                    st.success(f"📊 Read {len(df_raw)} records successfully. Previewing data below:")
+                    st.dataframe(df_raw.head(10), use_container_width=True)
+                    
+                    with st.form("bulk_import_confirmation"):
+                        st.markdown("##### ⚙️ File Import Execution Configurations")
+                        dup_strategy = st.radio("Conflict Handling Rule:", ["Overwrite/Update Match Records", "Skip if Marks Exist"], horizontal=True)
+                        
+                        if st.form_submit_button("🚀 Execute Matrix Import & Database Sync", type="primary"):
+                            success_count = 0
+                            skipped_count = 0
+                            error_logs = []
+                            valid_exams_upper = [f.strip().upper() for f in all_frameworks]
+                            
+                            for index, row in df_raw.iterrows():
+                                try:
+                                    raw_id = str(row[id_col]).strip().split('.')[0]
+                                    if not raw_id.isdigit():
+                                        error_logs.append(f"Row {index+2}: Invalid Roll Number structure format '{row[id_col]}'")
+                                        continue
+                                    
+                                    s_id = int(raw_id)
+                                    subject_str = str(row[sub_col]).strip().upper()
+                                    exam_str = str(row[exam_col]).strip().upper()
+                                    
+                                    if exam_str not in valid_exams_upper:
+                                        error_logs.append(f"Row {index+2}: Invalid Exam Cycle '{exam_str}'. Not found in system framework.")
+                                        continue
+                                        
+                                    total_val = float(row[tot_col])
+                                    obtained_val = str(row[obt_col]).strip().upper()
+                                    
+                                    if obtained_val == "" or pd.isna(row[obt_col]):
+                                        skipped_count += 1
+                                        continue
+                                        
+                                    chk_student = run_query("SELECT id FROM students WHERE id = :id", {"id": s_id})
+                                    if chk_student.empty:
+                                        error_logs.append(f"Row {index+2}: Student ID '{s_id}' does not exist in student database.")
+                                        continue
+                                        
+                                    chk_marks = run_query("""
+                                        SELECT student_id FROM marks 
+                                        WHERE student_id = :id 
+                                          AND UPPER(TRIM(subject)) = :sub 
+                                          AND UPPER(TRIM(exam_type)) = :exam
+                                    """, {"id": s_id, "sub": subject_str, "exam": exam_str})
+                                    
+                                    if not chk_marks.empty:
+                                        if dup_strategy == "Skip if Marks Exist":
+                                            skipped_count += 1
+                                            continue
+                                        else:
+                                            execute_db_command("""
+                                                DELETE FROM marks 
+                                                WHERE student_id = :id 
+                                                  AND UPPER(TRIM(subject)) = :sub 
+                                                  AND UPPER(TRIM(exam_type)) = :exam
+                                            """, {"id": s_id, "sub": subject_str, "exam": exam_str})
+                                            
+                                    execute_db_command("""
+                                        INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                        VALUES (:id, :sub, :exam, :score, :tot)
+                                    """, {
+                                        "id": s_id, "sub": subject_str, "exam": exam_str, "score": obtained_val, "tot": total_val
+                                    })
+                                    success_count += 1
+                                    
+                                except Exception as row_err:
+                                    error_logs.append(f"Row {index+2}: Unexpected formatting issue. Detail: {row_err}")
+                            
+                            st.success(f"🏁 Processing Completed! Successfully added/updated **{success_count}** records.")
+                            if skipped_count > 0:
+                                st.info(f"ℹ️ Skipped **{skipped_count}** entries based on configuration rules or empty status values.")
+                            
+                            if error_logs:
+                                with st.expander("🚨 View Processing Logs & Mismatches", expanded=True):
+                                    for log in error_logs:
+                                        st.error(log)
+                                        
+                            try:
+                                st.cache_data.clear()
+                            except Exception:
+                                pass
+                            st.rerun()
+                            
+            except Exception as e:
+                st.error(f"💥 Critical file parsing system breakdown error: {e}")
 
 
 
