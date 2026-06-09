@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - PARSED ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - BYPASS PARSER)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1280,8 +1280,9 @@ elif menu_choice == "📋 Daily Attendance Report":
             if session_options:
                 session_choices = session_options
         else:
-            db_sess = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''")
-            if not db_sess.empty:
+            # Pass an empty dictionary {} to satisfy the params requirement safely
+            db_sess = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''", {})
+            if db_sess is not None and not db_sess.empty:
                 session_choices = sorted(db_sess['session'].dropna().astype(str).tolist())
     except Exception:
         pass
@@ -1293,8 +1294,11 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("Select Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Step 1: Inject parameters directly via Python string formatting to avoid database parser crashes
-    query_string = f"""
+    # Convert the date into a clean string 'YYYY-MM-DD'
+    date_str = str(report_date)
+
+    # ⚡ Python f-string embeds the date directly. Notice there are NO COLONS (like :target_date) here!
+    clean_sql_query = f"""
         SELECT 
             s.class AS "Class",
             s.section AS "Section",
@@ -1303,14 +1307,14 @@ elif menu_choice == "📋 Daily Attendance Report":
             s.session AS "Student_Session",
             d.status AS "Attendance_Status"
         FROM students s
-        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = '{str(report_date)}'
+        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = '{date_str}'
     """
-    
-    # Run the query directly without passing a separate parameter dictionary
-    raw_students = run_query(query_string)
+
+    # We send the query text and an empty dictionary {} so run_query's params argument is satisfied.
+    raw_students = run_query(clean_sql_query, {})
 
     if raw_students is None or raw_students.empty:
-        st.info("ℹ️ No student enrollment records or logs could be found in the database.")
+        st.info("ℹ️ No student enrollment records or logs could be found in the database for this date.")
     else:
         # Secure data typing using Pandas safely inside Python
         raw_students['Class'] = raw_students['Class'].fillna('Unknown').astype(str).str.upper().str.strip()
@@ -1320,7 +1324,7 @@ elif menu_choice == "📋 Daily Attendance Report":
         raw_students['Attendance_Status'] = raw_students['Attendance_Status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Student_Session'] = raw_students['Student_Session'].fillna('').astype(str).str.strip()
 
-        # 🎯 Step 2: Safe session filtering handled by Pandas in Python
+        # 🎯 Step 2: Safe session filtering handled completely by Pandas in Python
         target_sess_clean = str(report_session).strip()
         raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
 
@@ -1391,7 +1395,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                         "Class": category if is_first else "",  
                         "Section": str(row['Section']),
                         "In Charge": str(row['In_Charge']),
-                        "Total Enrolled": int(row['Total_Enrolled']),
+                        "Total Enrolled": int(row['Total Enrolled']),
                         "Left": int(row['Left_Count']),
                         "Total Active": act,
                         "Present": pre,
