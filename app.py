@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - BYPASS PARSER)
+# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - ROBUST ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1280,7 +1280,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             if session_options:
                 session_choices = session_options
         else:
-            # Pass an empty dictionary {} to satisfy the params requirement safely
             db_sess = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''", {})
             if db_sess is not None and not db_sess.empty:
                 session_choices = sorted(db_sess['session'].dropna().astype(str).tolist())
@@ -1294,42 +1293,54 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("Select Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # Convert the date into a clean string 'YYYY-MM-DD'
-    date_str = str(report_date)
-
-    # ⚡ Python f-string embeds the date directly. Notice there are NO COLONS (like :target_date) here!
-    clean_sql_query = f"""
-        SELECT 
-            s.class AS "Class",
-            s.section AS "Section",
-            s.section_in_charge AS "In_Charge",
-            s.status AS "Student_Status",
-            s.session AS "Student_Session",
-            d.status AS "Attendance_Status"
-        FROM students s
-        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = '{date_str}'
-    """
-
-    # We send the query text and an empty dictionary {} so run_query's params argument is satisfied.
-    raw_students = run_query(clean_sql_query, {})
+    # ⚡ Step 1: Bulletproof Base Data Pull matching run_query expected styles
+    # We pull raw table contents. If any specific sub-column fails, the try-except falls back to a minimal selector.
+    try:
+        raw_students = run_query("""
+            SELECT 
+                s.class,
+                s.section,
+                s.section_in_charge,
+                s.status,
+                s.session,
+                d.status AS att_status
+            FROM students s
+            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
+        """, {"dt": str(report_date)})
+    except Exception:
+        # Fallback if section_in_charge doesn't exist or is named differently in your database schema
+        raw_students = run_query("""
+            SELECT 
+                s.class,
+                s.section,
+                s.status,
+                s.session,
+                d.status AS att_status
+            FROM students s
+            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
+        """, {"dt": str(report_date)})
 
     if raw_students is None or raw_students.empty:
         st.info("ℹ️ No student enrollment records or logs could be found in the database for this date.")
     else:
+        # Standardize missing columns to prevent KeyErrors later
+        if 'section_in_charge' not in raw_students.columns:
+            raw_students['section_in_charge'] = '---'
+            
         # Secure data typing using Pandas safely inside Python
-        raw_students['Class'] = raw_students['Class'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['Section'] = raw_students['Section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['In_Charge'] = raw_students['In_Charge'].fillna('---').astype(str).str.strip()
-        raw_students['Student_Status'] = raw_students['Student_Status'].fillna('').astype(str).str.upper().str.strip()
-        raw_students['Attendance_Status'] = raw_students['Attendance_Status'].fillna('').astype(str).str.upper().str.strip()
-        raw_students['Student_Session'] = raw_students['Student_Session'].fillna('').astype(str).str.strip()
+        raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
+        raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
+        raw_students['In_Charge'] = raw_students['section_in_charge'].fillna('---').astype(str).str.strip()
+        raw_students['Student_Status'] = raw_students['status'].fillna('').astype(str).str.upper().str.strip()
+        raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
+        raw_students['Student_Session'] = raw_students['session'].fillna('').astype(str).str.strip()
 
         # 🎯 Step 2: Safe session filtering handled completely by Pandas in Python
         target_sess_clean = str(report_session).strip()
         raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
 
         if raw_students.empty:
-            st.info(f"ℹ️ No active records match Session: '{target_sess_clean}' for this date.")
+            st.info(f"ℹ️ No active records match Session: '{target_sess_clean}' for this selected date.")
         else:
             # 🧪 Step 3: Gender Classification Rules (G & Q = Girls, B & K = Boys)
             def classify_group(row):
