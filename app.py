@@ -582,10 +582,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
 
             with c4: 
-                # Dynamically compile target options directly from mapping architecture
                 valid_sections_list = []
                 if academic_system == "Annual System":
-                    # Lookup inside real DISCIPLINE_SECTIONS_MAP safely using standardized keys
                     lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
                     
                     try:
@@ -596,7 +594,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     except NameError:
                         pass
                 else:
-                    # Semesters are consistently bound to DIT_G and DIT_B
                     valid_sections_list = ["DIT_G", "DIT_B"]
 
                 valid_sections_list = sorted(list(set(valid_sections_list)))
@@ -607,7 +604,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
             with c5: 
                 if academic_system == "Annual System":
-                    # 🛡️ Inline Safety Matrix: Guarantees your subjects load even if global scope fails
                     DISCIPLINE_SUBJECTS_MAP = {
                         "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
                         "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
@@ -623,18 +619,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
                     }
 
-                    # 🔄 Dynamically build lists based on "ALL", "11th", or "12th" selection states
                     if sel_class == "ALL":
                         list_11th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_11TH", [])
                         list_12th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_12TH", [])
-                        # Safely merges lists while preserving native sorting order without duplicates
                         available_subjects = list(dict.fromkeys(list_11th + list_12th))
                     else:
                         suffix = "_12TH" if sel_class == "12th" else "_11TH"
                         lookup_key = f"{sel_discipline}{suffix}"
                         available_subjects = DISCIPLINE_SUBJECTS_MAP.get(lookup_key, ["English", "Urdu", "Physics"])
                 else:
-                    # Semester System Tracks (DIT)
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
                     elif "2nd Semester" in sel_class:
@@ -642,7 +635,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     else: 
                         available_subjects = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
                 
-                # Render the final drop down selection panel
                 sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
         # ====================================================================================
@@ -656,7 +648,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                # Query reads data matching standardized clean text tokens
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -672,106 +663,69 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 })
                 
                 if roster_df.empty:
-                st.info(f"💡 No active student records found in Section '{sel_section}' under Session {sel_session}.")
-            else:
-                st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
-                
-                # 🏁 Top Bar Global Controls (Placed outside the form)
-                col_b1, col_b2, col_b3 = st.columns([3, 1, 1, 1])
-                with col_b2:
-                    mark_all_absent = st.button("🏁 Mark All Absent", use_container_width=True, key="bulk_absent_btn")
-                with col_b3:
-                    mark_all_nc = st.button("🚫 Mark All NC", use_container_width=True, key="bulk_nc_btn")
-                
-                with col_b2:
-                    if st.button("🏁 Mark All Absent", use_container_width=True, key="bulk_absent_btn"):
-                        for r_idx, r_row in roster_df.iterrows():
-                            st.session_state[f"abs_{r_row['ID']}"] = True
-                            st.session_state[f"nc_{r_row['ID']}"] = False
-                        st.rerun()
-
-                with col_b3:
-                    if st.button("🚫 Mark All NC", use_container_width=True, key="bulk_nc_btn"):
-                        for r_idx, r_row in roster_df.iterrows():
-                            st.session_state[f"abs_{r_row['ID']}"] = False
-                            st.session_state[f"nc_{r_row['ID']}"] = True
-                        st.rerun()
-                
-                with st.form("bulk_marks_form"):
-                    updated_marks = {}
+                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session {sel_session}.")
+                else:
+                    st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
-                    # 🏷️ Header Labels for aligned columns
-                    h_c1, h_c2, h_c3, h_c4 = st.columns([3, 1, 0.6, 0.6])
-                    h_c2.caption("🔢 **Obtained**")
-                    h_c3.caption("❌ **Absent**")
-                    h_c4.caption("➖ **NC**")
-                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_printable_html=True)
+                    # 🏁 Unified Top Bar Global Controls
+                    col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
+                    with col_b2:
+                        if st.button("🏁 Mark All Absent", use_container_width=True, key="bulk_absent_btn"):
+                            for r_idx, r_row in roster_df.iterrows():
+                                st.session_state[f"abs_{r_row['ID']}"] = True
+                                st.session_state[f"nc_{r_row['ID']}"] = False
+                            st.rerun()
+                    with col_b3:
+                        if st.button("🚫 Mark All NC", use_container_width=True, key="bulk_nc_btn"):
+                            for r_idx, r_row in roster_df.iterrows():
+                                st.session_state[f"abs_{r_row['ID']}"] = False
+                                st.session_state[f"nc_{r_row['ID']}"] = True
+                            st.rerun()
+                    
+                    with st.form("bulk_marks_form"):
+                        updated_marks = {}
+                        
+                        # 🏷️ Header Labels for aligned columns
+                        h_c1, h_c2, h_c3, h_c4 = st.columns([3, 1, 0.6, 0.6])
+                        h_c2.caption("🔢 **Obtained**")
+                        h_c3.caption("❌ **Absent**")
+                        h_c4.caption("➖ **NC**")
+                        st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_printable_html=True)
 
-                    for idx, row in roster_df.iterrows():
-                        col_s1, col_s2, col_s3, col_s4 = st.columns([3, 1, 0.6, 0.6])
-                        col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                        
-                        # Read current state values from database payload
-                        db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
-                        
-                        # Initialize session state tracking values safely if not already set
-                        if f"abs_{row['ID']}" not in st.session_state:
-                            st.session_state[f"abs_{row['ID']}"] = (db_val in ['A', 'ABSENT'])
-                        if f"nc_{row['ID']}" not in st.session_state:
-                            st.session_state[f"nc_{row['ID']}"] = (db_val == 'NC')
+                        for idx, row in roster_df.iterrows():
+                            col_s1, col_s2, col_s3, col_s4 = st.columns([3, 1, 0.6, 0.6])
+                            col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                            
+                            # Read database initialization entries safely
+                            db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
+                            
+                            # Safely set default memory buffers
+                            if f"abs_{row['ID']}" not in st.session_state:
+                                st.session_state[f"abs_{row['ID']}"] = (db_val in ['A', 'ABSENT'])
+                            if f"nc_{row['ID']}" not in st.session_state:
+                                f"nc_{row['ID']}"
+                                st.session_state[f"nc_{row['ID']}"] = (db_val == 'NC')
 
-                        # Render Interactive Checkbox Cells bound directly to Session State
-                        chk_absent = col_s3.checkbox("", key=f"abs_{row['ID']}", label_visibility="collapsed")
-                        chk_nc = col_s4.checkbox("", key=f"nc_{row['ID']}", label_visibility="collapsed")
-                        
-                        # Isolate raw scores from status text flags
-                        initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                        
-                        # UI Feedback: lock text input field dynamically
-                        is_disabled = chk_absent or chk_nc
-                        display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-                        
-                        score_input = col_s2.text_input(
-                            "Obtained", 
-                            value=display_score if is_disabled else initial_score, 
-                            key=f"marks_{row['ID']}", 
-                            label_visibility="collapsed",
-                            disabled=is_disabled
-                        )
-                        
-                        # Package clean string output back into your existing dictionary collection variable
-                        updated_marks[row['ID']] = "A" if chk_absent else ("NC" if chk_nc else score_input)
-                        col_s1, col_s2, col_s3, col_s4 = st.columns([3, 1, 0.6, 0.6])
-                        col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
-                        
-                        # Read current state values from backend payload
-                        db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
-                        
-                        # Determine toggle statuses based on current data or bulk buttons triggers
-                        is_absent = (db_val in ['A', 'ABSENT']) or mark_all_absent
-                        is_nc = (db_val == 'NC') or mark_all_nc
-                        
-                        # Isolate raw scores from status text flags
-                        initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-
-                        # Render Interactive Checkbox Cells
-                        chk_absent = col_s3.checkbox("", value=is_absent, key=f"abs_{row['ID']}", label_visibility="collapsed")
-                        chk_nc = col_s4.checkbox("", value=is_nc, key=f"nc_{row['ID']}", label_visibility="collapsed")
-                        
-                        # UI Feedback: lock input field if either flag is active
-                        is_disabled = chk_absent or chk_nc
-                        display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-                        
-                        score_input = col_s2.text_input(
-                            "Obtained", 
-                            value=display_score if is_disabled else initial_score, 
-                            key=f"marks_{row['ID']}", 
-                            label_visibility="collapsed",
-                            disabled=is_disabled
-                        )
-                        
-                        # Package clean string output back into your existing dictionary collection variable
-                        updated_marks[row['ID']] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                            # Render form checkboxes bound straight to session tracking memory logs
+                            chk_absent = col_s3.checkbox("", key=f"abs_{row['ID']}", label_visibility="collapsed")
+                            chk_nc = col_s4.checkbox("", key=f"nc_{row['ID']}", label_visibility="collapsed")
+                            
+                            # Handle clean initial numbers decoupling
+                            initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
+                            
+                            # UI Automation lock handlers
+                            is_disabled = chk_absent or chk_nc
+                            display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
+                            
+                            score_input = col_s2.text_input(
+                                "Obtained", 
+                                value=display_score if is_disabled else initial_score, 
+                                key=f"marks_{row['ID']}", 
+                                label_visibility="collapsed",
+                                disabled=is_disabled
+                            )
+                            
+                            updated_marks[row['ID']] = "A" if chk_absent else ("NC" if chk_nc else score_input)
                         
                         if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary"):
                             for s_id, score in updated_marks.items():
@@ -780,12 +734,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 if score_clean != "":
                                     execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
                                                       {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip().upper(), "score": score_clean, "total": float(total_marks)})
+                            
+                            # Clean temporary states on successful submit
+                            for s_id in updated_marks.keys():
+                                st.session_state.pop(f"abs_{s_id}", None)
+                                st.session_state.pop(f"nc_{s_id}", None)
+                                
                             st.success("🎉 Section marks recorded successfully!")
                             st.rerun()
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
-
-    elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
         if single_id and single_id.isdigit():
