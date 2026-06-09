@@ -766,8 +766,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 "sess": str(s_session_sel).strip()
             }
             
+            # Added discipline to the select statement to filter subjects accurately
             base_sql = """
-                SELECT name, section, session, class FROM students 
+                SELECT name, section, session, class, discipline FROM students 
                 WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = :sess
             """
             
@@ -784,13 +785,52 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_section = student_info['section'].iloc[0].upper().strip()
                 s_session = student_info['session'].iloc[0]
                 s_class = student_info['class'].iloc[0]
-                st.info(f"👤 Student Found: **{s_name}** | Section: **{s_section}**")
+                # Fallback to MEDICAL if discipline column happens to be empty for a record
+                s_discipline = student_info['discipline'].iloc[0].upper().strip() if 'discipline' in student_info.columns and pd.notna(student_info['discipline'].iloc[0]) else "MEDICAL"
                 
-                # Dynamic context-based subject list mapping helper options
+                st.info(f"👤 Student Found: **{s_name}** | Discipline: **{s_discipline}** | Section: **{s_section}**")
+                
+                # 🎯 Dynamic mapping based on the specific student's discipline & class level
                 if s_system == "Annual System":
-                    single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Statistics", "Islamic Studies", "Pak_St", "T_Quran", "Education", "Principles of Accounting"]
+                    DISCIPLINE_SUBJECTS_MAP = {
+                        "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+                        "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+                        "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+                        "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                        "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                        "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+                        "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+                        "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
+                        "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+                    }
+                    
+                    # Safe cleaning of the discipline key name format string
+                    lookup_disc = s_discipline.replace(" ", "_").replace("(", "").replace(")", "")
+                    if "PHYSIC" in lookup_disc: lookup_disc = "ICS_PHYSICS"
+                    elif "STAT" in lookup_disc: lookup_disc = "ICS_STATISTICS"
+                    
+                    # Detect Class context level mapping
+                    if "11TH" in str(s_class).upper():
+                        single_sub_options = DISCIPLINE_SUBJECTS_MAP.get(f"{lookup_disc}_11TH", ["English", "Urdu", "Physics"])
+                    elif "12TH" in str(s_class).upper():
+                        single_sub_options = DISCIPLINE_SUBJECTS_MAP.get(f"{lookup_disc}_12TH", ["English", "Urdu", "Physics"])
+                    else:
+                        # Fallback merger if class is ambiguous
+                        list_11th = DISCIPLINE_SUBJECTS_MAP.get(f"{lookup_disc}_11TH", [])
+                        list_12th = DISCIPLINE_SUBJECTS_MAP.get(f"{lookup_disc}_12TH", [])
+                        single_sub_options = list(dict.fromkeys(list_11th + list_12th))
+                        if not single_sub_options:
+                            single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Biology"]
                 else:
-                    single_sub_options = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                    if "1ST SEMESTER" in str(s_class).upper():
+                        single_sub_options = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                    elif "2ND SEMESTER" in str(s_class).upper():
+                        single_sub_options = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                    else: 
+                        single_sub_options = ["Information Technology", "Office Automation", "Networking", "Data Base System", "Web Development Essential"]
                 
                 c_m1, c_m2, c_m3, c_m4 = st.columns([1.5, 1.2, 1, 1.3])
                 with c_m1: 
