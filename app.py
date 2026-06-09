@@ -513,30 +513,10 @@ elif menu_choice == "➕ Add Students":
                             st.rerun()
                         except Exception as delete_err:
                             st.error(f"❌ Database error encountered: {delete_err}")
-Here is the complete, clean, and optimized Streamlit code block compiled from your module metrics.
-
-The code has been updated to fix the structural logic, handle implicit exceptions safely, ensure pandas dependencies (`pd`) and datetime libraries are streamlined, and maintain precise state integrity through standard Streamlit components.
-
-```python
-import streamlit as st
-import pandas as pd
-from datetime import date
-
-Ah, that's my bad! I mistakenly included my conversational response text directly inside or right above your Python file, which is causing Streamlit to throw a `SyntaxError` when it parses the script.
-
-To fix this, make sure your `app.py` file contains **only** the actual Python code block and none of the conversational prose.
-
-Here is the clean, unadorned code block. Completely replace the problematic area in your file with this:
-
-```python
-import streamlit as st
-import pandas as pd
-from datetime import date
-
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-if menu_choice == "📝 Academic Exam Marks Entry":
+elif menu_choice == "📝 Academic Exam Marks Entry":
     st.subheader("📝 Academic Exam Marks Entry Workspace")
     
     # Top Workflow Mode Selector
@@ -746,6 +726,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
         
         if search_sid:
             try:
+                # FIXED: Removed non-existent "discipline" column to prevent SQL crashes
                 fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
@@ -757,6 +738,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
+                # Deduce structural discipline path using the section name prefixes dynamically
                 s_sec_upper = str(s_section).upper().strip()
                 if "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: s_discipline = "MEDICAL"
                 elif "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: s_discipline = "ENGINEERING"
@@ -767,6 +749,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 st.markdown("---")
                 st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
                 
+                # Parse available subject options matching inferred tracking attributes
                 if academic_system == "Annual System":
                     if "COMMERCE" in s_discipline:
                         if s_class == "11th": student_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
@@ -789,12 +772,14 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 
                 student_subjects = sorted(list(set([str(s).upper() for s in student_subjects])))
                 
+                # Render parameters selection boxes
                 st.markdown("#### 📝 Select Assessment Course & Assessment Framework")
                 sc3, sc4, sc5 = st.columns([2, 2, 1])
                 with sc3: sel_subject = st.selectbox("Course / Subject Title:", student_subjects, key="single_sub_dropdown")
                 with sc4: sel_exam = st.selectbox("Examination Cycle:", all_frameworks, key="single_exam_dropdown")
                 with sc5: total_marks = st.number_input("Total Marks Capacity:", min_value=1, max_value=200, value=100, step=1, key="single_total_max_marks")
                 
+                # Gather marks cache history records specifically for this student combo
                 try:
                     marks_lookup_query = "SELECT obtained_marks, is_absent FROM marks WHERE student_id = :sid AND subject = :sub AND exam_cycle = :exam"
                     marks_record_df = run_query(marks_lookup_query, {"sid": search_sid, "sub": sel_subject, "exam": sel_exam})
@@ -810,6 +795,7 @@ if menu_choice == "📝 Academic Exam Marks Entry":
                 is_abs_init = bool(cached_absent)
                 ui_val_init = "0" if (is_nc_init or is_abs_init) else str(int(cached_score))
                 
+                # Render Marks Entry form panel
                 st.markdown(f"##### 🎯 Input Marks Metrics for {sel_subject} ({sel_exam})")
                 with st.form(key="individual_student_form_panel"):
                     form_c1, form_c2, form_c3 = st.columns([2, 1, 1])
@@ -936,73 +922,72 @@ if menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as read_err:
                 st.error(f"❌ File streaming execution processing failure error: {read_err}")
 
-# ================================================================================
-# MODULE 2: SINGLE STUDENT ATTENDANCE MANAGER
-# ================================================================================
-elif att_sub_type == "👤 By Single Student Roll Number":
-    st.subheader("👤 Single Student Attendance Record Manager")
-    st.markdown("---")
-    
-    col_search, _ = st.columns([2, 2])
-    with col_search:
-        single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
+    # --------------------------------------------------------------------------------
+    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER
+    # --------------------------------------------------------------------------------
+    elif att_sub_type == "👤 By Single Student Roll Number":
+        st.subheader("👤 Single Student Attendance Record Manager")
+        st.markdown("---")
         
-    if single_id and single_id.isdigit():
-        student_info = run_query("""
-            SELECT name, section, session, class FROM students WHERE id = :id
-        """, {"id": int(single_id)})
-        
-        if student_info.empty:
-            st.error("❌ This roll number does not exist inside active logs.")
-        else:
-            s_name = student_info['name'].iloc[0].upper()
-            s_section = student_info['section'].iloc[0].upper().strip()
-            s_session = student_info['session'].iloc[0]
-            s_class = student_info['class'].iloc[0]
+        col_search, _ = st.columns([2, 2])
+        with col_search:
+            single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
             
-            st.info(f"👤 **Student Profile:** {s_name}  |  **Class/Sem:** {s_class}  |  **Section:** {s_section}  |  **Session:** {s_session}")
-            
-            st.markdown("##### 📅 Log Single Day Entry")
-            ca1, ca2, ca3 = st.columns([2, 1.5, 1.5])
-            with ca1:
-                att_date = st.date_input("Target Date:", value=date.today(), key="single_att_date_pick")
-            with ca2:
-                existing_status = run_query("""
-                    SELECT status FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
-                """, {"id": int(single_id), "dt": att_date})
-                default_idx = 0
-                if not existing_status.empty:
-                    default_idx = 0 if existing_status['status'].iloc[0].strip().upper() == "P" else 1
-                    
-                status_choice = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="single_att_status_pick")
-            
-            with ca3:
-                st.markdown("##") 
-                if st.button("💾 Log Entry", type="primary", use_container_width=True):
-                    final_status_code = "P" if "Present" in status_choice else "A"
-                    execute_db_command("""
-                        DELETE FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
-                    """, {"id": int(single_id), "dt": att_date})
-                    execute_db_command("""
-                        INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:id, :dt, :st)
-                    """, {"id": int(single_id), "dt": att_date, "st": final_status_code})
-                    
-                    trigger_background_monthly_aggregation(s_section, att_date.strftime('%B'))
-                    st.success(f"🎉 Roster update completed successfully!")
-                    st.rerun()
-                    
-            st.markdown("---")
-            st.markdown("##### 📊 Saved Monthly Aggregates Summary Ledger")
-            history_df = run_query("""
-                SELECT month_name AS "Month", present_days AS "Present Days", total_days AS "Total Days"
-                FROM attendance WHERE student_id = :id ORDER BY id DESC
+        if single_id and single_id.isdigit():
+            student_info = run_query("""
+                SELECT name, section, session, class FROM students WHERE id = :id
             """, {"id": int(single_id)})
             
-            if history_df.empty:
-                st.caption("ℹ️ No monthly aggregate history rows compiled for this student yet.")
+            if student_info.empty:
+                st.error("❌ This roll number does not exist inside active logs.")
             else:
-                st.dataframe(history_df, use_container_width=True, hide_index=True)
-
+                s_name = student_info['name'].iloc[0].upper()
+                s_section = student_info['section'].iloc[0].upper().strip()
+                s_session = student_info['session'].iloc[0]
+                s_class = student_info['class'].iloc[0]
+                
+                st.info(f"👤 **Student Profile:** {s_name}  |  **Class/Sem:** {s_class}  |  **Section:** {s_section}  |  **Session:** {s_session}")
+                
+                st.markdown("##### 📅 Log Single Day Entry")
+                ca1, ca2, ca3 = st.columns([2, 1.5, 1.5])
+                with ca1:
+                    att_date = st.date_input("Target Date:", value=date.today(), key="single_att_date_pick")
+                with ca2:
+                    existing_status = run_query("""
+                        SELECT status FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
+                    """, {"id": int(single_id), "dt": att_date})
+                    default_idx = 0
+                    if not existing_status.empty:
+                        default_idx = 0 if existing_status['status'].iloc[0].strip().upper() == "P" else 1
+                        
+                    status_choice = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="single_att_status_pick")
+                
+                with ca3:
+                    st.markdown("##") 
+                    if st.button("💾 Log Log Entry", type="primary", use_container_width=True):
+                        final_status_code = "P" if "Present" in status_choice else "A"
+                        execute_db_command("""
+                            DELETE FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
+                        """, {"id": int(single_id), "dt": att_date})
+                        execute_db_command("""
+                            INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:id, :dt, :st)
+                        """, {"id": int(single_id), "dt": att_date, "st": final_status_code})
+                        
+                        trigger_background_monthly_aggregation(s_section, att_date.strftime('%B'))
+                        st.success(f"🎉 Roster update completed successfully!")
+                        st.rerun()
+                        
+                st.markdown("---")
+                st.markdown("##### 📊 Saved Monthly Aggregates Summary Ledger")
+                history_df = run_query("""
+                    SELECT month_name AS "Month", present_days AS "Present Days", total_days AS "Total Days"
+                    FROM attendance WHERE student_id = :id ORDER BY id DESC
+                """, {"id": int(single_id)})
+                
+                if history_df.empty:
+                    st.caption("ℹ️ No monthly aggregate history rows compiled for this student yet.")
+                else:
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
