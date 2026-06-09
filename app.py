@@ -1259,6 +1259,197 @@ if menu_choice == "📅 Attendance Entry Management":
                     })
                     
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
+
+# ====================================================================================
+# MODULE 4: SECTION SUMMARY REPORT (CONCORDIA COLLEGE EXECUTIVE LEDGER)
+# ====================================================================================
+if menu_choice == "📝 Section Summary Report":
+    import datetime
+    import pandas as pd
+    
+    st.title("📝 Section Summary Report Dashboard")
+    st.markdown("---")
+    
+    # 📅 Date Filter Selection
+    rc1, rc2 = st.columns([1.5, 2.5])
+    with rc1:
+        report_date = st.date_input("🎯 Select Target Ledger Date:", value=datetime.date.today(), key="summary_report_date")
+    with rc2:
+        st.markdown("##")
+        st.subheader(f"📅 Ledger for: {report_date.strftime('%A, %d-%b-%Y')}")
+
+    # ⚡ Complete Live Campus Query
+    raw_summary_data = run_query("""
+        SELECT 
+            s.class AS "Class",
+            s.section AS "Section",
+            COALESCE(s.section_in_charge, 'Not Assigned') AS "In Charge",
+            COUNT(s.id) AS "Total Enrolled",
+            SUM(CASE WHEN UPPER(TRIM(s.status)) IN ('LEFT', 'DROPOUT') THEN 1 ELSE 0 END) AS "Left",
+            SUM(CASE WHEN s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT') THEN 1 ELSE 0 END) AS "Total Active",
+            SUM(CASE WHEN (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT')) 
+                          AND UPPER(TRIM(d.status)) IN ('P', 'PRESENT', '1') THEN 1 ELSE 0 END) AS "Present",
+            SUM(CASE WHEN (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT')) 
+                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0') THEN 1 ELSE 0 END) AS "Absent"
+        FROM students s
+        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+        GROUP BY s.class, s.section, s.section_in_charge
+    """, {"att_date": str(report_date)})
+
+    if raw_summary_data.empty:
+        st.warning("⚠️ No attendance entries or student logs found for this date yet.")
+    else:
+        # 🧪 Precise Concordia Gender Classification Rules (G & Q = Girls, B & K = Boys)
+        def assign_ledger_group(row):
+            cls = str(row['Class']).upper()
+            sec = str(row['Section']).upper().strip()
+            
+            # Check characters inside the Section string value
+            has_girls_marker = any(char in sec for char in ["G", "Q"])
+            has_boys_marker = any(char in sec for char in ["B", "K"])
+            
+            # Route based on Class and matched character markers
+            if "11" in cls:
+                if has_girls_marker and not has_boys_marker:
+                    return "11th (Girls)"
+                elif has_boys_marker and not has_girls_marker:
+                    return "11th (Boys)"
+                else:
+                    # Fallback logic if both or neither match: check common defaults
+                    return "11th (Boys)" if ("B" in sec or "K" in sec) else "11th (Girls)"
+                    
+            elif "12" in cls:
+                if has_girls_marker and not has_boys_marker:
+                    return "12th (Girls)"
+                elif has_boys_marker and not has_girls_marker:
+                    return "12th (Boys)"
+                else:
+                    # Fallback logic for 12th
+                    return "12th (Boys)" if ("B" in sec or "K" in sec) else "12th (Girls)"
+            
+            return "Other"
+
+        # Apply classification logic split
+        raw_summary_data['Ledger_Group'] = raw_summary_data.apply(assign_ledger_group, axis=1)
+        
+        # Define order structure matching the physical print layout
+        group_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
+        
+        processed_rows = []
+        
+        # Keep global counters for the bottom analytics box
+        grand_enrolled = 0
+        grand_left = 0
+        grand_active = 0
+        grand_present = 0
+        grand_absent = 0
+
+        # Build categorized tables sequentially
+        for group in group_order:
+            group_df = raw_summary_data[raw_summary_data['Ledger_Group'] == group]
+            if group_df.empty:
+                continue
+                
+            # Track group subtotals
+            g_enrolled = 0
+            g_left = 0
+            g_active = 0
+            g_present = 0
+            g_absent = 0
+            
+            first_row = True
+            for idx, row in group_df.iterrows():
+                active_cnt = int(row['Total Active'])
+                pres_cnt = int(row['Present'])
+                pct_val = f"{int((pres_cnt / active_cnt) * 100)}%" if active_cnt > 0 else "0%"
+                
+                # Add to group sums
+                g_enrolled += int(row['Total Enrolled'])
+                g_left += int(row['Left'])
+                g_active += active_cnt
+                g_present += pres_cnt
+                g_absent += int(row['Absent'])
+                
+                processed_rows.append({
+                    "Class": group if first_row else "",  # Visual label grouping mimicry
+                    "Section": str(row['Section']).upper(),
+                    "In Charge": str(row['In Charge']),
+                    "Total Enrolled": int(row['Total Enrolled']),
+                    "Left": int(row['Left']),
+                    "Total Active": active_cnt,
+                    "Present": pres_cnt,
+                    "Absent": int(row['Absent']),
+                    "%age": pct_val
+                })
+                first_row = False
+                
+            # Calculate Subtotal Row Percentages
+            g_pct = f"{int((g_present / g_active) * 100)}%" if g_active > 0 else "0%"
+            
+            # Append Subtotal Row for the current classification block
+            processed_rows.append({
+                "Class": f"Total ({group})",
+                "Section": "",
+                "In Charge": "",
+                "Total Enrolled": g_enrolled,
+                "Left": g_left,
+                "Total Active": g_active,
+                "Present": g_present,
+                "Absent": g_absent,
+                "%age": g_pct
+            })
+            
+            # Update overall campus tallies
+            grand_enrolled += g_enrolled
+            grand_left += g_left
+            grand_active += g_active
+            grand_present += g_present
+            grand_absent += g_absent
+
+        # Display Section Details Ledger
+        st.subheader("📋 Section Wise Breakdown Table")
+        main_ledger_df = pd.DataFrame(processed_rows)
+        st.dataframe(main_ledger_df, use_container_width=True, hide_index=True)
+        
+        # 📊 RENDER: Bottom Executive "Statistics of Attendance" Table
+        st.markdown("###")
+        st.subheader("📊 Statistics of Attendance")
+        
+        grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
+        
+        summary_box_data = [{
+            "Date": report_date.strftime('%d-%b-%Y'),
+            "Total Enrolled": grand_enrolled,
+            "Left": grand_left,
+            "Total Active": grand_active,
+            "Total Present": grand_present,
+            "Total Absent": grand_absent,
+            "Grand Percentage": grand_pct
+        }]
+        
+        summary_box_df = pd.DataFrame(summary_box_data)
+        
+        # Display the summary card block
+        st.dataframe(
+            summary_box_df, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "Grand Percentage": st.column_config.TextColumn("⭐ Grand Percentage")
+            }
+        )
+
+        # 📥 Report Export Action
+        st.markdown("---")
+        csv_buffer = main_ledger_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Export Complete Ledger (CSV)",
+            data=csv_buffer,
+            file_name=f"Concordia_Kasur_Attendance_Summary_{report_date}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            type="primary"
+        )
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
