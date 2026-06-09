@@ -559,6 +559,51 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             else:
                 raise NameError("Database update execution system routing could not be auto-resolved.")
 
+    # ====================================================================================
+# MODULE 1: ACADEMIC EXAM MARKS ENTRY
+# ====================================================================================
+elif menu_choice == "📝 Academic Exam Marks Entry":
+    st.subheader("📝 Academic Exam Marks Entry Workspace")
+    
+    # Top Workflow Mode Selector
+    entry_mode = st.radio(
+        "🎯 Select Entry Workflow Mode:",
+        ["📋 By Complete Section", "👤 By Single Student Roll Number", "📥 Bulk Excel/CSV Import"],
+        horizontal=True,
+        key="marks_entry_workflow_mode"
+    )
+    
+    st.markdown("---")
+    
+    # Global Pre-fetch configurations
+    try:
+        session_df = run_query("SELECT DISTINCT session FROM students ORDER BY session DESC")
+        session_options = session_df["session"].tolist() if not session_df.empty else ["2025-27", "2024-26", "2026-28"]
+    except Exception:
+        session_options = ["2025-27", "2024-26", "2026-28"]
+
+    try:
+        if 'all_frameworks' not in locals() and 'all_frameworks' not in globals():
+            all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
+    except Exception:
+        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
+
+    # Helper function to execute database writes safely across potential routing endpoints
+    def execute_db_write(query_string, params_dict):
+        try:
+            if 'run_action' in locals() or 'run_action' in globals():
+                run_action(query_string, params_dict)
+            elif 'db_execute' in locals() or 'db_execute' in globals():
+                db_execute(query_string, params_dict)
+            else:
+                run_query(query_string, params_dict)
+        except Exception:
+            if 'conn' in locals() or 'conn' in globals():
+                from sqlalchemy import text
+                globals().get('conn').execute(text(query_string), params_dict)
+            else:
+                raise NameError("Database update execution system routing could not be auto-resolved.")
+
     # ================================================================================
     # WORKFLOW 1: MANUAL ENTRY BY COMPLETE SECTION
     # ================================================================================
@@ -752,19 +797,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
-                # Deduce structural discipline path using refined section rules
                 s_sec_upper = str(s_section).upper().strip()
-
-if s_sec_upper.startswith("M") or "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: 
-    s_discipline = "MEDICAL"
-elif s_sec_upper.startswith("E") or "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: 
-    s_discipline = "ENGINEERING"
-elif any(x in s_sec_upper for x in ["IK", "CG", "COMMERCE"]): 
-    s_discipline = "COMMERCE"
-elif "ICS" in s_sec_upper: 
-    s_discipline = "ICS_PHYSICS"
-else: 
-    s_discipline = "HUMANITIES"
+                if s_sec_upper.startswith("M") or "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: 
+                    s_discipline = "MEDICAL"
+                elif s_sec_upper.startswith("E") or "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: 
+                    s_discipline = "ENGINEERING"
+                elif any(x in s_sec_upper for x in ["IK", "CG", "COMMERCE"]): 
+                    s_discipline = "COMMERCE"
+                elif "ICS" in s_sec_upper: 
+                    s_discipline = "ICS_PHYSICS"
+                else: 
+                    s_discipline = "HUMANITIES"
                 
                 st.markdown("---")
                 st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
