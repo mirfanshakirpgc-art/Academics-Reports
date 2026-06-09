@@ -588,21 +588,27 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     except Exception:
         all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
 
-    # Helper function to execute database writes safely across potential routing endpoints
+    # FIXED: Robust fallback database runner routing system to handle any operational environment
     def execute_db_write(query_string, params_dict):
         try:
             if 'run_action' in locals() or 'run_action' in globals():
-                run_action(query_string, params_dict)
+                func = locals().get('run_action') if 'run_action' in locals() else globals().get('run_action')
+                func(query_string, params_dict)
             elif 'db_execute' in locals() or 'db_execute' in globals():
-                db_execute(query_string, params_dict)
+                func = locals().get('db_execute') if 'db_execute' in locals() else globals().get('db_execute')
+                func(query_string, params_dict)
             else:
+                # Fallback directly to native streamlit query runner sequence
                 run_query(query_string, params_dict)
         except Exception:
-            if 'conn' in locals() or 'conn' in globals():
-                from sqlalchemy import text
+            # Absolute baseline recovery option if standard abstractions are missing
+            from sqlalchemy import text
+            if 'conn' in globals():
                 globals().get('conn').execute(text(query_string), params_dict)
+            elif 'conn' in locals():
+                locals().get('conn').execute(text(query_string), params_dict)
             else:
-                raise NameError("Database update execution system routing could not be auto-resolved.")
+                raise NameError("Database write engine connection routing failed to resolve cleanly.")
 
     # ================================================================================
     # WORKFLOW 1: MANUAL ENTRY BY COMPLETE SECTION
@@ -610,7 +616,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     if entry_mode == "📋 By Complete Section":
         st.markdown("### 🔍 Filters Setup")
         
-        # 5-Column Grid Layout for Complete Section View
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1: sel_session = st.selectbox("Session:", session_options, key="entry_sess_prod")
         with c2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="entry_sys_prod")
@@ -630,7 +635,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 sel_discipline = "DIPLOMA_IN_IT_DIT"
                 st.text_input("Discipline:", value="DIT", disabled=True, key="entry_disc_dit_prod")
 
-        # Dynamic Sections Parsing 
         valid_sections_list = []
         if academic_system == "Annual System":
             lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
@@ -648,7 +652,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
         with c5: sel_section = st.selectbox("Target Section:", valid_sections_list, key="entry_sec_prod")
 
-        # Subject Processing
         if academic_system == "Annual System":
             try: base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
             except NameError: base_subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "BIOLOGY"]
@@ -726,14 +729,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         ui_marks_default = "0" if (is_nc_default or is_abs_default) else str(int(default_val))
                         
                         r_col1, r_col2, r_col3, r_col4 = st.columns([3, 2, 1, 1])
-                        with r_col1: 
-                            st.markdown(f"**{sid}** — {sname}")
-                        with r_col2: 
-                            obs_val_str = st.text_input(f"Marks (Max {total_marks})", value=ui_marks_default, key=f"score_{sid}", label_visibility="collapsed")
-                        with r_col3: 
-                            abs_check = st.checkbox("Absent", value=is_abs_default, key=f"abs_{sid}")
-                        with r_col4: 
-                            nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
+                        with r_col1: st.markdown(f"**{sid}** — {sname}")
+                        with r_col2: obs_val_str = st.text_input(f"Marks (Max {total_marks})", value=ui_marks_default, key=f"score_{sid}", label_visibility="collapsed")
+                        with r_col3: abs_check = st.checkbox("Absent", value=is_abs_default, key=f"abs_{sid}")
+                        with r_col4: nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
                         
                         try:
                             clean_score = int(''.join(filter(str.isdigit, obs_val_str))) if obs_val_str else 0
@@ -769,11 +768,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         if success_count == len(marks_payload):
                             st.success(f"🎉 Successfully saved marks registry entries for {success_count} students!")
                             st.rerun()
-            else:
-                st.warning("⚠️ No student records located matching the chosen criteria combinations.")
 
     # ================================================================================
-    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE (SAFE SCHEMALESS FETCH)
+    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE
     # ================================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.markdown("### 🔍 Configuration Setup")
@@ -786,6 +783,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         
         if search_sid:
             try:
+                # FIXED: Removed non-existent column "discipline" to solve PostgreSQL UndefinedColumn exception
                 fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
@@ -797,6 +795,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
+                # Dynamic structural discipline lookup assignment from section layout context signatures
                 s_sec_upper = str(s_section).upper().strip()
                 if s_sec_upper.startswith("M") or "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: 
                     s_discipline = "MEDICAL"
@@ -825,8 +824,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         elif s_class == "12th":
                             base_list.append("PAK_STUDIES")
                             student_subjects = [sub for sub in base_list if sub != "ISL_ETH"]
-                        else:
-                            student_subjects = base_list
+                        else: student_subjects = base_list
                 else:
                     if "1ST" in str(s_class).upper(): student_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
                     elif "2ND" in str(s_class).upper(): student_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
@@ -858,12 +856,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.markdown(f"##### 🎯 Input Marks Metrics for {sel_subject} ({sel_exam})")
                 with st.form(key="individual_student_form_panel"):
                     form_c1, form_c2, form_c3 = st.columns([2, 1, 1])
-                    with form_c1:
-                        single_score_str = st.text_input(f"Obtained Score Box:", value=ui_val_init)
-                    with form_c2:
-                        single_abs = st.checkbox("Absent", value=is_abs_init)
-                    with form_c3:
-                        single_nc = st.checkbox("NC (Not Conducted)", value=is_nc_init)
+                    with form_c1: single_score_str = st.text_input(f"Obtained Score Box:", value=ui_val_init)
+                    with form_c2: single_abs = st.checkbox("Absent", value=is_abs_init)
+                    with form_c3: single_nc = st.checkbox("NC (Not Conducted)", value=is_nc_init)
                         
                     single_submit = st.form_submit_button("💾 Save Changes & Update System Record", use_container_width=True)
                     if single_submit:
@@ -887,14 +882,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 "sid": search_sid, "sub": sel_subject, "exam": sel_exam, "sec": s_section,
                                 "sess": sel_session, "obs": final_score, "tot": total_marks, "abs": 1 if (single_abs and not single_nc) else 0
                             })
-                            st.success(f"🎉 Successfully saved and committed marks registry record for Student ID: {search_sid}!")
+                            st.success(f"🎉 Successfully saved marks record for Student ID: {search_sid}!")
                             st.rerun()
                         except Exception as db_err:
                             st.error(f"Database validation connection failure execution error: {db_err}")
             else:
                 st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify your entry.")
-        else:
-            st.info("💡 Please type a Student Roll Number above to fetch profile track metrics options and unlock the entry options panel layers.")
 
     # ================================================================================
     # WORKFLOW 3: BULK EXCEL / CSV IMPORT
@@ -913,28 +906,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         with ec6: upload_subject = st.text_input("Enter Exact Subject Code (e.g. CHEMISTRY, POA):", key="xl_sub").strip().upper()
         
         st.markdown("---")
-        
-        with st.expander("💡 View Formatting Excel Guidelines"):
-            st.markdown("""
-            Your uploaded spreadsheet file **must contain** the following exact column naming headers:
-            * `student_id` : The numeric unique identifier key code.
-            * `obtained_marks` : Input a numeric score, `0` for Absentees, or write **`NC`** if the test wasn't conducted.
-            * `is_absent` : Put `1` if student was absent, otherwise keep it `0` (leave `0` if marked as `NC`).
-            """)
-            
-            template_df = pd.DataFrame(columns=["student_id", "obtained_marks", "is_absent"])
-            csv_data = template_df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Standard Excel Blank Template.csv", data=csv_data, file_name="academic_marks_template.csv", mime="text/csv")
-            
         uploaded_file = st.file_uploader("📤 Choose formatted CSV/Excel spreadsheet data file:", type=["csv", "xlsx"])
         
         if uploaded_file is not None:
             try:
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-                
+                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
                 df.columns = [str(c).strip().lower() for c in df.columns]
                 
                 required_cols = ["student_id", "obtained_marks", "is_absent"]
@@ -980,7 +956,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.error(f"❌ Missing layout schema column fields. File must contain exactly: {required_cols}")
             except Exception as read_err:
                 st.error(f"❌ File streaming execution processing failure error: {read_err}")
-    # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT
 # ====================================================================================
 elif menu_choice == "📅 Attendance Entry Management":
