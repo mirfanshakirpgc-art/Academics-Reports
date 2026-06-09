@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - ROBUST ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - FINAL PRODUCTION)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1293,8 +1293,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("Select Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Step 1: Bulletproof Base Data Pull matching run_query expected styles
-    # We pull raw table contents. If any specific sub-column fails, the try-except falls back to a minimal selector.
+    # ⚡ Step 1: Safe Base Data Pull matching run_query expected styles
     try:
         raw_students = run_query("""
             SELECT 
@@ -1308,7 +1307,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
         """, {"dt": str(report_date)})
     except Exception:
-        # Fallback if section_in_charge doesn't exist or is named differently in your database schema
         raw_students = run_query("""
             SELECT 
                 s.class,
@@ -1406,7 +1404,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                         "Class": category if is_first else "",  
                         "Section": str(row['Section']),
                         "In Charge": str(row['In_Charge']),
-                        "Total Enrolled": int(row['Total Enrolled']),
+                        "Total Enrolled": int(row['Total_Enrolled']),
                         "Left": int(row['Left_Count']),
                         "Total Active": act,
                         "Present": pre,
