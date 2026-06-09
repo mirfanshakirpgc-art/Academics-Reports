@@ -786,21 +786,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_info['class'].iloc[0]
                 st.info(f"👤 Student Found: **{s_name}** | Section: **{s_section}**")
                 
-                # Dynamic context-based subject list mapping helper options for cleaner typing experience
+                # Dynamic context-based subject list mapping helper options
                 if s_system == "Annual System":
-                    single_sub_options = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "MATHEMATICS", "COMPUTER SCIENCE", "STATISTICS", "ISLAMIC STUDIES", "PAK_ST", "T_QURAN", "EDUCATION", "PRINCIPLES OF ACCOUNTING"]
-                    with sc1: 
-                        single_sub = st.combobox ? st.selectbox("Select Subject:", single_sub_options, key="s_sub_val") : st.text_input("Subject Identity:", value="ENGLISH", key="s_sub_val")
+                    single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Statistics", "Islamic Studies", "Pak_St", "T_Quran", "Education", "Principles of Accounting"]
                 else:
-                    single_sub_options = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
+                    single_sub_options = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 
                 c_m1, c_m2, c_m3, c_m4 = st.columns([1.5, 1.2, 1, 1.3])
                 with c_m1: 
-                    # Use combo selectbox for rapid workflow selection but fallback if user wants unique typing entry 
-                    if s_system == "Annual System":
-                        single_sub = st.selectbox("Course/Subject:", ["English", "Urdu", "Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Statistics", "Islamic Studies", "Pak_St", "T_Quran", "Education"], key="s_sub_val")
-                    else:
-                        single_sub = st.selectbox("Course/Subject:", ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"], key="s_sub_val")
+                    single_sub = st.selectbox("Course/Subject:", single_sub_options, key="s_sub_val")
                 
                 with c_m2: 
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
