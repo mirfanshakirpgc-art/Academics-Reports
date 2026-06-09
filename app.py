@@ -607,15 +607,34 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
             with c5: 
                 if academic_system == "Annual System":
-                    try:
-                        # 🔄 Automatically append year suffix based on class level selection to support subject transitions
+                    # 🛡️ Inline Safety Matrix: Guarantees your subjects load even if global scope fails
+                    DISCIPLINE_SUBJECTS_MAP = {
+                        "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+                        "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+                        "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+                        "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                        "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                        "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+                        "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+                        "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
+                        "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+                    }
+
+                    # 🔄 Dynamically build lists based on "ALL", "11th", or "12th" selection states
+                    if sel_class == "ALL":
+                        list_11th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_11TH", [])
+                        list_12th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_12TH", [])
+                        # Safely merges lists while preserving native sorting order without duplicates
+                        available_subjects = list(dict.fromkeys(list_11th + list_12th))
+                    else:
                         suffix = "_12TH" if sel_class == "12th" else "_11TH"
                         lookup_key = f"{sel_discipline}{suffix}"
-                        
                         available_subjects = DISCIPLINE_SUBJECTS_MAP.get(lookup_key, ["English", "Urdu", "Physics"])
-                    except NameError: 
-                        available_subjects = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Biology"]
                 else:
+                    # Semester System Tracks (DIT)
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
                     elif "2nd Semester" in sel_class:
@@ -623,18 +642,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     else: 
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                 
+                # Render the final drop down selection panel
                 sel_subject = st.selectbox("Select Course/Subject:", available_subjects, key="entry_sub_filter_a")
         
+        # ====================================================================================
+        # RENDER ROSTER & DATA SUBMISSION GRID
+        # ====================================================================================
         if sel_subject and sel_section and sel_session:
             row2_1, row2_2 = st.columns(2)
             with row2_1: 
-                # 🎯 FIXED: Standardized to use all_frameworks across both systems to preserve test analytics names
                 sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
             with row2_2: 
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
-                # Query structure standardized to pull by matching keys
+                # Query reads data matching standardized clean text tokens
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
