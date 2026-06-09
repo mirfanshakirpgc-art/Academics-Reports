@@ -1293,157 +1293,165 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("Select Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Step 1: Fetch raw records safely without database-side GROUP BY or aggregation functions
+    # ⚡ Step 1: Simplified standard SQL query with no tricky text casting
     raw_students = run_query("""
         SELECT 
             s.class AS "Class",
             s.section AS "Section",
             COALESCE(s.section_in_charge, '---') AS "In Charge",
             s.status AS "Student_Status",
+            s.session AS "Student_Session",
             d.status AS "Attendance_Status"
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
-        WHERE UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
-    """, {"att_date": str(report_date), "session": str(report_session).strip()})
+    """, {"att_date": str(report_date)})
 
     if raw_students.empty:
-        st.info(f"ℹ️ No active student enrollments or daily logs found for Session {report_session} on {report_date.strftime('%d-%b-%Y')}.")
+        st.info("ℹ️ No student enrollment records or logs could be found in the database.")
     else:
-        # Clean string formats to prevent string parsing errors
+        # Secure data typing using Pandas safely inside Python
         raw_students['Class'] = raw_students['Class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['Section'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['In Charge'] = raw_students['In Charge'].fillna('---').astype(str).str.strip()
         raw_students['Student_Status'] = raw_students['Student_Status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Attendance_Status'] = raw_students['Attendance_Status'].fillna('').astype(str).str.upper().str.strip()
+        raw_students['Student_Session'] = raw_students['Student_Session'].fillna('').astype(str).str.strip()
 
-        # 🧪 Step 2: Gender Classification Filter Rules (G & Q = Girls, B & K = Boys)
-        def classify_group(row):
-            cls = row['Class']
-            sec = row['Section']
-            
-            has_girls = any(c in sec for c in ["G", "Q"])
-            has_boys = any(c in sec for c in ["B", "K"])
-            
-            if "11" in cls:
-                return "11th (Girls)" if (has_girls and not has_boys) else "11th (Boys)"
-            elif "12" in cls:
-                return "12th (Girls)" if (has_girls and not has_boys) else "12th (Boys)"
-            return "Other Tiers"
+        # 🎯 Step 2: Safe session filtering handled by Pandas in Python
+        target_sess_clean = str(report_session).strip()
+        raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
 
-        raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
-
-        # Pre-calculate calculation metrics for each row inside Python
-        raw_students['Is_Left'] = raw_students['Student_Status'].isin(['LEFT', 'DROPOUT']).astype(int)
-        raw_students['Is_Active'] = (~raw_students['Student_Status'].isin(['LEFT', 'DROPOUT'])).astype(int)
-        
-        raw_students['Is_Present'] = ((raw_students['Is_Active'] == 1) & 
-                                      (raw_students['Attendance_Status'].isin(['P', 'PRESENT', '1']))).astype(int)
-        raw_students['Is_Absent'] = ((raw_students['Is_Active'] == 1) & 
-                                     (raw_students['Attendance_Status'].isin(['A', 'ABSENT', '0']))).astype(int)
-
-        # 🔄 Step 3: Perform secure grouping computations using Pandas
-        summary_grouped = raw_students.groupby(['Group_Category', 'Class', 'Section', 'In Charge']).agg(
-            Total_Enrolled=('Class', 'count'),
-            Left_Count=('Is_Left', 'sum'),
-            Active_Count=('Is_Active', 'sum'),
-            Present_Count=('Is_Present', 'sum'),
-            Absent_Count=('Is_Absent', 'sum')
-        ).reset_index()
-
-        # Exact layout order matching your print ledger sheets
-        print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
-        
-        ledger_rows = []
-        grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
-
-        # Construct safe sequential blocks
-        for category in print_order:
-            cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
-            if cat_df.empty:
-                continue
-                
-            c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
-            is_first = True
-            
-            for idx, row in cat_df.iterrows():
-                act = int(row['Active_Count'])
-                pre = int(row['Present_Count'])
-                pct = f"{int((pre / act) * 100)}%" if act > 0 else "0%"
-                
-                c_enrolled += int(row['Total_Enrolled'])
-                c_left += int(row['Left_Count'])
-                c_active += act
-                c_present += pre
-                c_absent += int(row['Absent_Count'])
-                
-                ledger_rows.append({
-                    "Class": category if is_first else "",  
-                    "Section": str(row['Section']),
-                    "In Charge": str(row['In Charge']),
-                    "Total Enrolled": int(row['Total Enrolled']),
-                    "Left": int(row['Left_Count']),
-                    "Total Active": act,
-                    "Present": pre,
-                    "Absent": int(row['Absent_Count']),
-                    "%age": pct
-                })
-                is_first = False
-                
-            # Category Sub-Total Row
-            c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
-            ledger_rows.append({
-                "Class": f"Total {category}", "Section": "", "In Charge": "",
-                "Total Enrolled": c_enrolled, "Left": c_left, "Total Active": c_active,
-                "Present": c_present, "Absent": c_absent, "%age": c_pct
-            })
-            
-            grand_enrolled += c_enrolled
-            grand_left += c_left
-            grand_active += c_active
-            grand_present += c_present
-            grand_absent += c_absent
-
-        # Display Section Wise Breakdown Table
-        st.subheader(f"📋 Roster Sheet Breakdown — Session {report_session}")
-        if ledger_rows:
-            master_table_df = pd.DataFrame(ledger_rows)
-            st.dataframe(master_table_df, use_container_width=True, hide_index=True)
-            
-            # 📊 RENDER: Bottom Executive "Statistics of Attendance" Table
-            st.markdown("###")
-            st.markdown("#### **Statistics of Attendance:-**")
-            
-            g_percentage = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
-            
-            stats_df = pd.DataFrame([{
-                "Date": report_date.strftime('%d-%b-%Y'),
-                "Total Enrolled": grand_enrolled,
-                "Left": grand_left,
-                "Total Active": grand_active,
-                "Total Present": grand_present,
-                "Total Absent": grand_absent,
-                "Grand Percentage": g_percentage
-            }])
-            st.dataframe(stats_df, use_container_width=True, hide_index=True)
-            
-            # Signature/Remarks box matching ledger sheet footer
-            st.markdown("###")
-            st.markdown("**Remarks & Calls Feedback:**")
-            st.markdown("<div style='border: 1px solid #ccc; height: 50px; border-radius: 5px; background-color: #fafafa; padding: 10px; color: #aaa; font-style: italic;'>Handwritten feedback notes...</div>", unsafe_allow_html=True)
-            
-            # 📥 Instant Data Export Interface
-            st.markdown("---")
-            csv_data = master_table_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Export Daily Report Data (CSV)",
-                data=csv_data,
-                file_name=f"Daily_Attendance_Report_{report_session}_{report_date}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                type="primary"
-            )
+        if raw_students.empty:
+            st.info(f"ℹ️ No active records match Session: '{target_sess_clean}' for this date.")
         else:
-            st.warning("⚠️ Processes finished but structured arrays are empty.")
+            # 🧪 Step 3: Gender Classification Rules (G & Q = Girls, B & K = Boys)
+            def classify_group(row):
+                cls = row['Class']
+                sec = row['Section']
+                
+                has_girls = any(c in sec for c in ["G", "Q"])
+                has_boys = any(c in sec for c in ["B", "K"])
+                
+                if "11" in cls:
+                    return "11th (Girls)" if (has_girls and not has_boys) else "11th (Boys)"
+                elif "12" in cls:
+                    return "12th (Girls)" if (has_girls and not has_boys) else "12th (Boys)"
+                return "Other Tiers"
+
+            raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
+
+            # Pre-calculate active status metrics flags inside Python
+            raw_students['Is_Left'] = raw_students['Student_Status'].isin(['LEFT', 'DROPOUT']).astype(int)
+            raw_students['Is_Active'] = (~raw_students['Student_Status'].isin(['LEFT', 'DROPOUT'])).astype(int)
+            
+            raw_students['Is_Present'] = ((raw_students['Is_Active'] == 1) & 
+                                          (raw_students['Attendance_Status'].isin(['P', 'PRESENT', '1']))).astype(int)
+            raw_students['Is_Absent'] = ((raw_students['Is_Active'] == 1) & 
+                                         (raw_students['Attendance_Status'].isin(['A', 'ABSENT', '0']))).astype(int)
+
+            # 🔄 Step 4: Perform grouping using Pandas 
+            summary_grouped = raw_students.groupby(['Group_Category', 'Class', 'Section', 'In Charge']).agg(
+                Total_Enrolled=('Class', 'count'),
+                Left_Count=('Is_Left', 'sum'),
+                Active_Count=('Is_Active', 'sum'),
+                Present_Count=('Is_Present', 'sum'),
+                Absent_Count=('Is_Absent', 'sum')
+            ).reset_index()
+
+            # Layout display sorting structure
+            print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
+            
+            ledger_rows = []
+            grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
+
+            # Construct display blocks
+            for category in print_order:
+                cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
+                if cat_df.empty:
+                    continue
+                    
+                c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
+                is_first = True
+                
+                for idx, row in cat_df.iterrows():
+                    act = int(row['Active_Count'])
+                    pre = int(row['Present_Count'])
+                    pct = f"{int((pre / act) * 100)}%" if act > 0 else "0%"
+                    
+                    c_enrolled += int(row['Total_Enrolled'])
+                    c_left += int(row['Left_Count'])
+                    c_active += act
+                    c_present += pre
+                    c_absent += int(row['Absent_Count'])
+                    
+                    ledger_rows.append({
+                        "Class": category if is_first else "",  
+                        "Section": str(row['Section']),
+                        "In Charge": str(row['In Charge']),
+                        "Total Enrolled": int(row['Total Enrolled']),
+                        "Left": int(row['Left_Count']),
+                        "Total Active": act,
+                        "Present": pre,
+                        "Absent": int(row['Absent_Count']),
+                        "%age": pct
+                    })
+                    is_first = False
+                    
+                # Append Categorical Sub-Totals
+                c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
+                ledger_rows.append({
+                    "Class": f"Total {category}", "Section": "", "In Charge": "",
+                    "Total Enrolled": c_enrolled, "Left": c_left, "Total Active": c_active,
+                    "Present": c_present, "Absent": c_absent, "%age": c_pct
+                })
+                
+                grand_enrolled += c_enrolled
+                grand_left += c_left
+                grand_active += c_active
+                grand_present += c_present
+                grand_absent += c_absent
+
+            # Render tables
+            st.subheader(f"📋 Roster Sheet Breakdown — Session {report_session}")
+            if ledger_rows:
+                master_table_df = pd.DataFrame(ledger_rows)
+                st.dataframe(master_table_df, use_container_width=True, hide_index=True)
+                
+                # 📊 RENDER: Bottom "Statistics of Attendance" Table
+                st.markdown("###")
+                st.markdown("#### **Statistics of Attendance:-**")
+                
+                g_percentage = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
+                
+                stats_df = pd.DataFrame([{
+                    "Date": report_date.strftime('%d-%b-%Y'),
+                    "Total Enrolled": grand_enrolled,
+                    "Left": grand_left,
+                    "Total Active": grand_active,
+                    "Total Present": grand_present,
+                    "Total Absent": grand_absent,
+                    "Grand Percentage": g_percentage
+                }])
+                st.dataframe(stats_df, use_container_width=True, hide_index=True)
+                
+                # Footer padding block
+                st.markdown("###")
+                st.markdown("**Remarks & Calls Feedback:**")
+                st.markdown("<div style='border: 1px solid #ccc; height: 50px; border-radius: 5px; background-color: #fafafa; padding: 10px; color: #aaa; font-style: italic;'>Handwritten feedback notes...</div>", unsafe_allow_html=True)
+                
+                # 📥 Data Export Interface
+                st.markdown("---")
+                csv_data = master_table_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Export Daily Report Data (CSV)",
+                    data=csv_data,
+                    file_name=f"Daily_Attendance_Report_{report_session}_{report_date}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    type="primary"
+                )
+            else:
+                st.warning("⚠️ Processes finished but metrics layouts are unpopulated.")
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
