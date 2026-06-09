@@ -752,12 +752,19 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
-                s_sec_upper = str(s_section).upper().strip()
-                if "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: s_discipline = "MEDICAL"
-                elif "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: s_discipline = "ENGINEERING"
-                elif "IK" in s_sec_upper or "COMMERCE" in s_sec_upper or "CG" in s_sec_upper: s_discipline = "COMMERCE"
-                elif "ICS" in s_sec_upper: s_discipline = "ICS_PHYSICS"
-                else: s_discipline = "HUMANITIES"
+                # Deduce structural discipline path using refined section rules
+s_sec_upper = str(s_section).upper().strip()
+
+if s_sec_upper.startswith("M") or "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: 
+    s_discipline = "MEDICAL"
+elif s_sec_upper.startswith("E") or "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: 
+    s_discipline = "ENGINEERING"
+elif any(x in s_sec_upper for x in ["IK", "CG", "COMMERCE"]): 
+    s_discipline = "COMMERCE"
+elif "ICS" in s_sec_upper: 
+    s_discipline = "ICS_PHYSICS"
+else: 
+    s_discipline = "HUMANITIES"
                 
                 st.markdown("---")
                 st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
