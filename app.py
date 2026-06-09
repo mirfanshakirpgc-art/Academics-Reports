@@ -529,7 +529,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     
     st.markdown("---")
     
-    # Global Pre-fetch configurations
+    # Global Pre-fetch configurations used by both Manual and Excel workflows
     try:
         session_df = run_query("SELECT DISTINCT session FROM students ORDER BY session DESC")
         session_options = session_df["session"].tolist() if not session_df.empty else ["2025-27", "2024-26", "2026-28"]
@@ -548,7 +548,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     if entry_mode == "📋 By Complete Section":
         st.markdown("### 🔍 Filters Setup")
         
-        # 5-Column Grid Layout for Complete Section View
+        # 5-Column Grid Layout
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1: sel_session = st.selectbox("Session:", session_options, key="entry_sess_prod")
         with c2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="entry_sys_prod")
@@ -621,6 +621,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         with sub_col2: sel_exam = st.selectbox("Examination Cycle:", all_frameworks, index=1 if len(all_frameworks) > 1 else 0, key="entry_exam_sel_prod")
         with sub_col3: total_marks = st.number_input("Total Marks:", min_value=1, max_value=200, value=100, step=1, key="sec_global_marks_prod")
 
+        # Student Query Logic
         if sel_subject and sel_section and sel_session:
             try:
                 query_students = "SELECT id, name FROM students WHERE class = :cls AND section = :sec AND session = :sess ORDER BY id ASC"
@@ -633,57 +634,90 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             if not students_df.empty:
                 st.markdown(f"### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                 
-                st.markdown("##### ⚡ Global Actions")
-                g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
-                mark_all_abs = g_col2.button("👤 Mark All Absent", use_container_width=True)
-                mark_all_nc = g_col3.button("🚫 Mark All NC", use_container_width=True)
-                
                 try:
                     existing_marks_query = "SELECT student_id, obtained_marks, is_absent FROM marks WHERE subject = :sub AND exam_cycle = :exam AND section = :sec AND session = :sess"
                     existing_df = run_query(existing_marks_query, {"sub": sel_subject, "exam": sel_exam, "sec": sel_section, "sess": sel_session})
                     marks_cache = {row['student_id']: (row['obtained_marks'], row['is_absent']) for _, row in existing_df.iterrows()}
                 except Exception: marks_cache = {}
 
+                # --- 🎯 STAGE 1: BACKEND SESSION STATE ENGINE INITIALIZATION ---
+                for idx, student in students_df.iterrows():
+                    sid = student['id']
+                    cached_val, cached_abs = marks_cache.get(sid, (0, False))
+                    
+                    # Create custom unique session state key tags for every interactive element row
+                    abs_key = f"abs_state_{sid}"
+                    nc_key = f"nc_state_{sid}"
+                    score_key = f"score_state_{sid}"
+                    
+                    # Populate initial values from database cache if not already assigned in session memory
+                    if abs_key not in st.session_state:
+                        st.session_state[abs_key] = bool(cached_abs)
+                    if nc_key not in st.session_state:
+                        st.session_state[nc_key] = True if float(cached_val) == -1.0 else False
+                    if score_key not in st.session_state:
+                        st.session_state[score_key] = "0" if (st.session_state[nc_key] or st.session_state[abs_key]) else str(int(cached_val))
+
+                # --- 🎯 STAGE 2: GLOBAL CLICK CALLBACK ROUTINES ---
+                def apply_global_absent():
+                    for _, s in students_df.iterrows():
+                        st.session_state[f"abs_state_{s['id']}"] = True
+                        st.session_state[f"nc_state_{s['id']}"] = False
+                        st.session_state[f"score_state_{s['id']}"] = "0"
+
+                def apply_global_nc():
+                    for _, s in students_df.iterrows():
+                        st.session_state[f"abs_state_{s['id']}"] = False
+                        st.session_state[f"nc_state_{s['id']}"] = True
+                        st.session_state[f"score_state_{s['id']}"] = "0"
+
+                # --- GLOBAL ACTIONS UI BUTTON ROW ---
+                st.markdown("##### ⚡ Global Actions")
+                g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
+                with g_col2:
+                    st.button("👤 Mark All Absent", use_container_width=True, on_click=apply_global_absent)
+                with g_col3:
+                    st.button("🚫 Mark All NC", use_container_width=True, on_click=apply_global_nc)
+                
+                # --- STAGE 3: RENDER REGISTRY ROWS MAPPED DIRECTLY TO SESSION STATE ---
                 marks_payload = []
-                with st.form(key="bulk_marks_submission_form_v13"):
+                with st.form(key="bulk_marks_submission_form_v9"):
                     for _, student in students_df.iterrows():
                         sid = student['id']
                         sname = student['name']
-                        default_val, default_abs = marks_cache.get(sid, (0, False))
-                        
-                        if mark_all_nc:
-                            is_nc_default = True
-                            is_abs_default = False
-                        elif mark_all_abs:
-                            is_nc_default = False
-                            is_abs_default = True
-                        else:
-                            is_nc_default = True if float(default_val) == -1.0 else False
-                            is_abs_default = bool(default_abs)
-                            
-                        ui_marks_default = "0" if (is_nc_default or is_abs_default) else str(int(default_val))
                         
                         r_col1, r_col2, r_col3, r_col4 = st.columns([3, 2, 1, 1])
                         with r_col1: 
                             st.markdown(f"**{sid}** — {sname}")
                         with r_col2: 
-                            obs_val_str = st.text_input(f"Marks (Max {total_marks})", value=ui_marks_default, key=f"score_{sid}", label_visibility="collapsed")
+                            obs_val_str = st.text_input(
+                                f"Marks (Max {total_marks})", 
+                                key=f"score_state_{sid}",  # Tied to state key
+                                label_visibility="collapsed"
+                            )
                         with r_col3: 
-                            abs_check = st.checkbox("Absent", value=is_abs_default, key=f"abs_{sid}")
+                            abs_check = st.checkbox("Absent", key=f"abs_state_{sid}")  # Tied to state key
                         with r_col4: 
-                            nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
+                            nc_check = st.checkbox("NC", key=f"nc_state_{sid}")  # Tied to state key
                         
+                        # Parse inputs for current state execution payload calculations
                         try:
                             clean_score = int(''.join(filter(str.isdigit, obs_val_str))) if obs_val_str else 0
-                            if clean_score > int(total_marks): clean_score = int(total_marks)
-                        except ValueError: clean_score = 0
+                            if clean_score > int(total_marks):
+                                clean_score = int(total_marks)
+                        except ValueError:
+                            clean_score = 0
 
                         final_saved_score = clean_score
-                        if nc_check: final_saved_score = -1.0
-                        elif abs_check: final_saved_score = 0.0
+                        if nc_check: 
+                            final_saved_score = -1.0
+                        elif abs_check: 
+                            final_saved_score = 0.0
 
                         marks_payload.append({
-                            "student_id": sid, "obtained_marks": final_saved_score, "is_absent": 1 if (abs_check and not nc_check) else 0
+                            "student_id": sid, 
+                            "obtained_marks": final_saved_score, 
+                            "is_absent": 1 if (abs_check and not nc_check) else 0
                         })
                     
                     submit_btn = st.form_submit_button("💾 Save & Commit Marks Registry", use_container_width=True)
@@ -701,142 +735,25 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     "sid": record["student_id"], "sub": sel_subject, "exam": sel_exam, "sec": sel_section,
                                     "sess": sel_session, "obs": record["obtained_marks"], "tot": total_marks, "abs": record["is_absent"]
                                 })
+                                
+                                # Reset session states on successful database commits
+                                del st.session_state[f"abs_state_{record['student_id']}"]
+                                del st.session_state[f"nc_state_{record['student_id']}"]
+                                del st.session_state[f"score_state_{record['student_id']}"]
+                                
                                 success_count += 1
                             except Exception as db_err:
                                 st.error(f"Failed to record entry for Student ID {record['student_id']}: {db_err}")
+                        
                         if success_count == len(marks_payload):
                             st.success(f"🎉 Successfully saved marks registry entries for {success_count} students!")
                             st.rerun()
             else:
                 st.warning("⚠️ No student records located matching the chosen criteria combinations.")
-
-    # ================================================================================
-    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE (SAFE SCHEMALESS FETCH)
-    # ================================================================================
+                
     elif entry_mode == "👤 By Single Student Roll Number":
-        st.markdown("### 🔍 Configuration Setup")
+        st.info("Single Student Entry Sub-Console Interface Active.")
         
-        # 1. Row Selection: Only Session and Academic Track up front
-        sc1, sc2 = st.columns(2)
-        with sc1: sel_session = st.selectbox("Session:", session_options, key="single_sess_filter")
-        with sc2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_filter")
-        
-        # 2. Text input box for Roll Number
-        search_sid = st.text_input("👤 Enter Student Roll Number / ID Code:", value="", key="single_roll_search_input").strip()
-        
-        if search_sid:
-            try:
-                # FIXED: Removed non-existent "discipline" column to prevent SQL crashes
-                fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
-                student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
-            except Exception as e:
-                st.error(f"Error querying student profile context: {e}")
-                student_profile_df = pd.DataFrame()
-                
-            if not student_profile_df.empty:
-                s_name = student_profile_df.iloc[0]["name"]
-                s_class = student_profile_df.iloc[0]["class"]
-                s_section = student_profile_df.iloc[0]["section"]
-                
-                # Deduce structural discipline path using the section name prefixes dynamically
-                s_sec_upper = str(s_section).upper().strip()
-                if "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: s_discipline = "MEDICAL"
-                elif "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: s_discipline = "ENGINEERING"
-                elif "IK" in s_sec_upper or "COMMERCE" in s_sec_upper or "CG" in s_sec_upper: s_discipline = "COMMERCE"
-                elif "ICS" in s_sec_upper: s_discipline = "ICS_PHYSICS"
-                else: s_discipline = "HUMANITIES"
-                
-                st.markdown("---")
-                st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
-                
-                # Parse available subject options matching inferred tracking attributes
-                if academic_system == "Annual System":
-                    if "COMMERCE" in s_discipline:
-                        if s_class == "11th": student_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
-                        elif s_class == "12th": student_subjects = ["POA", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "PAK_STUDIES", "T_QURAN"]
-                        else: student_subjects = ["POA", "POC", "B_MATH", "POE", "C_GEOG", "B_STAT", "BANKING", "ENGLISH", "URDU", "ISL_ETH", "PAK_STUDIES", "T_QURAN"]
-                    else:
-                        base_list = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "MATHEMATICS", "COMPUTER SCIENCE"]
-                        if s_class == "11th":
-                            base_list.append("ISL_ETH")
-                            student_subjects = [sub for sub in base_list if sub != "PAK_STUDIES"]
-                        elif s_class == "12th":
-                            base_list.append("PAK_STUDIES")
-                            student_subjects = [sub for sub in base_list if sub != "ISL_ETH"]
-                        else:
-                            student_subjects = base_list
-                else:
-                    if "1ST" in str(s_class).upper(): student_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                    elif "2ND" in str(s_class).upper(): student_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                    else: student_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                
-                student_subjects = sorted(list(set([str(s).upper() for s in student_subjects])))
-                
-                # Render parameters selection boxes
-                st.markdown("#### 📝 Select Assessment Course & Assessment Framework")
-                sc3, sc4, sc5 = st.columns([2, 2, 1])
-                with sc3: sel_subject = st.selectbox("Course / Subject Title:", student_subjects, key="single_sub_dropdown")
-                with sc4: sel_exam = st.selectbox("Examination Cycle:", all_frameworks, key="single_exam_dropdown")
-                with sc5: total_marks = st.number_input("Total Marks Capacity:", min_value=1, max_value=200, value=100, step=1, key="single_total_max_marks")
-                
-                # Gather marks cache history records specifically for this student combo
-                try:
-                    marks_lookup_query = "SELECT obtained_marks, is_absent FROM marks WHERE student_id = :sid AND subject = :sub AND exam_cycle = :exam"
-                    marks_record_df = run_query(marks_lookup_query, {"sid": search_sid, "sub": sel_subject, "exam": sel_exam})
-                    if not marks_record_df.empty:
-                        cached_score = marks_record_df.iloc[0]['obtained_marks']
-                        cached_absent = marks_record_df.iloc[0]['is_absent']
-                    else:
-                        cached_score, cached_absent = 0, False
-                except Exception:
-                    cached_score, cached_absent = 0, False
-
-                is_nc_init = True if float(cached_score) == -1.0 else False
-                is_abs_init = bool(cached_absent)
-                ui_val_init = "0" if (is_nc_init or is_abs_init) else str(int(cached_score))
-                
-                # Render Marks Entry form panel
-                st.markdown(f"##### 🎯 Input Marks Metrics for {sel_subject} ({sel_exam})")
-                with st.form(key="individual_student_form_panel"):
-                    form_c1, form_c2, form_c3 = st.columns([2, 1, 1])
-                    with form_c1:
-                        single_score_str = st.text_input(f"Obtained Score Box:", value=ui_val_init)
-                    with form_c2:
-                        single_abs = st.checkbox("Absent", value=is_abs_init)
-                    with form_c3:
-                        single_nc = st.checkbox("NC (Not Conducted)", value=is_nc_init)
-                        
-                    single_submit = st.form_submit_button("💾 Save Changes & Update System Record", use_container_width=True)
-                    if single_submit:
-                        try:
-                            clean_score = int(''.join(filter(str.isdigit, single_score_str))) if single_score_str else 0
-                            if clean_score > int(total_marks): clean_score = int(total_marks)
-                        except ValueError: clean_score = 0
-                        
-                        final_score = clean_score
-                        if single_nc: final_score = -1.0
-                        elif single_abs: final_score = 0.0
-                        
-                        try:
-                            save_query = """
-                                INSERT INTO marks (student_id, subject, exam_cycle, section, session, obtained_marks, total_marks, is_absent)
-                                VALUES (:sid, :sub, :exam, :sec, :sess, :obs, :tot, :abs)
-                                ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
-                                obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
-                            """
-                            run_action(save_query, {
-                                "sid": search_sid, "sub": sel_subject, "exam": sel_exam, "sec": s_section,
-                                "sess": sel_session, "obs": final_score, "tot": total_marks, "abs": 1 if (single_abs and not single_nc) else 0
-                            })
-                            st.success(f"🎉 Successfully saved and committed marks registry record for Student ID: {search_sid}!")
-                            st.rerun()
-                        except Exception as db_err:
-                            st.error(f"Database validation connection failure execution error: {db_err}")
-            else:
-                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify your entry.")
-        else:
-            st.info("💡 Please type a Student Roll Number above to fetch profile track metrics options and unlock the entry options panel layers.")
-
     # ================================================================================
     # WORKFLOW 3: BULK EXCEL / CSV IMPORT
     # ================================================================================
