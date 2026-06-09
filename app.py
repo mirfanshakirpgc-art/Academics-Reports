@@ -648,19 +648,24 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
             
             try:
+                query_params = {
+                    "subject": str(sel_subject).strip().upper(),
+                    "exam": str(sel_exam).strip().upper(),
+                    "section": str(sel_section).strip().upper(),
+                    "session": str(sel_session).strip()
+                }
+
                 roster_df = run_query("""
                     SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
                     LEFT JOIN marks m ON s.id = m.student_id 
-                        AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:subject))
-                        AND UPPER(TRIM(m.exam_type)) = UPPER(TRIM(:exam))
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                      AND s.session = :session
-                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) != 'LEFT')
+                        AND UPPER(TRIM(m.subject)) = :subject
+                        AND UPPER(TRIM(m.exam_type)) = :exam
+                    WHERE UPPER(TRIM(s.section)) = :section
+                      AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = :session
+                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
                     ORDER BY s.id ASC
-                """, {
-                    "subject": sel_subject, "exam": sel_exam, "section": sel_section, "session": sel_session
-                })
+                """, query_params)
                 
                 if roster_df.empty:
                     st.info(f"💡 No active student records found in Section '{sel_section}' under Session {sel_session}.")
@@ -690,7 +695,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         h_c2.caption("🔢 **Obtained**")
                         h_c3.caption("❌ **Absent**")
                         h_c4.caption("➖ **NC**")
-                        st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_printable_html=True)
+                        st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
 
                         for idx, row in roster_df.iterrows():
                             col_s1, col_s2, col_s3, col_s4 = st.columns([3, 1, 0.6, 0.6])
@@ -703,7 +708,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             if f"abs_{row['ID']}" not in st.session_state:
                                 st.session_state[f"abs_{row['ID']}"] = (db_val in ['A', 'ABSENT'])
                             if f"nc_{row['ID']}" not in st.session_state:
-                                f"nc_{row['ID']}"
                                 st.session_state[f"nc_{row['ID']}"] = (db_val == 'NC')
 
                             # Render form checkboxes bound straight to session tracking memory logs
@@ -727,7 +731,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             
                             updated_marks[row['ID']] = "A" if chk_absent else ("NC" if chk_nc else score_input)
                         
-                        if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary"):
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
                             for s_id, score in updated_marks.items():
                                 score_clean = str(score).strip().upper()
                                 execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
@@ -744,6 +749,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.rerun()
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
+
+    elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
         if single_id and single_id.isdigit():
@@ -760,7 +767,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
                 with c_m1: single_sub = st.text_input("Subject Identity:", value="STATISTICS", key="s_sub_val")
                 with c_m2: 
-                    # 🎯 FIXED: Individual entries share the standard test options list
+                    # 🎯 Individual entries share the standard test options list
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
                 with c_m3: single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
