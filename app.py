@@ -538,77 +538,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
     try:
         if 'all_frameworks' not in locals() and 'all_frameworks' not in globals():
-            all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
+            all_frameworks = ["MT_1", "MT_2", "MID_TERM", "PRE_BOARD", "FINAL"]
     except Exception:
-        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
-
-    # Helper function to execute database writes safely across potential routing endpoints
-    def execute_db_write(query_string, params_dict):
-        try:
-            if 'run_action' in locals() or 'run_action' in globals():
-                run_action(query_string, params_dict)
-            elif 'db_execute' in locals() or 'db_execute' in globals():
-                db_execute(query_string, params_dict)
-            else:
-                # Direct update execution proxy using the known-working query parser engine
-                run_query(query_string, params_dict)
-        except Exception:
-            if 'conn' in locals() or 'conn' in globals():
-                from sqlalchemy import text
-                globals().get('conn').execute(text(query_string), params_dict)
-            else:
-                raise NameError("Database update execution system routing could not be auto-resolved.")
-
-    # ====================================================================================
-# MODULE 1: ACADEMIC EXAM MARKS ENTRY
-# ====================================================================================
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.subheader("📝 Academic Exam Marks Entry Workspace")
-    
-    # Top Workflow Mode Selector
-    entry_mode = st.radio(
-        "🎯 Select Entry Workflow Mode:",
-        ["📋 By Complete Section", "👤 By Single Student Roll Number", "📥 Bulk Excel/CSV Import"],
-        horizontal=True,
-        key="marks_entry_workflow_mode"
-    )
-    
-    st.markdown("---")
-    
-    # Global Pre-fetch configurations
-    try:
-        session_df = run_query("SELECT DISTINCT session FROM students ORDER BY session DESC")
-        session_options = session_df["session"].tolist() if not session_df.empty else ["2025-27", "2024-26", "2026-28"]
-    except Exception:
-        session_options = ["2025-27", "2024-26", "2026-28"]
-
-    try:
-        if 'all_frameworks' not in locals() and 'all_frameworks' not in globals():
-            all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
-    except Exception:
-        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
-
-    # FIXED: Fallback write router that uses run_query seamlessly if other functions are missing
-    def execute_db_write(query_string, params_dict):
-        try:
-            if 'run_action' in globals():
-                globals()['run_action'](query_string, params_dict)
-            elif 'run_action' in locals():
-                locals()['run_action'](query_string, params_dict)
-            elif 'db_execute' in globals():
-                globals()['db_execute'](query_string, params_dict)
-            elif 'db_execute' in locals():
-                locals()['db_execute'](query_string, params_dict)
-            else:
-                run_query(query_string, params_dict)
-        except Exception:
-            from sqlalchemy import text
-            if 'conn' in globals():
-                globals()['conn'].execute(text(query_string), params_dict)
-            elif 'conn' in locals():
-                locals()['conn'].execute(text(query_string), params_dict)
-            else:
-                raise NameError("Database management layer write execution engine failed to trace fallback router routing paths.")
+        all_frameworks = ["MT_1", "MT_2", "MID_TERM", "PRE_BOARD", "FINAL"]
 
     # ================================================================================
     # WORKFLOW 1: MANUAL ENTRY BY COMPLETE SECTION
@@ -616,6 +548,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     if entry_mode == "📋 By Complete Section":
         st.markdown("### 🔍 Filters Setup")
         
+        # 5-Column Grid Layout for Complete Section View
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1: sel_session = st.selectbox("Session:", session_options, key="entry_sess_prod")
         with c2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="entry_sys_prod")
@@ -635,6 +568,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 sel_discipline = "DIPLOMA_IN_IT_DIT"
                 st.text_input("Discipline:", value="DIT", disabled=True, key="entry_disc_dit_prod")
 
+        # Dynamic Sections Parsing 
         valid_sections_list = []
         if academic_system == "Annual System":
             lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
@@ -652,6 +586,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
         with c5: sel_section = st.selectbox("Target Section:", valid_sections_list, key="entry_sec_prod")
 
+        # Subject Processing
         if academic_system == "Annual System":
             try: base_subjects = DISCIPLINE_SUBJECTS_MAP.get(sel_discipline, ["ENGLISH", "URDU", "PHYSICS"])
             except NameError: base_subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "BIOLOGY"]
@@ -729,10 +664,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         ui_marks_default = "0" if (is_nc_default or is_abs_default) else str(int(default_val))
                         
                         r_col1, r_col2, r_col3, r_col4 = st.columns([3, 2, 1, 1])
-                        with r_col1: st.markdown(f"**{sid}** — {sname}")
-                        with r_col2: obs_val_str = st.text_input(f"Marks (Max {total_marks})", value=ui_marks_default, key=f"score_{sid}", label_visibility="collapsed")
-                        with r_col3: abs_check = st.checkbox("Absent", value=is_abs_default, key=f"abs_{sid}")
-                        with r_col4: nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
+                        with r_col1: 
+                            st.markdown(f"**{sid}** — {sname}")
+                        with r_col2: 
+                            obs_val_str = st.text_input(f"Marks (Max {total_marks})", value=ui_marks_default, key=f"score_{sid}", label_visibility="collapsed")
+                        with r_col3: 
+                            abs_check = st.checkbox("Absent", value=is_abs_default, key=f"abs_{sid}")
+                        with r_col4: 
+                            nc_check = st.checkbox("NC", value=is_nc_default, key=f"nc_{sid}")
                         
                         try:
                             clean_score = int(''.join(filter(str.isdigit, obs_val_str))) if obs_val_str else 0
@@ -758,7 +697,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
                                     obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
                                 """
-                                execute_db_write(save_query, {
+                                run_action(save_query, {
                                     "sid": record["student_id"], "sub": sel_subject, "exam": sel_exam, "sec": sel_section,
                                     "sess": sel_session, "obs": record["obtained_marks"], "tot": total_marks, "abs": record["is_absent"]
                                 })
@@ -768,22 +707,26 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         if success_count == len(marks_payload):
                             st.success(f"🎉 Successfully saved marks registry entries for {success_count} students!")
                             st.rerun()
+            else:
+                st.warning("⚠️ No student records located matching the chosen criteria combinations.")
 
     # ================================================================================
-    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE (FIXED DB FALLBACKS)
+    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE (SAFE SCHEMALESS FETCH)
     # ================================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.markdown("### 🔍 Configuration Setup")
         
+        # 1. Row Selection: Only Session and Academic Track up front
         sc1, sc2 = st.columns(2)
         with sc1: sel_session = st.selectbox("Session:", session_options, key="single_sess_filter")
         with sc2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_filter")
         
+        # 2. Text input box for Roll Number
         search_sid = st.text_input("👤 Enter Student Roll Number / ID Code:", value="", key="single_roll_search_input").strip()
         
         if search_sid:
             try:
-                # FIXED: Removed non-existent explicit "discipline" field from raw SQL execution call
+                # FIXED: Removed non-existent "discipline" column to prevent SQL crashes
                 fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
@@ -795,22 +738,18 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
-                # Dynamically construct structural discipline tracker using section rules
+                # Deduce structural discipline path using the section name prefixes dynamically
                 s_sec_upper = str(s_section).upper().strip()
-                if s_sec_upper.startswith("M") or "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: 
-                    s_discipline = "MEDICAL"
-                elif s_sec_upper.startswith("E") or "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: 
-                    s_discipline = "ENGINEERING"
-                elif any(x in s_sec_upper for x in ["IK", "CG", "COMMERCE"]): 
-                    s_discipline = "COMMERCE"
-                elif "ICS" in s_sec_upper: 
-                    s_discipline = "ICS_PHYSICS"
-                else: 
-                    s_discipline = "HUMANITIES"
+                if "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: s_discipline = "MEDICAL"
+                elif "EG" in s_sec_upper or "ENGINEERING" in s_sec_upper: s_discipline = "ENGINEERING"
+                elif "IK" in s_sec_upper or "COMMERCE" in s_sec_upper or "CG" in s_sec_upper: s_discipline = "COMMERCE"
+                elif "ICS" in s_sec_upper: s_discipline = "ICS_PHYSICS"
+                else: s_discipline = "HUMANITIES"
                 
                 st.markdown("---")
                 st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section} | **Track:** {s_discipline}")
                 
+                # Parse available subject options matching inferred tracking attributes
                 if academic_system == "Annual System":
                     if "COMMERCE" in s_discipline:
                         if s_class == "11th": student_subjects = ["POA", "POC", "B_MATH", "POE", "ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
@@ -824,7 +763,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         elif s_class == "12th":
                             base_list.append("PAK_STUDIES")
                             student_subjects = [sub for sub in base_list if sub != "ISL_ETH"]
-                        else: student_subjects = base_list
+                        else:
+                            student_subjects = base_list
                 else:
                     if "1ST" in str(s_class).upper(): student_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
                     elif "2ND" in str(s_class).upper(): student_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
@@ -832,12 +772,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 student_subjects = sorted(list(set([str(s).upper() for s in student_subjects])))
                 
+                # Render parameters selection boxes
                 st.markdown("#### 📝 Select Assessment Course & Assessment Framework")
                 sc3, sc4, sc5 = st.columns([2, 2, 1])
                 with sc3: sel_subject = st.selectbox("Course / Subject Title:", student_subjects, key="single_sub_dropdown")
                 with sc4: sel_exam = st.selectbox("Examination Cycle:", all_frameworks, key="single_exam_dropdown")
                 with sc5: total_marks = st.number_input("Total Marks Capacity:", min_value=1, max_value=200, value=100, step=1, key="single_total_max_marks")
                 
+                # Gather marks cache history records specifically for this student combo
                 try:
                     marks_lookup_query = "SELECT obtained_marks, is_absent FROM marks WHERE student_id = :sid AND subject = :sub AND exam_cycle = :exam"
                     marks_record_df = run_query(marks_lookup_query, {"sid": search_sid, "sub": sel_subject, "exam": sel_exam})
@@ -853,12 +795,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 is_abs_init = bool(cached_absent)
                 ui_val_init = "0" if (is_nc_init or is_abs_init) else str(int(cached_score))
                 
+                # Render Marks Entry form panel
                 st.markdown(f"##### 🎯 Input Marks Metrics for {sel_subject} ({sel_exam})")
                 with st.form(key="individual_student_form_panel"):
                     form_c1, form_c2, form_c3 = st.columns([2, 1, 1])
-                    with form_c1: single_score_str = st.text_input(f"Obtained Score Box:", value=ui_val_init)
-                    with form_c2: single_abs = st.checkbox("Absent", value=is_abs_init)
-                    with form_c3: single_nc = st.checkbox("NC (Not Conducted)", value=is_nc_init)
+                    with form_c1:
+                        single_score_str = st.text_input(f"Obtained Score Box:", value=ui_val_init)
+                    with form_c2:
+                        single_abs = st.checkbox("Absent", value=is_abs_init)
+                    with form_c3:
+                        single_nc = st.checkbox("NC (Not Conducted)", value=is_nc_init)
                         
                     single_submit = st.form_submit_button("💾 Save Changes & Update System Record", use_container_width=True)
                     if single_submit:
@@ -878,8 +824,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
                                 obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
                             """
-                            # FIXED: Routing execution seamlessly to robust update backend handler paths
-                            execute_db_write(save_query, {
+                            run_action(save_query, {
                                 "sid": search_sid, "sub": sel_subject, "exam": sel_exam, "sec": s_section,
                                 "sess": sel_session, "obs": final_score, "tot": total_marks, "abs": 1 if (single_abs and not single_nc) else 0
                             })
@@ -888,7 +833,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         except Exception as db_err:
                             st.error(f"Database validation connection failure execution error: {db_err}")
             else:
-                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify numbers input parameters.")
+                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify your entry.")
+        else:
+            st.info("💡 Please type a Student Roll Number above to fetch profile track metrics options and unlock the entry options panel layers.")
 
     # ================================================================================
     # WORKFLOW 3: BULK EXCEL / CSV IMPORT
@@ -907,11 +854,28 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         with ec6: upload_subject = st.text_input("Enter Exact Subject Code (e.g. CHEMISTRY, POA):", key="xl_sub").strip().upper()
         
         st.markdown("---")
+        
+        with st.expander("💡 View Formatting Excel Guidelines"):
+            st.markdown("""
+            Your uploaded spreadsheet file **must contain** the following exact column naming headers:
+            * `student_id` : The numeric unique identifier key code.
+            * `obtained_marks` : Input a numeric score, `0` for Absentees, or write **`NC`** if the test wasn't conducted.
+            * `is_absent` : Put `1` if student was absent, otherwise keep it `0` (leave `0` if marked as `NC`).
+            """)
+            
+            template_df = pd.DataFrame(columns=["student_id", "obtained_marks", "is_absent"])
+            csv_data = template_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Standard Excel Blank Template.csv", data=csv_data, file_name="academic_marks_template.csv", mime="text/csv")
+            
         uploaded_file = st.file_uploader("📤 Choose formatted CSV/Excel spreadsheet data file:", type=["csv", "xlsx"])
         
         if uploaded_file is not None:
             try:
-                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+                if uploaded_file.name.endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+                
                 df.columns = [str(c).strip().lower() for c in df.columns]
                 
                 required_cols = ["student_id", "obtained_marks", "is_absent"]
@@ -943,7 +907,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
                                     obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
                                 """
-                                execute_db_write(save_query, {
+                                run_action(save_query, {
                                     "sid": sid_val, "sub": upload_subject, "exam": upload_exam, "sec": upload_section,
                                     "sess": upload_session, "obs": db_final_score, "tot": upload_tot_marks, "abs": abs_flag
                                 })
@@ -957,222 +921,74 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.error(f"❌ Missing layout schema column fields. File must contain exactly: {required_cols}")
             except Exception as read_err:
                 st.error(f"❌ File streaming execution processing failure error: {read_err}")
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT
-# ====================================================================================
-elif menu_choice == "📅 Attendance Entry Management":
-    st.subheader("📅 Attendance Entry Management Workspace")
-    
-    # Top Workflow Mode Selector
-    att_mode = st.radio(
-        "🎯 Select Attendance Workflow Mode:",
-        ["📋 By Complete Section", "👤 By Single Student Roll Number"],
-        horizontal=True,
-        key="attendance_workflow_mode"
-    )
-    
-    st.markdown("---")
-    
-    # Global Pre-fetch configurations for Sessions
-    try:
-        session_df = run_query("SELECT DISTINCT session FROM students ORDER BY session DESC")
-        session_options = session_df["session"].tolist() if not session_df.empty else ["2025-27", "2024-26", "2026-28"]
-    except Exception:
-        session_options = ["2025-27", "2024-26", "2026-28"]
 
-    # ================================================================================
-    # WORKFLOW 1: ATTENDANCE BY COMPLETE SECTION
-    # ================================================================================
-    if att_mode == "📋 By Complete Section":
-        st.markdown("### 🔍 Filters Setup")
-        
-        # 4-Column Grid Layout for Section Filtering
-        ac1, ac2, ac3, ac4 = st.columns(4)
-        with ac1: sel_session = st.selectbox("Session:", session_options, key="att_sec_sess")
-        with ac2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="att_sec_sys")
-        with ac3:
-            if academic_system == "Annual System":
-                sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="att_sec_cl")
-            else:
-                sel_class = st.selectbox("Semester:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="att_sec_cl")
-        
-        with ac4:
-            if academic_system == "Annual System":
-                valid_sections = ["MK", "IK", "MG_BLUE", "EG_BLUE", "CG_WHITE"]
-            else:
-                valid_sections = ["DIT_G", "DIT_B"]
-            sel_section = st.selectbox("Target Section:", valid_sections, key="att_sec_target")
-            
+    # --------------------------------------------------------------------------------
+    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER
+    # --------------------------------------------------------------------------------
+    elif att_sub_type == "👤 By Single Student Roll Number":
+        st.subheader("👤 Single Student Attendance Record Manager")
         st.markdown("---")
-        st.markdown("#### 📅 Calendar Parameters")
         
-        date_col1, date_col2 = st.columns([2, 3])
-        with date_col1:
-            attendance_date = st.date_input("Select Attendance Date:", key="att_sec_date")
-        with date_col2:
-            # FIXED: Changed unsafe_allowed_html to unsafe_allow_html to eliminate the rendering crash
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.caption("ℹ️ Checking state applies instantly. Mark checkboxes for Present students, leave unchecked for Absentees.")
-
-        if sel_section and sel_session:
-            try:
-                target_cls = "12th" if sel_class == "ALL" else sel_class
-                if target_cls == "ALL":
-                    query_students = "SELECT id, name FROM students WHERE section = :sec AND session = :sess ORDER BY id ASC"
-                    students_df = run_query(query_students, {"sec": sel_section, "sess": sel_session})
-                else:
-                    query_students = "SELECT id, name FROM students WHERE class = :cls AND section = :sec AND session = :sess ORDER BY id ASC"
-                    students_df = run_query(query_students, {"cls": target_cls, "sec": sel_section, "sess": sel_session})
-            except Exception as e:
-                st.error(f"Error loading student roster: {e}")
-                students_df = pd.DataFrame()
-
-            if not students_df.empty:
-                st.markdown(f"### 📝 Attendance Registry for {sel_section} ({attendance_date.strftime('%Y-%m-%d')})")
-                
-                g_col1, g_col2, g_col3 = st.columns([2, 1, 1])
-                mark_all_p = g_col2.button("✅ Mark All Present", use_container_width=True)
-                mark_all_a = g_col3.button("❌ Mark All Absent", use_container_width=True)
-                
-                try:
-                    formatted_date_str = attendance_date.strftime('%Y-%m-%d')
-                    existing_att_query = "SELECT student_id, status FROM attendance WHERE att_date = :date_str AND section = :sec AND session = :sess"
-                    existing_df = run_query(existing_att_query, {"date_str": formatted_date_str, "sec": sel_section, "sess": sel_session})
-                    att_cache = {row['student_id']: row['status'] for _, row in existing_df.iterrows()}
-                except Exception:
-                    att_cache = {}
-
-                attendance_payload = []
-                
-                with st.form(key="bulk_attendance_submission_form"):
-                    for _, student in students_df.iterrows():
-                        sid = student['id']
-                        sname = student['name']
-                        
-                        cached_status = att_cache.get(sid, "Present")
-                        if mark_all_p:
-                            is_present_default = True
-                        elif mark_all_a:
-                            is_present_default = False
-                        else:
-                            is_present_default = True if cached_status == "Present" else False
-                        
-                        r_col1, r_col2 = st.columns([3, 1])
-                        with r_col1:
-                            st.markdown(f"**{sid}** — {sname}")
-                        with r_col2:
-                            pres_check = st.checkbox("Present", value=is_present_default, key=f"att_check_{sid}")
-                        
-                        attendance_payload.append({
-                            "student_id": sid,
-                            "status": "Present" if pres_check else "Absent"
-                        })
-                        
-                    submit_btn = st.form_submit_button("💾 Save & Commit Attendance Registry", use_container_width=True)
-                    
-                    if submit_btn:
-                        success_count = 0
-                        date_str = attendance_date.strftime('%Y-%m-%d')
-                        
-                        for record in attendance_payload:
-                            try:
-                                save_query = """
-                                    INSERT INTO attendance (student_id, att_date, section, session, status)
-                                    VALUES (:sid, :att_date, :sec, :sess, :status)
-                                    ON CONFLICT(student_id, att_date) DO UPDATE SET
-                                    status = EXCLUDED.status, section = EXCLUDED.section, session = EXCLUDED.session
-                                """
-                                run_action(save_query, {
-                                    "sid": record["student_id"],
-                                    "att_date": date_str,
-                                    "sec": sel_section,
-                                    "sess": sel_session,
-                                    "status": record["status"]
-                                })
-                                success_count += 1
-                            except Exception as db_err:
-                                st.error(f"Failed to record status for Roll No {record['student_id']}: {db_err}")
-                                
-                        if success_count == len(attendance_payload):
-                            st.success(f"🎉 Successfully saved attendance log for {success_count} students!")
-                            st.rerun()
+        col_search, _ = st.columns([2, 2])
+        with col_search:
+            single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_att_id_input")
+            
+        if single_id and single_id.isdigit():
+            student_info = run_query("""
+                SELECT name, section, session, class FROM students WHERE id = :id
+            """, {"id": int(single_id)})
+            
+            if student_info.empty:
+                st.error("❌ This roll number does not exist inside active logs.")
             else:
-                st.warning("⚠️ No student records located matching the chosen criteria combinations.")
-
-    # ================================================================================
-    # WORKFLOW 2: ATTENDANCE BY SINGLE STUDENT ROLL NUMBER
-    # ================================================================================
-    elif att_mode == "👤 By Single Student Roll Number":
-        st.markdown("### 🔍 Configuration Setup")
-        
-        sc1, sc2 = st.columns(2)
-        with sc1: sel_session = st.selectbox("Session:", session_options, key="single_att_sess")
-        with sc2: academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_att_sys")
-        
-        search_sid = st.text_input("👤 Enter Student Roll Number / ID Code:", value="", key="single_att_roll_input").strip()
-        
-        if search_sid:
-            try:
-                fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
-                student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
-            except Exception as e:
-                st.error(f"Error fetching student data stream metrics: {e}")
-                student_profile_df = pd.DataFrame()
+                s_name = student_info['name'].iloc[0].upper()
+                s_section = student_info['section'].iloc[0].upper().strip()
+                s_session = student_info['session'].iloc[0]
+                s_class = student_info['class'].iloc[0]
                 
-            if not student_profile_df.empty:
-                s_name = student_profile_df.iloc[0]["name"]
-                s_class = student_profile_df.iloc[0]["class"]
-                s_section = student_profile_df.iloc[0]["section"]
+                st.info(f"👤 **Student Profile:** {s_name}  |  **Class/Sem:** {s_class}  |  **Section:** {s_section}  |  **Session:** {s_session}")
                 
+                st.markdown("##### 📅 Log Single Day Entry")
+                ca1, ca2, ca3 = st.columns([2, 1.5, 1.5])
+                with ca1:
+                    att_date = st.date_input("Target Date:", value=date.today(), key="single_att_date_pick")
+                with ca2:
+                    existing_status = run_query("""
+                        SELECT status FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
+                    """, {"id": int(single_id), "dt": att_date})
+                    default_idx = 0
+                    if not existing_status.empty:
+                        default_idx = 0 if existing_status['status'].iloc[0].strip().upper() == "P" else 1
+                        
+                    status_choice = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="single_att_status_pick")
+                
+                with ca3:
+                    st.markdown("##") 
+                    if st.button("💾 Log Log Entry", type="primary", use_container_width=True):
+                        final_status_code = "P" if "Present" in status_choice else "A"
+                        execute_db_command("""
+                            DELETE FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
+                        """, {"id": int(single_id), "dt": att_date})
+                        execute_db_command("""
+                            INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:id, :dt, :st)
+                        """, {"id": int(single_id), "dt": att_date, "st": final_status_code})
+                        
+                        trigger_background_monthly_aggregation(s_section, att_date.strftime('%B'))
+                        st.success(f"🎉 Roster update completed successfully!")
+                        st.rerun()
+                        
                 st.markdown("---")
-                st.info(f"✅ **Student Profile Found:** {s_name} | **Class:** {s_class} | **Section:** {s_section}")
+                st.markdown("##### 📊 Saved Monthly Aggregates Summary Ledger")
+                history_df = run_query("""
+                    SELECT month_name AS "Month", present_days AS "Present Days", total_days AS "Total Days"
+                    FROM attendance WHERE student_id = :id ORDER BY id DESC
+                """, {"id": int(single_id)})
                 
-                st.markdown("#### 📅 Calendar Parameters & Status Logger")
-                form_col1, form_col2 = st.columns([2, 1])
-                with form_col1:
-                    attendance_date = st.date_input("Select Attendance Date:", key="single_att_date_pick")
-                
-                try:
-                    date_str = attendance_date.strftime('%Y-%m-%d')
-                    single_att_query = "SELECT status FROM attendance WHERE student_id = :sid AND att_date = :date_str"
-                    existing_single_df = run_query(single_att_query, {"sid": search_sid, "date_str": date_str})
-                    if not existing_single_df.empty:
-                        current_status = existing_single_df.iloc[0]['status']
-                    else:
-                        current_status = "Present"
-                except Exception:
-                    current_status = "Present"
-                
-                is_present_init = True if current_status == "Present" else False
-                
-                with st.form(key="individual_student_attendance_form"):
-                    st.markdown(f"##### Registering status for day: **{attendance_date.strftime('%d-%b-%Y')}**")
-                    status_toggle = st.checkbox("Mark Student as Present (Uncheck to mark Absent)", value=is_present_init)
-                    
-                    single_submit = st.form_submit_button("💾 Save Attendance Log Entry", use_container_width=True)
-                    if single_submit:
-                        final_status_str = "Present" if status_toggle else "Absent"
-                        try:
-                            save_query = """
-                                INSERT INTO attendance (student_id, att_date, section, session, status)
-                                VALUES (:sid, :att_date, :sec, :sess, :status)
-                                ON CONFLICT(student_id, att_date) DO UPDATE SET
-                                status = EXCLUDED.status, section = EXCLUDED.section, session = EXCLUDED.session
-                            """
-                            run_action(save_query, {
-                                "sid": search_sid,
-                                "att_date": attendance_date.strftime('%Y-%m-%d'),
-                                "sec": s_section,
-                                "sess": sel_session,
-                                "status": final_status_str
-                            })
-                            st.success(f"🎉 Attendance successfully updated to '{final_status_str}' for Roll No {search_sid}!")
-                            st.rerun()
-                        except Exception as db_err:
-                            st.error(f"Database insertion error encountered: {db_err}")
-            else:
-                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify entries parameters.")
-        else:
-            st.info("💡 Please type a valid Student Roll Number above to verify database links and unlock the calendar logging terminal panel.")
+                if history_df.empty:
+                    st.caption("ℹ️ No monthly aggregate history rows compiled for this student yet.")
+                else:
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
+# ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
