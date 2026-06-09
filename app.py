@@ -1010,7 +1010,140 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
 
 
-# --------------------------------------------------------------------------------
+# ====================================================================================
+# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC DAILY LOGGING & ON-THE-FLY AGGREGATES)
+# ====================================================================================
+if menu_choice == "📅 Attendance Entry Management":
+    import datetime  # Explicit scoped import to guarantee operations work flawlessly
+    
+    st.title("📅 Attendance Entry Management Panel")
+    
+    att_sub_type = st.segmented_control(
+        "Select Attendance Interval Mode:",
+        ["📅 Daily Attendance Entry", "👤 By Single Student Roll Number"],
+        default="📅 Daily Attendance Entry",
+        key="attendance_interval_segmented_control"
+    )
+    st.markdown("###")
+
+    # 🔗 Fetch live sessions directly from the database safely
+    session_options = ["2025-27", "2026-28", "2027-29"] # Baseline fallback array
+    try:
+        db_sessions = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''")
+        if not db_sessions.empty:
+            session_options = sorted(db_sessions['session'].dropna().astype(str).tolist())
+    except Exception:
+        pass
+
+    # --------------------------------------------------------------------------------
+    # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
+    # --------------------------------------------------------------------------------
+    if att_sub_type == "📅 Daily Attendance Entry":
+        st.subheader("📅 Daily Attendance Roster Sheet")
+        st.markdown("---")
+        
+        d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
+        with d1:
+            sel_session = st.selectbox("Select Session:", session_options, key="daily_att_sess")
+            
+        with d2:
+            academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
+            
+        with d3:
+            if academic_system == "Annual System":
+                class_options = ["11th", "12th"]
+                sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
+            else:
+                class_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
+                sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
+                
+        with d4:
+            section_options = []
+            if academic_system == "Annual System":
+                try:
+                    for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                        sections_list = class_map.get(sel_class, [])
+                        section_options.extend(sections_list)
+                    section_options = sorted(list(set(section_options)))
+                except NameError:
+                    if sel_class == "11th":
+                        section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
+                    else:
+                        section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
+            else:
+                section_options = ["DIT_B", "DIT_G"]
+                
+            sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
+
+        row_date_1, _ = st.columns([1.5, 2.5])
+        with row_date_1:
+            target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="daily_att_date")
+
+        if sel_section and sel_session:
+            roster_df = run_query("""
+                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+                FROM students s
+                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                  AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                ORDER BY s.id ASC
+            """, {
+                "att_date": str(target_date), 
+                "section": str(sel_section).strip().upper(), 
+                "session": str(sel_session).strip()
+            })
+
+            if roster_df.empty:
+                st.warning(f"⚠️ No active student profiles found under Section '{sel_section}' inside Session {sel_session}.")
+            else:
+                st.markdown(f"🔬 **Roster Grid Active:** {sel_class} Section {sel_section} — {target_date.strftime('%d-%b-%Y')} ({len(roster_df)} Students Loaded)")
+                
+                action_box_col, info_box_col = st.columns([2, 3])
+                with action_box_col:
+                    master_attendance_toggle = st.checkbox("🟢 Check All as Present (Default)", value=True, key="master_att_switch")
+                with info_box_col:
+                    st.caption("💡 Uncheck rows manually to mark students Absent (A).")
+
+                with st.form("interactive_daily_attendance_form"):
+                    attendance_checkbox_map = {}
+                    h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
+                    h_col1.markdown("**Roll No / ID**")
+                    h_col2.markdown("**Student Name**")
+                    h_col3.markdown("**Is Present?**")
+                    st.markdown("<hr style='margin:0px; padding:0px; margin-bottom:10px;' />", unsafe_allow_html=True)
+
+                    for idx, row in roster_df.iterrows():
+                        col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
+                        col_s1.write(f"🆔 `{row['ID']}`")
+                        col_s2.write(f"👤 **{row['Student Name']}**")
+                        
+                        saved_db_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
+                        if saved_db_status in ['P', 'PRESENT', '1']:
+                            initial_checkbox_state = True
+                        elif saved_db_status in ['A', 'ABSENT', '0']:
+                            initial_checkbox_state = False
+                        else:
+                            initial_checkbox_state = master_attendance_toggle
+                            
+                        attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_checkbox_state, key=f"chk_student_{row['ID']}", label_visibility="collapsed")
+
+                    st.markdown("###")
+                    if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
+                        try:
+                            for s_id, checked_present in attendance_checkbox_map.items():
+                                status_code = "P" if checked_present else "A"
+                                param_pack = {"s_id": int(s_id), "att_date": str(target_date), "status": status_code}
+                                
+                                execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", {"s_id": int(s_id), "att_date": str(target_date)})
+                                execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", param_pack)
+                            
+                            st.success(f"🎉 Roster saved successfully for section {sel_section}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error encountered during standard write cycle: {e}")
+
+    # --------------------------------------------------------------------------------
     # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER (DYNAMIC LIVE AGGREGATES)
     # --------------------------------------------------------------------------------
     elif att_sub_type == "👤 By Single Student Roll Number":
@@ -1096,7 +1229,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.markdown("---")
                 st.markdown("##### 📊 Dynamically Compiled Monthly Summary (From Daily Logs)")
                 
-                # Fetch raw logs safely without database functions
                 raw_logs = run_query("""
                     SELECT attendance_date, status FROM daily_attendance WHERE student_id = :id
                 """, {"id": int(single_id)})
@@ -1106,28 +1238,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     import pandas as pd
                     
-                    # ⚡ Python-Side Safe Processing Pipeline
-                    # Convert to datetime object context safely, ignoring format parsing errors
+                    # Safe Python processing pipeline to guarantee no database-level crashes
                     raw_logs['attendance_date'] = pd.to_datetime(raw_logs['attendance_date'], errors='coerce')
                     raw_logs = raw_logs.dropna(subset=['attendance_date'])
                     
-                    # Create Month name display column
                     raw_logs['Month'] = raw_logs['attendance_date'].dt.strftime('%B')
                     raw_logs['Month_Num'] = raw_logs['attendance_date'].dt.month
-                    
-                    # Check statuses safely
                     raw_logs['Is_Present'] = raw_logs['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])
                     
-                    # Group data dynamically using Pandas
                     summary_df = raw_logs.groupby(['Month_Num', 'Month']).agg(
                         Present_Days=('Is_Present', 'sum'),
                         Total_Days=('status', 'count')
                     ).reset_index()
                     
-                    # Sort cleanly descending by calendar month order
                     summary_df = summary_df.sort_values(by='Month_Num', ascending=False)
                     
-                    # Final clean layout formatting for display
                     history_df = summary_df[['Month', 'Present_Days', 'Total_Days']].rename(columns={
                         "Present_Days": "Present Days",
                         "Total_Days": "Total Days"
