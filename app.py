@@ -672,7 +672,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
-                    # 🏁 Unified Top Bar Global Controls
                     col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
                     with col_b2:
                         if st.button("🏁 Mark All Absent", use_container_width=True, key="bulk_absent_btn"):
@@ -690,7 +689,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     with st.form("bulk_marks_form"):
                         updated_marks = {}
                         
-                        # 🏷️ Header Labels for aligned columns
                         h_c1, h_c2, h_c3, h_c4 = st.columns([3, 1, 0.6, 0.6])
                         h_c2.caption("🔢 **Obtained**")
                         h_c3.caption("❌ **Absent**")
@@ -701,23 +699,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             col_s1, col_s2, col_s3, col_s4 = st.columns([3, 1, 0.6, 0.6])
                             col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
                             
-                            # Read database initialization entries safely
                             db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
                             
-                            # Safely set default memory buffers
                             if f"abs_{row['ID']}" not in st.session_state:
                                 st.session_state[f"abs_{row['ID']}"] = (db_val in ['A', 'ABSENT'])
                             if f"nc_{row['ID']}" not in st.session_state:
                                 st.session_state[f"nc_{row['ID']}"] = (db_val == 'NC')
 
-                            # Render form checkboxes bound straight to session tracking memory logs
                             chk_absent = col_s3.checkbox("", key=f"abs_{row['ID']}", label_visibility="collapsed")
                             chk_nc = col_s4.checkbox("", key=f"nc_{row['ID']}", label_visibility="collapsed")
                             
-                            # Handle clean initial numbers decoupling
                             initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                            
-                            # UI Automation lock handlers
                             is_disabled = chk_absent or chk_nc
                             display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
                             
@@ -740,7 +732,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
                                                       {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip().upper(), "score": score_clean, "total": float(total_marks)})
                             
-                            # Clean temporary states on successful submit
                             for s_id in updated_marks.keys():
                                 st.session_state.pop(f"abs_{s_id}", None)
                                 st.session_state.pop(f"nc_{s_id}", None)
@@ -752,35 +743,83 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
+        
+        # 🏢 Layout Phase 1: Filters Top Row
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            s_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_type")
+        with sc2:
+            s_session_sel = st.selectbox("Session Context:", session_options, key="single_sess_type")
+        with sc3:
+            if s_system == "Annual System":
+                s_class_sel = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="single_class_type")
+            else:
+                s_class_sel = st.selectbox("Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_class_type")
+
+        # 🔍 Layout Phase 2: Enter Roll Number Input Field
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
+        
         if single_id and single_id.isdigit():
-            student_info = run_query("SELECT name, section, session, class FROM students WHERE id = :id", {"id": int(single_id)})
+            # Query constraints explicitly checking selected context variables
+            query_conds = {
+                "id": int(single_id), 
+                "sess": str(s_session_sel).strip()
+            }
+            
+            base_sql = """
+                SELECT name, section, session, class FROM students 
+                WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = :sess
+            """
+            
+            if s_class_sel != "ALL":
+                base_sql += " AND UPPER(TRIM(class)) = :cls"
+                query_conds["cls"] = str(s_class_sel).strip().upper()
+                
+            student_info = run_query(base_sql, query_conds)
+            
             if student_info.empty:
-                st.error("❌ This roll number does not exist.")
+                st.error(f"❌ Roll number '{single_id}' not found matching Session ({s_session_sel}) and Class ({s_class_sel}).")
             else:
                 s_name = student_info['name'].iloc[0].upper()
                 s_section = student_info['section'].iloc[0].upper().strip()
                 s_session = student_info['session'].iloc[0]
                 s_class = student_info['class'].iloc[0]
-                st.info(f"👤 Student: {s_name} | Class: {s_class} | Section: {s_section} | Session: {s_session}")
+                st.info(f"👤 Student Found: **{s_name}** | Section: **{s_section}**")
                 
-                c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-                with c_m1: single_sub = st.text_input("Subject Identity:", value="STATISTICS", key="s_sub_val")
+                # Dynamic context-based subject list mapping helper options for cleaner typing experience
+                if s_system == "Annual System":
+                    single_sub_options = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "MATHEMATICS", "COMPUTER SCIENCE", "STATISTICS", "ISLAMIC STUDIES", "PAK_ST", "T_QURAN", "EDUCATION", "PRINCIPLES OF ACCOUNTING"]
+                    with sc1: 
+                        single_sub = st.combobox ? st.selectbox("Select Subject:", single_sub_options, key="s_sub_val") : st.text_input("Subject Identity:", value="ENGLISH", key="s_sub_val")
+                else:
+                    single_sub_options = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
+                
+                c_m1, c_m2, c_m3, c_m4 = st.columns([1.5, 1.2, 1, 1.3])
+                with c_m1: 
+                    # Use combo selectbox for rapid workflow selection but fallback if user wants unique typing entry 
+                    if s_system == "Annual System":
+                        single_sub = st.selectbox("Course/Subject:", ["English", "Urdu", "Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Statistics", "Islamic Studies", "Pak_St", "T_Quran", "Education"], key="s_sub_val")
+                    else:
+                        single_sub = st.selectbox("Course/Subject:", ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"], key="s_sub_val")
+                
                 with c_m2: 
-                    # 🎯 Individual entries share the standard test options list
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
-                with c_m3: single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
+                with c_m3: 
+                    single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
                 
                 existing_m = run_query("""
                     SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                 """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
                 init_m_val = str(existing_m['marks_obtained'].iloc[0]) if not existing_m.empty else ""
-                with c_m4: single_obtained = st.text_input("Obtained Marks:", value=init_m_val, key="s_obt_val")
                 
-                if st.button("💾 Save Individual Marks Record", type="primary"):
+                with c_m4: 
+                    single_obtained = st.text_input("Obtained (or A / NC):", value=init_m_val, key="s_obt_val")
+                
+                if st.button("💾 Save Individual Marks Record", type="primary", use_container_width=True):
                     execute_db_command("""
                         DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                     """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
+                    
                     if single_obtained.strip() != "":
                         execute_db_command("""
                             INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
@@ -806,16 +845,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         
         if uploaded_file is not None:
             try:
-                # Parse into standard DataFrame depending on file format Extension
                 if uploaded_file.name.endswith('.csv'):
                     df_raw = pd.read_csv(uploaded_file)
                 else:
                     df_raw = pd.read_excel(uploaded_file)
                 
-                # Standardize column headers to strip spaces and convert to uppercase for easier mapping
                 df_raw.columns = [str(c).strip().upper() for c in df_raw.columns]
                 
-                # Identify and resolve flexible column variants
                 id_col = next((c for c in ['ROLL NUMBER', 'STUDENT ID', 'ID', 'ROLL_NO'] if c in df_raw.columns), None)
                 sub_col = next((c for c in ['SUBJECT', 'COURSE', 'SUBJECT NAME'] if c in df_raw.columns), None)
                 exam_col = next((c for c in ['EXAM TYPE', 'EXAMINATION CYCLE', 'EXAM', 'EXAM_TYPE'] if c in df_raw.columns), None)
