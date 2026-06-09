@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - PANDAS ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - PARSED ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1293,26 +1293,29 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("Select Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Step 1: Simplified standard SQL query with no tricky text casting
-    raw_students = run_query("""
+    # ⚡ Step 1: Inject parameters directly via Python string formatting to avoid database parser crashes
+    query_string = f"""
         SELECT 
             s.class AS "Class",
             s.section AS "Section",
-            COALESCE(s.section_in_charge, '---') AS "In Charge",
+            s.section_in_charge AS "In_Charge",
             s.status AS "Student_Status",
             s.session AS "Student_Session",
             d.status AS "Attendance_Status"
         FROM students s
-        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
-    """, {"att_date": str(report_date)})
+        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = '{str(report_date)}'
+    """
+    
+    # Run the query directly without passing a separate parameter dictionary
+    raw_students = run_query(query_string)
 
-    if raw_students.empty:
+    if raw_students is None or raw_students.empty:
         st.info("ℹ️ No student enrollment records or logs could be found in the database.")
     else:
         # Secure data typing using Pandas safely inside Python
         raw_students['Class'] = raw_students['Class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['Section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['In Charge'] = raw_students['In Charge'].fillna('---').astype(str).str.strip()
+        raw_students['In_Charge'] = raw_students['In_Charge'].fillna('---').astype(str).str.strip()
         raw_students['Student_Status'] = raw_students['Student_Status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Attendance_Status'] = raw_students['Attendance_Status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Student_Session'] = raw_students['Student_Session'].fillna('').astype(str).str.strip()
@@ -1350,7 +1353,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                                          (raw_students['Attendance_Status'].isin(['A', 'ABSENT', '0']))).astype(int)
 
             # 🔄 Step 4: Perform grouping using Pandas 
-            summary_grouped = raw_students.groupby(['Group_Category', 'Class', 'Section', 'In Charge']).agg(
+            summary_grouped = raw_students.groupby(['Group_Category', 'Class', 'Section', 'In_Charge']).agg(
                 Total_Enrolled=('Class', 'count'),
                 Left_Count=('Is_Left', 'sum'),
                 Active_Count=('Is_Active', 'sum'),
@@ -1387,8 +1390,8 @@ elif menu_choice == "📋 Daily Attendance Report":
                     ledger_rows.append({
                         "Class": category if is_first else "",  
                         "Section": str(row['Section']),
-                        "In Charge": str(row['In Charge']),
-                        "Total Enrolled": int(row['Total Enrolled']),
+                        "In Charge": str(row['In_Charge']),
+                        "Total Enrolled": int(row['Total_Enrolled']),
                         "Left": int(row['Left_Count']),
                         "Total Active": act,
                         "Present": pre,
