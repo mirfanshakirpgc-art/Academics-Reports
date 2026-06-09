@@ -588,27 +588,27 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     except Exception:
         all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "Send_up", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10","HB_1", "HB_2", "Pre_Board"]
 
-    # FIXED: Robust fallback database runner routing system to handle any operational environment
+    # FIXED: Fallback write router that uses run_query seamlessly if other functions are missing
     def execute_db_write(query_string, params_dict):
         try:
-            if 'run_action' in locals() or 'run_action' in globals():
-                func = locals().get('run_action') if 'run_action' in locals() else globals().get('run_action')
-                func(query_string, params_dict)
-            elif 'db_execute' in locals() or 'db_execute' in globals():
-                func = locals().get('db_execute') if 'db_execute' in locals() else globals().get('db_execute')
-                func(query_string, params_dict)
+            if 'run_action' in globals():
+                globals()['run_action'](query_string, params_dict)
+            elif 'run_action' in locals():
+                locals()['run_action'](query_string, params_dict)
+            elif 'db_execute' in globals():
+                globals()['db_execute'](query_string, params_dict)
+            elif 'db_execute' in locals():
+                locals()['db_execute'](query_string, params_dict)
             else:
-                # Fallback directly to native streamlit query runner sequence
                 run_query(query_string, params_dict)
         except Exception:
-            # Absolute baseline recovery option if standard abstractions are missing
             from sqlalchemy import text
             if 'conn' in globals():
-                globals().get('conn').execute(text(query_string), params_dict)
+                globals()['conn'].execute(text(query_string), params_dict)
             elif 'conn' in locals():
-                locals().get('conn').execute(text(query_string), params_dict)
+                locals()['conn'].execute(text(query_string), params_dict)
             else:
-                raise NameError("Database write engine connection routing failed to resolve cleanly.")
+                raise NameError("Database management layer write execution engine failed to trace fallback router routing paths.")
 
     # ================================================================================
     # WORKFLOW 1: MANUAL ENTRY BY COMPLETE SECTION
@@ -770,7 +770,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.rerun()
 
     # ================================================================================
-    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE
+    # WORKFLOW 2: SINGLE STUDENT ROLL NUMBER ENTRY WORKSPACE (FIXED DB FALLBACKS)
     # ================================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.markdown("### 🔍 Configuration Setup")
@@ -783,7 +783,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         
         if search_sid:
             try:
-                # FIXED: Removed non-existent column "discipline" to solve PostgreSQL UndefinedColumn exception
+                # FIXED: Removed non-existent explicit "discipline" field from raw SQL execution call
                 fetch_query = "SELECT name, class, section FROM students WHERE id = :sid AND session = :sess LIMIT 1"
                 student_profile_df = run_query(fetch_query, {"sid": search_sid, "sess": sel_session})
             except Exception as e:
@@ -795,7 +795,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_profile_df.iloc[0]["class"]
                 s_section = student_profile_df.iloc[0]["section"]
                 
-                # Dynamic structural discipline lookup assignment from section layout context signatures
+                # Dynamically construct structural discipline tracker using section rules
                 s_sec_upper = str(s_section).upper().strip()
                 if s_sec_upper.startswith("M") or "MG" in s_sec_upper or "MEDICAL" in s_sec_upper: 
                     s_discipline = "MEDICAL"
@@ -878,16 +878,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 ON CONFLICT(student_id, subject, exam_cycle) DO UPDATE SET
                                 obtained_marks = EXCLUDED.obtained_marks, total_marks = EXCLUDED.total_marks, is_absent = EXCLUDED.is_absent
                             """
+                            # FIXED: Routing execution seamlessly to robust update backend handler paths
                             execute_db_write(save_query, {
                                 "sid": search_sid, "sub": sel_subject, "exam": sel_exam, "sec": s_section,
                                 "sess": sel_session, "obs": final_score, "tot": total_marks, "abs": 1 if (single_abs and not single_nc) else 0
                             })
-                            st.success(f"🎉 Successfully saved marks record for Student ID: {search_sid}!")
+                            st.success(f"🎉 Successfully saved and committed marks registry record for Student ID: {search_sid}!")
                             st.rerun()
                         except Exception as db_err:
                             st.error(f"Database validation connection failure execution error: {db_err}")
             else:
-                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify your entry.")
+                st.error(f"❌ Roll Number '{search_sid}' does not exist in the database profiles for Session '{sel_session}'. Please verify numbers input parameters.")
 
     # ================================================================================
     # WORKFLOW 3: BULK EXCEL / CSV IMPORT
