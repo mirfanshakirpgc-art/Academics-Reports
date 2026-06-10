@@ -3401,7 +3401,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
         }
 
-        # Hardcoded campus section definitions (Strict matching to prevent 'G' in 'GREEN' bugs)
+        # Hardcoded campus section definitions (Strict matching)
         GIRLS_SECTIONS_DB = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE", "MQ1", "MQ2", "EQ1", "EQ", "CQ1", "CQ2", "CQ3", "IQ1", "IQ", "FQ1", "FQ", "DIT_G"]
         BOYS_SECTIONS_DB = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE", "MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK", "DIT_B"]
 
@@ -3421,7 +3421,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             else:
                 return [t for t in t_list if not t.upper().startswith(female_prefixes)]
 
-        # Smart Strict Section Filter (Fixes CB_GREEN bug)
+        # Smart Strict Section Filter
         def filter_sections_by_campus(s_list, campus):
             filtered = []
             for s in s_list:
@@ -3462,14 +3462,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     
                 with t1_c5:
                     if system_t1 == "Annual System":
-                        # Strict logic locking Session to specific Class
-                        if session_t1 == "2025-27":
-                            class_options_t1 = ["12th"]
-                        elif session_t1 == "2026-28":
-                            class_options_t1 = ["11th"]
-                        else:
-                            class_options_t1 = ["11th", "12th"]
-                        class_t1 = st.selectbox("5. Class Level:", class_options_t1, key="t1_class")
+                        # UNLOCKED: Any session can have 11th or 12th students
+                        class_t1 = st.selectbox("5. Class Level:", ["11th", "12th"], key="t1_class")
                     else:
                         class_t1 = st.selectbox("5. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="t1_class")
                 
@@ -3493,8 +3487,14 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     subs_t1 = LOCAL_DISCIPLINE_SUBJECTS_MAP.get(lookup_key_t1, ["English", "Urdu"])
                     subs_t1 = sorted(list(set([s.upper() for s in subs_t1])))
                 else:
-                    raw_secs_t1 = ["DIT_G", "DIT_B"]
+                    # STRICT LOCK: DIT sections ONLY appear if the session is 2025-27
+                    if session_t1 == "2025-27":
+                        raw_secs_t1 = ["DIT_G", "DIT_B"]
+                    else:
+                        raw_secs_t1 = []
+                        
                     secs_t1 = filter_sections_by_campus(raw_secs_t1, campus_t1)
+                    if not secs_t1: secs_t1 = ["No DIT sections in this session"]
                     
                     if "1st" in class_t1: subs_t1 = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT"]
                     elif "2nd" in class_t1: subs_t1 = ["DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
@@ -3508,8 +3508,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     
                 st.markdown("##")
                 if st.button("🔒 Authorize Subject Assignment", type="primary", use_container_width=True, key="t1_btn"):
-                    if sec_t1 == "No sections available" or selected_t1 == "No matching staff found":
-                        st.error("⚠️ Invalid Section or Teacher selection. Please adjust your campus filters.")
+                    if sec_t1 in ["No sections available", "No DIT sections in this session"] or selected_t1 == "No matching staff found":
+                        st.error("⚠️ Invalid Section or Teacher selection. Please adjust your filters.")
                     else:
                         check_dup = run_query("""
                             SELECT allocation_id FROM academic_allocations 
@@ -3542,29 +3542,19 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     filtered_teachers_t2 = filter_teachers_by_campus(t_options_raw, campus_t2)
                     if not filtered_teachers_t2: filtered_teachers_t2 = ["No matching staff found"]
                     selected_t2 = st.selectbox("3. Select Teacher:", options=filtered_teachers_t2, key="t2_teacher")
-                    
-                # Strict logic locking Session to specific Class (Silent context for database)
-                if session_t2 == "2025-27":
-                    class_context_t2 = "12th"
-                elif session_t2 == "2026-28":
-                    class_context_t2 = "11th"
-                else:
-                    class_context_t2 = "General"
 
                 # --- Row 2: Assign Sections ---
                 # Gather all possible sections dynamically to pass through the campus filter
                 all_raw_secs_t2 = []
                 if 'DISCIPLINE_SECTIONS_MAP' in globals():
                     for class_dict in DISCIPLINE_SECTIONS_MAP.values():
-                        # Only grab sections that belong to the locked class_context
-                        if class_context_t2 in class_dict:
-                            all_raw_secs_t2.extend(class_dict[class_context_t2])
-                        elif class_context_t2 == "General":
-                            for sec_list in class_dict.values():
-                                all_raw_secs_t2.extend(sec_list)
+                        # UNLOCKED: Grab all sections across both 11th and 12th for the multiselect
+                        for sec_list in class_dict.values():
+                            all_raw_secs_t2.extend(sec_list)
                 
-                # Explicitly add DIT sections to the raw list
-                all_raw_secs_t2.extend(["DIT_G", "DIT_B"])
+                # STRICT LOCK: Explicitly add DIT sections ONLY if the session is 2025-27
+                if session_t2 == "2025-27":
+                    all_raw_secs_t2.extend(["DIT_G", "DIT_B"])
                 
                 # Apply Strict Campus Filter
                 secs_t2 = filter_sections_by_campus(all_raw_secs_t2, campus_t2)
@@ -3581,17 +3571,20 @@ if menu_choice == "👨‍🏫 Teacher Management":
                         skip_count = 0
                         
                         for sec in sec_t2:
+                            # Dynamic DB tagging: Mark it 'Semester System' if it's DIT, otherwise 'General'
+                            db_class_val = "Semester System" if "DIT" in sec else "General"
+                            
                             check_dup = run_query("""
                                 SELECT allocation_id FROM academic_allocations 
                                 WHERE session_term = :session AND class_level = :cls 
                                 AND section_name = :sec AND subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)' AND assigned_teacher_name = :teacher
-                            """, {"session": session_t2, "cls": class_context_t2, "sec": sec, "teacher": selected_t2})
+                            """, {"session": session_t2, "cls": db_class_val, "sec": sec, "teacher": selected_t2})
                             
                             if check_dup.empty:
                                 execute_db_command("""
                                     INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
                                     VALUES (:session, :cls, :sec, '🌟 CLASS IN-CHARGE (ROLE ONLY)', :teacher, 'Yes')
-                                """, {"session": session_t2, "cls": class_context_t2, "sec": sec, "teacher": selected_t2})
+                                """, {"session": session_t2, "cls": db_class_val, "sec": sec, "teacher": selected_t2})
                                 success_count += 1
                             else:
                                 skip_count += 1
