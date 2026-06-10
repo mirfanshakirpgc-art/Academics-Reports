@@ -3385,6 +3385,30 @@ if menu_choice == "👨‍🏫 Teacher Management":
     elif sub_menu == "Subject Allocations":
         st.subheader("🔗 Allocate Subjects & Sections to Registered Faculty")
         
+        # --- LOCAL ACADEMIC DICTIONARY (Separating 11th & 12th Subjects) ---
+        LOCAL_DISCIPLINE_SUBJECTS_MAP = {
+            "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+            "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+            "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+            "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+            "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+            "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+            "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+            "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+            "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+            "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+            "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
+            "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+        }
+
+        # Helper function to match the UI dropdown to the dictionary keys
+        def get_subject_prefix(disc_name):
+            if not disc_name or disc_name == "All Disciplines": return disc_name
+            d_clean = disc_name.upper().replace(" ", "_").replace("(", "").replace(")", "")
+            if "PHYSIC" in d_clean: return "ICS_PHYSICS"
+            if "STAT" in d_clean: return "ICS_STATISTICS"
+            return d_clean
+
         teachers_df = run_query("SELECT teacher_name FROM system_teachers WHERE status = 'ACTIVE' ORDER BY teacher_name ASC")
         
         if not teachers_df.empty:
@@ -3421,24 +3445,24 @@ if menu_choice == "👨‍🏫 Teacher Management":
                         disc_t1 = "DIT"
                         st.info("⚡ DIT System Active")
 
-                # Dynamic Logic for Tab 1 (Filtered to specific discipline and class)
+                # --- Dynamic Logic for Tab 1 ---
                 if system_t1 == "Annual System":
+                    # Fetch Sections
                     if 'DISCIPLINE_SECTIONS_MAP' in globals():
                         secs_t1 = DISCIPLINE_SECTIONS_MAP.get(disc_t1, {}).get(class_t1, [])
                         if not secs_t1: secs_t1 = ["No sections available"]
                     else:
                         secs_t1 = ["MG_BLUE", "EG_BLUE"]
                         
-                    if 'DISCIPLINE_SUBJECTS_MAP' in globals():
-                        subs_t1 = DISCIPLINE_SUBJECTS_MAP.get(disc_t1, [])
-                        if not subs_t1: subs_t1 = ["No subjects available"]
-                    else:
-                        subs_t1 = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"]
+                    # Fetch Class & Discipline Specific Subjects
+                    lookup_key_t1 = f"{get_subject_prefix(disc_t1)}_{class_t1.upper()}"
+                    subs_t1 = LOCAL_DISCIPLINE_SUBJECTS_MAP.get(lookup_key_t1, ["English", "Urdu"])
+                    subs_t1 = sorted(list(set([s.upper() for s in subs_t1]))) # Capitalize to match DB
                 else:
                     secs_t1 = ["DIT_G", "DIT_B"]
-                    if "1st" in class_t1: subs_t1 = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                    elif "2nd" in class_t1: subs_t1 = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                    else: subs_t1 = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+                    if "1st" in class_t1: subs_t1 = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT"]
+                    elif "2nd" in class_t1: subs_t1 = ["DATA BASE SYSTEM", "VIDEO EDITING", "WEB DEVELOPMENT ESSENTIAL", "GRAPHICS DESIGN", "PROJECT"]
+                    else: subs_t1 = ["ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
                 with t1_c6:
                     sec_t1 = st.selectbox("6. Assign Target Section:", options=secs_t1, key="t1_sec")
@@ -3490,51 +3514,53 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 
                 with t2_c5:
                     if system_t2 == "Annual System":
-                        # Add an "All Disciplines" option for broad assignments
                         disc_options_t2 = ["All Disciplines"] + (list(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"])
                         disc_t2 = st.selectbox("5. Select Discipline:", disc_options_t2, key="t2_disc")
                     else:
                         disc_t2 = "DIT"
                         st.info("⚡ DIT System Active")
 
-                # Dynamic Logic for Tab 2
+                # --- Dynamic Logic for Tab 2 ---
                 if system_t2 == "Annual System":
                     secs_t2 = []
+                    subs_t2_raw = []
+                    
                     if 'DISCIPLINE_SECTIONS_MAP' in globals():
                         if disc_t2 == "All Disciplines":
-                            # Fetch sections across all disciplines
                             for class_dict in DISCIPLINE_SECTIONS_MAP.values():
                                 if class_t2 == "General/Cross-Class":
-                                    for sec_list in class_dict.values():
-                                        secs_t2.extend(sec_list)
+                                    for sec_list in class_dict.values(): secs_t2.extend(sec_list)
                                 else:
                                     secs_t2.extend(class_dict.get(class_t2, []))
+                                    
+                            # Get all subjects if all disciplines selected
+                            for subj_list in LOCAL_DISCIPLINE_SUBJECTS_MAP.values(): subs_t2_raw.extend(subj_list)
                         else:
-                            # Fetch sections only for the selected discipline
+                            # Specific Discipline Selected
                             class_dict = DISCIPLINE_SECTIONS_MAP.get(disc_t2, {})
                             if class_t2 == "General/Cross-Class":
-                                for sec_list in class_dict.values():
-                                    secs_t2.extend(sec_list)
+                                for sec_list in class_dict.values(): secs_t2.extend(sec_list)
+                                # Fetch both 11th and 12th subjects for this discipline
+                                pref = get_subject_prefix(disc_t2)
+                                subs_t2_raw.extend(LOCAL_DISCIPLINE_SUBJECTS_MAP.get(f"{pref}_11TH", []))
+                                subs_t2_raw.extend(LOCAL_DISCIPLINE_SUBJECTS_MAP.get(f"{pref}_12TH", []))
                             else:
                                 secs_t2.extend(class_dict.get(class_t2, []))
+                                # Fetch specific class subject for this discipline
+                                lookup_key = f"{get_subject_prefix(disc_t2)}_{class_t2.upper()}"
+                                subs_t2_raw.extend(LOCAL_DISCIPLINE_SUBJECTS_MAP.get(lookup_key, []))
+                                
                         secs_t2 = sorted(list(set(secs_t2))) if secs_t2 else ["No sections available"]
+                        subs_t2 = sorted(list(set([s.upper() for s in subs_t2_raw])))
                     else:
                         secs_t2 = ["MG_BLUE", "EG_BLUE"]
-                        
-                    subs_t2 = []
-                    if 'DISCIPLINE_SUBJECTS_MAP' in globals():
-                        if disc_t2 == "All Disciplines":
-                            subs_t2 = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
-                        else:
-                            subs_t2 = sorted(list(set(DISCIPLINE_SUBJECTS_MAP.get(disc_t2, []))))
-                    else:
-                        subs_t2 = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"]
+                        subs_t2 = ["BIOLOGY", "CHEMISTRY", "MATH"]
                 else:
                     secs_t2 = ["DIT_G", "DIT_B"]
-                    subs_t2 = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project", "English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+                    subs_t2 = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT", "ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
-                # Prepend the dedicated Role-Only subject to prevent database uniqueness conflicts
-                subs_t2 = ["🌟 Class In-Charge (Role Only)"] + subs_t2
+                # Prepend the dedicated Role-Only subject
+                subs_t2 = ["🌟 CLASS IN-CHARGE (ROLE ONLY)"] + subs_t2
                 
                 with t2_c6:
                     sec_t2 = st.multiselect("6. Assign Target Section(s):", options=secs_t2, default=[secs_t2[0]] if secs_t2 and secs_t2[0] != "No sections available" else None, key="t2_sec")
