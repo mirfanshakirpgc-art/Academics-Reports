@@ -2569,19 +2569,19 @@ elif menu_choice == "🪪 Student Result Cards":
                 students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": grade_class}])
 
             LOCAL_DISCIPLINE_SUBJECTS_MAP = {
-                "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
-                "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
-                "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
-                "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
-                "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-                "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-                "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-                "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-                "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
-                "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
-                "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
-                "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
-            }
+            "MEDICAL_11TH": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISLAMIC STUDIES", "T_QURAN"],
+            "MEDICAL_12TH": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "PAK_ST", "T_QURAN"],
+            "ENGINEERING_11TH": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISLAMIC STUDIES", "T_QURAN"],
+            "ENGINEERING_12TH": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "PAK_ST", "T_QURAN"],
+            "ICS_PHYSICS_11TH": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER SCIENCE", "MATHEMATICS", "ISLAMIC STUDIES", "T_QURAN"],
+            "ICS_PHYSICS_12TH": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER SCIENCE", "MATHEMATICS", "PAK_ST", "T_QURAN"],
+            "ICS_STATISTICS_11TH": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER SCIENCE", "MATHEMATICS", "ISLAMIC STUDIES", "T_QURAN"],
+            "ICS_STATISTICS_12TH": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER SCIENCE", "MATHEMATICS", "PAK_ST", "T_QURAN"],
+            "HUMANITIES_11TH": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISLAMIC STUDIES", "T_QURAN"],
+            "HUMANITIES_12TH": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "PAK_ST", "T_QURAN"],
+            "COMMERCE_11TH": ["ENGLISH", "URDU", "ISLAMIC STUDIES", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "T_QURAN"],
+            "COMMERCE_12TH": ["ENGLISH", "URDU", "PAK_ST", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "T_QURAN"]
+        }
 
             compiled_html = """
             <!DOCTYPE html>
