@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (FINAL 11TH & 12TH ROSTER ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE ROSTER ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1287,6 +1287,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
 
+    # 🛠️ FIXED: Multi-layered database fetch ensures columns ALWAYS exist
     try:
         raw_students = run_query("""
             SELECT s.class, s.section, s.section_in_charge, s.status, s.session, d.status AS att_status
@@ -1294,11 +1295,18 @@ elif menu_choice == "📋 Daily Attendance Report":
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
         """, {"dt": str(report_date)})
     except Exception:
-        raw_students = run_query("""
-            SELECT s.class, s.status, s.session, d.status AS att_status
-            FROM students s
-            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-        """, {"dt": str(report_date)})
+        try:
+            raw_students = run_query("""
+                SELECT s.class, s.section, '---' AS section_in_charge, s.status, s.session, d.status AS att_status
+                FROM students s
+                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
+            """, {"dt": str(report_date)})
+        except Exception:
+            raw_students = run_query("""
+                SELECT s.class, 'UNKNOWN' AS section, '---' AS section_in_charge, s.status, s.session, d.status AS att_status
+                FROM students s
+                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
+            """, {"dt": str(report_date)})
 
     if raw_students is None or raw_students.empty:
         st.info("ℹ️ No student enrollment records found in the database for this date.")
@@ -1319,19 +1327,16 @@ elif menu_choice == "📋 Daily Attendance Report":
         if raw_students.empty:
             st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
         else:
-            # 🎯 FINAL ROSTER MATCHING ENGINE
+            # 🎯 ROSTER MATCHING ENGINE (COMPLETELY RECONFIGURED)
             def classify_group(row):
                 cls = row['Class']
                 sec = row['Section']
                 
-                # Clean up commas or spacing anomalies from the input string matching
                 sec_clean = sec.replace('"', '').replace("'", "").strip()
                 
-                # --- 11TH ROSTER MAPS ---
+                # Updated 11th and 12th Section Maps
                 girls_11th = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE"]
                 boys_11th  = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE"]
-                
-                # --- 12TH ROSTER MAPS ---
                 girls_12th = ["MQ1", "MQ2", "EQ1", "CQ1", "CQ2", "CQ3", "IQ1", "FQ1"]
                 boys_12th  = ["MK1", "EK1", "CK1", "CK2", "IK1", "CK3", "FK1"]
                 
@@ -1340,7 +1345,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         return "11th (Girls)"
                     elif sec_clean in boys_11th:
                         return "11th (Boys)"
-                    # Safety structural fallback if exact name missing
                     elif "G" in sec_clean or sec_clean.endswith("G"):
                         return "11th (Girls)"
                     else:
@@ -1351,7 +1355,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         return "12th (Girls)"
                     elif sec_clean in boys_12th:
                         return "12th (Boys)"
-                    # Safety structural fallback
                     elif "Q" in sec_clean or "G" in sec_clean:
                         return "12th (Girls)"
                     else:
@@ -1466,7 +1469,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 grand_present += c_present
                 grand_absent += c_absent
 
-            grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.0% (" if grand_active == 0 else "0.0%"
+            grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.0%"
 
             ui_screen_html = f"""
             <div style="background-color:#ffffff; padding:20px; border-radius:8px; border:1px solid #cbd5e0; font-family:Arial, sans-serif; color:#000000;">
