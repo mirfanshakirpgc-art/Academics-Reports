@@ -1357,7 +1357,7 @@ elif menu_choice == "📋 Daily Attendance Report":
         if raw_students.empty:
             st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
         else:
-            # 🎯 ROSTER MATCHING ENGINE (NESTED INDENTATION FIXED)
+            # 🎯 ROSTER MATCHING ENGINE
             def classify_group(row):
                 cls = str(row.get('Class', '')).upper().strip()
                 sec = str(row.get('Section', '')).upper().strip()
@@ -1370,30 +1370,22 @@ elif menu_choice == "📋 Daily Attendance Report":
                 boys_12th  = ["MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK"]
                 
                 if "11" in cls:
-                    if sec_clean in girls_11th:
-                        return "11th (Girls)"
-                    elif sec_clean in boys_11th:
-                        return "11th (Boys)"
+                    if sec_clean in girls_11th: return "11th (Girls)"
+                    elif sec_clean in boys_11th: return "11th (Boys)"
                     
-                    if "G" in sec_clean or sec_clean.endswith("G"):
-                        return "11th (Girls)"
-                    elif "B" in sec_clean or "K" in sec_clean or sec_clean.endswith("B"):
-                        return "11th (Boys)"
+                    if "G" in sec_clean or sec_clean.endswith("G"): return "11th (Girls)"
+                    elif "B" in sec_clean or "K" in sec_clean or sec_clean.endswith("B"): return "11th (Boys)"
                     return "11th (Boys)"
                     
                 elif "12" in cls:
-                    if sec_clean in girls_12th:
-                        return "12th (Girls)"
-                    elif sec_clean in boys_12th:
-                        return "12th (Boys)"
+                    if sec_clean in girls_12th: return "12th (Girls)"
+                    elif sec_clean in boys_12th: return "12th (Boys)"
                         
-                    if "Q" in sec_clean or "G" in sec_clean:
-                        return "12th (Girls)"
-                    elif "K" in sec_clean or "M" in sec_clean:
-                        return "12th (Boys)"
+                    if "Q" in sec_clean or "G" in sec_clean: return "12th (Girls)"
+                    elif "K" in sec_clean or "M" in sec_clean: return "12th (Boys)"
                     return "12th (Boys)"
 
-                return "Other Tiers"
+                return "Other Tiers (DIT)"
 
             # Execute classification mapping
             raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
@@ -1411,7 +1403,8 @@ elif menu_choice == "📋 Daily Attendance Report":
                 Absent_Count=('Is_Absent', 'sum')
             ).reset_index()
 
-            print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
+            # Added 'Other Tiers' so DIT students map out perfectly too
+            print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
             
             grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
             html_rows = ""
@@ -1420,36 +1413,11 @@ elif menu_choice == "📋 Daily Attendance Report":
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
                 
-                if not cat_df.empty:
-                    cat_df = cat_df.sort_values(by='Section')
-
+                # 🚀 THE FIX: If the category has no students in this session, skip it entirely!
                 if cat_df.empty:
-                    excel_rows_list.append({"Class": category, "Section": "---", "In_Charge": "---", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Data"})
-                    excel_rows_list.append({"Class": f"{category} Total", "Section": "", "In_Charge": "", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Subtotal"})
-                    
-                    html_rows += f"""
-                    <tr>
-                        <td style="border:1px solid #000000; text-align:center; font-weight:bold; background-color:#ffffff;">{category}</td>
-                        <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
-                        <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0%</td>
-                    </tr>
-                    <tr style="background-color:#d9d9d9; font-weight:bold;">
-                        <td colspan="3" style="border:1px solid #000000; text-align:center; padding:6px;">{category} Total</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0%</td>
-                    </tr>
-                    """
                     continue
+                    
+                cat_df = cat_df.sort_values(by='Section')
                 
                 num_sections = len(cat_df)
                 c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
