@@ -1262,14 +1262,13 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (OFFICIAL FORM ALIGNED GRID ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (STRICT FORMAT ALIGNMENT ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
     from io import BytesIO
     
-    # Safe session resolution engine to completely eliminate NameErrors
     session_choices = ["2025-27", "2026-28", "2027-29"] 
     try:
         if 'session_options' in globals() or 'session_options' in locals():
@@ -1282,14 +1281,12 @@ elif menu_choice == "📋 Daily Attendance Report":
     except Exception:
         pass
         
-    # 📑 Operational Configuration Selectors Row Block
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
         report_session = st.selectbox("🎯 Select Session Grouping:", session_choices, key="global_report_session_select")
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Data Extraction Layer
     try:
         raw_students = run_query("""
             SELECT s.class, s.section, s.section_in_charge, s.status, s.session, d.status AS att_status
@@ -1304,12 +1301,11 @@ elif menu_choice == "📋 Daily Attendance Report":
         """, {"dt": str(report_date)})
 
     if raw_students is None or raw_students.empty:
-        st.info("ℹ️ No student enrollment records or logs could be found in the database for this target frame.")
+        st.info("ℹ️ No student enrollment records found in the database for this date.")
     else:
         if 'section_in_charge' not in raw_students.columns:
             raw_students['section_in_charge'] = '---'
             
-        # Standardize typing with Python Pandas
         raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['In_Charge'] = raw_students['section_in_charge'].fillna('---').astype(str).str.strip()
@@ -1317,14 +1313,12 @@ elif menu_choice == "📋 Daily Attendance Report":
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Student_Session'] = raw_students['session'].fillna('').astype(str).str.strip()
 
-        # Session clean slice filter
         target_sess_clean = str(report_session).strip()
         raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
 
         if raw_students.empty:
             st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
         else:
-            # 🧪 Categorization Routing Function (G & Q = Girls, B & K = Boys)
             def classify_group(row):
                 cls = row['Class']
                 sec = row['Section']
@@ -1339,13 +1333,11 @@ elif menu_choice == "📋 Daily Attendance Report":
 
             raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
 
-            # Mathematical Flag Matrices
             raw_students['Is_Left'] = raw_students['Student_Status'].isin(['LEFT', 'DROPOUT']).astype(int)
             raw_students['Is_Active'] = (~raw_students['Student_Status'].isin(['LEFT', 'DROPOUT'])).astype(int)
             raw_students['Is_Present'] = ((raw_students['Is_Active'] == 1) & (raw_students['Attendance_Status'].isin(['P', 'PRESENT', '1']))).astype(int)
             raw_students['Is_Absent'] = ((raw_students['Is_Active'] == 1) & (raw_students['Attendance_Status'].isin(['A', 'ABSENT', '0']))).astype(int)
 
-            # Execution Aggregation grouping block
             summary_grouped = raw_students.groupby(['Group_Category', 'Class', 'Section', 'In_Charge']).agg(
                 Total_Enrolled=('Class', 'count'),
                 Left_Count=('Is_Left', 'sum'),
@@ -1354,26 +1346,35 @@ elif menu_choice == "📋 Daily Attendance Report":
                 Absent_Count=('Is_Absent', 'sum')
             ).reset_index()
 
-            # Structured track sequences matching order layout completely
             print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
             
-            # Global metric accumulators
             grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
-            
-            # Build HTML table body dynamically without relying on shifting layouts
             html_rows = ""
-            excel_rows_list = [] # Tracker for backup formatting engines
+            excel_rows_list = []
 
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
+                
                 if cat_df.empty:
-                    # In case data for a tier is currently blank, create an explicit safe structural row filler
-                    excel_rows_list.append({"Class": category, "Section": "None", "In_Charge": "---", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Data"})
+                    # Uniform row structure for empty categories ensuring column counts align cleanly
+                    excel_rows_list.append({"Class": category, "Section": "---", "In_Charge": "---", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Data"})
+                    excel_rows_list.append({"Class": "Total", "Section": "", "In_Charge": "", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Subtotal"})
+                    
                     html_rows += f"""
                     <tr>
-                        <td style="border:1px solid #000000; text-align:center; font-weight:bold; background-color:#fafafa;">{category}</td>
+                        <td rowspan="2" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>
                         <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
                         <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0%</td>
+                    </tr>
+                    <tr style="background-color:#d9d9d9; font-weight:bold;">
+                        <td style="border:1px solid #000000; text-align:center;">Total</td>
+                        <td style="border:1px solid #000000;"></td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
@@ -1398,12 +1399,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                     c_present += pre
                     c_absent += int(row['Absent_Count'])
                     
-                    # Store data row
                     excel_rows_list.append({"Class": category if i == 0 else "", "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
                     
                     html_rows += "<tr>"
-                    # Render Class name column value only on initial sequence block
                     if i == 0:
+                        # Rowspan explicitly equals sections + 1 for the summary total row
                         html_rows += f'<td rowspan="{num_sections + 1}" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>'
                     
                     html_rows += f"""
@@ -1418,11 +1418,9 @@ elif menu_choice == "📋 Daily Attendance Report":
                     </tr>
                     """
                 
-                # Compute Group Total 
                 c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
                 excel_rows_list.append({"Class": "Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
                 
-                # Dynamic separation line
                 html_rows += f"""
                 <tr style="background-color:#d9d9d9; font-weight:bold;">
                     <td style="border:1px solid #000000; text-align:center;">Total</td>
@@ -1443,7 +1441,6 @@ elif menu_choice == "📋 Daily Attendance Report":
 
             grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
 
-            # 🏛️ Master Combined Layout Frame Document
             ui_screen_html = f"""
             <div style="background-color:#ffffff; padding:20px; border-radius:8px; border:1px solid #cbd5e0; font-family:Arial, sans-serif; color:#000000;">
                 <table style="width:100%; border-collapse:collapse; margin-bottom:5px;">
@@ -1655,7 +1652,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         use_container_width=True
                     )
                 except Exception:
-                    # 🚀 SECURE FALLBACK: Instantly generate raw data CSV download if environment packages are missing
                     csv_df = pd.DataFrame(excel_rows_list)
                     if not csv_df.empty:
                         csv_df = csv_df.drop(columns=['Type'])
