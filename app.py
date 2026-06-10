@@ -3325,26 +3325,71 @@ if menu_choice == "👨‍🏫 Teacher Management":
     current_user = st.session_state.get('username', 'admin')
     current_role = st.session_state.get('role', 'controller') 
     
+    # Updated menu options to include the brand-new registration form
     if current_role == 'controller':
-        menu_options = ["Subject Allocations", "Teacher Marks Portal", "Teacher Analysis", "Discipline Analysis"]
+        menu_options = ["📝 Register New Faculty", "Subject Allocations", "Teacher Marks Portal", "Teacher Analysis", "Discipline Analysis"]
     else:
         menu_options = ["Teacher Marks Portal", "Teacher Analysis"]
         
     sub_menu = st.sidebar.radio("Navigate Module:", menu_options, key="teacher_sub_menu")
 
     # ---------------------------------------------------------
+    # NEW SUB-MODULE: FACULTY REGISTRATION
+    # ---------------------------------------------------------
+    if sub_menu == "📝 Register New Faculty":
+        st.subheader("📝 Professional Faculty onboarding Registry")
+        
+        with st.form("teacher_reg_form", clear_on_submit=True):
+            col_reg1, col_reg2 = st.columns(2)
+            with col_reg1:
+                new_teacher_name = st.text_input("Full Name of Teacher:", placeholder="e.g. Professor Smith")
+                new_teacher_email = st.text_input("Email Address (Optional):", placeholder="teacher@college.edu")
+            with col_reg2:
+                new_teacher_phone = st.text_input("Phone Number (Optional):", placeholder="e.g. +923001234567")
+                new_teacher_status = st.selectbox("Initial System Status:", options=["ACTIVE", "INACTIVE"])
+                
+            submit_reg = st.form_submit_button("💾 Save Profile to Registry")
+            
+            if submit_reg:
+                if new_teacher_name.strip() == "":
+                    st.error("Teacher Name is required.")
+                else:
+                    # Check if teacher name already exists
+                    check_existing = run_query("SELECT teacher_id FROM system_teachers WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:name))", {"name": new_teacher_name.strip()})
+                    
+                    if check_existing.empty:
+                        execute_db_command("""
+                            INSERT INTO system_teachers (teacher_name, phone_number, email_address, status)
+                            VALUES (:name, :phone, :email, :status)
+                        """, {
+                            "name": new_teacher_name.strip(),
+                            "phone": new_teacher_phone.strip(),
+                            "email": new_teacher_email.strip(),
+                            "status": new_teacher_status
+                        })
+                        st.success(f"🎉 Successfully registered {new_teacher_name} into the institutional archive!")
+                    else:
+                        st.warning("An instructor profile with this name already exists.")
+                        
+        st.markdown("---")
+        st.write("#### Current Registered Faculty Roster")
+        current_teachers = run_query("SELECT teacher_id as ID, teacher_name as Name, phone_number as Phone, email_address as Email, status as Status FROM system_teachers ORDER BY teacher_name ASC")
+        if not current_teachers.empty:
+            st.dataframe(current_teachers, use_container_width=True, hide_index=True)
+        else:
+            st.info("No active faculty profiles currently configured.")
+
+    # ---------------------------------------------------------
     # SUB-MODULE A: SUBJECT ALLOCATIONS
     # ---------------------------------------------------------
-    if sub_menu == "Subject Allocations":
+    elif sub_menu == "Subject Allocations":
         st.subheader("🔗 Allocate Subjects & Sections to Registered Faculty")
         
-        # Pull clean list of teachers from the new system_teachers registry
         teachers_df = run_query("SELECT teacher_name FROM system_teachers WHERE status = 'ACTIVE' ORDER BY teacher_name ASC")
         
         if not teachers_df.empty:
             t_options = teachers_df['teacher_name'].tolist()
             
-            # Setup Allocation Form Inputs
             col_a1, col_a2, col_a3 = st.columns(3)
             with col_a1: 
                 selected_t = st.selectbox("Select Registered Teacher:", options=t_options)
@@ -3362,7 +3407,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 is_incharge = st.selectbox("Is Class In-Charge?", options=["No", "Yes"])
                 
             if st.button("🔒 Authorize & Commit Allocation Matrix"):
-                # Duplicate prevention using the new academic_allocations table
                 check_dup = run_query("""
                     SELECT allocation_id FROM academic_allocations 
                     WHERE session_term = :session AND class_level = :cls 
@@ -3428,7 +3472,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 exams_list = AVAILABLE_EXAMS if 'AVAILABLE_EXAMS' in globals() else ["Mid Term", "Final Exam"]
                 sel_exam = st.selectbox("Target Assessment Term Type:", options=exams_list)
                 
-                # Filter students matching the criteria
                 students = run_query("""
                     SELECT id, name FROM students 
                     WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec)) 
