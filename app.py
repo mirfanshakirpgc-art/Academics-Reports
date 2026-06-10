@@ -3402,7 +3402,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             
             col_a4, col_a5 = st.columns(2)
             with col_a4:
-                selected_session = st.selectbox("Academic Session:", options=["2025-27", "2026-2028", "2027-29"])
+                selected_session = st.selectbox("Academic Session:", options=["2025-27", "2026-28", "2027-29"])
             with col_a5:
                 is_incharge = st.selectbox("Is Class In-Charge?", options=["No", "Yes"])
                 
