@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (PRECISION GRID COLUMN ALIGNMENT ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (FINAL 11TH & 12TH ROSTER ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1295,7 +1295,7 @@ elif menu_choice == "📋 Daily Attendance Report":
         """, {"dt": str(report_date)})
     except Exception:
         raw_students = run_query("""
-            SELECT s.class, s.section, s.status, s.session, d.status AS att_status
+            SELECT s.class, s.status, s.session, d.status AS att_status
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
         """, {"dt": str(report_date)})
@@ -1319,16 +1319,44 @@ elif menu_choice == "📋 Daily Attendance Report":
         if raw_students.empty:
             st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
         else:
+            # 🎯 FINAL ROSTER MATCHING ENGINE
             def classify_group(row):
                 cls = row['Class']
                 sec = row['Section']
-                has_girls = any(c in sec for c in ["G", "Q"])
-                has_boys = any(c in sec for c in ["B", "K"])
+                
+                # Clean up commas or spacing anomalies from the input string matching
+                sec_clean = sec.replace('"', '').replace("'", "").strip()
+                
+                # --- 11TH ROSTER MAPS ---
+                girls_11th = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE"]
+                boys_11th  = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE"]
+                
+                # --- 12TH ROSTER MAPS ---
+                girls_12th = ["MQ1", "MQ2", "EQ1", "CQ1", "CQ2", "CQ3", "IQ1", "FQ1"]
+                boys_12th  = ["MK1", "EK1", "CK1", "CK2", "IK1", "CK3", "FK1"]
                 
                 if "11" in cls:
-                    return "11th (Girls)" if (has_girls and not has_boys) else "11th (Boys)"
+                    if sec_clean in girls_11th:
+                        return "11th (Girls)"
+                    elif sec_clean in boys_11th:
+                        return "11th (Boys)"
+                    # Safety structural fallback if exact name missing
+                    elif "G" in sec_clean or sec_clean.endswith("G"):
+                        return "11th (Girls)"
+                    else:
+                        return "11th (Boys)"
+                        
                 elif "12" in cls:
-                    return "12th (Girls)" if (has_girls and not has_boys) else "12th (Boys)"
+                    if sec_clean in girls_12th:
+                        return "12th (Girls)"
+                    elif sec_clean in boys_12th:
+                        return "12th (Boys)"
+                    # Safety structural fallback
+                    elif "Q" in sec_clean or "G" in sec_clean:
+                        return "12th (Girls)"
+                    else:
+                        return "12th (Boys)"
+                        
                 return "Other Tiers"
 
             raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
@@ -1355,6 +1383,9 @@ elif menu_choice == "📋 Daily Attendance Report":
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
                 
+                if not cat_df.empty:
+                    cat_df = cat_df.sort_values(by='Section')
+
                 if cat_df.empty:
                     excel_rows_list.append({"Class": category, "Section": "---", "In_Charge": "---", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Data"})
                     excel_rows_list.append({"Class": f"{category} Total", "Section": "", "In_Charge": "", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Subtotal"})
@@ -1400,7 +1431,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     excel_rows_list.append({"Class": category if idx == 0 else "", "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
                     
                     html_rows += "<tr>"
-                    # CRITICAL FIX: The rowspan matches EXACTLY the data row counts so it never leaks onto the Subtotal row block below
                     if idx == 0:
                         html_rows += f'<td rowspan="{num_sections}" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>'
                     
@@ -1419,7 +1449,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                 c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
                 excel_rows_list.append({"Class": f"{category} Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
                 
-                # Clean, independent subtotal block
                 html_rows += f"""
                 <tr style="background-color:#d9d9d9; font-weight:bold;">
                     <td colspan="3" style="border:1px solid #000000; text-align:center; padding:6px;">{category} Total</td>
@@ -1437,7 +1466,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 grand_present += c_present
                 grand_absent += c_absent
 
-            grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
+            grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.0% (" if grand_active == 0 else "0.0%"
 
             ui_screen_html = f"""
             <div style="background-color:#ffffff; padding:20px; border-radius:8px; border:1px solid #cbd5e0; font-family:Arial, sans-serif; color:#000000;">
@@ -1678,7 +1707,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                         type="primary"
                     )
                 except Exception:
-                    st.info("💡 Add 'weasyprint' and 'openpyxl' to your requirements.txt file to unlock advanced formatted printing workflows.")
+                    pass
                     
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
