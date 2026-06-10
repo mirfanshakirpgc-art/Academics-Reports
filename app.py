@@ -3399,30 +3399,39 @@ if menu_choice == "👨‍🏫 Teacher Management":
             with tab_subjects:
                 st.markdown("##### Assign specific subjects to sections (Academic Role)")
                 
+                # --- Row 1 ---
                 t1_c1, t1_c2, t1_c3 = st.columns(3)
                 with t1_c1: selected_t1 = st.selectbox("1. Select Teacher:", options=t_options, key="t1_teacher")
                 with t1_c2: session_t1 = st.selectbox("2. Academic Session:", options=["2025-27", "2026-28", "2027-29"], key="t1_session")
                 with t1_c3: system_t1 = st.selectbox("3. Academic System:", options=["Annual System", "Semester System"], key="t1_system")
                     
-                t1_c4, t1_c5 = st.columns(2)
+                # --- Row 2 ---
+                t1_c4, t1_c5, t1_c6 = st.columns(3)
                 with t1_c4:
                     if system_t1 == "Annual System":
                         class_t1 = st.selectbox("4. Class Level:", ["11th", "12th"], key="t1_class")
                     else:
                         class_t1 = st.selectbox("4. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="t1_class")
                 
-                # Dynamic Logic for Tab 1 (Filtered to specific class)
+                with t1_c5:
+                    if system_t1 == "Annual System":
+                        disc_options_t1 = list(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                        disc_t1 = st.selectbox("5. Select Discipline:", disc_options_t1, key="t1_disc")
+                    else:
+                        disc_t1 = "DIT"
+                        st.info("⚡ DIT System Active")
+
+                # Dynamic Logic for Tab 1 (Filtered to specific discipline and class)
                 if system_t1 == "Annual System":
-                    secs_t1 = []
                     if 'DISCIPLINE_SECTIONS_MAP' in globals():
-                        for class_dict in DISCIPLINE_SECTIONS_MAP.values():
-                            secs_t1.extend(class_dict.get(class_t1, []))
-                        secs_t1 = sorted(list(set(secs_t1)))
+                        secs_t1 = DISCIPLINE_SECTIONS_MAP.get(disc_t1, {}).get(class_t1, [])
+                        if not secs_t1: secs_t1 = ["No sections available"]
                     else:
                         secs_t1 = ["MG_BLUE", "EG_BLUE"]
                         
                     if 'DISCIPLINE_SUBJECTS_MAP' in globals():
-                        subs_t1 = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
+                        subs_t1 = DISCIPLINE_SUBJECTS_MAP.get(disc_t1, [])
+                        if not subs_t1: subs_t1 = ["No subjects available"]
                     else:
                         subs_t1 = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"]
                 else:
@@ -3431,29 +3440,33 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     elif "2nd" in class_t1: subs_t1 = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
                     else: subs_t1 = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
 
-                with t1_c5:
-                    sec_t1 = st.selectbox("5. Assign Target Section:", options=secs_t1, key="t1_sec")
+                with t1_c6:
+                    sec_t1 = st.selectbox("6. Assign Target Section:", options=secs_t1, key="t1_sec")
                     
-                sub_t1 = st.selectbox("6. Select Subject Course:", options=subs_t1, key="t1_sub")
+                # --- Row 3 ---
+                sub_t1 = st.selectbox("7. Select Subject Course:", options=subs_t1, key="t1_sub")
                     
                 st.markdown("##")
                 if st.button("🔒 Authorize Subject Assignment", type="primary", use_container_width=True, key="t1_btn"):
-                    check_dup = run_query("""
-                        SELECT allocation_id FROM academic_allocations 
-                        WHERE session_term = :session AND class_level = :cls 
-                        AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
-                    """, {"session": session_t1, "cls": class_t1, "sec": sec_t1, "sub": sub_t1, "teacher": selected_t1})
-                    
-                    if check_dup.empty:
-                        execute_db_command("""
-                            INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
-                            VALUES (:session, :cls, :sec, :sub, :teacher, 'No')
+                    if sec_t1 == "No sections available" or sub_t1 == "No subjects available":
+                        st.error("⚠️ Invalid Section or Subject selection. Please adjust your filters.")
+                    else:
+                        check_dup = run_query("""
+                            SELECT allocation_id FROM academic_allocations 
+                            WHERE session_term = :session AND class_level = :cls 
+                            AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
                         """, {"session": session_t1, "cls": class_t1, "sec": sec_t1, "sub": sub_t1, "teacher": selected_t1})
                         
-                        st.success(f"✅ Access granted! {selected_t1} is now allocated to teach {sub_t1} in {sec_t1}.")
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ This exact subject allocation already exists for this instructor.")
+                        if check_dup.empty:
+                            execute_db_command("""
+                                INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
+                                VALUES (:session, :cls, :sec, :sub, :teacher, 'No')
+                            """, {"session": session_t1, "cls": class_t1, "sec": sec_t1, "sub": sub_t1, "teacher": selected_t1})
+                            
+                            st.success(f"✅ Access granted! {selected_t1} is now allocated to teach {sub_t1} in {sec_t1}.")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ This exact subject allocation already exists for this instructor.")
 
             # ==========================================
             # TAB 2: CLASS IN-CHARGE ASSIGNMENT
@@ -3461,29 +3474,59 @@ if menu_choice == "👨‍🏫 Teacher Management":
             with tab_incharge:
                 st.markdown("##### Assign overall room management & responsibility (Administrative Role)")
                 
+                # --- Row 1 ---
                 t2_c1, t2_c2, t2_c3 = st.columns(3)
                 with t2_c1: selected_t2 = st.selectbox("1. Select Teacher:", options=t_options, key="t2_teacher")
                 with t2_c2: session_t2 = st.selectbox("2. Academic Session:", options=["2025-27", "2026-28", "2027-29"], key="t2_session")
                 with t2_c3: system_t2 = st.selectbox("3. Academic System:", options=["Annual System", "Semester System"], key="t2_system")
                     
-                if system_t2 == "Annual System":
-                    class_t2 = st.selectbox("4. Class Level Context:", ["11th", "12th", "General/Cross-Class"], key="t2_class")
-                else:
-                    class_t2 = st.selectbox("4. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "General/Cross-Semester"], key="t2_class")
+                # --- Row 2 ---
+                t2_c4, t2_c5, t2_c6 = st.columns(3)
+                with t2_c4:
+                    if system_t2 == "Annual System":
+                        class_t2 = st.selectbox("4. Class Level Context:", ["11th", "12th", "General/Cross-Class"], key="t2_class")
+                    else:
+                        class_t2 = st.selectbox("4. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "General/Cross-Semester"], key="t2_class")
                 
-                # Dynamic Logic for Tab 2 (Fetches ALL sections to allow bulk inchargeship)
+                with t2_c5:
+                    if system_t2 == "Annual System":
+                        # Add an "All Disciplines" option for broad assignments
+                        disc_options_t2 = ["All Disciplines"] + (list(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"])
+                        disc_t2 = st.selectbox("5. Select Discipline:", disc_options_t2, key="t2_disc")
+                    else:
+                        disc_t2 = "DIT"
+                        st.info("⚡ DIT System Active")
+
+                # Dynamic Logic for Tab 2
                 if system_t2 == "Annual System":
                     secs_t2 = []
                     if 'DISCIPLINE_SECTIONS_MAP' in globals():
-                        for class_dict in DISCIPLINE_SECTIONS_MAP.values():
-                            for sec_list in class_dict.values():
-                                secs_t2.extend(sec_list)
-                        secs_t2 = sorted(list(set(secs_t2)))
+                        if disc_t2 == "All Disciplines":
+                            # Fetch sections across all disciplines
+                            for class_dict in DISCIPLINE_SECTIONS_MAP.values():
+                                if class_t2 == "General/Cross-Class":
+                                    for sec_list in class_dict.values():
+                                        secs_t2.extend(sec_list)
+                                else:
+                                    secs_t2.extend(class_dict.get(class_t2, []))
+                        else:
+                            # Fetch sections only for the selected discipline
+                            class_dict = DISCIPLINE_SECTIONS_MAP.get(disc_t2, {})
+                            if class_t2 == "General/Cross-Class":
+                                for sec_list in class_dict.values():
+                                    secs_t2.extend(sec_list)
+                            else:
+                                secs_t2.extend(class_dict.get(class_t2, []))
+                        secs_t2 = sorted(list(set(secs_t2))) if secs_t2 else ["No sections available"]
                     else:
                         secs_t2 = ["MG_BLUE", "EG_BLUE"]
                         
+                    subs_t2 = []
                     if 'DISCIPLINE_SUBJECTS_MAP' in globals():
-                        subs_t2 = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
+                        if disc_t2 == "All Disciplines":
+                            subs_t2 = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
+                        else:
+                            subs_t2 = sorted(list(set(DISCIPLINE_SUBJECTS_MAP.get(disc_t2, []))))
                     else:
                         subs_t2 = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"]
                 else:
@@ -3493,13 +3536,16 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 # Prepend the dedicated Role-Only subject to prevent database uniqueness conflicts
                 subs_t2 = ["🌟 Class In-Charge (Role Only)"] + subs_t2
                 
-                sec_t2 = st.multiselect("5. Assign Target Section(s):", options=secs_t2, default=[secs_t2[0]] if secs_t2 else None, key="t2_sec")
-                sub_t2 = st.selectbox("6. Associated Subject (Optional):", options=subs_t2, key="t2_sub", help="Leave as 'Role Only' if they are just the room manager.")
+                with t2_c6:
+                    sec_t2 = st.multiselect("6. Assign Target Section(s):", options=secs_t2, default=[secs_t2[0]] if secs_t2 and secs_t2[0] != "No sections available" else None, key="t2_sec")
+                
+                # --- Row 3 ---
+                sub_t2 = st.selectbox("7. Associated Subject (Optional):", options=subs_t2, key="t2_sub", help="Leave as 'Role Only' if they are just the room manager.")
 
                 st.markdown("##")
                 if st.button("🔒 Authorize Class In-Charge", type="primary", use_container_width=True, key="t2_btn"):
-                    if not sec_t2:
-                        st.error("⚠️ Please select at least one section before committing.")
+                    if not sec_t2 or "No sections available" in sec_t2:
+                        st.error("⚠️ Please select at least one valid section before committing.")
                     else:
                         success_count = 0
                         skip_count = 0
