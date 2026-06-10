@@ -3401,7 +3401,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
         }
 
-        # Hardcoded campus section definitions based on your attendance logic
+        # Hardcoded campus section definitions
         GIRLS_SECTIONS_DB = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE", "MQ1", "MQ2", "EQ1", "EQ", "CQ1", "CQ2", "CQ3", "IQ1", "IQ", "FQ1", "FQ", "DIT_G"]
         BOYS_SECTIONS_DB = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE", "MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK", "DIT_B"]
 
@@ -3412,7 +3412,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             if "STAT" in d_clean: return "ICS_STATISTICS"
             return d_clean
 
-        # Smart Teacher Filter (Based on Name Prefixes)
+        # Smart Teacher Filter
         def filter_teachers_by_campus(t_list, campus):
             female_prefixes = ("MS.", "MRS.", "MISS", "MADAM", "MS ", "MRS ")
             male_prefixes = ("MR.", "SIR", "HAFIZ", "MR ", "SIR ")
@@ -3421,7 +3421,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             else:
                 return [t for t in t_list if not t.upper().startswith(female_prefixes)]
 
-        # Smart Section Filter (Based on defined arrays)
+        # Smart Section Filter
         def filter_sections_by_campus(s_list, campus):
             if campus == "Girls Campus":
                 return [s for s in s_list if s.upper().strip() in GIRLS_SECTIONS_DB or "G" in s.upper().strip()]
@@ -3433,7 +3433,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not teachers_df.empty:
             t_options_raw = teachers_df['teacher_name'].tolist()
             
-            # --- CREATE SEPARATE TABS FOR THE TWO WORKFLOWS ---
             tab_subjects, tab_incharge = st.tabs(["📚 Assign Course Subjects", "👑 Assign Class In-Charge"])
             
             # ==========================================
@@ -3451,7 +3450,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 # --- Row 2: Teacher & Class ---
                 t1_c4, t1_c5 = st.columns(2)
                 with t1_c4: 
-                    # Filter teachers based on campus selection
                     filtered_teachers_t1 = filter_teachers_by_campus(t_options_raw, campus_t1)
                     if not filtered_teachers_t1: filtered_teachers_t1 = ["No matching staff found"]
                     selected_t1 = st.selectbox("4. Select Teacher:", options=filtered_teachers_t1, key="t1_teacher")
@@ -3474,12 +3472,10 @@ if menu_choice == "👨‍🏫 Teacher Management":
 
                 # --- Dynamic Logic for Tab 1 ---
                 if system_t1 == "Annual System":
-                    # Fetch & Filter Sections
                     raw_secs_t1 = DISCIPLINE_SECTIONS_MAP.get(disc_t1, {}).get(class_t1, []) if 'DISCIPLINE_SECTIONS_MAP' in globals() else []
                     secs_t1 = filter_sections_by_campus(raw_secs_t1, campus_t1)
                     if not secs_t1: secs_t1 = ["No sections available"]
                         
-                    # Fetch Class & Discipline Specific Subjects
                     lookup_key_t1 = f"{get_subject_prefix(disc_t1)}_{class_t1.upper()}"
                     subs_t1 = LOCAL_DISCIPLINE_SUBJECTS_MAP.get(lookup_key_t1, ["English", "Urdu"])
                     subs_t1 = sorted(list(set([s.upper() for s in subs_t1])))
@@ -3525,81 +3521,32 @@ if menu_choice == "👨‍🏫 Teacher Management":
             with tab_incharge:
                 st.markdown("##### Assign overall room management & responsibility (Administrative Role)")
                 
-                # --- Row 1: Core Flow Setup ---
+                # --- Row 1: Session, Campus, Teacher ---
                 t2_c1, t2_c2, t2_c3 = st.columns(3)
-                with t2_c1: session_t2 = st.selectbox("1. Academic Session:", options=["2025-27", "2026-28", "2027-29"], key="t2_session")
+                with t2_c1: session_t2 = st.selectbox("1. Select Session:", options=["2025-27", "2026-28", "2027-29"], key="t2_session")
                 with t2_c2: campus_t2 = st.selectbox("2. Target Campus:", options=["Girls Campus", "Boys Campus"], key="t2_campus")
-                with t2_c3: system_t2 = st.selectbox("3. Academic System:", options=["Annual System", "Semester System"], key="t2_system")
-                    
-                # --- Row 2: Teacher & Class ---
-                t2_c4, t2_c5 = st.columns(2)
-                with t2_c4: 
+                with t2_c3: 
                     filtered_teachers_t2 = filter_teachers_by_campus(t_options_raw, campus_t2)
                     if not filtered_teachers_t2: filtered_teachers_t2 = ["No matching staff found"]
-                    selected_t2 = st.selectbox("4. Select Teacher:", options=filtered_teachers_t2, key="t2_teacher")
+                    selected_t2 = st.selectbox("3. Select Teacher:", options=filtered_teachers_t2, key="t2_teacher")
                     
-                with t2_c5:
-                    if system_t2 == "Annual System":
-                        class_t2 = st.selectbox("5. Class Level Context:", ["11th", "12th", "General/Cross-Class"], key="t2_class")
-                    else:
-                        class_t2 = st.selectbox("5. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "General/Cross-Semester"], key="t2_class")
+                # --- Row 2: Assign Sections ---
+                # Gather all possible sections dynamically to pass through the campus filter
+                all_raw_secs_t2 = []
+                if 'DISCIPLINE_SECTIONS_MAP' in globals():
+                    for class_dict in DISCIPLINE_SECTIONS_MAP.values():
+                        for sec_list in class_dict.values():
+                            all_raw_secs_t2.extend(sec_list)
                 
-                # --- Row 3: Discipline, Section, Subject ---
-                t2_c6, t2_c7, t2_c8 = st.columns(3)
-                with t2_c6:
-                    if system_t2 == "Annual System":
-                        disc_options_t2 = ["All Disciplines"] + (list(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"])
-                        disc_t2 = st.selectbox("6. Select Discipline:", disc_options_t2, key="t2_disc")
-                    else:
-                        disc_t2 = "DIT"
-                        st.info("⚡ DIT System Active")
-
-                # --- Dynamic Logic for Tab 2 ---
-                if system_t2 == "Annual System":
-                    raw_secs_t2 = []
-                    subs_t2_raw = []
-                    
-                    if 'DISCIPLINE_SECTIONS_MAP' in globals():
-                        if disc_t2 == "All Disciplines":
-                            for class_dict in DISCIPLINE_SECTIONS_MAP.values():
-                                if class_t2 == "General/Cross-Class":
-                                    for sec_list in class_dict.values(): raw_secs_t2.extend(sec_list)
-                                else:
-                                    raw_secs_t2.extend(class_dict.get(class_t2, []))
-                            for subj_list in LOCAL_DISCIPLINE_SUBJECTS_MAP.values(): subs_t2_raw.extend(subj_list)
-                        else:
-                            class_dict = DISCIPLINE_SECTIONS_MAP.get(disc_t2, {})
-                            if class_t2 == "General/Cross-Class":
-                                for sec_list in class_dict.values(): raw_secs_t2.extend(sec_list)
-                                pref = get_subject_prefix(disc_t2)
-                                subs_t2_raw.extend(LOCAL_DISCIPLINE_SUBJECTS_MAP.get(f"{pref}_11TH", []))
-                                subs_t2_raw.extend(LOCAL_DISCIPLINE_SUBJECTS_MAP.get(f"{pref}_12TH", []))
-                            else:
-                                raw_secs_t2.extend(class_dict.get(class_t2, []))
-                                lookup_key = f"{get_subject_prefix(disc_t2)}_{class_t2.upper()}"
-                                subs_t2_raw.extend(LOCAL_DISCIPLINE_SUBJECTS_MAP.get(lookup_key, []))
-                                
-                        # Apply Campus Filter to Sections
-                        secs_t2 = filter_sections_by_campus(raw_secs_t2, campus_t2)
-                        secs_t2 = sorted(list(set(secs_t2))) if secs_t2 else ["No sections available"]
-                        subs_t2 = sorted(list(set([s.upper() for s in subs_t2_raw])))
-                    else:
-                        secs_t2 = ["MG_BLUE", "EG_BLUE"] if campus_t2 == "Girls Campus" else []
-                        subs_t2 = ["BIOLOGY", "CHEMISTRY", "MATH"]
-                else:
-                    raw_secs_t2 = ["DIT_G", "DIT_B"]
-                    secs_t2 = filter_sections_by_campus(raw_secs_t2, campus_t2)
-                    subs_t2 = ["INFORMATION TECHNOLOGY", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT", "ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
-
-                # Prepend the dedicated Role-Only subject
-                subs_t2 = ["🌟 CLASS IN-CHARGE (ROLE ONLY)"] + subs_t2
+                # Explicitly add DIT sections to the raw list to ensure they get filtered appropriately
+                all_raw_secs_t2.extend(["DIT_G", "DIT_B"])
                 
-                with t2_c7:
-                    sec_t2 = st.multiselect("7. Assign Target Section(s):", options=secs_t2, default=[secs_t2[0]] if secs_t2 and secs_t2[0] != "No sections available" else None, key="t2_sec")
-                
-                with t2_c8:
-                    sub_t2 = st.selectbox("8. Associated Subject:", options=subs_t2, key="t2_sub", help="Leave as 'Role Only' if they are just the room manager.")
+                # Apply Campus Filter
+                secs_t2 = filter_sections_by_campus(all_raw_secs_t2, campus_t2)
+                secs_t2 = sorted(list(set(secs_t2))) if secs_t2 else ["No sections available"]
 
+                sec_t2 = st.multiselect("4. Assign Target Section(s):", options=secs_t2, default=[secs_t2[0]] if secs_t2 and secs_t2[0] != "No sections available" else None, key="t2_sec")
+                
                 st.markdown("##")
                 if st.button("🔒 Authorize Class In-Charge", type="primary", use_container_width=True, key="t2_btn"):
                     if not sec_t2 or "No sections available" in sec_t2 or selected_t2 == "No matching staff found":
@@ -3609,17 +3556,18 @@ if menu_choice == "👨‍🏫 Teacher Management":
                         skip_count = 0
                         
                         for sec in sec_t2:
+                            # Use placeholders for Class ('General') and Subject ('🌟 CLASS IN-CHARGE (ROLE ONLY)')
                             check_dup = run_query("""
                                 SELECT allocation_id FROM academic_allocations 
-                                WHERE session_term = :session AND class_level = :cls 
-                                AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
-                            """, {"session": session_t2, "cls": class_t2, "sec": sec, "sub": sub_t2, "teacher": selected_t2})
+                                WHERE session_term = :session AND class_level = 'General' 
+                                AND section_name = :sec AND subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)' AND assigned_teacher_name = :teacher
+                            """, {"session": session_t2, "sec": sec, "teacher": selected_t2})
                             
                             if check_dup.empty:
                                 execute_db_command("""
                                     INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
-                                    VALUES (:session, :cls, :sec, :sub, :teacher, 'Yes')
-                                """, {"session": session_t2, "cls": class_t2, "sec": sec, "sub": sub_t2, "teacher": selected_t2})
+                                    VALUES (:session, 'General', :sec, '🌟 CLASS IN-CHARGE (ROLE ONLY)', :teacher, 'Yes')
+                                """, {"session": session_t2, "sec": sec, "teacher": selected_t2})
                                 success_count += 1
                             else:
                                 skip_count += 1
@@ -3662,7 +3610,11 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     r1, r2, r3, r4, r5, r6, r7, r8 = st.columns([0.5, 1.2, 1.2, 1.5, 2, 2.5, 1, 1])
                     r1.write(str(row['id']))
                     r2.write(str(row['session']))
-                    r3.write(str(row['class']))
+                    
+                    # Clean up 'General' class display for In-Charges
+                    class_disp = "---" if str(row['class']) == 'General' else str(row['class'])
+                    r3.write(class_disp)
+                    
                     r4.write(str(row['section']))
                     r5.write(str(row['subject']))
                     r6.write(str(row['instructor']))
