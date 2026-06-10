@@ -1262,15 +1262,20 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - FINAL PRODUCTION)
+# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - EXECUTIVE SUITE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
+    import base64
+    from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
     
-    # 🏛️ Header Block mimicking the Concordia College Kasur printed layout
-    st.markdown("<h1 style='text-align: center; margin-bottom: 0px;'>Concordia College Kasur</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; margin-top: 0px; color: gray;'>Daily Attendance Report</h3>", unsafe_allow_html=True)
+    # 🏛️ App UI Header Block matching the campus printed blueprint layout
+    st.markdown("<h1 style='text-align: center; margin-bottom: 0px; color: #1a365d;'>Concordia College Kasur</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; margin-top: 0px; color: #4a5568;'>Daily Attendance Report Suite</h3>", unsafe_allow_html=True)
     st.markdown("---")
     
     # Safe session resolution engine to completely eliminate NameErrors
@@ -1286,46 +1291,34 @@ elif menu_choice == "📋 Daily Attendance Report":
     except Exception:
         pass
         
-    # 📑 Inputs Row Block
+    # 📑 Operational Inputs Row Block
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
-        report_session = st.selectbox("Select Session:", session_choices, key="global_report_session_select")
+        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices, key="global_report_session_select")
     with filter_col2:
-        report_date = st.date_input("Select Date:", value=datetime.date.today(), key="global_report_date_select")
+        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Step 1: Safe Base Data Pull matching run_query expected styles
+    # ⚡ Base Data Pipeline Extraction
     try:
         raw_students = run_query("""
-            SELECT 
-                s.class,
-                s.section,
-                s.section_in_charge,
-                s.status,
-                s.session,
-                d.status AS att_status
+            SELECT s.class, s.section, s.section_in_charge, s.status, s.session, d.status AS att_status
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
         """, {"dt": str(report_date)})
     except Exception:
         raw_students = run_query("""
-            SELECT 
-                s.class,
-                s.section,
-                s.status,
-                s.session,
-                d.status AS att_status
+            SELECT s.class, s.section, s.status, s.session, d.status AS att_status
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
         """, {"dt": str(report_date)})
 
     if raw_students is None or raw_students.empty:
-        st.info("ℹ️ No student enrollment records or logs could be found in the database for this date.")
+        st.info("ℹ️ No student enrollment records or logs could be found in the database for this target frame.")
     else:
-        # Standardize missing columns to prevent KeyErrors later
         if 'section_in_charge' not in raw_students.columns:
             raw_students['section_in_charge'] = '---'
             
-        # Secure data typing using Pandas safely inside Python
+        # Standardize typing with Python Pandas
         raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['In_Charge'] = raw_students['section_in_charge'].fillna('---').astype(str).str.strip()
@@ -1333,18 +1326,17 @@ elif menu_choice == "📋 Daily Attendance Report":
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Student_Session'] = raw_students['session'].fillna('').astype(str).str.strip()
 
-        # 🎯 Step 2: Safe session filtering handled completely by Pandas in Python
+        # Session clean slice filter
         target_sess_clean = str(report_session).strip()
         raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
 
         if raw_students.empty:
-            st.info(f"ℹ️ No active records match Session: '{target_sess_clean}' for this selected date.")
+            st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
         else:
-            # 🧪 Step 3: Gender Classification Rules (G & Q = Girls, B & K = Boys)
+            # 🧪 Categorization Routing Function (G & Q = Girls, B & K = Boys)
             def classify_group(row):
                 cls = row['Class']
                 sec = row['Section']
-                
                 has_girls = any(c in sec for c in ["G", "Q"])
                 has_boys = any(c in sec for c in ["B", "K"])
                 
@@ -1356,16 +1348,13 @@ elif menu_choice == "📋 Daily Attendance Report":
 
             raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
 
-            # Pre-calculate active status metrics flags inside Python
+            # Mathematical Flag Matrices
             raw_students['Is_Left'] = raw_students['Student_Status'].isin(['LEFT', 'DROPOUT']).astype(int)
             raw_students['Is_Active'] = (~raw_students['Student_Status'].isin(['LEFT', 'DROPOUT'])).astype(int)
-            
-            raw_students['Is_Present'] = ((raw_students['Is_Active'] == 1) & 
-                                          (raw_students['Attendance_Status'].isin(['P', 'PRESENT', '1']))).astype(int)
-            raw_students['Is_Absent'] = ((raw_students['Is_Active'] == 1) & 
-                                         (raw_students['Attendance_Status'].isin(['A', 'ABSENT', '0']))).astype(int)
+            raw_students['Is_Present'] = ((raw_students['Is_Active'] == 1) & (raw_students['Attendance_Status'].isin(['P', 'PRESENT', '1']))).astype(int)
+            raw_students['Is_Absent'] = ((raw_students['Is_Active'] == 1) & (raw_students['Attendance_Status'].isin(['A', 'ABSENT', '0']))).astype(int)
 
-            # 🔄 Step 4: Perform grouping using Pandas 
+            # Execution Aggregation grouping block
             summary_grouped = raw_students.groupby(['Group_Category', 'Class', 'Section', 'In_Charge']).agg(
                 Total_Enrolled=('Class', 'count'),
                 Left_Count=('Is_Left', 'sum'),
@@ -1374,13 +1363,15 @@ elif menu_choice == "📋 Daily Attendance Report":
                 Absent_Count=('Is_Absent', 'sum')
             ).reset_index()
 
-            # Layout display sorting structure
+            # Structured track sequences
             print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
             
             ledger_rows = []
             grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
 
-            # Construct display blocks
+            # Store subtotals to inject safely into download engines
+            subtotals_tracker = {}
+
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
                 if cat_df.empty:
@@ -1389,6 +1380,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
                 is_first = True
                 
+                # Append Individual Section Records
                 for idx, row in cat_df.iterrows():
                     act = int(row['Active_Count'])
                     pre = int(row['Present_Count'])
@@ -1401,25 +1393,31 @@ elif menu_choice == "📋 Daily Attendance Report":
                     c_absent += int(row['Absent_Count'])
                     
                     ledger_rows.append({
-                        "Class": category if is_first else "",  
+                        "Class/Category": category if is_first else "",  # Visual merging anchor
                         "Section": str(row['Section']),
-                        "In Charge": str(row['In_Charge']),
-                        "Total Enrolled": int(row['Total_Enrolled']),
+                        "Incharge Name": str(row['In_Charge']),
+                        "Enrolled": int(row['Total_Enrolled']),
                         "Left": int(row['Left_Count']),
-                        "Total Active": act,
+                        "Active": act,
                         "Present": pre,
                         "Absent": int(row['Absent_Count']),
-                        "%age": pct
+                        "%age": pct,
+                        "Type": "Data"
                     })
                     is_first = False
                     
-                # Append Categorical Sub-Totals
+                # Append Group Sub-Total Row block
                 c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
+                sub_label = f"{category} Total"
                 ledger_rows.append({
-                    "Class": f"Total {category}", "Section": "", "In Charge": "",
-                    "Total Enrolled": c_enrolled, "Left": c_left, "Total Active": c_active,
-                    "Present": c_present, "Absent": c_absent, "%age": c_pct
+                    "Class/Category": sub_label, "Section": "", "Incharge Name": "",
+                    "Enrolled": c_enrolled, "Left": c_left, "Active": c_active,
+                    "Present": c_present, "Absent": c_absent, "%age": c_pct,
+                    "Type": "Subtotal"
                 })
+                
+                # Cache group data matching print categories
+                subtotals_tracker[category] = {"enrolled": c_enrolled, "left": c_left, "active": c_active, "present": c_present, "absent": c_absent, "pct": c_pct}
                 
                 grand_enrolled += c_enrolled
                 grand_left += c_left
@@ -1427,47 +1425,289 @@ elif menu_choice == "📋 Daily Attendance Report":
                 grand_present += c_present
                 grand_absent += c_absent
 
-            # Render tables
-            st.subheader(f"📋 Roster Sheet Breakdown — Session {report_session}")
-            if ledger_rows:
-                master_table_df = pd.DataFrame(ledger_rows)
-                st.dataframe(master_table_df, use_container_width=True, hide_index=True)
+            # Render Screen Presentation Dataframes
+            st.subheader("📋 Section Wise Ledger Sheets")
+            ui_display_df = pd.DataFrame(ledger_rows)
+            st.dataframe(ui_display_df.drop(columns=['Type']), use_container_width=True, hide_index=True)
+            
+            # Statistics Section
+            st.markdown("###")
+            st.subheader("📊 Statistics of Attendance (Grand Summary)")
+            grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
+            
+            stats_df = pd.DataFrame([{
+                "Report Date": report_date.strftime('%d-%b-%Y'),
+                "Grand Enrolled": grand_enrolled,
+                "Grand Left": grand_left,
+                "Grand Active": grand_active,
+                "Grand Present": grand_present,
+                "Grand Absent": grand_absent,
+                "Grand Percentage": grand_pct
+            }])
+            st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+            # ==========================================
+            # 📥 ACTION PACK: ADVANCED EXPORT BUTTONS
+            # ==========================================
+            st.markdown("---")
+            action_col1, action_col2 = st.columns(2)
+            
+            # --- ACTION 1: DYNAMIC POLISHED EXCEL WORKBOOK GENERATOR ---
+            with action_col1:
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.title = "Daily Attendance Ledger"
+                ws.views.sheetView[0].showGridLines = True
                 
-                # 📊 RENDER: Bottom "Statistics of Attendance" Table
-                st.markdown("###")
-                st.markdown("#### **Statistics of Attendance:-**")
+                # Styles configuration blocks
+                navy_fill = PatternFill(start_color="1A365D", end_color="1A365D", fill_type="solid")
+                subtotal_fill = PatternFill(start_color="F7FAFC", end_color="F7FAFC", fill_type="solid")
+                stats_header_fill = PatternFill(start_color="2D3748", end_color="2D3748", fill_type="solid")
+                stats_body_fill = PatternFill(start_color="FFFAF0", end_color="FFFAF0", fill_type="solid")
                 
-                g_percentage = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
+                font_title = Font(name="Arial", size=16, bold=True, color="1A365D")
+                font_header = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+                font_bold = Font(name="Arial", size=10, bold=True)
+                font_regular = Font(name="Arial", size=10)
                 
-                stats_df = pd.DataFrame([{
-                    "Date": report_date.strftime('%d-%b-%Y'),
-                    "Total Enrolled": grand_enrolled,
-                    "Left": grand_left,
-                    "Total Active": grand_active,
-                    "Total Present": grand_present,
-                    "Total Absent": grand_absent,
-                    "Grand Percentage": g_percentage
-                }])
-                st.dataframe(stats_df, use_container_width=True, hide_index=True)
-                
-                # Footer padding block
-                st.markdown("###")
-                st.markdown("**Remarks & Calls Feedback:**")
-                st.markdown("<div style='border: 1px solid #ccc; height: 50px; border-radius: 5px; background-color: #fafafa; padding: 10px; color: #aaa; font-style: italic;'>Handwritten feedback notes...</div>", unsafe_allow_html=True)
-                
-                # 📥 Data Export Interface
-                st.markdown("---")
-                csv_data = master_table_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Export Daily Report Data (CSV)",
-                    data=csv_data,
-                    file_name=f"Daily_Attendance_Report_{report_session}_{report_date}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    type="primary"
+                thin_border = Border(
+                    left=Side(style='thin', color='CBD5E0'), right=Side(style='thin', color='CBD5E0'),
+                    top=Side(style='thin', color='CBD5E0'), bottom=Side(style='thin', color='CBD5E0')
                 )
-            else:
-                st.warning("⚠️ Processes finished but metrics layouts are unpopulated.")
+                
+                # Title Blocks
+                ws["A1"] = "Concordia College Kasur"
+                ws["A1"].font = font_title
+                ws["A2"] = f"Daily Attendance Report — Session {report_session} ({report_date.strftime('%d-%b-%Y')})"
+                ws["A2"].font = Font(name="Arial", size=11, italic=True)
+                
+                # Main Headers Row
+                headers = ["Class/Category", "Section", "Incharge Name", "Enrolled", "Left", "Active", "Present", "Absent", "%age"]
+                ws.append([]) # spacing line
+                ws.append(headers)
+                header_row_idx = 4
+                
+                for col_num, header in enumerate(headers, 1):
+                    cell = ws.cell(row=header_row_idx, column=col_num)
+                    cell.fill = navy_fill
+                    cell.font = font_header
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.border = thin_border
+                
+                # Add Data & format matching criteria
+                current_row = 5
+                for r_data in ledger_rows:
+                    ws.append([r_data["Class/Category"], r_data["Section"], r_data["Incharge Name"], r_data["Enrolled"], r_data["Left"], r_data["Active"], r_data["Present"], r_data["Absent"], r_data["%age"]])
+                    
+                    is_sub = (r_data["Type"] == "Subtotal")
+                    for col_num in range(1, 10):
+                        cell = ws.cell(row=current_row, column=col_num)
+                        cell.border = thin_border
+                        cell.font = font_bold if is_sub else font_regular
+                        if is_sub:
+                            cell.fill = subtotal_fill
+                        
+                        # Set column positioning alignments
+                        if col_num in [1, 2, 3]:
+                            cell.alignment = Alignment(horizontal="left" if col_num != 2 else "center", vertical="center")
+                        else:
+                            cell.alignment = Alignment(horizontal="center", vertical="center")
+                    current_row += 1
+                
+                # Add Bottom Grand Statistics Table box section
+                current_row += 2
+                ws.cell(row=current_row, column=1, value="Statistics of Attendance:-").font = Font(name="Arial", size=11, bold=True, color="1A365D")
+                
+                current_row += 1
+                stat_headers = ["Date", "Total Enrolled", "Total Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
+                for c_idx, sh in enumerate(stat_headers, 1):
+                    cell = ws.cell(row=current_row, column=c_idx, value=sh)
+                    cell.fill = stats_header_fill
+                    cell.font = font_header
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.border = thin_border
+                    
+                current_row += 1
+                stat_vals = [report_date.strftime('%d-%b-%Y'), grand_enrolled, grand_left, grand_active, grand_present, grand_absent, grand_pct]
+                for c_idx, sv in enumerate(stat_vals, 1):
+                    cell = ws.cell(row=current_row, column=c_idx, value=sv)
+                    cell.fill = stats_body_fill
+                    cell.font = font_bold
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.border = thin_border
+                
+                # Auto width fit layouts adjustments rule
+                for col in ws.columns:
+                    max_len = max(len(str(cell.value or '')) for cell in col)
+                    col_letter = get_column_letter(col[0].column)
+                    ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+                
+                # Save out raw bytes payload string mapping stream
+                excel_stream = BytesIO()
+                wb.save(excel_stream)
+                excel_stream.seek(0)
+                
+                st.download_button(
+                    label="🟢 Export Formatted Excel Sheet",
+                    data=excel_stream.getvalue(),
+                    file_name=f"Concordia_Daily_Attendance_{report_date}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+            # --- ACTION 2: PROFESSIONAL HTML-TO-PDF PRINT ENGINE SUITE (WEASYPRINT BASED) ---
+            with action_col2:
+                # Generate matching print layout array streams inside python strings
+                html_table_rows = ""
+                for r_data in ledger_rows:
+                    if r_data["Type"] == "Subtotal":
+                        html_table_rows += f"""
+                        <tr class="subtotal-row">
+                            <td>{r_data["Class/Category"]}</td>
+                            <td></td>
+                            <td></td>
+                            <td>{r_data["Enrolled"]}</td>
+                            <td>{r_data["Left"]}</td>
+                            <td>{r_data["Active"]}</td>
+                            <td>{r_data["Present"]}</td>
+                            <td>{r_data["Absent"]}</td>
+                            <td>{r_data["%age"]}</td>
+                        </tr>
+                        """
+                    else:
+                        # Append transparent categorization headings visually above rows
+                        if r_data["Class/Category"] != "":
+                            html_table_rows += f'<tr><td class="category-header" colspan="9">{r_data["Class/Category"]} Track Group</td></tr>'
+                        
+                        html_table_rows += f"""
+                        <tr>
+                            <td></td>
+                            <td class="center-align">{r_data["Section"]}</td>
+                            <td class="left-align">{r_data["Incharge Name"]}</td>
+                            <td>{r_data["Enrolled"]}</td>
+                            <td>{r_data["Left"]}</td>
+                            <td>{r_data["Active"]}</td>
+                            <td>{r_data["Present"]}</td>
+                            <td>{r_data["Absent"]}</td>
+                            <td>{r_data["%age"]}</td>
+                        </tr>
+                        """
+
+                printable_html_doc = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                <style>
+                    @page {{ size: A4 portrait; margin: 12mm 10mm; background-color: #ffffff; }}
+                    body {{ font-family: 'Arial', sans-serif; color: #333333; margin: 0; padding: 0; font-size: 10pt; line-height: 1.3; }}
+                    *, *::before, *::after {{ box-sizing: border-box; }}
+                    .header-container {{ text-align: center; margin-bottom: 15px; border-bottom: 2px solid #1a365d; padding-bottom: 8px; }}
+                    .college-title {{ font-size: 20pt; font-weight: bold; color: #1a365d; text-transform: uppercase; margin: 0; letter-spacing: 0.5px; }}
+                    .report-subtitle {{ font-size: 12pt; color: #4a5568; margin: 3px 0 0 0; font-weight: bold; letter-spacing: 1px; }}
+                    .meta-table {{ width: 100%; margin-bottom: 15px; border-collapse: collapse; }}
+                    .meta-table td {{ padding: 4px 0; font-size: 10.5pt; }}
+                    .meta-label {{ font-weight: bold; color: #2d3748; width: 12%; }}
+                    .meta-value {{ color: #1a202c; border-bottom: 1px dotted #cbd5e0; width: 38%; }}
+                    .main-ledger {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
+                    .main-ledger th {{ background-color: #1a365d; color: #ffffff; font-weight: bold; text-align: center; padding: 6px 4px; font-size: 9pt; border: 1px solid #1a365d; text-transform: uppercase; }}
+                    .main-ledger td {{ padding: 5px 4px; font-size: 9.5pt; border: 1px solid #cbd5e0; text-align: center; }}
+                    .main-ledger td.left-align {{ text-align: left; padding-left: 6px; }}
+                    .main-ledger td.center-align {{ text-align: center; }}
+                    .category-header {{ background-color: #ebf8ff; font-weight: bold; color: #2b6cb0; text-align: left !important; padding-left: 8px !important; font-size: 10pt; }}
+                    .subtotal-row {{ background-color: #f7fafc; font-weight: bold; }}
+                    .subtotal-row td {{ border-top: 1.5px solid #4a5568; border-bottom: 1.5px solid #4a5568; color: #1a202c; }}
+                    .stats-section-title {{ font-size: 11pt; font-weight: bold; color: #1a365d; margin: 15px 0 5px 0; text-transform: uppercase; }}
+                    .stats-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; }}
+                    .stats-table th {{ background-color: #2d3748; color: #ffffff; font-weight: bold; padding: 6px 4px; font-size: 9pt; border: 1px solid #2d3748; }}
+                    .stats-table td {{ padding: 6px 4px; font-size: 10pt; border: 1px solid #cbd5e0; text-align: center; font-weight: bold; background-color: #fffaf0; }}
+                    .footer-box {{ margin-top: 15px; width: 100%; }}
+                    .remarks-title {{ font-weight: bold; font-size: 10pt; margin-bottom: 4px; color: #2d3748; }}
+                    .remarks-line {{ height: 45px; border: 1px solid #a0aec0; border-radius: 4px; background-color: #fdfdfd; }}
+                    .signature-row {{ margin-top: 35px; width: 100%; display: table; }}
+                    .signature-col {{ display: table-cell; width: 33.33%; text-align: center; font-size: 9.5pt; font-weight: bold; color: #4a5568; }}
+                    .signature-line {{ width: 70%; margin: 0 auto 5px auto; border-bottom: 1px solid #718096; }}
+                </style>
+                </head>
+                <body>
+                <div class="header-container">
+                    <div class="college-title">Concordia College Kasur</div>
+                    <div class="report-subtitle">DAILY ATTENDANCE REPORT SUMMARY</div>
+                </div>
+                <table class="meta-table">
+                    <tr>
+                        <td class="meta-label">Session:</td><td class="meta-value">{report_session}</td>
+                        <td class="meta-label">Date:</td><td class="meta-value">{report_date.strftime('%A, %d-%b-%Y')}</td>
+                    </tr>
+                </table>
+                <table class="main-ledger">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%;">Class/Category</th>
+                            <th style="width: 14%;">Section</th>
+                            <th style="width: 22%;">Incharge Name</th>
+                            <th style="width: 9%;">Enrolled</th>
+                            <th style="width: 7%;">Left</th>
+                            <th style="width: 9%;">Active</th>
+                            <th style="width: 9%;">Present</th>
+                            <th style="width: 7%;">Absent</th>
+                            <th style="width: 7%;">%age</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {html_table_rows}
+                    </tbody>
+                </table>
+                <div class="stats-section-title">Statistics of Attendance:-</div>
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 16%;">Date</th>
+                            <th style="width: 14%;">Total Enrolled</th>
+                            <th style="width: 14%;">Total Left</th>
+                            <th style="width: 14%;">Total Active</th>
+                            <th style="width: 14%;">Total Present</th>
+                            <th style="width: 14%;">Total Absent</th>
+                            <th style="width: 14%;">Grand Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{report_date.strftime('%d-%b-%Y')}</td>
+                            <td>{grand_enrolled}</td><td>{grand_left}</td><td>{grand_active}</td>
+                            <td>{grand_present}</td><td>{grand_absent}</td><td>{grand_pct}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="footer-box">
+                    <div class="remarks-title">Remarks & Calls Feedback:</div>
+                    <div class="remarks-line"></div>
+                </div>
+                <div class="signature-row">
+                    <div class="signature-col"><div class="signature-line"></div>Attendance Incharge</div>
+                    <div class="signature-col"><div class="signature-line"></div>Vice Principal</div>
+                    <div class="signature-col"><div class="signature-line"></div>Principal Office</div>
+                </div>
+                </body>
+                </html>
+                """
+                
+                # Safely invoke WeasyPrint compiler pipeline directly
+                try:
+                    from weasyprint import HTML
+                    pdf_buffer = BytesIO()
+                    HTML(string=printable_html_doc).write_pdf(pdf_buffer)
+                    pdf_data = pdf_buffer.getvalue()
+                    
+                    st.download_button(
+                        label="🖨️ Print Report to Official PDF",
+                        data=pdf_data,
+                        file_name=f"Concordia_Kasur_Daily_Attendance_{report_date}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                except Exception as weasy_err:
+                    st.error("💡 Install Weasyprint package dependencies to enable automated printing.")
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
