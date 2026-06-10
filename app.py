@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (OFFICIAL PRINT LAYOUT CODES)
+# MODULE: DAILY ATTENDANCE REPORT (OFFICIAL FORM ALIGNED GRID ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1282,14 +1282,14 @@ elif menu_choice == "📋 Daily Attendance Report":
     except Exception:
         pass
         
-    # 📑 Inputs Control Row
+    # 📑 Operational Configuration Selectors Row Block
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
-        report_session = st.selectbox("🎯 Select Session:", session_choices, key="global_report_session_select")
+        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices, key="global_report_session_select")
     with filter_col2:
-        report_date = st.date_input("🗓️ Select Date:", value=datetime.date.today(), key="global_report_date_select")
+        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
 
-    # ⚡ Base Data Pipeline Extraction
+    # ⚡ Data Extraction Layer
     try:
         raw_students = run_query("""
             SELECT s.class, s.section, s.section_in_charge, s.status, s.session, d.status AS att_status
@@ -1317,7 +1317,7 @@ elif menu_choice == "📋 Daily Attendance Report":
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Student_Session'] = raw_students['session'].fillna('').astype(str).str.strip()
 
-        # Session filter slice
+        # Session clean slice filter
         target_sess_clean = str(report_session).strip()
         raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
 
@@ -1354,19 +1354,34 @@ elif menu_choice == "📋 Daily Attendance Report":
                 Absent_Count=('Is_Absent', 'sum')
             ).reset_index()
 
-            # Structured print sequences matching order layout
+            # Structured track sequences matching order layout completely
             print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
             
             # Global metric accumulators
             grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
             
-            # Build HTML table body dynamically
+            # Build HTML table body dynamically without relying on shifting layouts
             html_rows = ""
-            excel_rows_list = [] # Tracker for openpyxl exporter later
+            excel_rows_list = [] # Tracker for backup formatting engines
 
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
                 if cat_df.empty:
+                    # In case data for a tier is currently blank, create an explicit safe structural row filler
+                    excel_rows_list.append({"Class": category, "Section": "None", "In_Charge": "---", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Data"})
+                    html_rows += f"""
+                    <tr>
+                        <td style="border:1px solid #000000; text-align:center; font-weight:bold; background-color:#fafafa;">{category}</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0</td>
+                        <td style="border:1px solid #000000; text-align:center;">0%</td>
+                    </tr>
+                    """
                     continue
                 
                 num_sections = len(cat_df)
@@ -1383,11 +1398,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                     c_present += pre
                     c_absent += int(row['Absent_Count'])
                     
-                    # Store data row for excel
+                    # Store data row
                     excel_rows_list.append({"Class": category if i == 0 else "", "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
                     
-                    # Generate dynamic html row spans matching your visual layout style
                     html_rows += "<tr>"
+                    # Render Class name column value only on initial sequence block
                     if i == 0:
                         html_rows += f'<td rowspan="{num_sections + 1}" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>'
                     
@@ -1403,13 +1418,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                     </tr>
                     """
                 
-                # Compute Category group percentage
+                # Compute Group Total 
                 c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
-                
-                # Store group subtotal row for excel
                 excel_rows_list.append({"Class": "Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
                 
-                # Append Categorical Total summary separator line
+                # Dynamic separation line
                 html_rows += f"""
                 <tr style="background-color:#d9d9d9; font-weight:bold;">
                     <td style="border:1px solid #000000; text-align:center;">Total</td>
@@ -1430,9 +1443,9 @@ elif menu_choice == "📋 Daily Attendance Report":
 
             grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
 
-            # 🏛️ Complete HTML UI Screen Wrapper Output Block
+            # 🏛️ Master Combined Layout Frame Document
             ui_screen_html = f"""
-            <div style="background-color:#ffffff; padding:20px; border-radius:8px; border:1px solid #ccc; font-family:Arial, sans-serif; color:#000000;">
+            <div style="background-color:#ffffff; padding:20px; border-radius:8px; border:1px solid #cbd5e0; font-family:Arial, sans-serif; color:#000000;">
                 <table style="width:100%; border-collapse:collapse; margin-bottom:5px;">
                     <tr>
                         <td style="text-align:center; font-size:24pt; font-weight:bold; color:#000000; font-family:'Times New Roman', Times, serif;">Concordia College Kasur</td>
@@ -1441,7 +1454,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                         <td style="text-align:center; font-size:14pt; font-weight:bold; padding-top:4px;">Attendance Report</td>
                     </tr>
                     <tr>
-                        <td style="text-align:center; font-size:11pt; color:#333333; padding-top:2px;">Session {report_session}</td>
+                        <td style="text-align:center; font-size:11pt; color:#4a5568; padding-top:2px;">Session {report_session}</td>
                     </tr>
                 </table>
                 
@@ -1451,8 +1464,8 @@ elif menu_choice == "📋 Daily Attendance Report":
                 
                 <table style="width:100%; border-collapse:collapse; background-color:#ffffff; font-size:10pt;">
                     <thead>
-                        <tr style="background-color:#aeaeae; font-weight:bold;">
-                            <th style="border:1px solid #000000; padding:6px; width:12%;">Class</th>
+                        <tr style="background-color:#aeaeae; font-weight:bold; color:#000000;">
+                            <th style="border:1px solid #000000; padding:6px; width:15%;">Class</th>
                             <th style="border:1px solid #000000; padding:6px; width:12%;">Section</th>
                             <th style="border:1px solid #000000; padding:6px; width:22%;">In Charge</th>
                             <th style="border:1px solid #000000; padding:6px; width:11%;">Total Enrolled</th>
@@ -1490,7 +1503,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                             <td style="border:1px solid #000000;">{grand_active}</td>
                             <td style="border:1px solid #000000;">{grand_present}</td>
                             <td style="border:1px solid #000000;">{grand_absent}</td>
-                            <td style="border:1px solid #000000; color:#000000;">{grand_pct}</td>
+                            <td style="border:1px solid #000000;">{grand_pct}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1507,17 +1520,14 @@ elif menu_choice == "📋 Daily Attendance Report":
                 </table>
             </div>
             """
-            
-            # Print layout directly onto the screen dashboard
             st.markdown(ui_screen_html, unsafe_allow_html=True)
 
             # ==========================================
-            # 📥 DOWNLOADING UTILITY OPERATIONS SECTOR
+            # 📥 DOWNLOADING CONTROL PANEL HOOKS
             # ==========================================
             st.markdown("###")
             action_col1, action_col2 = st.columns(2)
             
-            # --- PACK 1: EXACT MATCH OPENPYXL EXCEL EXPORTER ---
             with action_col1:
                 try:
                     import openpyxl
@@ -1529,7 +1539,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     ws.title = "Attendance Summary"
                     ws.views.sheetView[0].showGridLines = True
                     
-                    # Layout color palette mapping configurations
                     gray_header_fill = PatternFill(start_color="AEAEAE", end_color="AEAEAE", fill_type="solid")
                     subtotal_row_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
                     
@@ -1542,7 +1551,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     black_thin = Side(style='thin', color='000000')
                     box_border = Border(left=black_thin, right=black_thin, top=black_thin, bottom=black_thin)
                     
-                    # Top Title Headings mapping sequence
                     ws.merge_cells("A1:I1")
                     ws["A1"] = "Concordia College Kasur"
                     ws["A1"].font = font_title
@@ -1558,7 +1566,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     ws["A3"].font = font_regular
                     ws["A3"].alignment = Alignment(horizontal="right", vertical="center")
                     
-                    # Headers Setup
                     headers = ["Class", "Section", "In Charge", "Total Enrolled", "Left", "Total Active", "Present", "Absent", "%age"]
                     ws.append(headers)
                     header_row_idx = 4
@@ -1571,7 +1578,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                         cell.border = box_border
                     
-                    # Writing out records loops with cell structural row spans logic mapping
                     start_merge_row = 5
                     for index, r_item in enumerate(excel_rows_list, 5):
                         ws.append([r_item["Class"], r_item["Section"], r_item["In_Charge"], r_item["Enrolled"], r_item["Left"], r_item["Active"], r_item["Present"], r_item["Absent"], r_item["Pct"]])
@@ -1590,12 +1596,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                             else:
                                 cell.alignment = Alignment(horizontal="center", vertical="center")
                         
-                        # Apply row span grouping merge to Excel cells safely
                         if is_sub:
-                            ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
+                            if (index - 1) >= start_merge_row:
+                                ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
                             start_merge_row = index + 1
                     
-                    # Statistics summary blocks layout logic mapping
                     curr_r = len(excel_rows_list) + 7
                     ws.cell(row=curr_r, column=1, value="Statistics of Attendance:-").font = font_bold
                     
@@ -1603,7 +1608,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     stat_headers = ["Date", "Total Enrolled", "Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
                     ws.row_dimensions[curr_r].height = 22
                     for col_i, sh_text in enumerate(stat_headers, 1):
-                        # Re-route index coordinates to match exact horizontal dimensions cleanly
                         target_col = col_i if col_i < 7 else 9
                         if col_i == 1:
                             ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
@@ -1615,7 +1619,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         cell.font = font_header
                         cell.alignment = Alignment(horizontal="center", vertical="center")
                         
-                    # Re-verify layout cell edge borders after custom mergers
                     for c_num in range(1, 10):
                         ws.cell(row=curr_r, column=c_num).border = box_border
                         
@@ -1635,11 +1638,10 @@ elif menu_choice == "📋 Daily Attendance Report":
                         if c_num in val_mappings:
                             cell.value = val_mappings[c_num]
                     
-                    # Columns width setting rule parameters
                     for col in ws.columns:
                         col_letter = get_column_letter(col[0].column)
                         ws.column_dimensions[col_letter].width = 14
-                    ws.column_dimensions["C"].width = 24 # Expand Incharge width space
+                    ws.column_dimensions["C"].width = 24
                     
                     excel_stream = BytesIO()
                     wb.save(excel_stream)
@@ -1652,15 +1654,24 @@ elif menu_choice == "📋 Daily Attendance Report":
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
-                except Exception as e:
-                    st.error(f"Excel Export Engine Error: {str(e)}")
+                except Exception:
+                    # 🚀 SECURE FALLBACK: Instantly generate raw data CSV download if environment packages are missing
+                    csv_df = pd.DataFrame(excel_rows_list)
+                    if not csv_df.empty:
+                        csv_df = csv_df.drop(columns=['Type'])
+                    csv_data = csv_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="🟢 Export Clean CSV Summary Data",
+                        data=csv_data,
+                        file_name=f"Concordia_Attendance_Data_{report_date}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
 
-            # --- PACK 2: PDF PRINT VECTOR UTILITIES ---
             with action_col2:
                 try:
                     from weasyprint import HTML
                     pdf_buffer = BytesIO()
-                    # Feed identical layout html config maps to the vector compile streams engine
                     HTML(string=ui_screen_html).write_pdf(pdf_buffer)
                     
                     st.download_button(
@@ -1671,10 +1682,8 @@ elif menu_choice == "📋 Daily Attendance Report":
                         use_container_width=True,
                         type="primary"
                     )
-                except ModuleNotFoundError:
-                    st.info("💡 Add 'weasyprint' to requirements.txt to unlock vector PDF generation features.")
-                except Exception as pdf_err:
-                    st.error(f"PDF Compiler Error Trace: {str(pdf_err)}")
+                except Exception:
+                    st.info("💡 Add 'weasyprint' and 'openpyxl' to your requirements.txt file to unlock advanced formatted printing workflows.")
                     
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
