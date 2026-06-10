@@ -1267,11 +1267,7 @@ if menu_choice == "📅 Attendance Entry Management":
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
-    import base64
     from io import BytesIO
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
     
     # 🏛️ App UI Header Block matching the campus printed blueprint layout
     st.markdown("<h1 style='text-align: center; margin-bottom: 0px; color: #1a365d;'>Concordia College Kasur</h1>", unsafe_allow_html=True)
@@ -1369,9 +1365,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             ledger_rows = []
             grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
 
-            # Store subtotals to inject safely into download engines
-            subtotals_tracker = {}
-
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
                 if cat_df.empty:
@@ -1393,7 +1386,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                     c_absent += int(row['Absent_Count'])
                     
                     ledger_rows.append({
-                        "Class/Category": category if is_first else "",  # Visual merging anchor
+                        "Class/Category": category if is_first else "",  
                         "Section": str(row['Section']),
                         "Incharge Name": str(row['In_Charge']),
                         "Enrolled": int(row['Total_Enrolled']),
@@ -1415,9 +1408,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     "Present": c_present, "Absent": c_absent, "%age": c_pct,
                     "Type": "Subtotal"
                 })
-                
-                # Cache group data matching print categories
-                subtotals_tracker[category] = {"enrolled": c_enrolled, "left": c_left, "active": c_active, "present": c_present, "absent": c_absent, "pct": c_pct}
                 
                 grand_enrolled += c_enrolled
                 grand_left += c_left
@@ -1447,149 +1437,136 @@ elif menu_choice == "📋 Daily Attendance Report":
             st.dataframe(stats_df, use_container_width=True, hide_index=True)
 
             # ==========================================
-            # 📥 ACTION PACK: ADVANCED EXPORT BUTTONS
+            # 📥 ACTION PACK: EXPORT BUTTONS WITH FALLBACKS
             # ==========================================
             st.markdown("---")
             action_col1, action_col2 = st.columns(2)
             
-            # --- ACTION 1: DYNAMIC POLISHED EXCEL WORKBOOK GENERATOR ---
+            # --- ACTION 1: EXCEL WORKBOOK GENERATOR ---
             with action_col1:
-                wb = openpyxl.Workbook()
-                ws = wb.active
-                ws.title = "Daily Attendance Ledger"
-                ws.views.sheetView[0].showGridLines = True
-                
-                # Styles configuration blocks
-                navy_fill = PatternFill(start_color="1A365D", end_color="1A365D", fill_type="solid")
-                subtotal_fill = PatternFill(start_color="F7FAFC", end_color="F7FAFC", fill_type="solid")
-                stats_header_fill = PatternFill(start_color="2D3748", end_color="2D3748", fill_type="solid")
-                stats_body_fill = PatternFill(start_color="FFFAF0", end_color="FFFAF0", fill_type="solid")
-                
-                font_title = Font(name="Arial", size=16, bold=True, color="1A365D")
-                font_header = Font(name="Arial", size=10, bold=True, color="FFFFFF")
-                font_bold = Font(name="Arial", size=10, bold=True)
-                font_regular = Font(name="Arial", size=10)
-                
-                thin_border = Border(
-                    left=Side(style='thin', color='CBD5E0'), right=Side(style='thin', color='CBD5E0'),
-                    top=Side(style='thin', color='CBD5E0'), bottom=Side(style='thin', color='CBD5E0')
-                )
-                
-                # Title Blocks
-                ws["A1"] = "Concordia College Kasur"
-                ws["A1"].font = font_title
-                ws["A2"] = f"Daily Attendance Report — Session {report_session} ({report_date.strftime('%d-%b-%Y')})"
-                ws["A2"].font = Font(name="Arial", size=11, italic=True)
-                
-                # Main Headers Row
-                headers = ["Class/Category", "Section", "Incharge Name", "Enrolled", "Left", "Active", "Present", "Absent", "%age"]
-                ws.append([]) # spacing line
-                ws.append(headers)
-                header_row_idx = 4
-                
-                for col_num, header in enumerate(headers, 1):
-                    cell = ws.cell(row=header_row_idx, column=col_num)
-                    cell.fill = navy_fill
-                    cell.font = font_header
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                    cell.border = thin_border
-                
-                # Add Data & format matching criteria
-                current_row = 5
-                for r_data in ledger_rows:
-                    ws.append([r_data["Class/Category"], r_data["Section"], r_data["Incharge Name"], r_data["Enrolled"], r_data["Left"], r_data["Active"], r_data["Present"], r_data["Absent"], r_data["%age"]])
+                try:
+                    import openpyxl
+                    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                    from openpyxl.utils import get_column_letter
                     
-                    is_sub = (r_data["Type"] == "Subtotal")
-                    for col_num in range(1, 10):
-                        cell = ws.cell(row=current_row, column=col_num)
+                    wb = openpyxl.Workbook()
+                    ws = wb.active
+                    ws.title = "Daily Attendance Ledger"
+                    ws.views.sheetView[0].showGridLines = True
+                    
+                    navy_fill = PatternFill(start_color="1A365D", end_color="1A365D", fill_type="solid")
+                    subtotal_fill = PatternFill(start_color="F7FAFC", end_color="F7FAFC", fill_type="solid")
+                    stats_header_fill = PatternFill(start_color="2D3748", end_color="2D3748", fill_type="solid")
+                    stats_body_fill = PatternFill(start_color="FFFAF0", end_color="FFFAF0", fill_type="solid")
+                    
+                    font_title = Font(name="Arial", size=16, bold=True, color="1A365D")
+                    font_header = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+                    font_bold = Font(name="Arial", size=10, bold=True)
+                    font_regular = Font(name="Arial", size=10)
+                    
+                    thin_border = Border(
+                        left=Side(style='thin', color='CBD5E0'), right=Side(style='thin', color='CBD5E0'),
+                        top=Side(style='thin', color='CBD5E0'), bottom=Side(style='thin', color='CBD5E0')
+                    )
+                    
+                    ws["A1"] = "Concordia College Kasur"
+                    ws["A1"].font = font_title
+                    ws["A2"] = f"Daily Attendance Report — Session {report_session} ({report_date.strftime('%d-%b-%Y')})"
+                    ws["A2"].font = Font(name="Arial", size=11, italic=True)
+                    
+                    headers = ["Class/Category", "Section", "Incharge Name", "Enrolled", "Left", "Active", "Present", "Absent", "%age"]
+                    ws.append([]) 
+                    ws.append(headers)
+                    header_row_idx = 4
+                    
+                    for col_num, header in enumerate(headers, 1):
+                        cell = ws.cell(row=header_row_idx, column=col_num)
+                        cell.fill = navy_fill
+                        cell.font = font_header
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
                         cell.border = thin_border
-                        cell.font = font_bold if is_sub else font_regular
-                        if is_sub:
-                            cell.fill = subtotal_fill
-                        
-                        # Set column positioning alignments
-                        if col_num in [1, 2, 3]:
-                            cell.alignment = Alignment(horizontal="left" if col_num != 2 else "center", vertical="center")
-                        else:
-                            cell.alignment = Alignment(horizontal="center", vertical="center")
-                    current_row += 1
-                
-                # Add Bottom Grand Statistics Table box section
-                current_row += 2
-                ws.cell(row=current_row, column=1, value="Statistics of Attendance:-").font = Font(name="Arial", size=11, bold=True, color="1A365D")
-                
-                current_row += 1
-                stat_headers = ["Date", "Total Enrolled", "Total Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
-                for c_idx, sh in enumerate(stat_headers, 1):
-                    cell = ws.cell(row=current_row, column=c_idx, value=sh)
-                    cell.fill = stats_header_fill
-                    cell.font = font_header
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                    cell.border = thin_border
                     
-                current_row += 1
-                stat_vals = [report_date.strftime('%d-%b-%Y'), grand_enrolled, grand_left, grand_active, grand_present, grand_absent, grand_pct]
-                for c_idx, sv in enumerate(stat_vals, 1):
-                    cell = ws.cell(row=current_row, column=c_idx, value=sv)
-                    cell.fill = stats_body_fill
-                    cell.font = font_bold
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                    cell.border = thin_border
-                
-                # Auto width fit layouts adjustments rule
-                for col in ws.columns:
-                    max_len = max(len(str(cell.value or '')) for cell in col)
-                    col_letter = get_column_letter(col[0].column)
-                    ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
-                
-                # Save out raw bytes payload string mapping stream
-                excel_stream = BytesIO()
-                wb.save(excel_stream)
-                excel_stream.seek(0)
-                
-                st.download_button(
-                    label="🟢 Export Formatted Excel Sheet",
-                    data=excel_stream.getvalue(),
-                    file_name=f"Concordia_Daily_Attendance_{report_date}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
+                    current_row = 5
+                    for r_data in ledger_rows:
+                        ws.append([r_data["Class/Category"], r_data["Section"], r_data["Incharge Name"], r_data["Enrolled"], r_data["Left"], r_data["Active"], r_data["Present"], r_data["Absent"], r_data["%age"]])
+                        
+                        is_sub = (r_data["Type"] == "Subtotal")
+                        for col_num in range(1, 10):
+                            cell = ws.cell(row=current_row, column=col_num)
+                            cell.border = thin_border
+                            cell.font = font_bold if is_sub else font_regular
+                            if is_sub:
+                                cell.fill = subtotal_fill
+                            
+                            if col_num in [1, 2, 3]:
+                                cell.alignment = Alignment(horizontal="left" if col_num != 2 else "center", vertical="center")
+                            else:
+                                cell.alignment = Alignment(horizontal="center", vertical="center")
+                        current_row += 1
+                    
+                    current_row += 2
+                    ws.cell(row=current_row, column=1, value="Statistics of Attendance:-").font = Font(name="Arial", size=11, bold=True, color="1A365D")
+                    
+                    current_row += 1
+                    stat_headers = ["Date", "Total Enrolled", "Total Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
+                    for c_idx, sh in enumerate(stat_headers, 1):
+                        cell = ws.cell(row=current_row, column=c_idx, value=sh)
+                        cell.fill = stats_header_fill
+                        cell.font = font_header
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        cell.border = thin_border
+                        
+                    current_row += 1
+                    stat_vals = [report_date.strftime('%d-%b-%Y'), grand_enrolled, grand_left, grand_active, grand_present, grand_absent, grand_pct]
+                    for c_idx, sv in enumerate(stat_vals, 1):
+                        cell = ws.cell(row=current_row, column=c_idx, value=sv)
+                        cell.fill = stats_body_fill
+                        cell.font = font_bold
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        cell.border = thin_border
+                    
+                    for col in ws.columns:
+                        max_len = max(len(str(cell.value or '')) for cell in col)
+                        col_letter = get_column_letter(col[0].column)
+                        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+                    
+                    excel_stream = BytesIO()
+                    wb.save(excel_stream)
+                    excel_stream.seek(0)
+                    
+                    st.download_button(
+                        label="🟢 Export Formatted Excel Sheet",
+                        data=excel_stream.getvalue(),
+                        file_name=f"Concordia_Daily_Attendance_{report_date}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                except ModuleNotFoundError:
+                    st.warning("⚠️ Excel generation is paused. Add 'openpyxl' to requirements.txt to activate it.")
+                except Exception as e:
+                    st.error(f"Excel Error: {str(e)}")
 
-            # --- ACTION 2: PROFESSIONAL HTML-TO-PDF PRINT ENGINE SUITE (WEASYPRINT BASED) ---
+            # --- ACTION 2: PDF PRINT ENGINE SUITE ---
             with action_col2:
-                # Generate matching print layout array streams inside python strings
                 html_table_rows = ""
                 for r_data in ledger_rows:
                     if r_data["Type"] == "Subtotal":
                         html_table_rows += f"""
                         <tr class="subtotal-row">
-                            <td>{r_data["Class/Category"]}</td>
-                            <td></td>
-                            <td></td>
-                            <td>{r_data["Enrolled"]}</td>
-                            <td>{r_data["Left"]}</td>
-                            <td>{r_data["Active"]}</td>
-                            <td>{r_data["Present"]}</td>
-                            <td>{r_data["Absent"]}</td>
-                            <td>{r_data["%age"]}</td>
+                            <td>{r_data["Class/Category"]}</td><td></td><td></td>
+                            <td>{r_data["Enrolled"]}</td><td>{r_data["Left"]}</td><td>{r_data["Active"]}</td>
+                            <td>{r_data["Present"]}</td><td>{r_data["Absent"]}</td><td>{r_data["%age"]}</td>
                         </tr>
                         """
                     else:
-                        # Append transparent categorization headings visually above rows
                         if r_data["Class/Category"] != "":
                             html_table_rows += f'<tr><td class="category-header" colspan="9">{r_data["Class/Category"]} Track Group</td></tr>'
                         
                         html_table_rows += f"""
                         <tr>
-                            <td></td>
-                            <td class="center-align">{r_data["Section"]}</td>
-                            <td class="left-align">{r_data["Incharge Name"]}</td>
-                            <td>{r_data["Enrolled"]}</td>
-                            <td>{r_data["Left"]}</td>
-                            <td>{r_data["Active"]}</td>
-                            <td>{r_data["Present"]}</td>
-                            <td>{r_data["Absent"]}</td>
-                            <td>{r_data["%age"]}</td>
+                            <td></td><td class="center-align">{r_data["Section"]}</td><td class="left-align">{r_data["Incharge Name"]}</td>
+                            <td>{r_data["Enrolled"]}</td><td>{r_data["Left"]}</td><td>{r_data["Active"]}</td>
+                            <td>{r_data["Present"]}</td><td>{r_data["Absent"]}</td><td>{r_data["%age"]}</td>
                         </tr>
                         """
 
@@ -1599,11 +1576,10 @@ elif menu_choice == "📋 Daily Attendance Report":
                 <head>
                 <style>
                     @page {{ size: A4 portrait; margin: 12mm 10mm; background-color: #ffffff; }}
-                    body {{ font-family: 'Arial', sans-serif; color: #333333; margin: 0; padding: 0; font-size: 10pt; line-height: 1.3; }}
-                    *, *::before, *::after {{ box-sizing: border-box; }}
+                    body {{ font-family: 'Arial', sans-serif; color: #333333; margin: 0; padding: 0; font-size: 10pt; }}
                     .header-container {{ text-align: center; margin-bottom: 15px; border-bottom: 2px solid #1a365d; padding-bottom: 8px; }}
-                    .college-title {{ font-size: 20pt; font-weight: bold; color: #1a365d; text-transform: uppercase; margin: 0; letter-spacing: 0.5px; }}
-                    .report-subtitle {{ font-size: 12pt; color: #4a5568; margin: 3px 0 0 0; font-weight: bold; letter-spacing: 1px; }}
+                    .college-title {{ font-size: 20pt; font-weight: bold; color: #1a365d; text-transform: uppercase; margin: 0; }}
+                    .report-subtitle {{ font-size: 12pt; color: #4a5568; margin: 3px 0 0 0; font-weight: bold; }}
                     .meta-table {{ width: 100%; margin-bottom: 15px; border-collapse: collapse; }}
                     .meta-table td {{ padding: 4px 0; font-size: 10.5pt; }}
                     .meta-label {{ font-weight: bold; color: #2d3748; width: 12%; }}
@@ -1612,13 +1588,12 @@ elif menu_choice == "📋 Daily Attendance Report":
                     .main-ledger th {{ background-color: #1a365d; color: #ffffff; font-weight: bold; text-align: center; padding: 6px 4px; font-size: 9pt; border: 1px solid #1a365d; text-transform: uppercase; }}
                     .main-ledger td {{ padding: 5px 4px; font-size: 9.5pt; border: 1px solid #cbd5e0; text-align: center; }}
                     .main-ledger td.left-align {{ text-align: left; padding-left: 6px; }}
-                    .main-ledger td.center-align {{ text-align: center; }}
-                    .category-header {{ background-color: #ebf8ff; font-weight: bold; color: #2b6cb0; text-align: left !important; padding-left: 8px !important; font-size: 10pt; }}
+                    .category-header {{ background-color: #ebf8ff; font-weight: bold; color: #2b6cb0; text-align: left !important; padding-left: 8px !important; }}
                     .subtotal-row {{ background-color: #f7fafc; font-weight: bold; }}
                     .subtotal-row td {{ border-top: 1.5px solid #4a5568; border-bottom: 1.5px solid #4a5568; color: #1a202c; }}
                     .stats-section-title {{ font-size: 11pt; font-weight: bold; color: #1a365d; margin: 15px 0 5px 0; text-transform: uppercase; }}
                     .stats-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; }}
-                    .stats-table th {{ background-color: #2d3748; color: #ffffff; font-weight: bold; padding: 6px 4px; font-size: 9pt; border: 1px solid #2d3748; }}
+                    .stats-table th {{ background-color: #2d3748; color: #ffffff; padding: 6px 4px; font-size: 9pt; border: 1px solid #2d3748; }}
                     .stats-table td {{ padding: 6px 4px; font-size: 10pt; border: 1px solid #cbd5e0; text-align: center; font-weight: bold; background-color: #fffaf0; }}
                     .footer-box {{ margin-top: 15px; width: 100%; }}
                     .remarks-title {{ font-weight: bold; font-size: 10pt; margin-bottom: 4px; color: #2d3748; }}
@@ -1642,15 +1617,9 @@ elif menu_choice == "📋 Daily Attendance Report":
                 <table class="main-ledger">
                     <thead>
                         <tr>
-                            <th style="width: 20%;">Class/Category</th>
-                            <th style="width: 14%;">Section</th>
-                            <th style="width: 22%;">Incharge Name</th>
-                            <th style="width: 9%;">Enrolled</th>
-                            <th style="width: 7%;">Left</th>
-                            <th style="width: 9%;">Active</th>
-                            <th style="width: 9%;">Present</th>
-                            <th style="width: 7%;">Absent</th>
-                            <th style="width: 7%;">%age</th>
+                            <th style="width: 20%;">Class/Category</th><th style="width: 14%;">Section</th><th style="width: 22%;">Incharge Name</th>
+                            <th style="width: 9%;">Enrolled</th><th style="width: 7%;">Left</th><th style="width: 9%;">Active</th>
+                            <th style="width: 9%;">Present</th><th style="width: 7%;">Absent</th><th style="width: 7%;">%age</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1661,12 +1630,8 @@ elif menu_choice == "📋 Daily Attendance Report":
                 <table class="stats-table">
                     <thead>
                         <tr>
-                            <th style="width: 16%;">Date</th>
-                            <th style="width: 14%;">Total Enrolled</th>
-                            <th style="width: 14%;">Total Left</th>
-                            <th style="width: 14%;">Total Active</th>
-                            <th style="width: 14%;">Total Present</th>
-                            <th style="width: 14%;">Total Absent</th>
+                            <th style="width: 16%;">Date</th><th style="width: 14%;">Total Enrolled</th><th style="width: 14%;">Total Left</th>
+                            <th style="width: 14%;">Total Active</th><th style="width: 14%;">Total Present</th><th style="width: 14%;">Total Absent</th>
                             <th style="width: 14%;">Grand Percentage</th>
                         </tr>
                     </thead>
@@ -1691,24 +1656,23 @@ elif menu_choice == "📋 Daily Attendance Report":
                 </html>
                 """
                 
-                # Safely invoke WeasyPrint compiler pipeline directly
                 try:
                     from weasyprint import HTML
                     pdf_buffer = BytesIO()
                     HTML(string=printable_html_doc).write_pdf(pdf_buffer)
-                    pdf_data = pdf_buffer.getvalue()
                     
                     st.download_button(
                         label="🖨️ Print Report to Official PDF",
-                        data=pdf_data,
+                        data=pdf_buffer.getvalue(),
                         file_name=f"Concordia_Kasur_Daily_Attendance_{report_date}.pdf",
                         mime="application/pdf",
                         use_container_width=True,
                         type="primary"
                     )
-                except Exception as weasy_err:
-                    st.error("💡 Install Weasyprint package dependencies to enable automated printing.")
-# ====================================================================================
+                except ModuleNotFoundError:
+                    st.info("💡 Add 'weasyprint' to requirements.txt to activate the official PDF print button layout.")
+                except Exception as e:
+                    st.error(f"PDF Error: {str(e)}")
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
