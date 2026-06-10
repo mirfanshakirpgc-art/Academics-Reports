@@ -1327,67 +1327,45 @@ elif menu_choice == "📋 Daily Attendance Report":
         if raw_students.empty:
             st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
         else:
-            # 🎯 ROSTER MATCHING ENGINE (COMPLETELY RECONFIGURED)
-            # 🎯 ROSTER MATCHING ENGINE (RECONFIGURED FOR ALL SCHEMAS)
-            # 🎯 ROSTER MATCHING ENGINE (RECONFIGURED FOR SHORT CODES & FALLBACKS)
+            # 🎯 ROSTER MATCHING ENGINE (NESTED INDENTATION FIXED)
             def classify_group(row):
-    """
-    Production-grade routing engine for intermediate school rosters.
-    Resolves naming discrepancies across short codes and mismatched gender flags.
-    """
-    # Safeguard against numeric/null input values
-    cls = str(row.get('Class', '')).upper().strip()
-    sec = str(row.get('Section', '')).upper().strip()
-    
-    # Sanitize typical input noise (stray quotation marks and spaces)
-    sec_clean = sec.replace('"', '').replace("'", "").strip()
-    
-    # ------------------------------------------------------------------
-    # CATEGORY MATCHING ARRAYS (COMPREHENSIVE BACKEND DICTIONARY)
-    # ------------------------------------------------------------------
-    girls_11th = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE"]
-    boys_11th  = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE"]
-    
-    girls_12th = ["MQ1", "MQ2", "EQ1", "EQ", "CQ1", "CQ2", "CQ3", "IQ1", "IQ", "FQ1", "FQ"]
-    boys_12th  = ["MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK"]
-    
-    # ------------------------------------------------------------------
-    # LOGIC COMPARTMENT 1: 11TH GRADE ROUTING
-    # ------------------------------------------------------------------
-    if "11" in cls:
-        if sec_clean in girls_11th:
-            return "11th (Girls)"
-        elif sec_clean in boys_11th:
-            return "11th (Boys)"
-        
-        # Exact Pattern Fallback (G = Girls, B/K = Boys)
-        if "G" in sec_clean or sec_clean.endswith("G"):
-            return "11th (Girls)"
-        elif "B" in sec_clean or "K" in sec_clean or sec_clean.endswith("B"):
-            return "11th (Boys)"
-        
-        # Safe default if entirely unmapped
-        return "11th (Boys)"
-        
-    # ------------------------------------------------------------------
-    # LOGIC COMPARTMENT 2: 12TH GRADE ROUTING
-    # ------------------------------------------------------------------
-    elif "12" in cls:
-        if sec_clean in girls_12th:
-            return "12th (Girls)"
-        elif sec_clean in boys_12th:
-            return "12th (Boys)"
-            
-        # Character-Specific Fallbacks (Q/G = Girls, K/M = Boys)
-        if "Q" in sec_clean or "G" in sec_clean:
-            return "12th (Girls)"
-        elif "K" in sec_clean or "M" in sec_clean:
-            return "12th (Boys)"
-            
-        return "12th (Boys)"
+                cls = str(row.get('Class', '')).upper().strip()
+                sec = str(row.get('Section', '')).upper().strip()
+                sec_clean = sec.replace('"', '').replace("'", "").strip()
+                
+                girls_11th = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE"]
+                boys_11th  = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE"]
+                
+                girls_12th = ["MQ1", "MQ2", "EQ1", "EQ", "CQ1", "CQ2", "CQ3", "IQ1", "IQ", "FQ1", "FQ"]
+                boys_12th  = ["MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK"]
+                
+                if "11" in cls:
+                    if sec_clean in girls_11th:
+                        return "11th (Girls)"
+                    elif sec_clean in boys_11th:
+                        return "11th (Boys)"
+                    
+                    if "G" in sec_clean or sec_clean.endswith("G"):
+                        return "11th (Girls)"
+                    elif "B" in sec_clean or "K" in sec_clean or sec_clean.endswith("B"):
+                        return "11th (Boys)"
+                    return "11th (Boys)"
+                    
+                elif "12" in cls:
+                    if sec_clean in girls_12th:
+                        return "12th (Girls)"
+                    elif sec_clean in boys_12th:
+                        return "12th (Boys)"
+                        
+                    if "Q" in sec_clean or "G" in sec_clean:
+                        return "12th (Girls)"
+                    elif "K" in sec_clean or "M" in sec_clean:
+                        return "12th (Boys)"
+                    return "12th (Boys)"
 
-    # Catch-all container for non-intermediate grades
-    return "Other Tiers"
+                return "Other Tiers"
+
+            # Execute classification mapping
             raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
 
             raw_students['Is_Left'] = raw_students['Student_Status'].isin(['LEFT', 'DROPOUT']).astype(int)
