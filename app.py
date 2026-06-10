@@ -3390,88 +3390,125 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not teachers_df.empty:
             t_options = teachers_df['teacher_name'].tolist()
             
-            col_a1, col_a2, col_a3 = st.columns(3)
-            with col_a1: 
-                selected_t = st.selectbox("Select Registered Teacher:", options=t_options)
-            with col_a2: 
-                all_subs = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs]))) if 'DISCIPLINE_SUBJECTS_MAP' in globals() else ["Math", "English", "Science"]
-                selected_sub = st.selectbox("Select Subject Course:", options=all_subs)
-            
-            with col_a3:
-                # FIX 1: Safely extract the inner lists of sections from the nested dictionary
-                if 'DISCIPLINE_SECTIONS_MAP' in globals():
-                    all_secs_raw = []
-                    for class_dict in DISCIPLINE_SECTIONS_MAP.values():
-                        for sec_list in class_dict.values():
-                            all_secs_raw.extend(sec_list)
-                    all_secs = sorted(list(set(all_secs_raw)))
-                else:
-                    all_secs = ["A", "B", "C"]
-                selected_sec = st.selectbox("Assign Target Section:", options=all_secs)
-            
-            col_a4, col_a5 = st.columns(2)
-            with col_a4:
-                selected_session = st.selectbox("Academic Session:", options=["2025-27", "2026-28", "2027-29"])
-            with col_a5:
-                is_incharge = st.selectbox("Is Class In-Charge?", options=["No", "Yes"])
+            # --- ROW 1: System & Teacher Basics ---
+            c1, c2, c3 = st.columns(3)
+            with c1: 
+                selected_t = st.selectbox("1. Select Registered Teacher:", options=t_options)
+            with c2:
+                selected_session = st.selectbox("2. Academic Session:", options=["2025-27", "2026-28", "2027-29"])
+            with c3:
+                academic_system = st.selectbox("3. Academic System:", options=["Annual System", "Semester System"])
                 
-            if st.button("🔒 Authorize & Commit Allocation Matrix"):
+            # --- ROW 2: Class/Semester & Role ---
+            c4, c5 = st.columns(2)
+            with c4:
+                if academic_system == "Annual System":
+                    sel_class = st.selectbox("4. Select Class Level:", ["11th", "12th"])
+                else:
+                    sel_class = st.selectbox("4. Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
+            with c5:
+                is_incharge = st.selectbox("5. Is Class In-Charge?", options=["No", "Yes"], help="If 'Yes', you will see all sections across the college.")
+
+            # --- DYNAMIC LOGIC: SECTIONS ---
+            if academic_system == "Annual System":
+                if 'DISCIPLINE_SECTIONS_MAP' in globals():
+                    all_secs = []
+                    if is_incharge == "Yes":
+                        # Fetch ALL sections regardless of class
+                        for class_dict in DISCIPLINE_SECTIONS_MAP.values():
+                            for sec_list in class_dict.values():
+                                all_secs.extend(sec_list)
+                    else:
+                        # Fetch sections ONLY for the selected class (11th or 12th)
+                        for class_dict in DISCIPLINE_SECTIONS_MAP.values():
+                            all_secs.extend(class_dict.get(sel_class, []))
+                    
+                    all_secs = sorted(list(set(all_secs)))
+                else:
+                    all_secs = ["MG_BLUE", "EG_BLUE"] # Fallback
+            else:
+                all_secs = ["DIT_G", "DIT_B"]
+
+            # --- DYNAMIC LOGIC: SUBJECTS ---
+            if academic_system == "Annual System":
+                if 'DISCIPLINE_SUBJECTS_MAP' in globals():
+                    all_subs = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
+                else:
+                    all_subs = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"] # Fallback
+            else:
+                if "1st" in sel_class:
+                    all_subs = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                elif "2nd" in sel_class:
+                    all_subs = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                else: 
+                    all_subs = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+
+            # --- ROW 3: Final Assignments ---
+            c6, c7 = st.columns(2)
+            with c6:
+                selected_sec = st.selectbox("6. Assign Target Section:", options=all_secs)
+            with c7:
+                selected_sub = st.selectbox("7. Select Subject Course:", options=all_subs)
+                
+            st.markdown("##")
+            if st.button("🔒 Authorize & Commit Allocation Matrix", type="primary", use_container_width=True):
                 check_dup = run_query("""
                     SELECT allocation_id FROM academic_allocations 
                     WHERE session_term = :session AND class_level = :cls 
-                    AND section_name = :sec AND subject_title = :sub
-                """, {"session": selected_session, "cls": "General", "sec": selected_sec, "sub": selected_sub})
+                    AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
+                """, {"session": selected_session, "cls": sel_class, "sec": selected_sec, "sub": selected_sub, "teacher": selected_t})
                 
                 if check_dup.empty:
+                    # Note: We are now actually saving the 'sel_class' (11th/12th/Semesters) into the database!
                     execute_db_command("""
                         INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
                         VALUES (:session, :cls, :sec, :sub, :teacher, :incharge)
-                    """, {"session": selected_session, "cls": "General", "sec": selected_sec, "sub": selected_sub, "teacher": selected_t, "incharge": is_incharge})
+                    """, {"session": selected_session, "cls": sel_class, "sec": selected_sec, "sub": selected_sub, "teacher": selected_t, "incharge": is_incharge})
                     
-                    st.success(f"Access granted! {selected_t} is now allocated to {selected_sub} (Section {selected_sec}) for Session {selected_session}.")
+                    st.success(f"✅ Access granted! {selected_t} is now allocated to {selected_sub} (Section {selected_sec}) for Session {selected_session}.")
                     st.rerun()
                 else:
-                    st.warning("This core course subject allocation matrix entry already exists for another or same instructor.")
+                    st.warning("⚠️ This exact allocation matrix entry already exists for this instructor.")
                     
             st.markdown("---")
             st.write("#### Active Master Allocation Matrix Log")
             
             alloc_log = run_query("""
-                SELECT allocation_id as ID, session_term as Session, section_name as Section, 
+                SELECT allocation_id as ID, session_term as Session, class_level as Class, section_name as Section, 
                        subject_title as Subject, assigned_teacher_name as Instructor, is_class_incharge as InCharge
                 FROM academic_allocations
-                ORDER BY session_term DESC, section_name ASC, subject_title ASC
+                ORDER BY session_term DESC, class_level ASC, section_name ASC
             """)
             
-            # FIX 2: Interactive Table with Delete Buttons
             if not alloc_log.empty:
-                # Header Row
-                c1, c2, c3, c4, c5, c6, c7 = st.columns([0.5, 1.5, 1.5, 2, 2.5, 1, 1])
-                c1.markdown("**ID**")
-                c2.markdown("**Session**")
-                c3.markdown("**Section**")
-                c4.markdown("**Subject**")
-                c5.markdown("**Instructor**")
-                c6.markdown("**In-Charge**")
-                c7.markdown("**Action**")
-                st.markdown("<hr style='margin:0px; padding:0px;'>", unsafe_allow_html=True)
+                # Table Headers
+                h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([0.5, 1.2, 1.2, 1.5, 2, 2.5, 1, 1])
+                h1.markdown("**ID**")
+                h2.markdown("**Session**")
+                h3.markdown("**Class**")
+                h4.markdown("**Section**")
+                h5.markdown("**Subject**")
+                h6.markdown("**Instructor**")
+                h7.markdown("**In-Charge**")
+                h8.markdown("**Action**")
+                st.markdown("<hr style='margin:0px; padding:0px; margin-bottom: 8px;'>", unsafe_allow_html=True)
                 
-                # Data Rows
+                # Table Rows
                 for _, row in alloc_log.iterrows():
-                    r1, r2, r3, r4, r5, r6, r7 = st.columns([0.5, 1.5, 1.5, 2, 2.5, 1, 1])
+                    r1, r2, r3, r4, r5, r6, r7, r8 = st.columns([0.5, 1.2, 1.2, 1.5, 2, 2.5, 1, 1])
                     r1.write(str(row['id']))
                     r2.write(str(row['session']))
-                    r3.write(str(row['section']))
-                    r4.write(str(row['subject']))
-                    r5.write(str(row['instructor']))
-                    r6.write(str(row['incharge']))
+                    r3.write(str(row['class']))
+                    r4.write(str(row['section']))
+                    r5.write(str(row['subject']))
+                    r6.write(str(row['instructor']))
+                    r7.write(str(row['incharge']))
                     
-                    # Delete Button per row
-                    if r7.button("🗑️ Del", key=f"del_alloc_{row['id']}", help="Remove this allocation"):
+                    if r8.button("🗑️ Del", key=f"del_alloc_{row['id']}", help="Remove this allocation"):
                         try:
                             execute_db_command("DELETE FROM academic_allocations WHERE allocation_id = :aid", {"aid": int(row['id'])})
                             st.success("Allocation deleted successfully!")
-                            st.rerun() # Refresh the page instantly to reflect changes
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Error removing allocation: {e}")
                             
@@ -3480,7 +3517,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 st.info("No active master allocations found in the matrix.")
         else:
             st.info("No active records found inside system_teachers table registry.")
-
     # ---------------------------------------------------------
     # SUB-MODULE B: SECURED MARKS PORTAL
     # ---------------------------------------------------------
