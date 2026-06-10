@@ -1400,6 +1400,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                     excel_rows_list.append({"Class": category if idx == 0 else "", "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
                     
                     html_rows += "<tr>"
+                    # CRITICAL FIX: The rowspan matches EXACTLY the data row counts so it never leaks onto the Subtotal row block below
                     if idx == 0:
                         html_rows += f'<td rowspan="{num_sections}" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>'
                     
@@ -1418,7 +1419,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
                 excel_rows_list.append({"Class": f"{category} Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
                 
-                # FIXED: Colspan="3" merges the Class, Section, and In-Charge space into a clean uniform base block
+                # Clean, independent subtotal block
                 html_rows += f"""
                 <tr style="background-color:#d9d9d9; font-weight:bold;">
                     <td colspan="3" style="border:1px solid #000000; text-align:center; padding:6px;">{category} Total</td>
@@ -1593,11 +1594,10 @@ elif menu_choice == "📋 Daily Attendance Report":
                         if is_sub:
                             if (index - 1) >= start_merge_row:
                                 ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
-                            # Format subtotal block cleanly for excel output sheets
                             ws.merge_cells(start_row=index, start_column=1, end_row=index, end_column=3)
                             start_merge_row = index + 1
                     
-                    curr_r = font_row_idx = len(excel_rows_list) + 7
+                    curr_r = len(excel_rows_list) + 7
                     ws.cell(row=curr_r, column=1, value="Statistics of Attendance:-").font = font_bold
                     
                     curr_r += 1
