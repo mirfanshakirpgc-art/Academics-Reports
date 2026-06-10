@@ -3401,7 +3401,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
             "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
         }
 
-        # Hardcoded campus section definitions
+        # Hardcoded campus section definitions (Strict matching to prevent 'G' in 'GREEN' bugs)
         GIRLS_SECTIONS_DB = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE", "MQ1", "MQ2", "EQ1", "EQ", "CQ1", "CQ2", "CQ3", "IQ1", "IQ", "FQ1", "FQ", "DIT_G"]
         BOYS_SECTIONS_DB = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE", "MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK", "DIT_B"]
 
@@ -3421,12 +3421,18 @@ if menu_choice == "👨‍🏫 Teacher Management":
             else:
                 return [t for t in t_list if not t.upper().startswith(female_prefixes)]
 
-        # Smart Section Filter
+        # Smart Strict Section Filter (Fixes CB_GREEN bug)
         def filter_sections_by_campus(s_list, campus):
-            if campus == "Girls Campus":
-                return [s for s in s_list if s.upper().strip() in GIRLS_SECTIONS_DB or "G" in s.upper().strip()]
-            else:
-                return [s for s in s_list if s.upper().strip() in BOYS_SECTIONS_DB or "B" in s.upper().strip() or "K" in s.upper().strip()]
+            filtered = []
+            for s in s_list:
+                s_clean = s.upper().strip()
+                if campus == "Girls Campus":
+                    if s_clean in GIRLS_SECTIONS_DB:
+                        filtered.append(s)
+                else:
+                    if s_clean in BOYS_SECTIONS_DB:
+                        filtered.append(s)
+            return filtered
 
         teachers_df = run_query("SELECT teacher_name FROM system_teachers WHERE status = 'ACTIVE' ORDER BY teacher_name ASC")
         
@@ -3456,7 +3462,14 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     
                 with t1_c5:
                     if system_t1 == "Annual System":
-                        class_t1 = st.selectbox("5. Class Level:", ["11th", "12th"], key="t1_class")
+                        # Strict logic locking Session to specific Class
+                        if session_t1 == "2025-27":
+                            class_options_t1 = ["12th"]
+                        elif session_t1 == "2026-28":
+                            class_options_t1 = ["11th"]
+                        else:
+                            class_options_t1 = ["11th", "12th"]
+                        class_t1 = st.selectbox("5. Class Level:", class_options_t1, key="t1_class")
                     else:
                         class_t1 = st.selectbox("5. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="t1_class")
                 
@@ -3530,18 +3543,30 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     if not filtered_teachers_t2: filtered_teachers_t2 = ["No matching staff found"]
                     selected_t2 = st.selectbox("3. Select Teacher:", options=filtered_teachers_t2, key="t2_teacher")
                     
+                # Strict logic locking Session to specific Class (Silent context for database)
+                if session_t2 == "2025-27":
+                    class_context_t2 = "12th"
+                elif session_t2 == "2026-28":
+                    class_context_t2 = "11th"
+                else:
+                    class_context_t2 = "General"
+
                 # --- Row 2: Assign Sections ---
                 # Gather all possible sections dynamically to pass through the campus filter
                 all_raw_secs_t2 = []
                 if 'DISCIPLINE_SECTIONS_MAP' in globals():
                     for class_dict in DISCIPLINE_SECTIONS_MAP.values():
-                        for sec_list in class_dict.values():
-                            all_raw_secs_t2.extend(sec_list)
+                        # Only grab sections that belong to the locked class_context
+                        if class_context_t2 in class_dict:
+                            all_raw_secs_t2.extend(class_dict[class_context_t2])
+                        elif class_context_t2 == "General":
+                            for sec_list in class_dict.values():
+                                all_raw_secs_t2.extend(sec_list)
                 
-                # Explicitly add DIT sections to the raw list to ensure they get filtered appropriately
+                # Explicitly add DIT sections to the raw list
                 all_raw_secs_t2.extend(["DIT_G", "DIT_B"])
                 
-                # Apply Campus Filter
+                # Apply Strict Campus Filter
                 secs_t2 = filter_sections_by_campus(all_raw_secs_t2, campus_t2)
                 secs_t2 = sorted(list(set(secs_t2))) if secs_t2 else ["No sections available"]
 
@@ -3556,18 +3581,17 @@ if menu_choice == "👨‍🏫 Teacher Management":
                         skip_count = 0
                         
                         for sec in sec_t2:
-                            # Use placeholders for Class ('General') and Subject ('🌟 CLASS IN-CHARGE (ROLE ONLY)')
                             check_dup = run_query("""
                                 SELECT allocation_id FROM academic_allocations 
-                                WHERE session_term = :session AND class_level = 'General' 
+                                WHERE session_term = :session AND class_level = :cls 
                                 AND section_name = :sec AND subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)' AND assigned_teacher_name = :teacher
-                            """, {"session": session_t2, "sec": sec, "teacher": selected_t2})
+                            """, {"session": session_t2, "cls": class_context_t2, "sec": sec, "teacher": selected_t2})
                             
                             if check_dup.empty:
                                 execute_db_command("""
                                     INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
-                                    VALUES (:session, 'General', :sec, '🌟 CLASS IN-CHARGE (ROLE ONLY)', :teacher, 'Yes')
-                                """, {"session": session_t2, "sec": sec, "teacher": selected_t2})
+                                    VALUES (:session, :cls, :sec, '🌟 CLASS IN-CHARGE (ROLE ONLY)', :teacher, 'Yes')
+                                """, {"session": session_t2, "cls": class_context_t2, "sec": sec, "teacher": selected_t2})
                                 success_count += 1
                             else:
                                 skip_count += 1
@@ -3611,7 +3635,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     r1.write(str(row['id']))
                     r2.write(str(row['session']))
                     
-                    # Clean up 'General' class display for In-Charges
                     class_disp = "---" if str(row['class']) == 'General' else str(row['class'])
                     r3.write(class_disp)
                     
