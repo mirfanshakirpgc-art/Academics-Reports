@@ -89,17 +89,49 @@ if not st.session_state.logged_in:
                 st.error("Incorrect username or password. Please try again.")
     st.stop() 
 
+# ==============================================================================
 # --- AUTOMATIC TABLE SETUP ---
+# ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
+        # 1. Students Table (Updated to include session and status safely)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id INT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 section VARCHAR(100),
-                class VARCHAR(100)
+                class VARCHAR(100),
+                session VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'ACTIVE'
             );
         """))
+        
+        # 2. Teachers Registry Table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS system_teachers (
+                teacher_id SERIAL PRIMARY KEY,
+                teacher_name VARCHAR(255) NOT NULL UNIQUE,
+                phone_number VARCHAR(50),
+                email_address VARCHAR(255),
+                status VARCHAR(50) DEFAULT 'ACTIVE'
+            );
+        """))
+
+        # 3. Master Allocation Matrix Table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS academic_allocations (
+                allocation_id SERIAL PRIMARY KEY,
+                session_term VARCHAR(50) NOT NULL,
+                class_level VARCHAR(100) NOT NULL,
+                section_name VARCHAR(100) NOT NULL,
+                subject_title VARCHAR(100) NOT NULL,
+                assigned_teacher_name VARCHAR(255) REFERENCES system_teachers(teacher_name) ON DELETE CASCADE,
+                is_class_incharge VARCHAR(10) DEFAULT 'No',
+                UNIQUE(session_term, class_level, section_name, subject_title)
+            );
+        """))
+        
+        # 4. Marks Table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS marks (
                 id SERIAL PRIMARY KEY,
@@ -111,6 +143,8 @@ def initialize_database():
                 UNIQUE(student_id, subject, exam_type)
             );
         """))
+        
+        # 5. Attendance Table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS attendance (
                 id SERIAL PRIMARY KEY,
@@ -127,6 +161,9 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
+# ==============================================================================
+# --- DATABASE COMMAND UTILITIES ---
+# ==============================================================================
 def run_query(query, params=None):
     if params is None:
         params = {}
@@ -136,7 +173,6 @@ def run_query(query, params=None):
 def run_update(query, params=None):
     if params is None:
         params = {}
-    # This uses your existing 'engine' and automatically handles COMMITs!
     with engine.begin() as conn:
         conn.execute(text(query), params)
 
@@ -150,25 +186,19 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-# ====================================================================================
-# --- NAVIGATION SIDEBAR ---
-# ====================================================================================
-st.sidebar.image("logo.png", use_container_width=True)
-st.sidebar.markdown("<h3 style='text-align: center; margin-top: -5px;'>Menu Navigation</h3>", unsafe_allow_html=True)
-
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
     [
         "📊 Home Dashboard", 
         "➕ Add Students", 
-        "📝 Academic Exam Marks Entry",      # Standalone Module 1
-        "📅 Attendance Entry Management",    # Standalone Module 2
+        "📝 Academic Exam Marks Entry",      
+        "📅 Attendance Entry Management",    
         "📋 Daily Attendance Report",
         "📋 Section Summary Report", 
         "📈 Multi-Test Progress Report", 
         "🪪 Student Result Cards", 
         "Student Management", 
-        "👨‍🏫 Teacher Management", 
+        "👨‍🏫 Teacher Management",  # Activates the entry point workspace panel option
         "🎓 Promote Students"
     ]
 )
@@ -3285,8 +3315,9 @@ elif menu_choice == "Student Management":
                             c_btn.caption("Legacy")
                         
                         st.markdown("<hr style='margin: 6px 0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
+# ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
-# ---------------------------------------------------------
+# ==============================================================================
 if menu_choice == "👨‍🏫 Teacher Management":
     st.title("👨‍🏫 Teacher Allocation & Performance Engine")
     
@@ -3307,50 +3338,60 @@ if menu_choice == "👨‍🏫 Teacher Management":
     if sub_menu == "Subject Allocations":
         st.subheader("🔗 Allocate Subjects & Sections to Registered Faculty")
         
-        teachers_df = run_query("SELECT id, username FROM app_users WHERE role = 'teacher' ORDER BY username ASC")
+        # Pull clean list of teachers from the new system_teachers registry
+        teachers_df = run_query("SELECT teacher_name FROM system_teachers WHERE status = 'ACTIVE' ORDER BY teacher_name ASC")
         
         if not teachers_df.empty:
-            t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
+            t_options = teachers_df['teacher_name'].tolist()
             
+            # Setup Allocation Form Inputs
             col_a1, col_a2, col_a3 = st.columns(3)
-            with col_a1: selected_t = st.selectbox("Select Teacher Account:", options=list(t_options.keys()))
+            with col_a1: 
+                selected_t = st.selectbox("Select Registered Teacher:", options=t_options)
             with col_a2: 
                 all_subs = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs]))) if 'DISCIPLINE_SUBJECTS_MAP' in globals() else ["Math", "English", "Science"]
-                selected_sub = st.selectbox("Select Subject:", options=all_subs)
+                selected_sub = st.selectbox("Select Subject Course:", options=all_subs)
             with col_a3:
                 all_secs = sorted(list(set([sec for secs in DISCIPLINE_SECTIONS_MAP.values() for sec in secs]))) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["A", "B", "C"]
-                selected_sec = st.selectbox("Assign Section:", options=all_secs)
+                selected_sec = st.selectbox("Assign Target Section:", options=all_secs)
+            
+            col_a4, col_a5 = st.columns(2)
+            with col_a4:
+                selected_session = st.selectbox("Academic Session:", options=["2025-2026", "2026-2027", "2024-2025"])
+            with col_a5:
+                is_incharge = st.selectbox("Is Class In-Charge?", options=["No", "Yes"])
                 
-            if st.button("🔒 Authorize Data Entry Rights"):
-                target_user_id = int(t_options[selected_t])
-                
+            if st.button("🔒 Authorize & Commit Allocation Matrix"):
+                # Duplicate prevention using the new academic_allocations table
                 check_dup = run_query("""
-                    SELECT id FROM allocations 
-                    WHERE user_id = :uid AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-                """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
+                    SELECT allocation_id FROM academic_allocations 
+                    WHERE session_term = :session AND class_level = :cls 
+                    AND section_name = :sec AND subject_title = :sub
+                """, {"session": selected_session, "cls": "General", "sec": selected_sec, "sub": selected_sub})
                 
                 if check_dup.empty:
                     execute_db_command("""
-                        INSERT INTO allocations (user_id, subject, section) 
-                        VALUES (:uid, :sub, :sec)
-                    """, {"uid": target_user_id, "sub": selected_sub, "sec": selected_sec})
-                    st.success(f"Access granted! {selected_t} can now manage {selected_sub} in Section {selected_sec}.")
+                        INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
+                        VALUES (:session, :cls, :sec, :sub, :teacher, :incharge)
+                    """, {"session": selected_session, "cls": "General", "sec": selected_sec, "sub": selected_sub, "teacher": selected_t, "incharge": is_incharge})
+                    
+                    st.success(f"Access granted! {selected_t} is now allocated to {selected_sub} (Section {selected_sec}) for Session {selected_session}.")
                     st.rerun()
                 else:
-                    st.warning("This allocation already exists.")
+                    st.warning("This core course subject allocation matrix entry already exists for another or same instructor.")
                     
             st.markdown("---")
-            st.write("#### Active Institutional Rights Log")
+            st.write("#### Active Master Allocation Matrix Log")
             alloc_log = run_query("""
-                SELECT a.id, u.username as teacher, a.subject, a.section 
-                FROM allocations a
-                JOIN app_users u ON a.user_id = u.id
-                ORDER BY u.username ASC
+                SELECT allocation_id as ID, session_term as Session, section_name as Section, 
+                       subject_title as Subject, assigned_teacher_name as Instructor, is_class_incharge as InCharge
+                FROM academic_allocations
+                ORDER BY session_term DESC, section_name ASC, subject_title ASC
             """)
             if not alloc_log.empty:
-                st.dataframe(alloc_log, use_container_width=True)
+                st.dataframe(alloc_log, use_container_width=True, hide_index=True)
         else:
-            st.info("No users with the role 'teacher' found in app_users.")
+            st.info("No active records found inside system_teachers table registry.")
 
     # ---------------------------------------------------------
     # SUB-MODULE B: SECURED MARKS PORTAL
@@ -3358,34 +3399,45 @@ if menu_choice == "👨‍🏫 Teacher Management":
     elif sub_menu == "Teacher Marks Portal":
         st.subheader("🔑 Secure Faculty Data Input Gateway")
         
-        teachers_df = run_query("SELECT id, username FROM app_users WHERE role = 'teacher' ORDER BY username ASC")
+        teachers_df = run_query("SELECT DISTINCT assigned_teacher_name FROM academic_allocations ORDER BY assigned_teacher_name ASC")
         if not teachers_df.empty:
-            t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
-            active_teacher = st.selectbox("View Portal As Teacher:", options=list(t_options.keys()))
-            uid = int(t_options[active_teacher])
+            t_options = teachers_df['assigned_teacher_name'].tolist()
+            active_teacher = st.selectbox("View Portal As Assigned Instructor:", options=t_options)
         else:
-            st.info("No teachers available.")
-            uid = None
+            st.info("No allocated teachers found in database matrix logs.")
+            active_teacher = None
             
-        if uid is not None:
-            my_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": uid})
+        if active_teacher is not None:
+            my_rights = run_query("""
+                SELECT DISTINCT subject_title, section_name, session_term 
+                FROM academic_allocations WHERE assigned_teacher_name = :teacher
+            """, {"teacher": active_teacher})
             
             if not my_rights.empty:
-                col_m1, col_m2 = st.columns(2)
+                col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1: 
-                    allocated_subs = my_rights['subject'].unique()
-                    sel_sub = st.selectbox("Assigned Subjects:", options=allocated_subs)
+                    allocated_subs = my_rights['subject_title'].unique()
+                    sel_sub = st.selectbox("Assigned Course Subjects:", options=allocated_subs)
                 with col_m2:
-                    allocated_secs = my_rights[my_rights['subject'] == sel_sub]['section'].unique()
+                    allocated_secs = my_rights[my_rights['subject_title'] == sel_sub]['section_name'].unique()
                     sel_sec = st.selectbox("Assigned Sections:", options=allocated_secs)
+                with col_m3:
+                    allocated_sessions = my_rights[(my_rights['subject_title'] == sel_sub) & (my_rights['section_name'] == sel_sec)]['session_term'].unique()
+                    sel_session = st.selectbox("Target Entry Session:", options=allocated_sessions)
                 
                 exams_list = AVAILABLE_EXAMS if 'AVAILABLE_EXAMS' in globals() else ["Mid Term", "Final Exam"]
                 sel_exam = st.selectbox("Target Assessment Term Type:", options=exams_list)
                 
-                students = run_query("SELECT id, name FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec)) ORDER BY id ASC", {"sec": sel_sec})
+                # Filter students matching the criteria
+                students = run_query("""
+                    SELECT id, name FROM students 
+                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec)) 
+                    AND UPPER(TRIM(session)) = UPPER(TRIM(:session))
+                    ORDER BY id ASC
+                """, {"sec": sel_sec, "session": sel_session})
                 
                 if not students.empty:
-                    st.info(f"Displaying Roster Table for {sel_sub} — Section: {sel_sec}")
+                    st.info(f"📋 Roster Sheet for Course: {sel_sub} — Section: {sel_sec} ({sel_session})")
                     
                     marks_data = []
                     for _, s_row in students.iterrows():
@@ -3404,9 +3456,11 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             tot_fill = int(existing['total_marks'].iloc[0])
                             
                         c_left, c_right = st.columns([3, 1])
-                        with c_left: m_val = st.text_input(f"ID {sid} — {sname}:", value=val_fill, key=f"m_{sid}_{sel_sub}")
-                        with c_right: t_val = st.number_input("Total Max:", min_value=10, max_value=200, value=tot_fill, key=f"t_{sid}_{sel_sub}")
-                        
+                        with c_left: 
+                            m_val = st.text_input(f"ID {sid} — {sname}:", value=val_fill, key=f"m_{sid}_{sel_sub}_{sel_exam}")
+                        with c_right: 
+                            t_val = st.number_input("Max Total:", min_value=10, max_value=200, value=tot_fill, key=f"t_{sid}_{sel_sub}_{sel_exam}")
+                            
                         marks_data.append({"sid": sid, "obtained": m_val, "total": t_val})
                         
                     if st.button("🎯 Finalize & Commit Marks Values"):
@@ -3420,11 +3474,12 @@ if menu_choice == "👨‍🏫 Teacher Management":
                                 INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
                                 VALUES (:sid, :sub, :exam, :obt, :tot)
                             """, {"sid": record['sid'], "sub": sel_sub, "exam": sel_exam, "obt": record['obtained'].strip().upper(), "tot": record['total']})
-                        st.success("Assessment marks record updated securely!")
+                        st.success("Assessment matrix marks records updated dynamically!")
+                        st.rerun()
                 else:
-                    st.error("No students found in this section.")
+                    st.error("No active records of student enrollment profiles match this specific criteria mix.")
             else:
-                st.warning("🚨 No subject assignments have been allocated to this account yet.")
+                st.warning("🚨 No subject assignments have been allocated to this instructor profile yet.")
 
     # ---------------------------------------------------------
     # SUB-MODULE C: TEACHER ANALYSIS
@@ -3432,26 +3487,30 @@ if menu_choice == "👨‍🏫 Teacher Management":
     elif sub_menu == "Teacher Analysis":
         st.subheader("📊 Performance Evaluation by Instructor")
         
-        teachers_df = run_query("SELECT id, username FROM app_users WHERE role = 'teacher' ORDER BY username ASC")
+        teachers_df = run_query("SELECT DISTINCT assigned_teacher_name FROM academic_allocations ORDER BY assigned_teacher_name ASC")
         if not teachers_df.empty:
-            t_options = {row['username']: row['id'] for _, row in teachers_df.iterrows()}
-            selected_t = st.selectbox("Select Teacher Account to Analyze:", options=list(t_options.keys()))
-            uid = int(t_options[selected_t])
+            t_options = teachers_df['assigned_teacher_name'].tolist()
+            selected_t = st.selectbox("Select Instructor Account to Analyze:", options=t_options)
             
-            allocations = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": uid})
+            allocations = run_query("""
+                SELECT subject_title, section_name, session_term 
+                FROM academic_allocations WHERE assigned_teacher_name = :teacher
+            """, {"teacher": selected_t})
             
             if not allocations.empty:
                 summary_metrics = []
                 for _, a_row in allocations.iterrows():
-                    sub = a_row['subject']
-                    sec = a_row['section']
+                    sub = a_row['subject_title']
+                    sec = a_row['section_name']
+                    ses = a_row['session_term']
                     
                     performance_data = run_query("""
                         SELECT m.marks_obtained, m.total_marks FROM marks m
                         JOIN students s ON m.student_id = s.id
                         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                        AND UPPER(TRIM(s.session)) = UPPER(TRIM(:ses))
                         AND UPPER(TRIM(m.subject)) = UPPER(TRIM(:sub))
-                    """, {"sec": sec, "sub": sub})
+                    """, {"sec": sec, "ses": ses, "sub": sub})
                     
                     if not performance_data.empty:
                         performance_data['num_obt'] = pd.to_numeric(performance_data['marks_obtained'], errors='coerce')
@@ -3465,7 +3524,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             summary_metrics.append({
                                 "Subject Class": sub,
                                 "Section Group": sec,
-                                "Evaluated Count": len(valid_scores),
+                                "Academic Term Session": ses,
+                                "Evaluated Scripts": len(valid_scores),
                                 "Average Score": f"{avg_pct:.1f}%",
                                 "Passing KPI Rate": f"{pass_ratio:.1f}%"
                             })
@@ -3474,9 +3534,9 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     st.write(f"#### Class Metrics Managed by {selected_t}")
                     st.table(pd.DataFrame(summary_metrics))
                 else:
-                    st.info("No marks records found for this instructor's classes.")
+                    st.info("No assessment script entries found for this instructor's active assignment load.")
             else:
-                st.warning("This profile holds no active class assignments.")
+                st.warning("This teacher profile holds no active database class allocation nodes.")
 
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
@@ -3523,7 +3583,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                         
         if discipline_summary:
             st.write(f"### Comparative Stream Standings — {exam_term}")
-            st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True)
+            st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True, hide_index=True)
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
