@@ -1262,17 +1262,12 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE CAMPUS LEDGER - EXECUTIVE SUITE)
+# MODULE: DAILY ATTENDANCE REPORT (OFFICIAL PRINT LAYOUT CODES)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
     from io import BytesIO
-    
-    # 🏛️ App UI Header Block matching the campus printed blueprint layout
-    st.markdown("<h1 style='text-align: center; margin-bottom: 0px; color: #1a365d;'>Concordia College Kasur</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; margin-top: 0px; color: #4a5568;'>Daily Attendance Report Suite</h3>", unsafe_allow_html=True)
-    st.markdown("---")
     
     # Safe session resolution engine to completely eliminate NameErrors
     session_choices = ["2025-27", "2026-28", "2027-29"] 
@@ -1287,12 +1282,12 @@ elif menu_choice == "📋 Daily Attendance Report":
     except Exception:
         pass
         
-    # 📑 Operational Inputs Row Block
+    # 📑 Inputs Control Row
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
-        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices, key="global_report_session_select")
+        report_session = st.selectbox("🎯 Select Session:", session_choices, key="global_report_session_select")
     with filter_col2:
-        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
+        report_date = st.date_input("🗓️ Select Date:", value=datetime.date.today(), key="global_report_date_select")
 
     # ⚡ Base Data Pipeline Extraction
     try:
@@ -1322,7 +1317,7 @@ elif menu_choice == "📋 Daily Attendance Report":
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
         raw_students['Student_Session'] = raw_students['session'].fillna('').astype(str).str.strip()
 
-        # Session clean slice filter
+        # Session filter slice
         target_sess_clean = str(report_session).strip()
         raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
 
@@ -1359,22 +1354,25 @@ elif menu_choice == "📋 Daily Attendance Report":
                 Absent_Count=('Is_Absent', 'sum')
             ).reset_index()
 
-            # Structured track sequences
+            # Structured print sequences matching order layout
             print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)"]
             
-            ledger_rows = []
+            # Global metric accumulators
             grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
+            
+            # Build HTML table body dynamically
+            html_rows = ""
+            excel_rows_list = [] # Tracker for openpyxl exporter later
 
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
                 if cat_df.empty:
                     continue
-                    
-                c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
-                is_first = True
                 
-                # Append Individual Section Records
-                for idx, row in cat_df.iterrows():
+                num_sections = len(cat_df)
+                c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
+                
+                for i, (_, row) in enumerate(cat_df.iterrows()):
                     act = int(row['Active_Count'])
                     pre = int(row['Present_Count'])
                     pct = f"{int((pre / act) * 100)}%" if act > 0 else "0%"
@@ -1385,64 +1383,141 @@ elif menu_choice == "📋 Daily Attendance Report":
                     c_present += pre
                     c_absent += int(row['Absent_Count'])
                     
-                    ledger_rows.append({
-                        "Class/Category": category if is_first else "",  
-                        "Section": str(row['Section']),
-                        "Incharge Name": str(row['In_Charge']),
-                        "Enrolled": int(row['Total_Enrolled']),
-                        "Left": int(row['Left_Count']),
-                        "Active": act,
-                        "Present": pre,
-                        "Absent": int(row['Absent_Count']),
-                        "%age": pct,
-                        "Type": "Data"
-                    })
-                    is_first = False
+                    # Store data row for excel
+                    excel_rows_list.append({"Class": category if i == 0 else "", "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
                     
-                # Append Group Sub-Total Row block
-                c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
-                sub_label = f"{category} Total"
-                ledger_rows.append({
-                    "Class/Category": sub_label, "Section": "", "Incharge Name": "",
-                    "Enrolled": c_enrolled, "Left": c_left, "Active": c_active,
-                    "Present": c_present, "Absent": c_absent, "%age": c_pct,
-                    "Type": "Subtotal"
-                })
+                    # Generate dynamic html row spans matching your visual layout style
+                    html_rows += "<tr>"
+                    if i == 0:
+                        html_rows += f'<td rowspan="{num_sections + 1}" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>'
+                    
+                    html_rows += f"""
+                        <td style="border:1px solid #000000; text-align:center;">{row['Section']}</td>
+                        <td style="border:1px solid #000000; text-align:left; padding-left:8px;">{row['In_Charge']}</td>
+                        <td style="border:1px solid #000000; text-align:center;">{row['Total_Enrolled']}</td>
+                        <td style="border:1px solid #000000; text-align:center;">{row['Left_Count']}</td>
+                        <td style="border:1px solid #000000; text-align:center;">{row['Active_Count']}</td>
+                        <td style="border:1px solid #000000; text-align:center;">{pre}</td>
+                        <td style="border:1px solid #000000; text-align:center;">{row['Absent_Count']}</td>
+                        <td style="border:1px solid #000000; text-align:center;">{pct}</td>
+                    </tr>
+                    """
                 
+                # Compute Category group percentage
+                c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
+                
+                # Store group subtotal row for excel
+                excel_rows_list.append({"Class": "Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
+                
+                # Append Categorical Total summary separator line
+                html_rows += f"""
+                <tr style="background-color:#d9d9d9; font-weight:bold;">
+                    <td style="border:1px solid #000000; text-align:center;">Total</td>
+                    <td style="border:1px solid #000000;"></td>
+                    <td style="border:1px solid #000000; text-align:center;">{c_enrolled}</td>
+                    <td style="border:1px solid #000000; text-align:center;">{c_left}</td>
+                    <td style="border:1px solid #000000; text-align:center;">{c_active}</td>
+                    <td style="border:1px solid #000000; text-align:center;">{c_present}</td>
+                    <td style="border:1px solid #000000; text-align:center;">{c_absent}</td>
+                    <td style="border:1px solid #000000; text-align:center;">{c_pct}</td>
+                </tr>
+                """
                 grand_enrolled += c_enrolled
                 grand_left += c_left
                 grand_active += c_active
                 grand_present += c_present
                 grand_absent += c_absent
 
-            # Render Screen Presentation Dataframes
-            st.subheader("📋 Section Wise Ledger Sheets")
-            ui_display_df = pd.DataFrame(ledger_rows)
-            st.dataframe(ui_display_df.drop(columns=['Type']), use_container_width=True, hide_index=True)
-            
-            # Statistics Section
-            st.markdown("###")
-            st.subheader("📊 Statistics of Attendance (Grand Summary)")
             grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.00%"
+
+            # 🏛️ Complete HTML UI Screen Wrapper Output Block
+            ui_screen_html = f"""
+            <div style="background-color:#ffffff; padding:20px; border-radius:8px; border:1px solid #ccc; font-family:Arial, sans-serif; color:#000000;">
+                <table style="width:100%; border-collapse:collapse; margin-bottom:5px;">
+                    <tr>
+                        <td style="text-align:center; font-size:24pt; font-weight:bold; color:#000000; font-family:'Times New Roman', Times, serif;">Concordia College Kasur</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:center; font-size:14pt; font-weight:bold; padding-top:4px;">Attendance Report</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:center; font-size:11pt; color:#333333; padding-top:2px;">Session {report_session}</td>
+                    </tr>
+                </table>
+                
+                <div style="text-align:right; font-weight:bold; margin-bottom:10px; font-size:11pt;">
+                    {report_date.strftime('%A, %B %d, %Y')}
+                </div>
+                
+                <table style="width:100%; border-collapse:collapse; background-color:#ffffff; font-size:10pt;">
+                    <thead>
+                        <tr style="background-color:#aeaeae; font-weight:bold;">
+                            <th style="border:1px solid #000000; padding:6px; width:12%;">Class</th>
+                            <th style="border:1px solid #000000; padding:6px; width:12%;">Section</th>
+                            <th style="border:1px solid #000000; padding:6px; width:22%;">In Charge</th>
+                            <th style="border:1px solid #000000; padding:6px; width:11%;">Total Enrolled</th>
+                            <th style="border:1px solid #000000; padding:6px; width:8%;">Left</th>
+                            <th style="border:1px solid #000000; padding:6px; width:11%;">Total Active</th>
+                            <th style="border:1px solid #000000; padding:6px; width:9%;">Present</th>
+                            <th style="border:1px solid #000000; padding:6px; width:8%;">Absent</th>
+                            <th style="border:1px solid #000000; padding:6px; width:7%;">%age</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {html_rows}
+                    </tbody>
+                </table>
+                
+                <br/>
+                <div style="font-weight:bold; font-size:11pt; margin-bottom:5px; text-decoration: underline;">Statistics of Attendance:-</div>
+                <table style="width:100%; border-collapse:collapse; font-size:10pt; text-align:center; margin-bottom:20px;">
+                    <thead>
+                        <tr style="background-color:#aeaeae; font-weight:bold;">
+                            <th style="border:1px solid #000000; padding:8px; width:25%;">Date</th>
+                            <th style="border:1px solid #000000; padding:8px;">Total Enrolled</th>
+                            <th style="border:1px solid #000000; padding:8px;">Left</th>
+                            <th style="border:1px solid #000000; padding:8px;">Total Active</th>
+                            <th style="border:1px solid #000000; padding:8px;">Total Present</th>
+                            <th style="border:1px solid #000000; padding:8px;">Total Absent</th>
+                            <th style="border:1px solid #000000; padding:8px; width:15%;">Grand Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="font-weight:bold; font-size:11pt; background-color:#ffffff;">
+                            <td style="border:1px solid #000000; padding:10px;">{report_date.strftime('%d-%b-%Y')}</td>
+                            <td style="border:1px solid #000000;">{grand_enrolled}</td>
+                            <td style="border:1px solid #000000;">{grand_left}</td>
+                            <td style="border:1px solid #000000;">{grand_active}</td>
+                            <td style="border:1px solid #000000;">{grand_present}</td>
+                            <td style="border:1px solid #000000;">{grand_absent}</td>
+                            <td style="border:1px solid #000000; color:#000000;">{grand_pct}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div style="font-weight:bold; font-size:10pt; margin-bottom:4px; text-decoration: underline;">Remarks & Calls Feedback:</div>
+                <div style="border:1px solid #000000; height:45px; background-color:#ffffff; margin-bottom:40px;"></div>
+                
+                <table style="width:100%; margin-top:20px; font-weight:bold; font-size:10pt; text-align:center;">
+                    <tr>
+                        <td style="width:33.33%;"><span style="border-top:1px solid #000000; padding-top:5px; width:150px; display:inline-block;">Attendance Incharge</span></td>
+                        <td style="width:33.33%;"><span style="border-top:1px solid #000000; padding-top:5px; width:150px; display:inline-block;">Vice Principal</span></td>
+                        <td style="width:33.33%; text-align:right; padding-right:20px;"><span style="border-top:1px solid #000000; padding-top:5px; width:120px; display:inline-block;">Principal</span></td>
+                    </tr>
+                </table>
+            </div>
+            """
             
-            stats_df = pd.DataFrame([{
-                "Report Date": report_date.strftime('%d-%b-%Y'),
-                "Grand Enrolled": grand_enrolled,
-                "Grand Left": grand_left,
-                "Grand Active": grand_active,
-                "Grand Present": grand_present,
-                "Grand Absent": grand_absent,
-                "Grand Percentage": grand_pct
-            }])
-            st.dataframe(stats_df, use_container_width=True, hide_index=True)
+            # Print layout directly onto the screen dashboard
+            st.markdown(ui_screen_html, unsafe_allow_html=True)
 
             # ==========================================
-            # 📥 ACTION PACK: EXPORT BUTTONS WITH FALLBACKS
+            # 📥 DOWNLOADING UTILITY OPERATIONS SECTOR
             # ==========================================
-            st.markdown("---")
+            st.markdown("###")
             action_col1, action_col2 = st.columns(2)
             
-            # --- ACTION 1: EXCEL WORKBOOK GENERATOR ---
+            # --- PACK 1: EXACT MATCH OPENPYXL EXCEL EXPORTER ---
             with action_col1:
                 try:
                     import openpyxl
@@ -1451,218 +1526,145 @@ elif menu_choice == "📋 Daily Attendance Report":
                     
                     wb = openpyxl.Workbook()
                     ws = wb.active
-                    ws.title = "Daily Attendance Ledger"
+                    ws.title = "Attendance Summary"
                     ws.views.sheetView[0].showGridLines = True
                     
-                    navy_fill = PatternFill(start_color="1A365D", end_color="1A365D", fill_type="solid")
-                    subtotal_fill = PatternFill(start_color="F7FAFC", end_color="F7FAFC", fill_type="solid")
-                    stats_header_fill = PatternFill(start_color="2D3748", end_color="2D3748", fill_type="solid")
-                    stats_body_fill = PatternFill(start_color="FFFAF0", end_color="FFFAF0", fill_type="solid")
+                    # Layout color palette mapping configurations
+                    gray_header_fill = PatternFill(start_color="AEAEAE", end_color="AEAEAE", fill_type="solid")
+                    subtotal_row_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
                     
-                    font_title = Font(name="Arial", size=16, bold=True, color="1A365D")
-                    font_header = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+                    font_title = Font(name="Times New Roman", size=18, bold=True)
+                    font_subtitle = Font(name="Arial", size=11, bold=True)
+                    font_header = Font(name="Arial", size=10, bold=True)
                     font_bold = Font(name="Arial", size=10, bold=True)
                     font_regular = Font(name="Arial", size=10)
                     
-                    thin_border = Border(
-                        left=Side(style='thin', color='CBD5E0'), right=Side(style='thin', color='CBD5E0'),
-                        top=Side(style='thin', color='CBD5E0'), bottom=Side(style='thin', color='CBD5E0')
-                    )
+                    black_thin = Side(style='thin', color='000000')
+                    box_border = Border(left=black_thin, right=black_thin, top=black_thin, bottom=black_thin)
                     
+                    # Top Title Headings mapping sequence
+                    ws.merge_cells("A1:I1")
                     ws["A1"] = "Concordia College Kasur"
                     ws["A1"].font = font_title
-                    ws["A2"] = f"Daily Attendance Report — Session {report_session} ({report_date.strftime('%d-%b-%Y')})"
-                    ws["A2"].font = Font(name="Arial", size=11, italic=True)
+                    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
                     
-                    headers = ["Class/Category", "Section", "Incharge Name", "Enrolled", "Left", "Active", "Present", "Absent", "%age"]
-                    ws.append([]) 
+                    ws.merge_cells("A2:I2")
+                    ws["A2"] = f"Attendance Report — Session {report_session}"
+                    ws["A2"].font = font_subtitle
+                    ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    ws.merge_cells("A3:I3")
+                    ws["A3"] = f"{report_date.strftime('%A, %B %d, %Y')}"
+                    ws["A3"].font = font_regular
+                    ws["A3"].alignment = Alignment(horizontal="right", vertical="center")
+                    
+                    # Headers Setup
+                    headers = ["Class", "Section", "In Charge", "Total Enrolled", "Left", "Total Active", "Present", "Absent", "%age"]
                     ws.append(headers)
                     header_row_idx = 4
+                    ws.row_dimensions[header_row_idx].height = 24
                     
-                    for col_num, header in enumerate(headers, 1):
+                    for col_num, h_text in enumerate(headers, 1):
                         cell = ws.cell(row=header_row_idx, column=col_num)
-                        cell.fill = navy_fill
+                        cell.fill = gray_header_fill
                         cell.font = font_header
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
-                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                        cell.border = box_border
                     
-                    current_row = 5
-                    for r_data in ledger_rows:
-                        ws.append([r_data["Class/Category"], r_data["Section"], r_data["Incharge Name"], r_data["Enrolled"], r_data["Left"], r_data["Active"], r_data["Present"], r_data["Absent"], r_data["%age"]])
+                    # Writing out records loops with cell structural row spans logic mapping
+                    start_merge_row = 5
+                    for index, r_item in enumerate(excel_rows_list, 5):
+                        ws.append([r_item["Class"], r_item["Section"], r_item["In_Charge"], r_item["Enrolled"], r_item["Left"], r_item["Active"], r_item["Present"], r_item["Absent"], r_item["Pct"]])
+                        ws.row_dimensions[index].height = 20
                         
-                        is_sub = (r_data["Type"] == "Subtotal")
+                        is_sub = (r_item["Type"] == "Subtotal")
                         for col_num in range(1, 10):
-                            cell = ws.cell(row=current_row, column=col_num)
-                            cell.border = thin_border
-                            cell.font = font_bold if is_sub else font_regular
+                            cell = ws.cell(row=index, column=col_num)
+                            cell.border = box_border
+                            cell.font = font_bold if (is_sub or col_num == 1) else font_regular
                             if is_sub:
-                                cell.fill = subtotal_fill
+                                cell.fill = subtotal_row_fill
                             
                             if col_num in [1, 2, 3]:
-                                cell.alignment = Alignment(horizontal="left" if col_num != 2 else "center", vertical="center")
+                                cell.alignment = Alignment(horizontal="left" if col_num == 3 else "center", vertical="center")
                             else:
                                 cell.alignment = Alignment(horizontal="center", vertical="center")
-                        current_row += 1
+                        
+                        # Apply row span grouping merge to Excel cells safely
+                        if is_sub:
+                            ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
+                            start_merge_row = index + 1
                     
-                    current_row += 2
-                    ws.cell(row=current_row, column=1, value="Statistics of Attendance:-").font = Font(name="Arial", size=11, bold=True, color="1A365D")
+                    # Statistics summary blocks layout logic mapping
+                    curr_r = len(excel_rows_list) + 7
+                    ws.cell(row=curr_r, column=1, value="Statistics of Attendance:-").font = font_bold
                     
-                    current_row += 1
-                    stat_headers = ["Date", "Total Enrolled", "Total Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
-                    for c_idx, sh in enumerate(stat_headers, 1):
-                        cell = ws.cell(row=current_row, column=c_idx, value=sh)
-                        cell.fill = stats_header_fill
+                    curr_r += 1
+                    stat_headers = ["Date", "Total Enrolled", "Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
+                    ws.row_dimensions[curr_r].height = 22
+                    for col_i, sh_text in enumerate(stat_headers, 1):
+                        # Re-route index coordinates to match exact horizontal dimensions cleanly
+                        target_col = col_i if col_i < 7 else 9
+                        if col_i == 1:
+                            ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+                        elif col_i == 7:
+                            ws.merge_cells(start_row=curr_r, start_column=7, end_row=curr_r, end_column=9)
+                            
+                        cell = ws.cell(row=curr_r, column=target_col, value=sh_text)
+                        cell.fill = gray_header_fill
                         cell.font = font_header
                         cell.alignment = Alignment(horizontal="center", vertical="center")
-                        cell.border = thin_border
                         
-                    current_row += 1
-                    stat_vals = [report_date.strftime('%d-%b-%Y'), grand_enrolled, grand_left, grand_active, grand_present, grand_absent, grand_pct]
-                    for c_idx, sv in enumerate(stat_vals, 1):
-                        cell = ws.cell(row=current_row, column=c_idx, value=sv)
-                        cell.fill = stats_body_fill
+                    # Re-verify layout cell edge borders after custom mergers
+                    for c_num in range(1, 10):
+                        ws.cell(row=curr_r, column=c_num).border = box_border
+                        
+                    curr_r += 1
+                    ws.row_dimensions[curr_r].height = 24
+                    ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+                    ws.merge_cells(start_row=curr_r, start_column=7, end_row=curr_r, end_column=9)
+                    
+                    stat_values = [report_date.strftime('%d-%b-%Y'), grand_enrolled, grand_left, grand_active, grand_present, grand_absent, grand_pct]
+                    val_mappings = {1: stat_values[0], 3: stat_values[1], 4: stat_values[2], 5: stat_values[3], 6: stat_values[4], 7: stat_values[5], 8: stat_values[6]}
+                    
+                    for c_num in range(1, 10):
+                        cell = ws.cell(row=curr_r, column=c_num)
+                        cell.border = box_border
                         cell.font = font_bold
                         cell.alignment = Alignment(horizontal="center", vertical="center")
-                        cell.border = thin_border
+                        if c_num in val_mappings:
+                            cell.value = val_mappings[c_num]
                     
+                    # Columns width setting rule parameters
                     for col in ws.columns:
-                        max_len = max(len(str(cell.value or '')) for cell in col)
                         col_letter = get_column_letter(col[0].column)
-                        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+                        ws.column_dimensions[col_letter].width = 14
+                    ws.column_dimensions["C"].width = 24 # Expand Incharge width space
                     
                     excel_stream = BytesIO()
                     wb.save(excel_stream)
                     excel_stream.seek(0)
                     
                     st.download_button(
-                        label="🟢 Export Formatted Excel Sheet",
+                        label="🟢 Export Formatted Excel Document",
                         data=excel_stream.getvalue(),
                         file_name=f"Concordia_Daily_Attendance_{report_date}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
-                except ModuleNotFoundError:
-                    st.warning("⚠️ Excel generation is paused. Add 'openpyxl' to requirements.txt to activate it.")
                 except Exception as e:
-                    st.error(f"Excel Error: {str(e)}")
+                    st.error(f"Excel Export Engine Error: {str(e)}")
 
-            # --- ACTION 2: PDF PRINT ENGINE SUITE ---
+            # --- PACK 2: PDF PRINT VECTOR UTILITIES ---
             with action_col2:
-                html_table_rows = ""
-                for r_data in ledger_rows:
-                    if r_data["Type"] == "Subtotal":
-                        html_table_rows += f"""
-                        <tr class="subtotal-row">
-                            <td>{r_data["Class/Category"]}</td><td></td><td></td>
-                            <td>{r_data["Enrolled"]}</td><td>{r_data["Left"]}</td><td>{r_data["Active"]}</td>
-                            <td>{r_data["Present"]}</td><td>{r_data["Absent"]}</td><td>{r_data["%age"]}</td>
-                        </tr>
-                        """
-                    else:
-                        if r_data["Class/Category"] != "":
-                            html_table_rows += f'<tr><td class="category-header" colspan="9">{r_data["Class/Category"]} Track Group</td></tr>'
-                        
-                        html_table_rows += f"""
-                        <tr>
-                            <td></td><td class="center-align">{r_data["Section"]}</td><td class="left-align">{r_data["Incharge Name"]}</td>
-                            <td>{r_data["Enrolled"]}</td><td>{r_data["Left"]}</td><td>{r_data["Active"]}</td>
-                            <td>{r_data["Present"]}</td><td>{r_data["Absent"]}</td><td>{r_data["%age"]}</td>
-                        </tr>
-                        """
-
-                printable_html_doc = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                <style>
-                    @page {{ size: A4 portrait; margin: 12mm 10mm; background-color: #ffffff; }}
-                    body {{ font-family: 'Arial', sans-serif; color: #333333; margin: 0; padding: 0; font-size: 10pt; }}
-                    .header-container {{ text-align: center; margin-bottom: 15px; border-bottom: 2px solid #1a365d; padding-bottom: 8px; }}
-                    .college-title {{ font-size: 20pt; font-weight: bold; color: #1a365d; text-transform: uppercase; margin: 0; }}
-                    .report-subtitle {{ font-size: 12pt; color: #4a5568; margin: 3px 0 0 0; font-weight: bold; }}
-                    .meta-table {{ width: 100%; margin-bottom: 15px; border-collapse: collapse; }}
-                    .meta-table td {{ padding: 4px 0; font-size: 10.5pt; }}
-                    .meta-label {{ font-weight: bold; color: #2d3748; width: 12%; }}
-                    .meta-value {{ color: #1a202c; border-bottom: 1px dotted #cbd5e0; width: 38%; }}
-                    .main-ledger {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-                    .main-ledger th {{ background-color: #1a365d; color: #ffffff; font-weight: bold; text-align: center; padding: 6px 4px; font-size: 9pt; border: 1px solid #1a365d; text-transform: uppercase; }}
-                    .main-ledger td {{ padding: 5px 4px; font-size: 9.5pt; border: 1px solid #cbd5e0; text-align: center; }}
-                    .main-ledger td.left-align {{ text-align: left; padding-left: 6px; }}
-                    .category-header {{ background-color: #ebf8ff; font-weight: bold; color: #2b6cb0; text-align: left !important; padding-left: 8px !important; }}
-                    .subtotal-row {{ background-color: #f7fafc; font-weight: bold; }}
-                    .subtotal-row td {{ border-top: 1.5px solid #4a5568; border-bottom: 1.5px solid #4a5568; color: #1a202c; }}
-                    .stats-section-title {{ font-size: 11pt; font-weight: bold; color: #1a365d; margin: 15px 0 5px 0; text-transform: uppercase; }}
-                    .stats-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; }}
-                    .stats-table th {{ background-color: #2d3748; color: #ffffff; padding: 6px 4px; font-size: 9pt; border: 1px solid #2d3748; }}
-                    .stats-table td {{ padding: 6px 4px; font-size: 10pt; border: 1px solid #cbd5e0; text-align: center; font-weight: bold; background-color: #fffaf0; }}
-                    .footer-box {{ margin-top: 15px; width: 100%; }}
-                    .remarks-title {{ font-weight: bold; font-size: 10pt; margin-bottom: 4px; color: #2d3748; }}
-                    .remarks-line {{ height: 45px; border: 1px solid #a0aec0; border-radius: 4px; background-color: #fdfdfd; }}
-                    .signature-row {{ margin-top: 35px; width: 100%; display: table; }}
-                    .signature-col {{ display: table-cell; width: 33.33%; text-align: center; font-size: 9.5pt; font-weight: bold; color: #4a5568; }}
-                    .signature-line {{ width: 70%; margin: 0 auto 5px auto; border-bottom: 1px solid #718096; }}
-                </style>
-                </head>
-                <body>
-                <div class="header-container">
-                    <div class="college-title">Concordia College Kasur</div>
-                    <div class="report-subtitle">DAILY ATTENDANCE REPORT SUMMARY</div>
-                </div>
-                <table class="meta-table">
-                    <tr>
-                        <td class="meta-label">Session:</td><td class="meta-value">{report_session}</td>
-                        <td class="meta-label">Date:</td><td class="meta-value">{report_date.strftime('%A, %d-%b-%Y')}</td>
-                    </tr>
-                </table>
-                <table class="main-ledger">
-                    <thead>
-                        <tr>
-                            <th style="width: 20%;">Class/Category</th><th style="width: 14%;">Section</th><th style="width: 22%;">Incharge Name</th>
-                            <th style="width: 9%;">Enrolled</th><th style="width: 7%;">Left</th><th style="width: 9%;">Active</th>
-                            <th style="width: 9%;">Present</th><th style="width: 7%;">Absent</th><th style="width: 7%;">%age</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {html_table_rows}
-                    </tbody>
-                </table>
-                <div class="stats-section-title">Statistics of Attendance:-</div>
-                <table class="stats-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 16%;">Date</th><th style="width: 14%;">Total Enrolled</th><th style="width: 14%;">Total Left</th>
-                            <th style="width: 14%;">Total Active</th><th style="width: 14%;">Total Present</th><th style="width: 14%;">Total Absent</th>
-                            <th style="width: 14%;">Grand Percentage</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>{report_date.strftime('%d-%b-%Y')}</td>
-                            <td>{grand_enrolled}</td><td>{grand_left}</td><td>{grand_active}</td>
-                            <td>{grand_present}</td><td>{grand_absent}</td><td>{grand_pct}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="footer-box">
-                    <div class="remarks-title">Remarks & Calls Feedback:</div>
-                    <div class="remarks-line"></div>
-                </div>
-                <div class="signature-row">
-                    <div class="signature-col"><div class="signature-line"></div>Attendance Incharge</div>
-                    <div class="signature-col"><div class="signature-line"></div>Vice Principal</div>
-                    <div class="signature-col"><div class="signature-line"></div>Principal Office</div>
-                </div>
-                </body>
-                </html>
-                """
-                
                 try:
                     from weasyprint import HTML
                     pdf_buffer = BytesIO()
-                    HTML(string=printable_html_doc).write_pdf(pdf_buffer)
+                    # Feed identical layout html config maps to the vector compile streams engine
+                    HTML(string=ui_screen_html).write_pdf(pdf_buffer)
                     
                     st.download_button(
-                        label="🖨️ Print Report to Official PDF",
+                        label="🖨️ Print Document to Official PDF",
                         data=pdf_buffer.getvalue(),
                         file_name=f"Concordia_Kasur_Daily_Attendance_{report_date}.pdf",
                         mime="application/pdf",
@@ -1670,9 +1672,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                         type="primary"
                     )
                 except ModuleNotFoundError:
-                    st.info("💡 Add 'weasyprint' to requirements.txt to activate the official PDF print button layout.")
-                except Exception as e:
-                    st.error(f"PDF Error: {str(e)}")
+                    st.info("💡 Add 'weasyprint' to requirements.txt to unlock vector PDF generation features.")
+                except Exception as pdf_err:
+                    st.error(f"PDF Compiler Error Trace: {str(pdf_err)}")
+                    
+# ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
