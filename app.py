@@ -3390,108 +3390,146 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not teachers_df.empty:
             t_options = teachers_df['teacher_name'].tolist()
             
-            # --- ROW 1: System & Teacher Basics ---
-            c1, c2, c3 = st.columns(3)
-            with c1: 
-                selected_t = st.selectbox("1. Select Registered Teacher:", options=t_options)
-            with c2:
-                selected_session = st.selectbox("2. Academic Session:", options=["2025-27", "2026-28", "2027-29"])
-            with c3:
-                academic_system = st.selectbox("3. Academic System:", options=["Annual System", "Semester System"])
+            # --- CREATE SEPARATE TABS FOR THE TWO WORKFLOWS ---
+            tab_subjects, tab_incharge = st.tabs(["📚 Assign Course Subjects", "👑 Assign Class In-Charge"])
+            
+            # ==========================================
+            # TAB 1: REGULAR SUBJECT ASSIGNMENT
+            # ==========================================
+            with tab_subjects:
+                st.markdown("##### Assign specific subjects to sections (Academic Role)")
                 
-            # --- ROW 2: Class/Semester & Role ---
-            c4, c5 = st.columns(2)
-            with c4:
-                if academic_system == "Annual System":
-                    sel_class = st.selectbox("4. Select Class Level:", ["11th", "12th"])
+                t1_c1, t1_c2, t1_c3 = st.columns(3)
+                with t1_c1: selected_t1 = st.selectbox("1. Select Teacher:", options=t_options, key="t1_teacher")
+                with t1_c2: session_t1 = st.selectbox("2. Academic Session:", options=["2025-27", "2026-28", "2027-29"], key="t1_session")
+                with t1_c3: system_t1 = st.selectbox("3. Academic System:", options=["Annual System", "Semester System"], key="t1_system")
+                    
+                t1_c4, t1_c5 = st.columns(2)
+                with t1_c4:
+                    if system_t1 == "Annual System":
+                        class_t1 = st.selectbox("4. Class Level:", ["11th", "12th"], key="t1_class")
+                    else:
+                        class_t1 = st.selectbox("4. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="t1_class")
+                
+                # Dynamic Logic for Tab 1 (Filtered to specific class)
+                if system_t1 == "Annual System":
+                    secs_t1 = []
+                    if 'DISCIPLINE_SECTIONS_MAP' in globals():
+                        for class_dict in DISCIPLINE_SECTIONS_MAP.values():
+                            secs_t1.extend(class_dict.get(class_t1, []))
+                        secs_t1 = sorted(list(set(secs_t1)))
+                    else:
+                        secs_t1 = ["MG_BLUE", "EG_BLUE"]
+                        
+                    if 'DISCIPLINE_SUBJECTS_MAP' in globals():
+                        subs_t1 = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
+                    else:
+                        subs_t1 = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"]
                 else:
-                    sel_class = st.selectbox("4. Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
-            with c5:
-                is_incharge = st.selectbox("5. Is Class In-Charge?", options=["No", "Yes"], help="If 'Yes', you can assign multiple sections at once.")
+                    secs_t1 = ["DIT_G", "DIT_B"]
+                    if "1st" in class_t1: subs_t1 = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                    elif "2nd" in class_t1: subs_t1 = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                    else: subs_t1 = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
 
-            # --- DYNAMIC LOGIC: SECTIONS ---
-            if academic_system == "Annual System":
-                if 'DISCIPLINE_SECTIONS_MAP' in globals():
-                    all_secs = []
-                    if is_incharge == "Yes":
-                        # Fetch ALL sections regardless of class
+                with t1_c5:
+                    sec_t1 = st.selectbox("5. Assign Target Section:", options=secs_t1, key="t1_sec")
+                    
+                sub_t1 = st.selectbox("6. Select Subject Course:", options=subs_t1, key="t1_sub")
+                    
+                st.markdown("##")
+                if st.button("🔒 Authorize Subject Assignment", type="primary", use_container_width=True, key="t1_btn"):
+                    check_dup = run_query("""
+                        SELECT allocation_id FROM academic_allocations 
+                        WHERE session_term = :session AND class_level = :cls 
+                        AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
+                    """, {"session": session_t1, "cls": class_t1, "sec": sec_t1, "sub": sub_t1, "teacher": selected_t1})
+                    
+                    if check_dup.empty:
+                        execute_db_command("""
+                            INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
+                            VALUES (:session, :cls, :sec, :sub, :teacher, 'No')
+                        """, {"session": session_t1, "cls": class_t1, "sec": sec_t1, "sub": sub_t1, "teacher": selected_t1})
+                        
+                        st.success(f"✅ Access granted! {selected_t1} is now allocated to teach {sub_t1} in {sec_t1}.")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ This exact subject allocation already exists for this instructor.")
+
+            # ==========================================
+            # TAB 2: CLASS IN-CHARGE ASSIGNMENT
+            # ==========================================
+            with tab_incharge:
+                st.markdown("##### Assign overall room management & responsibility (Administrative Role)")
+                
+                t2_c1, t2_c2, t2_c3 = st.columns(3)
+                with t2_c1: selected_t2 = st.selectbox("1. Select Teacher:", options=t_options, key="t2_teacher")
+                with t2_c2: session_t2 = st.selectbox("2. Academic Session:", options=["2025-27", "2026-28", "2027-29"], key="t2_session")
+                with t2_c3: system_t2 = st.selectbox("3. Academic System:", options=["Annual System", "Semester System"], key="t2_system")
+                    
+                if system_t2 == "Annual System":
+                    class_t2 = st.selectbox("4. Class Level Context:", ["11th", "12th", "General/Cross-Class"], key="t2_class")
+                else:
+                    class_t2 = st.selectbox("4. Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "General/Cross-Semester"], key="t2_class")
+                
+                # Dynamic Logic for Tab 2 (Fetches ALL sections to allow bulk inchargeship)
+                if system_t2 == "Annual System":
+                    secs_t2 = []
+                    if 'DISCIPLINE_SECTIONS_MAP' in globals():
                         for class_dict in DISCIPLINE_SECTIONS_MAP.values():
                             for sec_list in class_dict.values():
-                                all_secs.extend(sec_list)
+                                secs_t2.extend(sec_list)
+                        secs_t2 = sorted(list(set(secs_t2)))
                     else:
-                        # Fetch sections ONLY for the selected class (11th or 12th)
-                        for class_dict in DISCIPLINE_SECTIONS_MAP.values():
-                            all_secs.extend(class_dict.get(sel_class, []))
-                    
-                    all_secs = sorted(list(set(all_secs)))
-                else:
-                    all_secs = ["MG_BLUE", "EG_BLUE"] # Fallback
-            else:
-                all_secs = ["DIT_G", "DIT_B"]
-
-            # --- DYNAMIC LOGIC: SUBJECTS ---
-            if academic_system == "Annual System":
-                if 'DISCIPLINE_SUBJECTS_MAP' in globals():
-                    all_subs = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
-                else:
-                    all_subs = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"] # Fallback
-            else:
-                if "1st" in sel_class:
-                    all_subs = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                elif "2nd" in sel_class:
-                    all_subs = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                else: 
-                    all_subs = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
-
-            # --- ROW 3: Final Assignments ---
-            c6, c7 = st.columns(2)
-            with c6:
-                # NEW MULTI-SELECT LOGIC: Allows multiple sections if "Yes"
-                if is_incharge == "Yes":
-                    selected_sec = st.multiselect("6. Assign Target Section(s):", options=all_secs, default=[all_secs[0]] if all_secs else None)
-                else:
-                    selected_sec = st.selectbox("6. Assign Target Section:", options=all_secs)
-                    
-            with c7:
-                selected_sub = st.selectbox("7. Select Subject Course:", options=all_subs)
-                
-            st.markdown("##")
-            if st.button("🔒 Authorize & Commit Allocation Matrix", type="primary", use_container_width=True):
-                # Normalize selection into a list (so we can loop whether it's 1 section or 5 sections)
-                sections_to_process = selected_sec if isinstance(selected_sec, list) else [selected_sec]
-                
-                if not sections_to_process:
-                    st.error("⚠️ Please select at least one section before committing.")
-                else:
-                    success_count = 0
-                    skip_count = 0
-                    
-                    # Loop through all chosen sections and insert them
-                    for sec in sections_to_process:
-                        check_dup = run_query("""
-                            SELECT allocation_id FROM academic_allocations 
-                            WHERE session_term = :session AND class_level = :cls 
-                            AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
-                        """, {"session": selected_session, "cls": sel_class, "sec": sec, "sub": selected_sub, "teacher": selected_t})
+                        secs_t2 = ["MG_BLUE", "EG_BLUE"]
                         
-                        if check_dup.empty:
-                            execute_db_command("""
-                                INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
-                                VALUES (:session, :cls, :sec, :sub, :teacher, :incharge)
-                            """, {"session": selected_session, "cls": sel_class, "sec": sec, "sub": selected_sub, "teacher": selected_t, "incharge": is_incharge})
-                            success_count += 1
-                        else:
-                            skip_count += 1
+                    if 'DISCIPLINE_SUBJECTS_MAP' in globals():
+                        subs_t2 = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs])))
+                    else:
+                        subs_t2 = ["BIOLOGY", "CHEMISTRY", "COMPUTER", "MATH", "PHYSICS"]
+                else:
+                    secs_t2 = ["DIT_G", "DIT_B"]
+                    subs_t2 = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project", "English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+
+                # Prepend the dedicated Role-Only subject to prevent database uniqueness conflicts
+                subs_t2 = ["🌟 Class In-Charge (Role Only)"] + subs_t2
+                
+                sec_t2 = st.multiselect("5. Assign Target Section(s):", options=secs_t2, default=[secs_t2[0]] if secs_t2 else None, key="t2_sec")
+                sub_t2 = st.selectbox("6. Associated Subject (Optional):", options=subs_t2, key="t2_sub", help="Leave as 'Role Only' if they are just the room manager.")
+
+                st.markdown("##")
+                if st.button("🔒 Authorize Class In-Charge", type="primary", use_container_width=True, key="t2_btn"):
+                    if not sec_t2:
+                        st.error("⚠️ Please select at least one section before committing.")
+                    else:
+                        success_count = 0
+                        skip_count = 0
+                        
+                        for sec in sec_t2:
+                            check_dup = run_query("""
+                                SELECT allocation_id FROM academic_allocations 
+                                WHERE session_term = :session AND class_level = :cls 
+                                AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
+                            """, {"session": session_t2, "cls": class_t2, "sec": sec, "sub": sub_t2, "teacher": selected_t2})
                             
-                    # Provide smart feedback based on the loop results
-                    if success_count > 0:
-                        st.success(f"✅ Access granted! {selected_t} is now allocated to {success_count} new section(s) for {selected_sub}.")
-                    if skip_count > 0:
-                        st.warning(f"⚠️ {skip_count} allocation(s) skipped because they already exist for this instructor.")
-                    
-                    if success_count > 0:
-                        st.rerun()
-                    
+                            if check_dup.empty:
+                                execute_db_command("""
+                                    INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
+                                    VALUES (:session, :cls, :sec, :sub, :teacher, 'Yes')
+                                """, {"session": session_t2, "cls": class_t2, "sec": sec, "sub": sub_t2, "teacher": selected_t2})
+                                success_count += 1
+                            else:
+                                skip_count += 1
+                                
+                        if success_count > 0:
+                            st.success(f"✅ {selected_t2} is now assigned as Class In-Charge for {success_count} section(s).")
+                        if skip_count > 0:
+                            st.warning(f"⚠️ {skip_count} assignment(s) skipped because they already exist.")
+                        if success_count > 0:
+                            st.rerun()
+
+            # ==========================================
+            # ACTIVE LOG VIEWER (Visible below both tabs)
+            # ==========================================
             st.markdown("---")
             st.write("#### Active Master Allocation Matrix Log")
             
@@ -3499,7 +3537,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 SELECT allocation_id as ID, session_term as Session, class_level as Class, section_name as Section, 
                        subject_title as Subject, assigned_teacher_name as Instructor, is_class_incharge as InCharge
                 FROM academic_allocations
-                ORDER BY session_term DESC, class_level ASC, section_name ASC
+                ORDER BY session_term DESC, is_class_incharge DESC, section_name ASC
             """)
             
             if not alloc_log.empty:
@@ -3524,7 +3562,12 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     r4.write(str(row['section']))
                     r5.write(str(row['subject']))
                     r6.write(str(row['instructor']))
-                    r7.write(str(row['incharge']))
+                    
+                    # Add visual emphasis if they are an in-charge
+                    if str(row['incharge']) == 'Yes':
+                        r7.markdown("👑 **Yes**")
+                    else:
+                        r7.write(str(row['incharge']))
                     
                     if r8.button("🗑️ Del", key=f"del_alloc_{row['id']}", help="Remove this allocation"):
                         try:
