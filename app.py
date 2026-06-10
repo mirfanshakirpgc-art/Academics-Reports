@@ -3407,7 +3407,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 else:
                     sel_class = st.selectbox("4. Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
             with c5:
-                is_incharge = st.selectbox("5. Is Class In-Charge?", options=["No", "Yes"], help="If 'Yes', you will see all sections across the college.")
+                is_incharge = st.selectbox("5. Is Class In-Charge?", options=["No", "Yes"], help="If 'Yes', you can assign multiple sections at once.")
 
             # --- DYNAMIC LOGIC: SECTIONS ---
             if academic_system == "Annual System":
@@ -3446,29 +3446,51 @@ if menu_choice == "👨‍🏫 Teacher Management":
             # --- ROW 3: Final Assignments ---
             c6, c7 = st.columns(2)
             with c6:
-                selected_sec = st.selectbox("6. Assign Target Section:", options=all_secs)
+                # NEW MULTI-SELECT LOGIC: Allows multiple sections if "Yes"
+                if is_incharge == "Yes":
+                    selected_sec = st.multiselect("6. Assign Target Section(s):", options=all_secs, default=[all_secs[0]] if all_secs else None)
+                else:
+                    selected_sec = st.selectbox("6. Assign Target Section:", options=all_secs)
+                    
             with c7:
                 selected_sub = st.selectbox("7. Select Subject Course:", options=all_subs)
                 
             st.markdown("##")
             if st.button("🔒 Authorize & Commit Allocation Matrix", type="primary", use_container_width=True):
-                check_dup = run_query("""
-                    SELECT allocation_id FROM academic_allocations 
-                    WHERE session_term = :session AND class_level = :cls 
-                    AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
-                """, {"session": selected_session, "cls": sel_class, "sec": selected_sec, "sub": selected_sub, "teacher": selected_t})
+                # Normalize selection into a list (so we can loop whether it's 1 section or 5 sections)
+                sections_to_process = selected_sec if isinstance(selected_sec, list) else [selected_sec]
                 
-                if check_dup.empty:
-                    # Note: We are now actually saving the 'sel_class' (11th/12th/Semesters) into the database!
-                    execute_db_command("""
-                        INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
-                        VALUES (:session, :cls, :sec, :sub, :teacher, :incharge)
-                    """, {"session": selected_session, "cls": sel_class, "sec": selected_sec, "sub": selected_sub, "teacher": selected_t, "incharge": is_incharge})
-                    
-                    st.success(f"✅ Access granted! {selected_t} is now allocated to {selected_sub} (Section {selected_sec}) for Session {selected_session}.")
-                    st.rerun()
+                if not sections_to_process:
+                    st.error("⚠️ Please select at least one section before committing.")
                 else:
-                    st.warning("⚠️ This exact allocation matrix entry already exists for this instructor.")
+                    success_count = 0
+                    skip_count = 0
+                    
+                    # Loop through all chosen sections and insert them
+                    for sec in sections_to_process:
+                        check_dup = run_query("""
+                            SELECT allocation_id FROM academic_allocations 
+                            WHERE session_term = :session AND class_level = :cls 
+                            AND section_name = :sec AND subject_title = :sub AND assigned_teacher_name = :teacher
+                        """, {"session": selected_session, "cls": sel_class, "sec": sec, "sub": selected_sub, "teacher": selected_t})
+                        
+                        if check_dup.empty:
+                            execute_db_command("""
+                                INSERT INTO academic_allocations (session_term, class_level, section_name, subject_title, assigned_teacher_name, is_class_incharge) 
+                                VALUES (:session, :cls, :sec, :sub, :teacher, :incharge)
+                            """, {"session": selected_session, "cls": sel_class, "sec": sec, "sub": selected_sub, "teacher": selected_t, "incharge": is_incharge})
+                            success_count += 1
+                        else:
+                            skip_count += 1
+                            
+                    # Provide smart feedback based on the loop results
+                    if success_count > 0:
+                        st.success(f"✅ Access granted! {selected_t} is now allocated to {success_count} new section(s) for {selected_sub}.")
+                    if skip_count > 0:
+                        st.warning(f"⚠️ {skip_count} allocation(s) skipped because they already exist for this instructor.")
+                    
+                    if success_count > 0:
+                        st.rerun()
                     
             st.markdown("---")
             st.write("#### Active Master Allocation Matrix Log")
