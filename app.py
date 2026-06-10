@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (STRICT FORMAT ALIGNMENT ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (BULLETPROOF SECTIONAL GRID ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1355,26 +1355,30 @@ elif menu_choice == "📋 Daily Attendance Report":
             for category in print_order:
                 cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
                 
+                # Render a clean row spanning header for the Class Grouping
+                html_rows += f"""
+                <tr style="background-color:#f1f5f9; font-weight:bold;">
+                    <td colspan="9" style="border:1px solid #000000; text-align:left; padding:8px; font-size:11pt; color:#000000;">📂 {category}</td>
+                </tr>
+                """
+                
                 if cat_df.empty:
-                    # Uniform row structure for empty categories ensuring column counts align cleanly
                     excel_rows_list.append({"Class": category, "Section": "---", "In_Charge": "---", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Data"})
-                    excel_rows_list.append({"Class": "Total", "Section": "", "In_Charge": "", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Subtotal"})
                     
                     html_rows += f"""
                     <tr>
-                        <td rowspan="2" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>
-                        <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
-                        <td style="border:1px solid #000000; text-align:center; color:#888;">---</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0</td>
-                        <td style="border:1px solid #000000; text-align:center;">0%</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8; font-style:italic;">---</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">---</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">---</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">0</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">0</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">0</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">0</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">0</td>
+                        <td style="border:1px solid #000000; text-align:center; color:#94a3b8;">0%</td>
                     </tr>
                     <tr style="background-color:#d9d9d9; font-weight:bold;">
-                        <td style="border:1px solid #000000; text-align:center;">Total</td>
-                        <td style="border:1px solid #000000;"></td>
+                        <td colspan="3" style="border:1px solid #000000; text-align:center;">{category} Total</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
@@ -1385,10 +1389,9 @@ elif menu_choice == "📋 Daily Attendance Report":
                     """
                     continue
                 
-                num_sections = len(cat_df)
                 c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
                 
-                for i, (_, row) in enumerate(cat_df.iterrows()):
+                for _, row in cat_df.iterrows():
                     act = int(row['Active_Count'])
                     pre = int(row['Present_Count'])
                     pct = f"{int((pre / act) * 100)}%" if act > 0 else "0%"
@@ -1399,14 +1402,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                     c_present += pre
                     c_absent += int(row['Absent_Count'])
                     
-                    excel_rows_list.append({"Class": category if i == 0 else "", "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
-                    
-                    html_rows += "<tr>"
-                    if i == 0:
-                        # Rowspan explicitly equals sections + 1 for the summary total row
-                        html_rows += f'<td rowspan="{num_sections + 1}" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>'
+                    excel_rows_list.append({"Class": category, "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
                     
                     html_rows += f"""
+                    <tr>
+                        <td style="border:1px solid #000000; text-align:center; font-weight:bold;">{category}</td>
                         <td style="border:1px solid #000000; text-align:center;">{row['Section']}</td>
                         <td style="border:1px solid #000000; text-align:left; padding-left:8px;">{row['In_Charge']}</td>
                         <td style="border:1px solid #000000; text-align:center;">{row['Total_Enrolled']}</td>
@@ -1423,8 +1423,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 
                 html_rows += f"""
                 <tr style="background-color:#d9d9d9; font-weight:bold;">
-                    <td style="border:1px solid #000000; text-align:center;">Total</td>
-                    <td style="border:1px solid #000000;"></td>
+                    <td colspan="3" style="border:1px solid #000000; text-align:center;">{category} Total</td>
                     <td style="border:1px solid #000000; text-align:center;">{c_enrolled}</td>
                     <td style="border:1px solid #000000; text-align:center;">{c_left}</td>
                     <td style="border:1px solid #000000; text-align:center;">{c_active}</td>
@@ -1575,7 +1574,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                         cell.border = box_border
                     
-                    start_merge_row = 5
                     for index, r_item in enumerate(excel_rows_list, 5):
                         ws.append([r_item["Class"], r_item["Section"], r_item["In_Charge"], r_item["Enrolled"], r_item["Left"], r_item["Active"], r_item["Present"], r_item["Absent"], r_item["Pct"]])
                         ws.row_dimensions[index].height = 20
@@ -1592,11 +1590,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                                 cell.alignment = Alignment(horizontal="left" if col_num == 3 else "center", vertical="center")
                             else:
                                 cell.alignment = Alignment(horizontal="center", vertical="center")
-                        
-                        if is_sub:
-                            if (index - 1) >= start_merge_row:
-                                ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
-                            start_merge_row = index + 1
                     
                     curr_r = len(excel_rows_list) + 7
                     ws.cell(row=curr_r, column=1, value="Statistics of Attendance:-").font = font_bold
