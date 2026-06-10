@@ -1328,34 +1328,49 @@ elif menu_choice == "📋 Daily Attendance Report":
             st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
         else:
             # 🎯 ROSTER MATCHING ENGINE (COMPLETELY RECONFIGURED)
+            # 🎯 ROSTER MATCHING ENGINE (RECONFIGURED FOR ALL SCHEMAS)
             def classify_group(row):
-                cls = row['Class']
-                sec = row['Section']
+                cls = str(row['Class']).upper().strip()
+                sec = str(row['Section']).upper().strip()
                 
+                # Strip quotation marks and clean spacing
                 sec_clean = sec.replace('"', '').replace("'", "").strip()
                 
-                # Updated 11th and 12th Section Maps
+                # --- COMPLETE 11TH ROSTER MAPS ---
                 girls_11th = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE"]
                 boys_11th  = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE"]
-                girls_12th = ["MQ1", "MQ2", "EQ1", "CQ1", "CQ2", "CQ3", "IQ1", "FQ1"]
-                boys_12th  = ["MK1", "EK1", "CK1", "CK2", "IK1", "CK3", "FK1"]
                 
+                # --- COMPLETE 12TH ROSTER MAPS (Includes single-letter codes like EQ, FQ, MK) ---
+                girls_12th = ["MQ1", "MQ2", "EQ1", "EQ", "CQ1", "CQ2", "CQ3", "IQ1", "IQ", "FQ1", "FQ"]
+                boys_12th  = ["MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK"]
+                
+                # 11th Grade Classification
                 if "11" in cls:
                     if sec_clean in girls_11th:
                         return "11th (Girls)"
                     elif sec_clean in boys_11th:
                         return "11th (Boys)"
+                    # Fallback logic based on naming patterns
                     elif "G" in sec_clean or sec_clean.endswith("G"):
                         return "11th (Girls)"
+                    elif "B" in sec_clean or sec_clean.endswith("B"):
+                        return "11th (Boys)"
                     else:
+                        # Direct check: if it ends in K or M without G, it's typically a Boys group
                         return "11th (Boys)"
                         
+                # 12th Grade Classification
                 elif "12" in cls:
                     if sec_clean in girls_12th:
                         return "12th (Girls)"
                     elif sec_clean in boys_12th:
                         return "12th (Boys)"
-                    elif "Q" in sec_clean or "G" in sec_clean:
+                    # Fallback pattern matching for 12th keys (Q = Girls, K = Boys)
+                    elif "Q" in sec_clean:
+                        return "12th (Girls)"
+                    elif "K" in sec_clean:
+                        return "12th (Boys)"
+                    elif "G" in sec_clean:
                         return "12th (Girls)"
                     else:
                         return "12th (Boys)"
