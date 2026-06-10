@@ -3396,8 +3396,17 @@ if menu_choice == "👨‍🏫 Teacher Management":
             with col_a2: 
                 all_subs = sorted(list(set([sub for subs in DISCIPLINE_SUBJECTS_MAP.values() for sub in subs]))) if 'DISCIPLINE_SUBJECTS_MAP' in globals() else ["Math", "English", "Science"]
                 selected_sub = st.selectbox("Select Subject Course:", options=all_subs)
+            
             with col_a3:
-                all_secs = sorted(list(set([sec for secs in DISCIPLINE_SECTIONS_MAP.values() for sec in secs]))) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["A", "B", "C"]
+                # FIX 1: Safely extract the inner lists of sections from the nested dictionary
+                if 'DISCIPLINE_SECTIONS_MAP' in globals():
+                    all_secs_raw = []
+                    for class_dict in DISCIPLINE_SECTIONS_MAP.values():
+                        for sec_list in class_dict.values():
+                            all_secs_raw.extend(sec_list)
+                    all_secs = sorted(list(set(all_secs_raw)))
+                else:
+                    all_secs = ["A", "B", "C"]
                 selected_sec = st.selectbox("Assign Target Section:", options=all_secs)
             
             col_a4, col_a5 = st.columns(2)
@@ -3426,14 +3435,49 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     
             st.markdown("---")
             st.write("#### Active Master Allocation Matrix Log")
+            
             alloc_log = run_query("""
                 SELECT allocation_id as ID, session_term as Session, section_name as Section, 
                        subject_title as Subject, assigned_teacher_name as Instructor, is_class_incharge as InCharge
                 FROM academic_allocations
                 ORDER BY session_term DESC, section_name ASC, subject_title ASC
             """)
+            
+            # FIX 2: Interactive Table with Delete Buttons
             if not alloc_log.empty:
-                st.dataframe(alloc_log, use_container_width=True, hide_index=True)
+                # Header Row
+                c1, c2, c3, c4, c5, c6, c7 = st.columns([0.5, 1.5, 1.5, 2, 2.5, 1, 1])
+                c1.markdown("**ID**")
+                c2.markdown("**Session**")
+                c3.markdown("**Section**")
+                c4.markdown("**Subject**")
+                c5.markdown("**Instructor**")
+                c6.markdown("**In-Charge**")
+                c7.markdown("**Action**")
+                st.markdown("<hr style='margin:0px; padding:0px;'>", unsafe_allow_html=True)
+                
+                # Data Rows
+                for _, row in alloc_log.iterrows():
+                    r1, r2, r3, r4, r5, r6, r7 = st.columns([0.5, 1.5, 1.5, 2, 2.5, 1, 1])
+                    r1.write(str(row['id']))
+                    r2.write(str(row['session']))
+                    r3.write(str(row['section']))
+                    r4.write(str(row['subject']))
+                    r5.write(str(row['instructor']))
+                    r6.write(str(row['incharge']))
+                    
+                    # Delete Button per row
+                    if r7.button("🗑️ Del", key=f"del_alloc_{row['id']}", help="Remove this allocation"):
+                        try:
+                            execute_db_command("DELETE FROM academic_allocations WHERE allocation_id = :aid", {"aid": int(row['id'])})
+                            st.success("Allocation deleted successfully!")
+                            st.rerun() # Refresh the page instantly to reflect changes
+                        except Exception as e:
+                            st.error(f"Error removing allocation: {e}")
+                            
+                    st.markdown("<hr style='margin:0px; padding:0px; border-color: rgba(49, 51, 63, 0.1);'>", unsafe_allow_html=True)
+            else:
+                st.info("No active master allocations found in the matrix.")
         else:
             st.info("No active records found inside system_teachers table registry.")
 
