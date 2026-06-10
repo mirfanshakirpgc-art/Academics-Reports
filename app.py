@@ -1262,7 +1262,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (STRICT FIXED COLUMN ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (PRECISION GRID COLUMN ALIGNMENT ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1357,7 +1357,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 
                 if cat_df.empty:
                     excel_rows_list.append({"Class": category, "Section": "---", "In_Charge": "---", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Data"})
-                    excel_rows_list.append({"Class": "Total", "Section": "", "In_Charge": "", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Subtotal"})
+                    excel_rows_list.append({"Class": f"{category} Total", "Section": "", "In_Charge": "", "Enrolled": 0, "Left": 0, "Active": 0, "Present": 0, "Absent": 0, "Pct": "0%", "Type": "Subtotal"})
                     
                     html_rows += f"""
                     <tr>
@@ -1372,9 +1372,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                         <td style="border:1px solid #000000; text-align:center;">0%</td>
                     </tr>
                     <tr style="background-color:#d9d9d9; font-weight:bold;">
-                        <td style="border:1px solid #000000; text-align:center;">Total</td>
-                        <td style="border:1px solid #000000;"></td>
-                        <td style="border:1px solid #000000;"></td>
+                        <td colspan="3" style="border:1px solid #000000; text-align:center; padding:6px;">{category} Total</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
                         <td style="border:1px solid #000000; text-align:center;">0</td>
@@ -1388,7 +1386,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                 num_sections = len(cat_df)
                 c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
                 
-                # Internal iteration tracker
                 for idx, (_, row) in enumerate(cat_df.iterrows()):
                     act = int(row['Active_Count'])
                     pre = int(row['Present_Count'])
@@ -1419,14 +1416,12 @@ elif menu_choice == "📋 Daily Attendance Report":
                     """
                 
                 c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
-                excel_rows_list.append({"Class": "Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
+                excel_rows_list.append({"Class": f"{category} Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
                 
-                # The Subtotal Row contains all 9 cells explicitly drawn with no structural colspan/rowspan dependency leaks
+                # FIXED: Colspan="3" merges the Class, Section, and In-Charge space into a clean uniform base block
                 html_rows += f"""
                 <tr style="background-color:#d9d9d9; font-weight:bold;">
-                    <td style="border:1px solid #000000; text-align:center;">Total</td>
-                    <td style="border:1px solid #000000;"></td>
-                    <td style="border:1px solid #000000;"></td>
+                    <td colspan="3" style="border:1px solid #000000; text-align:center; padding:6px;">{category} Total</td>
                     <td style="border:1px solid #000000; text-align:center;">{c_enrolled}</td>
                     <td style="border:1px solid #000000; text-align:center;">{c_left}</td>
                     <td style="border:1px solid #000000; text-align:center;">{c_active}</td>
@@ -1598,9 +1593,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                         if is_sub:
                             if (index - 1) >= start_merge_row:
                                 ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
+                            # Format subtotal block cleanly for excel output sheets
+                            ws.merge_cells(start_row=index, start_column=1, end_row=index, end_column=3)
                             start_merge_row = index + 1
                     
-                    curr_r = len(excel_rows_list) + 7
+                    curr_r = font_row_idx = len(excel_rows_list) + 7
                     ws.cell(row=curr_r, column=1, value="Statistics of Attendance:-").font = font_bold
                     
                     curr_r += 1
