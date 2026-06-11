@@ -1308,17 +1308,38 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 2. HTML PRINT ENGINE
+        # 2. HTML PRINT ENGINE (With Sub-Totals and Grand Totals)
         table_rows = ""
+        grand_total = {"Total": 0, "Present": 0, "Absent": 0}
+        
         for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
             cat_data = summary[summary['Group_Category'] == cat]
             if cat_data.empty: continue
+            
+            # Sub-total for this class
+            sub_total = cat_data.agg({'Total': 'sum', 'Present': 'sum', 'Absent': 'sum'})
+            grand_total['Total'] += sub_total['Total']
+            grand_total['Present'] += sub_total['Present']
+            grand_total['Absent'] += sub_total['Absent']
+            
             row_span = len(cat_data)
             for i, (_, row) in enumerate(cat_data.iterrows()):
                 pct = f"{int((row['Present']/row['Total'])*100)}%" if row['Total'] > 0 else "0%"
                 table_rows += f"<tr>"
-                if i == 0: table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; text-align:center;">{cat}</td>'
-                table_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{row["Total"]}</td><td style="border:1px solid #000; text-align:center;">{row["Present"]}</td><td style="border:1px solid #000; text-align:center;">{row["Absent"]}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
+                if i == 0: table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold;">{cat}</td>'
+                table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
+            
+            # Class-wise Subtotal Row
+            table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
+                          f'<td colspan="3" style="text-align:right; padding-right:10px;">{cat} Sub-Total:</td>' \
+                          f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
+                          f'<td>{int((sub_total["Present"]/sub_total["Total"])*100) if sub_total["Total"] > 0 else 0}%</td></tr>'
+
+        # Append Grand Total
+        grand_pct = int((grand_total['Present']/grand_total['Total'])*100) if grand_total['Total'] > 0 else 0
+        table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
+                      f'<td colspan="3" style="text-align:right; padding-right:10px;">GRAND TOTAL:</td>' \
+                      f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}%</td></tr>'
 
         html_template = f"""
         <html>
@@ -1326,32 +1347,34 @@ elif menu_choice == "📋 Daily Attendance Report":
             <style>
                 body {{ font-family: "Times New Roman", serif; padding: 10px; }}
                 table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
-                th, td {{ border: 1px solid #000; padding: 4px 2px; text-align: center; font-size: 11px; }}
+                th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
                 th {{ background: #eee; }}
-                /* Manual Column Width Adjustments */
-                th:nth-child(1) {{ width: 15%; }} th:nth-child(2) {{ width: 10%; }} 
-                th:nth-child(3) {{ width: 25%; }} th:nth-child(4) {{ width: 10%; }}
-                th:nth-child(5) {{ width: 10%; }} th:nth-child(6) {{ width: 10%; }} th:nth-child(7) {{ width: 10%; }}
-                .print-btn {{ padding: 8px 16px; background: #333; color: white; cursor: pointer; }}
+                /* Force Print to Single Page */
                 @media print {{ 
+                    @page {{ size: A4 portrait; margin: 10mm; }}
                     .print-btn {{ display: none; }} 
-                    body {{ transform: scale(0.95); transform-origin: top left; }}
+                    body {{ width: 100%; }}
                 }}
             </style>
         </head>
         <body>
             <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
             <h1 style="text-align:center; font-size: 20px;">CONCORDIA COLLEGE KASUR</h1>
-            <h3 style="text-align:center; font-size: 16px;">Daily Attendance Report - {report_date}</h3>
+            <h3 style="text-align:center; font-size: 16px;">Daily Attendance Report — {report_date}</h3>
             <table>
-                <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
+                <tr><th style="width:15%;">Class</th><th style="width:10%;">Section</th><th style="width:25%;">In Charge</th><th style="width:10%;">Total</th><th style="width:10%;">Present</th><th style="width:10%;">Absent</th><th style="width:10%;">%age</th></tr>
                 {table_rows}
             </table>
+            <div style="margin-top: 50px; display: flex; justify-content: space-between;">
+                <div></div>
+                <div style="text-align:center;">
+                    <div style="border-top: 1px solid #000; width: 200px; padding-top: 5px;">Principal Signature</div>
+                </div>
+            </div>
         </body>
         </html>
         """
-        components.html(html_template, height=600, scrolling=True)
-
+        components.html(html_template, height=800, scrolling=True)
         # 3. EXCEL EXPORT
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
