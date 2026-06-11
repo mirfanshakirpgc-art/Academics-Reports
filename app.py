@@ -1276,7 +1276,8 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # UPDATED QUERY: Now joins with academic_allocations to get the real In-Charge
+    # UPDATED QUERY: Using a generic join that assumes your academic_allocations
+    # table might have the section column named 'section' or needs to be mapped.
     query = """
         SELECT 
             s.class, 
@@ -1287,8 +1288,8 @@ elif menu_choice == "📋 Daily Attendance Report":
             a.instructor AS in_charge_name
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-        LEFT JOIN academic_allocations a ON s.section = a.section 
-            AND s.session = a.session 
+        LEFT JOIN academic_allocations a ON TRIM(s.section) = TRIM(a.section) 
+            AND TRIM(s.session) = TRIM(a.session) 
             AND a.subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'
         WHERE TRIM(s.session) = :session
         AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT'))
