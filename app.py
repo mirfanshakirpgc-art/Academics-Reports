@@ -1269,36 +1269,28 @@ elif menu_choice == "📋 Daily Attendance Report":
     except NameError:
         session_choices = ["2025-27", "2026-28", "2027-29"]
         
-    col1, col2 = st.columns(2)
-    with col1:
-        report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
-    with col2:
-        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
+    c1, c2 = st.columns(2)
+    with c1:
+        report_sessions = st.multiselect("🎯 Select Session(s):", session_choices, default=[session_choices[0]])
+    with c2:
+        report_date = st.date_input("🗓️ Target Date:", value=datetime.date.today())
 
     if not report_sessions:
         st.warning("Please select at least one session.")
         st.stop()
 
-    # 2. Optimized Data Fetching
-    # Use IN clause for safety with multiple sessions
-    query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
-    raw_students = run_query(query, {"sessions": tuple(report_sessions)})
+    # 2. Data Fetching
+    raw_students = run_query("SELECT id, class, section, status FROM students WHERE session IN :sessions", {"sessions": tuple(report_sessions)})
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
-    
-    try:
-        raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
-    except:
-        raw_alloc = pd.DataFrame()
+    raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
 
     if raw_students.empty:
-        st.info("ℹ️ No records found for the selected sessions.")
+        st.info("ℹ️ No records found.")
     else:
-        # Merge & Clean
+        # Merge & Mapping
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
         
-        teacher_map = {}
-        if not raw_alloc.empty:
-            teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
+        teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
         
         df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
@@ -1319,65 +1311,39 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 3. Export & Print Options
-        st.write("---")
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
-            st.download_button("📥 Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.ms-excel")
-            
-        with col2:
-            # THIS IS THE ONLY WAY TO FORCE A PRINT DIALOG IN STREAMLIT
-            st.markdown("""
-            <a href="#" onclick="window.print(); return false;" style="
-                display: inline-block;
-                padding: 10px 20px;
-                background-color: #f0f0f0;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                text-decoration: none;
-                color: black;
-                font-weight: bold;
-                font-family: sans-serif;
-                cursor: pointer;">🖨️ Click Here to Print Report</a>
-            """, unsafe_allow_html=True)
-
-        # Force the printer to hide everything EXCEPT our header and table
-        st.markdown("""
-            <style>
-            @media print {
-                /* Hide everything you don't want */
-                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"], .stInfo { 
-                    display: none !important; 
-                }
-                /* Show the report content clearly */
-                #college-header { display: block !important; }
-                table { width: 100% !important; margin-top: 20px !important; }
-                body { padding: 20px !important; }
-            }
-            </style>
+        # 3. Display
+        st.markdown(f"""
+        <div id="print-area">
+            <h1 style="text-align:center;">Concordia College Kasur</h1>
+            <h3 style="text-align:center;">Daily Attendance Report - {report_date}</h3>
+        </div>
         """, unsafe_allow_html=True)
 
-        # 4. Export
+        # Build table
+        table_html = '<table style="width:100%; border-collapse:collapse;"><thead><tr style="background:#ddd;"><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th></tr></thead><tbody>'
+        for _, row in summary.iterrows():
+            table_html += f'<tr><td style="border:1px solid #000; text-align:center;">{row["Group_Category"]}</td><td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{row["Total"]}</td><td style="border:1px solid #000; text-align:center;">{row["Present"]}</td><td style="border:1px solid #000; text-align:center;">{row["Absent"]}</td></tr>'
+        table_html += '</tbody></table>'
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        # 4. EXPORT (The only buttons)
         st.write("---")
-        c1, c2 = st.columns([1, 4])
-        with c1:
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
-            st.download_button("📥 Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.ms-excel")
-        with c2:
-            st.info("💡 Tip: Press **Ctrl + P** (Windows) or **Cmd + P** (Mac) to print this report.")
-            # This CSS ensures that even without a button, the printout is perfect
-            st.markdown("""
-                <style>
-                    @media print {
-                        .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"], .stInfo { display: none !important; }
-                        #college-header { display: block !important; }
-                        table { width: 100% !important; }
-                    }
-                </style>
-            """, unsafe_allow_html=True)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
+        st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
+        
+        st.info("💡 To print, press **Ctrl + P** (Windows) or **Cmd + P** (Mac).")
+        
+        # CSS to ensure perfect printout
+        st.markdown("""
+        <style>
+            @media print {
+                .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"], .stInfo, .stTitle { display: none !important; }
+                #print-area { display: block !important; }
+                table { width: 100% !important; border: 1px solid #000 !important; }
+            }
+        </style>
+        """, unsafe_allow_html=True)
             
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
