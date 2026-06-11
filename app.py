@@ -1308,7 +1308,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 2. HTML PRINT ENGINE (Modify column widths here)
+        # 2. HTML PRINT ENGINE
         table_rows = ""
         for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
             cat_data = summary[summary['Group_Category'] == cat]
@@ -1324,22 +1324,25 @@ elif menu_choice == "📋 Daily Attendance Report":
         <html>
         <head>
             <style>
-                body {{ font-family: "Times New Roman", serif; padding: 20px; }}
+                body {{ font-family: "Times New Roman", serif; padding: 10px; }}
                 table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
-                th {{ border: 1px solid #000; padding: 12px; background: #eee; }}
-                td {{ border: 1px solid #000; padding: 10px; word-wrap: break-word; }}
-                /* --- COLUMN WIDTHS --- */
+                th, td {{ border: 1px solid #000; padding: 4px 2px; text-align: center; font-size: 11px; }}
+                th {{ background: #eee; }}
+                /* Manual Column Width Adjustments */
                 th:nth-child(1) {{ width: 15%; }} th:nth-child(2) {{ width: 10%; }} 
-                th:nth-child(3) {{ width: 30%; }} th:nth-child(4) {{ width: 10%; }}
-                th:nth-child(5) {{ width: 10%; }} th:nth-child(6) {{ width: 10%; }} th:nth-child(7) {{ width: 15%; }}
-                .print-btn {{ padding: 10px 20px; background: #333; color: white; cursor: pointer; }}
-                @media print {{ .print-btn {{ display: none; }} }}
+                th:nth-child(3) {{ width: 25%; }} th:nth-child(4) {{ width: 10%; }}
+                th:nth-child(5) {{ width: 10%; }} th:nth-child(6) {{ width: 10%; }} th:nth-child(7) {{ width: 10%; }}
+                .print-btn {{ padding: 8px 16px; background: #333; color: white; cursor: pointer; }}
+                @media print {{ 
+                    .print-btn {{ display: none; }} 
+                    body {{ transform: scale(0.95); transform-origin: top left; }}
+                }}
             </style>
         </head>
         <body>
             <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
-            <h1 style="text-align:center;">CONCORDIA COLLEGE KASUR</h1>
-            <h3 style="text-align:center;">Daily Attendance Report - {report_date}</h3>
+            <h1 style="text-align:center; font-size: 20px;">CONCORDIA COLLEGE KASUR</h1>
+            <h3 style="text-align:center; font-size: 16px;">Daily Attendance Report - {report_date}</h3>
             <table>
                 <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
                 {table_rows}
@@ -1347,18 +1350,16 @@ elif menu_choice == "📋 Daily Attendance Report":
         </body>
         </html>
         """
-        components.html(html_template, height=700, scrolling=True)
+        components.html(html_template, height=600, scrolling=True)
 
-        # 3. EXCEL EXPORT (Modify column/row sizes here)
+        # 3. EXCEL EXPORT
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             summary.to_excel(writer, index=False, sheet_name='Attendance')
             ws = writer.sheets['Attendance']
-            # --- COLUMN WIDTHS ---
-            ws.set_column('A:A', 5); ws.set_column('B:B', 10); ws.set_column('C:C', 35)
-            ws.set_column('D:D', 10); ws.set_column('E:E', 10); ws.set_column('F:F', 10); ws.set_column('G:G', 12)
-            # --- ROW HEIGHT ---
-            ws.set_default_row(30)
+            ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
+            ws.set_column('D:G', 10)
+            ws.set_default_row(25)
         st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
             
 # MODULE: 📋 SECTION SUMMARY REPORT
