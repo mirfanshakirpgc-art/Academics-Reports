@@ -75,15 +75,14 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Students Table
+        # Add this specific block to your existing function
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS students (
-                id INT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                section VARCHAR(100),
-                class VARCHAR(100),
-                session VARCHAR(50),
-                status VARCHAR(50) DEFAULT 'ACTIVE'
+            CREATE TABLE IF NOT EXISTS daily_attendance (
+                id SERIAL PRIMARY KEY,
+                student_id INT REFERENCES students(id) ON DELETE CASCADE,
+                attendance_date DATE NOT NULL,
+                status VARCHAR(10) NOT NULL,
+                UNIQUE(student_id, attendance_date)
             );
         """))
         
@@ -1256,7 +1255,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE & INDENTATION FIXED)
+# MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE & SYNCHRONIZED)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1275,7 +1274,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # LEFT JOIN ensures we get all students even if no attendance is marked yet
+    # Safely query students and join attendance
     query = """
         SELECT 
             s.class, 
@@ -1289,7 +1288,12 @@ elif menu_choice == "📋 Daily Attendance Report":
         WHERE TRIM(s.session) = :session
         AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT'))
     """
-    raw_students = run_query(query, {"dt": str(report_date), "session": str(report_session).strip()})
+    
+    try:
+        raw_students = run_query(query, {"dt": report_date.isoformat(), "session": str(report_session).strip()})
+    except Exception as e:
+        st.error("Database error. Please ensure the 'daily_attendance' table exists.")
+        st.stop()
 
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
@@ -1321,7 +1325,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # Build HTML
+        # Build HTML Rows
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         
@@ -1365,6 +1369,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 <td style="border:1px solid #000; text-align:center;">{cat_pct}</td>
             </tr>"""
 
+        # Final Render
         st.markdown(f"""
         <table style="width:100%; border-collapse:collapse; font-size:10pt;">
             <thead>
