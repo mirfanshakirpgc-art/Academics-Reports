@@ -1279,44 +1279,20 @@ elif menu_choice == "📋 Daily Attendance Report":
         st.warning("Please select at least one session.")
         st.stop()
 
-    # 2. Fetch Data
-    raw_students = run_query("SELECT id, class, section, status FROM students WHERE session IN :sessions", {"sessions": tuple(report_sessions)})
-    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
+    # 2. Fetch Data - SAFELY
+    # We convert the list to a tuple, and use a safe query structure
+    session_tuple = tuple(report_sessions)
     
-    try:
-        raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
-    except:
-        raw_alloc = pd.DataFrame()
-
-    if raw_students.empty:
-        st.info("ℹ️ No active students found for selected sessions.")
+    # If only one session is selected, SQL needs a specific syntax for tuples
+    if len(report_sessions) == 1:
+        query = "SELECT id, class, section, status FROM students WHERE session = :s"
+        params = {"s": report_sessions[0]}
     else:
-        df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
+        query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
+        params = {"sessions": session_tuple}
         
-        # Mapping
-        teacher_map = {}
-        if not raw_alloc.empty:
-            teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
-        
-        df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
-        df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
-        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
-
-        # Grouping
-        def classify_group(row):
-            cls, sec = str(row['Class']), str(row['Section'])
-            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
-            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
-            return "Other Tiers (DIT)"
-        df['Group_Category'] = df.apply(classify_group, axis=1)
-
-        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
-            Total_Enrolled=('id', 'count'),
-            Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
-            Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
-        ).reset_index()
-
+    raw_students = run_query(query, params)
+    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
         # 3. Display & Print Logic
         # This includes the header and the CSS to hide UI elements during printing
         st.markdown(f"""
