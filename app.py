@@ -1394,59 +1394,402 @@ elif menu_choice == "📋 Daily Attendance Report":
             ws.set_column('D:G', 10); ws.set_default_row(25)
         st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
 
+# MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
-# MODULE: 📈 SECTION SUMMARY REPORT
-# ====================================================================================
-
 elif menu_choice == "📋 Section Summary Report":
-    import io
-    import streamlit.components.v1 as components
-    st.markdown("## 📋 Section Summary Report Ledger")
-    
-    # 1. SETUP & DROPDOWNS
-    try:
-        session_options = list(AVAILABLE_SESSIONS)
-    except NameError:
-        session_options = ["2025-27", "2026-28", "2027-29"]
+    import io
+    st.title("📋 Section Summary Report Ledger")
 
-    col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
-    with col_sess:
-        selected_session = st.selectbox("Select Session:", session_options, key="summary_session")
-        db_session_string = str(selected_session).strip()
-    with col_sys:
-        academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
-    with col_class:
-        selected_class = st.selectbox("Select Class:", ["11th", "12th"] if academic_system == "Annual System" else ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
-    with col_a: 
-        sel_disc = st.selectbox("Select Discipline:", ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"], key="summary_disc") if academic_system == "Annual System" else "DIT"
-    with col_b: 
-        sec_lookup = run_query("SELECT DISTINCT TRIM(section) as section_name FROM students WHERE UPPER(TRIM(class)) = UPPER(TRIM(:c)) AND TRIM(session) = TRIM(:s) ORDER BY section_name ASC", {"c": selected_class, "s": db_session_string})
-        sel_sec = st.selectbox("Select Section:", sec_lookup["section_name"].tolist() if not sec_lookup.empty else ["N/A"], key="summary_sec")
-    with col_c: 
-        sel_exam = st.selectbox("Select Exam Cycle:", ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"] if academic_system == "Annual System" else ["MID_TERM", "FINAL_TERM"], key="summary_exam")
+    try:
+        session_options = list(AVAILABLE_SESSIONS)
+        if "2024-26" in session_options:
+            session_options = [s for s in session_options if s != "2024-26"]
+    except NameError:
+        session_options = ["2025-27", "2026-28", "2027-29"]
 
-    # 2. SUBJECT LOGIC
-    is_12th = "12" in selected_class
-    if academic_system == "Annual System":
-        if "STATS" in sel_disc: subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "PHYSICS" in sel_disc or "ICS" in sel_disc: subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "MEDICAL" in sel_disc: subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "ENGINEERING" in sel_disc: subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "COMMERCE" in sel_disc: subjects = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "T_QURAN"] if is_12th else ["ENGLISH", "URDU", "ISL_ETH", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "T_QURAN"]
-        else: subjects = ["ENGLISH", "URDU", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-    else: subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
+    col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
+    
+    with col_sess:
+        selected_session = st.selectbox("Select Session:", session_options, key="summary_session")
+        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
+        
+    with col_sys:
+        academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
+        
+    with col_class:
+        if academic_system == "Annual System":
+            selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
+        else:
+            selected_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
+        
+    with col_a: 
+        if academic_system == "Annual System":
+            disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
+            raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
+            sel_disc = str(raw_disc).strip().upper()
+        else:
+            sel_disc = "DIPLOMA_IN_IT_DIT"
+            st.info("⚡ DIT System Active")
+        
+    with col_b: 
+        try:
+            sec_lookup_df = run_query("""
+                SELECT DISTINCT TRIM(section) as section_name 
+                FROM students 
+                WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
+                  AND TRIM(session) = TRIM(:sess_val)
+                ORDER BY section_name ASC
+            """, {"class_val": selected_class, "sess_val": db_session_string})
+            
+            db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
+        except Exception:
+            db_sections = []
 
-    # 3. FETCH AND DISPLAY
-    students_df = run_query("SELECT id AS \"ID\", name AS \"Student Name\", section AS \"Section\", class AS \"Current Class\", status AS \"Status\" FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) AND TRIM(session) = TRIM(:session_str) AND UPPER(TRIM(class)) = UPPER(TRIM(:class)) ORDER BY id ASC", 
-                           {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
-    
-    if students_df.empty:
-        st.warning("💡 No records found.")
-    else:
-        st.success(f"Report generated for {len(students_df)} students.")
-        
-        # NOTE: Add your table-building logic (the loop creating 'tbody_rows_html') here
-        # and end it with components.html(analytics_html_payload, height=800)          
+        if db_sections:
+            if "STATS" in sel_disc:
+                sec_options = [s for s in db_sections if "STATS" in s.upper() or "WHITE" in s.upper() or "3" in s]
+            elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+                sec_options = [s for s in db_sections if "PHYS" in s.upper() or "GREEN" in s.upper() or "1" in s or "2" in s]
+            elif "MEDICAL" in sel_disc:
+                sec_options = [s for s in db_sections if "MED" in s.upper() or "M" in s.upper() or "BLUE" in s.upper()]
+            elif "ENGINEERING" in sel_disc:
+                sec_options = [s for s in db_sections if "ENG" in s.upper() or "E" in s.upper()]
+            elif "COMMERCE" in sel_disc:
+                sec_options = [s for s in db_sections if "COM" in s.upper() or "I" in s.upper()]
+            else:
+                sec_options = db_sections
+                
+            if not sec_options:
+                sec_options = db_sections
+        else:
+            if academic_system == "Semester System":
+                sec_options = ["DIT_G", "DIT_B"]
+            else:
+                sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
+
+        dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
+        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key="dynamic_widget_key")
+        
+    with col_c: 
+        exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
+        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
+
+    SHORT_SUBJECTS_MAP = {
+        "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
+        "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
+        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST",
+        "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN",
+        "PRINCIPLES OF ACCOUNTING": "ACC", "ECONOMICS": "ECO", "COMMERCE": "COMM",
+        "ICT": "ICT", "INTRODUCTION TO MS-OFFICE": "OFFICE", "COMPUTER NETWORKS": "NETWORKS",
+        "OPERATING SYSTEM": "O.S", "INTRODUCTION TO PROGRAMMING": "PROG",
+        "DATA BASE SYSTEM": "DBMS", "VIDEO EDITING": "VIDEO", "WEB DEVELOPMENT ESSENTIAL": "WEB",
+        "GRAPHICS DESIGN": "DESIGN", "PROJECT": "PROJ"
+    }
+    
+    if academic_system == "Semester System":
+        if selected_class == "Semester 1":
+            subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
+        elif selected_class == "Semester 2":
+            subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+        else:
+            subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
+    else:
+        if "STATS" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "MEDICAL" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
+        elif "ENGINEERING" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "COMMERCE" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"]
+        else:
+            subjects = ["ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
+
+    students_df = run_query("""
+        SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
+        FROM students 
+        WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+          AND TRIM(session) = TRIM(:session_str)
+          AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
+          AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
+        ORDER BY id ASC
+    """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
+    
+    if students_df.empty:
+        st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
+    else:
+        try:
+            marks_df = run_query("""
+                SELECT CAST(student_id AS TEXT) as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
+                FROM marks 
+                WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+            """, {"exam": sel_exam})
+            if not marks_df.empty:
+                marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
+        except Exception:
+            marks_df = pd.DataFrame()
+
+        try:
+            att_df = run_query("""
+                SELECT CAST(student_id AS TEXT) as student_key, status
+                FROM daily_attendance
+            """, {})
+            if not att_df.empty:
+                att_df["student_key"] = att_df["student_key"].astype(str).str.strip()
+        except Exception:
+            att_df = pd.DataFrame()
+
+        summary_rows = []
+        for _, s_row in students_df.iterrows():
+            s_id = str(s_row["ID"]).strip()
+            s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
+            
+            entry = {
+                "ID": s_row["ID"], 
+                "Student Name": s_row["Student Name"], 
+                "Section": s_row["Section"], 
+                "Class": s_row["Current Class"],
+                "Status": s_status
+            }
+            
+            obtained_total = 0.0
+            max_total = 0.0
+            has_valid_scores = False  
+            
+            for sub in subjects:
+                sub_upper = sub.upper().strip()
+                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
+                
+                alias_list = [sub_upper]
+                if "STAT" in sub_upper: alias_list.extend(["STATISTICS", "STATS"])
+                elif "PHYS" in sub_upper: alias_list.extend(["PHYSICS"])
+                elif "COMP" in sub_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
+                elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
+                
+                if not marks_df.empty:
+                    sub_match = marks_df[
+                        (marks_df["student_key"] == s_id) & 
+                        (marks_df["subject_name"].isin(alias_list))
+                    ]
+                else:
+                    sub_match = pd.DataFrame()
+                
+                if not sub_match.empty:
+                    val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
+                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
+                    
+                    if val == "NC":
+                        entry[short_sub] = "NC"
+                    elif val == "A":
+                        entry[short_sub] = "A"
+                        max_total += tot       
+                        has_valid_scores = True
+                    elif val.replace('.', '', 1).isdigit() or val.isdigit():
+                        entry[short_sub] = float(val)
+                        obtained_total += float(val)
+                        max_total += tot       
+                        has_valid_scores = True
+                    else:
+                        entry[short_sub] = val
+                else:
+                    entry[short_sub] = "-"
+
+            if has_valid_scores:
+                entry["Total (Obt)"] = int(obtained_total)
+                entry["Total Max"] = int(max_total)
+            else:
+                entry["Total (Obt)"] = "-"
+                entry["Total Max"] = "-"
+                
+            if not att_df.empty:
+                st_att_logs = att_df[att_df["student_key"] == s_id]
+                if not st_att_logs.empty:
+                    total_days = len(st_att_logs)
+                    present_days = len(st_att_logs[st_att_logs["status"].str.strip().str.upper().isin(["P", "PRESENT"])])
+                    pct = (present_days / total_days) * 100 if total_days > 0 else 100.0
+                    entry["Attendance"] = f"{int(pct)}%"
+                else:
+                    entry["Attendance"] = "100%"
+            else:
+                entry["Attendance"] = "100%"
+                
+            summary_rows.append(entry)
+            
+        final_report_df = pd.DataFrame(summary_rows)
+        
+        excel_export_df = final_report_df.copy()
+        short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
+        for col_lbl in short_subject_labels:
+            if col_lbl in excel_export_df.columns:
+                excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(
+                    lambda cell: int(cell) if isinstance(cell, (int, float)) else cell
+                )
+        
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+            excel_export_df.to_excel(writer, index=False, sheet_name='Performance_Summary')
+        excel_data_payload = excel_buffer.getvalue()
+
+        col_download_hook, _ = st.columns([2, 4])
+        with col_download_hook:
+            st.download_button(
+                label="📥 Download Excel Spreadsheet Summary",
+                data=excel_data_payload,
+                file_name=f"Summary_Report_{sel_sec}_{selected_class}_{db_session_string}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="summary_excel_downloader_widget",
+                use_container_width=True
+            )
+        
+        thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
+        
+        tbody_rows_html = ""
+        for _, row in final_report_df.iterrows():
+            st_id = str(row["ID"]).strip()
+            current_status = row["Status"]
+            
+            status_badge = ""
+            if current_status == "Re-Active":
+                status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
+            
+            old_marks_badges = []
+            hidden_marks_df = marks_df[marks_df["student_key"] == st_id] if not marks_df.empty else pd.DataFrame()
+            for _, h_row in hidden_marks_df.iterrows():
+                h_sub = h_row["subject_name"]
+                if h_sub not in [sub.upper().strip() for sub in subjects]:
+                    short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub[:4])
+                    h_val = h_row['marks_obtained']
+                    try:
+                        h_val = str(int(float(h_val))) if float(h_val).is_integer() else str(h_val)
+                    except ValueError:
+                        pass
+                    old_marks_badges.append(f"{short_h_sub}: {h_val}")
+            
+            history_str = ""
+            if old_marks_badges:
+                history_str = f"<br><span style='color: #d35400; font-size: 11px; font-style: italic;'>Dropped ({', '.join(old_marks_badges)})</span>"
+            
+            row_subjects_cells = ""
+            for lbl in short_subject_labels:
+                cell_val = row[lbl]
+                if isinstance(cell_val, (int, float)):
+                    cell_str = str(int(cell_val))
+                else:
+                    cell_str = str(cell_val)
+                    
+                cell_style = "color: #e74c3c; font-weight: bold;" if cell_str in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_str == "NC" else "")
+                row_subjects_cells += f'<td style="{cell_style}">{cell_str}</td>'
+            
+            tbody_rows_html += f"""
+            <tr>
+                <td>{row['ID']}</td>
+                <td style="text-align: left; font-weight: bold; padding-left: 12px;">
+                    {row['Student Name']} {status_badge} {history_str}
+                </td>
+                <td>{row['Section']}</td>
+                <td>{row['Class']}</td>
+                {row_subjects_cells}
+                <td style="font-weight: bold; background-color: #fcfcfc; color: #0066cc;">{row['Attendance']}</td>
+                <td style="font-weight: bold; background-color: #fcfcfc;">{row['Total (Obt)']}</td>
+                <td style="font-weight: bold; color: #555; background-color: #fcfcfc;">{row['Total Max']}</td>
+            </tr>
+            """
+            
+        logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+        
+        analytics_html_payload = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <style>
+            body {{ font-family: "Segoe UI", Arial, sans-serif; color: #333; background-color: #fff; margin: 0; padding: 10px; }}
+            .report-wrapper-container {{ max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
+            .action-panel-bar {{ display: flex; gap: 12px; margin-bottom: 22px; }}
+            .btn-action {{ padding: 10px 22px; font-weight: bold; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }}
+            .btn-print {{ background: #222; color: #fff; }}
+            .btn-image {{ background: #0066cc; color: #fff; }}
+            .btn-action:hover {{ opacity: 0.9; }}
+            .header-banner {{ display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 20px; }}
+            .header-branding {{ text-align: left; }}
+            .inst-title {{ font-size: 24px; font-weight: 800; color: #111; letter-spacing: 0.5px; margin: 0; }}
+            .doc-subtitle {{ font-size: 15px; color: #555; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
+            .brand-logo-img {{ max-height: 55px; width: auto; object-fit: contain; }}
+            .analytics-grid-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
+            .analytics-grid-table th, .analytics-grid-table td {{ border: 1px solid #dcdcdc; padding: 10px 8px; text-align: center; }}
+            .analytics-grid-table th {{ background-color: #f8f9fa; font-weight: 700; color: #2c3e50; white-space: nowrap; }}
+            .analytics-grid-table tr:nth-child(even) {{ background-color: #fbfbfb; }}
+            .analytics-grid-table tr:hover {{ background-color: #f5f7fa; }}
+            @media print {{
+                .action-panel-bar {{ display: none !important; }}
+                body {{ padding: 0; margin: 0; }}
+                .report-wrapper-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; }}
+            }}
+        </style>
+        </head>
+        <body>
+            <div class="action-panel-bar">
+                <button class="btn-action btn-print" onclick="window.print();">🖨️ Print Summary Ledger</button>
+                <button class="btn-action btn-image" id="capture-summary-trigger">📸 Save Layout As Image</button>
+            </div>
+            
+            <div class="report-wrapper-container" id="printable-summary-target">
+                <div class="header-banner">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <img class="brand-logo-img" src="{logo_url}" alt="Logo">
+                        <div class="header-branding">
+                            <h1 class="inst-title">CONCORDIA COLLEGE KASUR</h1>
+                            <div class="doc-subtitle">Section Performance Summary Report</div>
+                        </div>
+                    </div>
+                    <div class="meta-details">
+                        <b>Session:</b> {selected_session}<br>
+                        <b>System Framework:</b> {academic_system}<br>
+                        <b>Class Level / Scope:</b> {selected_class}<br>
+                        <b>Discipline Category:</b> {sel_disc}<br>
+                        <b>Section Identifier:</b> {sel_sec}<br>
+                        <b>Exam Target:</b> {sel_exam}
+                    </div>
+                </div>
+                
+                <table class="analytics-grid-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 6%;">ID</th>
+                            <th style="text-align: left; padding-left: 12px; width: 22%;">Student Name</th>
+                            <th style="width: 7%;">Section</th>
+                            <th style="width: 6%;">Class</th>
+                            {thead_subjects_html}
+                            <th style="background-color: #e6f2ff; color: #0055b3; width: 7%;">Att %</th>
+                            <th style="background-color: #f1f3f5; width: 9%;">Total (Obt)</th>
+                            <th style="background-color: #f1f3f5; width: 8%;">Total Max</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {tbody_rows_html}
+                    </tbody>
+                </table>
+            </div>
+
+            <script>
+                document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
+                    const targetEl = document.getElementById('printable-summary-target');
+                    const filenameStr = "Summary_Report_{sel_sec}_{selected_class}_{selected_session}.png";
+                    
+                    html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
+                        const linkHook = document.createElement('a');
+                        linkHook.download = filenameStr;
+                        linkHook.href = canvas.toDataURL('image/png');
+                        linkHook.click();
+                    }});
+                }});
+            </script>
+        </body>
+        </html>
+        """
+        components.html(analytics_html_payload, height=750, scrolling=True)  need to work on this code now          
 
 # ====================================================================================
 # MODULE: 📈 MULTI-TEST PROGRESS REPORT
