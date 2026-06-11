@@ -1297,422 +1297,125 @@ if menu_choice == "📅 Attendance Entry Management":
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
+    import streamlit.components.v1 as components
     from io import BytesIO
-    
-    session_choices = ["2025-27", "2026-28", "2027-29"] 
+
+    st.title("📋 Daily Attendance Report")
+
+    # 1. SETUP
     try:
-        if 'session_options' in globals() or 'session_options' in locals():
-            if session_options:
-                session_choices = session_options
-        else:
-            db_sess = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''", {})
-            if db_sess is not None and not db_sess.empty:
-                session_choices = sorted(db_sess['session'].dropna().astype(str).tolist())
-    except Exception:
-        pass
+        session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
+    except NameError:
+        session_choices = ["2025-27", "2026-28", "2027-29"]
         
-    filter_col1, filter_col2 = st.columns(2)
-    with filter_col1:
-        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices, key="global_report_session_select")
-    with filter_col2:
-        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
+    c1, c2 = st.columns(2)
+    with c1:
+        report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
+    with c2:
+        report_date = st.date_input("🗓️ Target Date:", value=datetime.date.today())
 
-    # 🛠️ FIXED: Multi-layered database fetch ensures columns ALWAYS exist
-    try:
-        raw_students = run_query("""
-            SELECT s.class, s.section, s.section_in_charge, s.status, s.session, d.status AS att_status
-            FROM students s
-            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-        """, {"dt": str(report_date)})
-    except Exception:
-        try:
-            raw_students = run_query("""
-                SELECT s.class, s.section, '---' AS section_in_charge, s.status, s.session, d.status AS att_status
-                FROM students s
-                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-            """, {"dt": str(report_date)})
-        except Exception:
-            raw_students = run_query("""
-                SELECT s.class, 'UNKNOWN' AS section, '---' AS section_in_charge, s.status, s.session, d.status AS att_status
-                FROM students s
-                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-            """, {"dt": str(report_date)})
+    if not report_sessions:
+        st.warning("Please select at least one session.")
+        st.stop()
 
-    if raw_students is None or raw_students.empty:
-        st.info("ℹ️ No student enrollment records found in the database for this date.")
+    # 2. DATA FETCHING (Robust)
+    # Ensure sessions is a tuple for the SQL IN clause
+    session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
+    
+    query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
+    raw_students = run_query(query, {"sessions": session_tuple})
+    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
+    raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+
+    if raw_students.empty:
+        st.info("ℹ️ No student records found for the selected sessions.")
     else:
-        if 'section_in_charge' not in raw_students.columns:
-            raw_students['section_in_charge'] = '---'
+        # DATA PROCESSING
+        df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
+        teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
+        
+        df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
+        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
+
+        def classify(row):
+            cls, sec = str(row['Class']), str(row['Section'])
+            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
+            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
+            return "Other Tiers (DIT)"
+        df['Group_Category'] = df.apply(classify, axis=1)
+
+        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
+            Total=('id', 'count'), Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
+            Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
+        ).reset_index()
+
+        # 3. HTML PRINT ENGINE
+        table_rows = ""
+        grand_total = {"Total": 0, "Present": 0, "Absent": 0}
+        
+        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
+            cat_data = summary[summary['Group_Category'] == cat]
+            if cat_data.empty: continue
             
-        raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['In_Charge'] = raw_students['section_in_charge'].fillna('---').astype(str).str.strip()
-        raw_students['Student_Status'] = raw_students['status'].fillna('').astype(str).str.upper().str.strip()
-        raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
-        raw_students['Student_Session'] = raw_students['session'].fillna('').astype(str).str.strip()
-
-        target_sess_clean = str(report_session).strip()
-        raw_students = raw_students[raw_students['Student_Session'] == target_sess_clean]
-
-        if raw_students.empty:
-            st.info(f"ℹ️ No active student profile logs match Session track: '{target_sess_clean}'.")
-        else:
-            # 🎯 ROSTER MATCHING ENGINE
-            def classify_group(row):
-                cls = str(row.get('Class', '')).upper().strip()
-                sec = str(row.get('Section', '')).upper().strip()
-                sec_clean = sec.replace('"', '').replace("'", "").strip()
-                
-                girls_11th = ["CG_WHITE", "CG_GREEN", "CG_STATS", "IG", "FG", "MG_BLUE", "MG_WHITE", "EG_BLUE"]
-                boys_11th  = ["CB_WHITE", "CB_GREEN", "CB_STATS", "IB", "FB", "MB_BLUE", "EB_BLUE"]
-                
-                girls_12th = ["MQ1", "MQ2", "EQ1", "EQ", "CQ1", "CQ2", "CQ3", "IQ1", "IQ", "FQ1", "FQ"]
-                boys_12th  = ["MK1", "MK", "EK1", "EK", "CK1", "CK2", "CK3", "IK1", "IK", "FK1", "FK"]
-                
-                if "11" in cls:
-                    if sec_clean in girls_11th: return "11th (Girls)"
-                    elif sec_clean in boys_11th: return "11th (Boys)"
-                    
-                    if "G" in sec_clean or sec_clean.endswith("G"): return "11th (Girls)"
-                    elif "B" in sec_clean or "K" in sec_clean or sec_clean.endswith("B"): return "11th (Boys)"
-                    return "11th (Boys)"
-                    
-                elif "12" in cls:
-                    if sec_clean in girls_12th: return "12th (Girls)"
-                    elif sec_clean in boys_12th: return "12th (Boys)"
-                        
-                    if "Q" in sec_clean or "G" in sec_clean: return "12th (Girls)"
-                    elif "K" in sec_clean or "M" in sec_clean: return "12th (Boys)"
-                    return "12th (Boys)"
-
-                return "Other Tiers (DIT)"
-
-            # Execute classification mapping
-            raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
-
-            raw_students['Is_Left'] = raw_students['Student_Status'].isin(['LEFT', 'DROPOUT']).astype(int)
-            raw_students['Is_Active'] = (~raw_students['Student_Status'].isin(['LEFT', 'DROPOUT'])).astype(int)
-            raw_students['Is_Present'] = ((raw_students['Is_Active'] == 1) & (raw_students['Attendance_Status'].isin(['P', 'PRESENT', '1']))).astype(int)
-            raw_students['Is_Absent'] = ((raw_students['Is_Active'] == 1) & (raw_students['Attendance_Status'].isin(['A', 'ABSENT', '0']))).astype(int)
-
-            summary_grouped = raw_students.groupby(['Group_Category', 'Class', 'Section', 'In_Charge']).agg(
-                Total_Enrolled=('Class', 'count'),
-                Left_Count=('Is_Left', 'sum'),
-                Active_Count=('Is_Active', 'sum'),
-                Present_Count=('Is_Present', 'sum'),
-                Absent_Count=('Is_Absent', 'sum')
-            ).reset_index()
-
-            # Added 'Other Tiers' so DIT students map out perfectly too
-            print_order = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
+            sub_total = cat_data.agg({'Total': 'sum', 'Present': 'sum', 'Absent': 'sum'})
+            grand_total['Total'] += sub_total['Total']
+            grand_total['Present'] += sub_total['Present']
+            grand_total['Absent'] += sub_total['Absent']
             
-            grand_enrolled, grand_left, grand_active, grand_present, grand_absent = 0, 0, 0, 0, 0
-            html_rows = ""
-            excel_rows_list = []
-
-            for category in print_order:
-                cat_df = summary_grouped[summary_grouped['Group_Category'] == category]
-                
-                # 🚀 THE FIX: If the category has no students in this session, skip it entirely!
-                if cat_df.empty:
-                    continue
-                    
-                cat_df = cat_df.sort_values(by='Section')
-                
-                num_sections = len(cat_df)
-                c_enrolled, c_left, c_active, c_present, c_absent = 0, 0, 0, 0, 0
-                
-                for idx, (_, row) in enumerate(cat_df.iterrows()):
-                    act = int(row['Active_Count'])
-                    pre = int(row['Present_Count'])
-                    pct = f"{int((pre / act) * 100)}%" if act > 0 else "0%"
-                    
-                    c_enrolled += int(row['Total_Enrolled'])
-                    c_left += int(row['Left_Count'])
-                    c_active += act
-                    c_present += pre
-                    c_absent += int(row['Absent_Count'])
-                    
-                    excel_rows_list.append({"Class": category if idx == 0 else "", "Section": str(row['Section']), "In_Charge": str(row['In_Charge']), "Enrolled": int(row['Total_Enrolled']), "Left": int(row['Left_Count']), "Active": act, "Present": pre, "Absent": int(row['Absent_Count']), "Pct": pct, "Type": "Data"})
-                    
-                    html_rows += "<tr>"
-                    if idx == 0:
-                        html_rows += f'<td rowspan="{num_sections}" style="font-weight:bold; background-color:#ffffff; text-align:center; vertical-align:middle; border:1px solid #000000;">{category}</td>'
-                    
-                    html_rows += f"""
-                        <td style="border:1px solid #000000; text-align:center;">{row['Section']}</td>
-                        <td style="border:1px solid #000000; text-align:left; padding-left:8px;">{row['In_Charge']}</td>
-                        <td style="border:1px solid #000000; text-align:center;">{row['Total_Enrolled']}</td>
-                        <td style="border:1px solid #000000; text-align:center;">{row['Left_Count']}</td>
-                        <td style="border:1px solid #000000; text-align:center;">{row['Active_Count']}</td>
-                        <td style="border:1px solid #000000; text-align:center;">{pre}</td>
-                        <td style="border:1px solid #000000; text-align:center;">{row['Absent_Count']}</td>
-                        <td style="border:1px solid #000000; text-align:center;">{pct}</td>
-                    </tr>
-                    """
-                
-                c_pct = f"{int((c_present / c_active) * 100)}%" if c_active > 0 else "0%"
-                excel_rows_list.append({"Class": f"{category} Total", "Section": "", "In_Charge": "", "Enrolled": c_enrolled, "Left": c_left, "Active": c_active, "Present": c_present, "Absent": c_absent, "Pct": c_pct, "Type": "Subtotal"})
-                
-                html_rows += f"""
-                <tr style="background-color:#d9d9d9; font-weight:bold;">
-                    <td colspan="3" style="border:1px solid #000000; text-align:center; padding:6px;">{category} Total</td>
-                    <td style="border:1px solid #000000; text-align:center;">{c_enrolled}</td>
-                    <td style="border:1px solid #000000; text-align:center;">{c_left}</td>
-                    <td style="border:1px solid #000000; text-align:center;">{c_active}</td>
-                    <td style="border:1px solid #000000; text-align:center;">{c_present}</td>
-                    <td style="border:1px solid #000000; text-align:center;">{c_absent}</td>
-                    <td style="border:1px solid #000000; text-align:center;">{c_pct}</td>
-                </tr>
-                """
-                grand_enrolled += c_enrolled
-                grand_left += c_left
-                grand_active += c_active
-                grand_present += c_present
-                grand_absent += c_absent
-
-            grand_pct = f"{round((grand_present / grand_active) * 100, 2)}%" if grand_active > 0 else "0.0%"
-
-            ui_screen_html = f"""
-            <div style="background-color:#ffffff; padding:20px; border-radius:8px; border:1px solid #cbd5e0; font-family:Arial, sans-serif; color:#000000;">
-                <table style="width:100%; border-collapse:collapse; margin-bottom:5px;">
-                    <tr>
-                        <td style="text-align:center; font-size:24pt; font-weight:bold; color:#000000; font-family:'Times New Roman', Times, serif;">Concordia College Kasur</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align:center; font-size:14pt; font-weight:bold; padding-top:4px;">Attendance Report</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align:center; font-size:11pt; color:#4a5568; padding-top:2px;">Session {report_session}</td>
-                    </tr>
-                </table>
-                
-                <div style="text-align:right; font-weight:bold; margin-bottom:10px; font-size:11pt;">
-                    {report_date.strftime('%A, %B %d, %Y')}
-                </div>
-                
-                <table style="width:100%; border-collapse:collapse; background-color:#ffffff; font-size:10pt;">
-                    <thead>
-                        <tr style="background-color:#aeaeae; font-weight:bold; color:#000000;">
-                            <th style="border:1px solid #000000; padding:6px; width:15%;">Class</th>
-                            <th style="border:1px solid #000000; padding:6px; width:12%;">Section</th>
-                            <th style="border:1px solid #000000; padding:6px; width:22%;">In Charge</th>
-                            <th style="border:1px solid #000000; padding:6px; width:11%;">Total Enrolled</th>
-                            <th style="border:1px solid #000000; padding:6px; width:8%;">Left</th>
-                            <th style="border:1px solid #000000; padding:6px; width:11%;">Total Active</th>
-                            <th style="border:1px solid #000000; padding:6px; width:9%;">Present</th>
-                            <th style="border:1px solid #000000; padding:6px; width:8%;">Absent</th>
-                            <th style="border:1px solid #000000; padding:6px; width:7%;">%age</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {html_rows}
-                    </tbody>
-                </table>
-                
-                <br/>
-                <div style="font-weight:bold; font-size:11pt; margin-bottom:5px; text-decoration: underline;">Statistics of Attendance:-</div>
-                <table style="width:100%; border-collapse:collapse; font-size:10pt; text-align:center; margin-bottom:20px;">
-                    <thead>
-                        <tr style="background-color:#aeaeae; font-weight:bold;">
-                            <th style="border:1px solid #000000; padding:8px; width:25%;">Date</th>
-                            <th style="border:1px solid #000000; padding:8px;">Total Enrolled</th>
-                            <th style="border:1px solid #000000; padding:8px;">Left</th>
-                            <th style="border:1px solid #000000; padding:8px;">Total Active</th>
-                            <th style="border:1px solid #000000; padding:8px;">Total Present</th>
-                            <th style="border:1px solid #000000; padding:8px;">Total Absent</th>
-                            <th style="border:1px solid #000000; padding:8px; width:15%;">Grand Percentage</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="font-weight:bold; font-size:11pt; background-color:#ffffff;">
-                            <td style="border:1px solid #000000; padding:10px;">{report_date.strftime('%d-%b-%Y')}</td>
-                            <td style="border:1px solid #000000;">{grand_enrolled}</td>
-                            <td style="border:1px solid #000000;">{grand_left}</td>
-                            <td style="border:1px solid #000000;">{grand_active}</td>
-                            <td style="border:1px solid #000000;">{grand_present}</td>
-                            <td style="border:1px solid #000000;">{grand_absent}</td>
-                            <td style="border:1px solid #000000;">{grand_pct}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <div style="font-weight:bold; font-size:10pt; margin-bottom:4px; text-decoration: underline;">Remarks & Calls Feedback:</div>
-                <div style="border:1px solid #000000; height:45px; background-color:#ffffff; margin-bottom:40px;"></div>
-                
-                <table style="width:100%; margin-top:20px; font-weight:bold; font-size:10pt; text-align:center;">
-                    <tr>
-                        <td style="width:33.33%;"><span style="border-top:1px solid #000000; padding-top:5px; width:150px; display:inline-block;">Attendance Incharge</span></td>
-                        <td style="width:33.33%;"><span style="border-top:1px solid #000000; padding-top:5px; width:150px; display:inline-block;">Vice Principal</span></td>
-                        <td style="width:33.33%; text-align:right; padding-right:20px;"><span style="border-top:1px solid #000000; padding-top:5px; width:120px; display:inline-block;">Principal</span></td>
-                    </tr>
-                </table>
-            </div>
-            """
-            st.markdown(ui_screen_html, unsafe_allow_html=True)
-
-            # ==========================================
-            # 📥 DOWNLOADING CONTROL PANEL HOOKS
-            # ==========================================
-            st.markdown("###")
-            action_col1, action_col2 = st.columns(2)
+            row_span = len(cat_data)
+            for i, (_, row) in enumerate(cat_data.iterrows()):
+                pct = f"{int((row['Present']/row['Total'])*100)}%" if row['Total'] > 0 else "0%"
+                table_rows += f"<tr>"
+                if i == 0: table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold;">{cat}</td>'
+                table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
             
-            with action_col1:
-                try:
-                    import openpyxl
-                    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                    from openpyxl.utils import get_column_letter
-                    
-                    wb = openpyxl.Workbook()
-                    ws = wb.active
-                    ws.title = "Attendance Summary"
-                    ws.views.sheetView[0].showGridLines = True
-                    
-                    gray_header_fill = PatternFill(start_color="AEAEAE", end_color="AEAEAE", fill_type="solid")
-                    subtotal_row_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
-                    
-                    font_title = Font(name="Times New Roman", size=18, bold=True)
-                    font_subtitle = Font(name="Arial", size=11, bold=True)
-                    font_header = Font(name="Arial", size=10, bold=True)
-                    font_bold = Font(name="Arial", size=10, bold=True)
-                    font_regular = Font(name="Arial", size=10)
-                    
-                    black_thin = Side(style='thin', color='000000')
-                    box_border = Border(left=black_thin, right=black_thin, top=black_thin, bottom=black_thin)
-                    
-                    ws.merge_cells("A1:I1")
-                    ws["A1"] = "Concordia College Kasur"
-                    ws["A1"].font = font_title
-                    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-                    
-                    ws.merge_cells("A2:I2")
-                    ws["A2"] = f"Attendance Report — Session {report_session}"
-                    ws["A2"].font = font_subtitle
-                    ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
-                    
-                    ws.merge_cells("A3:I3")
-                    ws["A3"] = f"{report_date.strftime('%A, %B %d, %Y')}"
-                    ws["A3"].font = font_regular
-                    ws["A3"].alignment = Alignment(horizontal="right", vertical="center")
-                    
-                    headers = ["Class", "Section", "In Charge", "Total Enrolled", "Left", "Total Active", "Present", "Absent", "%age"]
-                    ws.append(headers)
-                    header_row_idx = 4
-                    ws.row_dimensions[header_row_idx].height = 24
-                    
-                    for col_num, h_text in enumerate(headers, 1):
-                        cell = ws.cell(row=header_row_idx, column=col_num)
-                        cell.fill = gray_header_fill
-                        cell.font = font_header
-                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                        cell.border = box_border
-                    
-                    start_merge_row = 5
-                    for index, r_item in enumerate(excel_rows_list, 5):
-                        ws.append([r_item["Class"], r_item["Section"], r_item["In_Charge"], r_item["Enrolled"], r_item["Left"], r_item["Active"], r_item["Present"], r_item["Absent"], r_item["Pct"]])
-                        ws.row_dimensions[index].height = 20
-                        
-                        is_sub = (r_item["Type"] == "Subtotal")
-                        for col_num in range(1, 10):
-                            cell = ws.cell(row=index, column=col_num)
-                            cell.border = box_border
-                            cell.font = font_bold if (is_sub or col_num == 1) else font_regular
-                            if is_sub:
-                                cell.fill = subtotal_row_fill
-                            
-                            if col_num in [1, 2, 3]:
-                                cell.alignment = Alignment(horizontal="left" if col_num == 3 else "center", vertical="center")
-                            else:
-                                cell.alignment = Alignment(horizontal="center", vertical="center")
-                        
-                        if is_sub:
-                            if (index - 1) >= start_merge_row:
-                                ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
-                            ws.merge_cells(start_row=index, start_column=1, end_row=index, end_column=3)
-                            start_merge_row = index + 1
-                    
-                    curr_r = len(excel_rows_list) + 7
-                    ws.cell(row=curr_r, column=1, value="Statistics of Attendance:-").font = font_bold
-                    
-                    curr_r += 1
-                    stat_headers = ["Date", "Total Enrolled", "Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
-                    ws.row_dimensions[curr_r].height = 22
-                    for col_i, sh_text in enumerate(stat_headers, 1):
-                        target_col = col_i if col_i < 7 else 9
-                        if col_i == 1:
-                            ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
-                        elif col_i == 7:
-                            ws.merge_cells(start_row=curr_r, start_column=7, end_row=curr_r, end_column=9)
-                            
-                        cell = ws.cell(row=curr_r, column=target_col, value=sh_text)
-                        cell.fill = gray_header_fill
-                        cell.font = font_header
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
-                        
-                    for c_num in range(1, 10):
-                        ws.cell(row=curr_r, column=c_num).border = box_border
-                        
-                    curr_r += 1
-                    ws.row_dimensions[curr_r].height = 24
-                    ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
-                    ws.merge_cells(start_row=curr_r, start_column=7, end_row=curr_r, end_column=9)
-                    
-                    stat_values = [report_date.strftime('%d-%b-%Y'), grand_enrolled, grand_left, grand_active, grand_present, grand_absent, grand_pct]
-                    val_mappings = {1: stat_values[0], 3: stat_values[1], 4: stat_values[2], 5: stat_values[3], 6: stat_values[4], 7: stat_values[5], 8: stat_values[6]}
-                    
-                    for c_num in range(1, 10):
-                        cell = ws.cell(row=curr_r, column=c_num)
-                        cell.border = box_border
-                        cell.font = font_bold
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
-                        if c_num in val_mappings:
-                            cell.value = val_mappings[c_num]
-                    
-                    for col in ws.columns:
-                        col_letter = get_column_letter(col[0].column)
-                        ws.column_dimensions[col_letter].width = 14
-                    ws.column_dimensions["C"].width = 24
-                    
-                    excel_stream = BytesIO()
-                    wb.save(excel_stream)
-                    excel_stream.seek(0)
-                    
-                    st.download_button(
-                        label="🟢 Export Formatted Excel Document",
-                        data=excel_stream.getvalue(),
-                        file_name=f"Concordia_Daily_Attendance_{report_date}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                except Exception:
-                    csv_df = pd.DataFrame(excel_rows_list)
-                    if not csv_df.empty:
-                        csv_df = csv_df.drop(columns=['Type'])
-                    csv_data = csv_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="🟢 Export Clean CSV Summary Data",
-                        data=csv_data,
-                        file_name=f"Concordia_Attendance_Data_{report_date}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
+            table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
+                          f'<td colspan="3" style="text-align:left; padding-left:10px;">Sub-Total ({cat})</td>' \
+                          f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
+                          f'<td>{int((sub_total["Present"]/sub_total["Total"])*100) if sub_total["Total"] > 0 else 0}%</td></tr>'
 
-            with action_col2:
-                try:
-                    from weasyprint import HTML
-                    pdf_buffer = BytesIO()
-                    HTML(string=ui_screen_html).write_pdf(pdf_buffer)
-                    
-                    st.download_button(
-                        label="🖨️ Print Document to Official PDF",
-                        data=pdf_buffer.getvalue(),
-                        file_name=f"Concordia_Kasur_Daily_Attendance_{report_date}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                        type="primary"
-                    )
-                except Exception:
-                    pass
+        grand_pct = int((grand_total['Present']/grand_total['Total'])*100) if grand_total['Total'] > 0 else 0
+        table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
+                      f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
+                      f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}%</td></tr>'
+
+        html_template = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: "Times New Roman", serif; padding: 10px; }}
+                table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+                th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
+                @media print {{ 
+                    @page {{ size: A4 portrait; margin: 10mm; }}
+                    .print-btn {{ display: none; }} 
+                }}
+            </style>
+        </head>
+        <body>
+            <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
+            <h1 style="text-align:center; font-size: 20px;">CONCORDIA COLLEGE KASUR</h1>
+            <h3 style="text-align:center; font-size: 16px;">Daily Attendance Report - {report_date}</h3>
+            <table>
+                <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
+                {table_rows}
+            </table>
+            <div style="margin-top: 40px; text-align: right; font-weight:bold;">Principal Signature: ___________</div>
+        </body>
+        </html>
+        """
+        components.html(html_template, height=800, scrolling=True)
+
+        # 4. EXCEL EXPORT
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            summary.to_excel(writer, index=False, sheet_name='Attendance')
+            ws = writer.sheets['Attendance']
+            ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
+            ws.set_column('D:G', 10); ws.set_default_row(25)
+        st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
                     
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
