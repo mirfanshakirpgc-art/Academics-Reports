@@ -1020,6 +1020,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"💥 Critical file parsing system breakdown error: {e}")
 
+import datetime
+import streamlit as st
+
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT
 # ====================================================================================
