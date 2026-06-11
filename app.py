@@ -1269,56 +1269,89 @@ elif menu_choice == "📋 Daily Attendance Report":
     except NameError:
         session_choices = ["2025-27", "2026-28", "2027-29"]
         
-    filter_col1, filter_col2 = st.columns(2)
-    with filter_col1:
+    col1, col2 = st.columns(2)
+    with col1:
         report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
-    with filter_col2:
+    with col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
     if not report_sessions:
         st.warning("Please select at least one session.")
         st.stop()
 
-    # 2. Fetch Data - SAFELY
-    # We convert the list to a tuple, and use a safe query structure
-    session_tuple = tuple(report_sessions)
-    
-    # If only one session is selected, SQL needs a specific syntax for tuples
-    if len(report_sessions) == 1:
-        query = "SELECT id, class, section, status FROM students WHERE session = :s"
-        params = {"s": report_sessions[0]}
-    else:
-        query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
-        params = {"sessions": session_tuple}
-        
-    raw_students = run_query(query, params)
+    # 2. Optimized Data Fetching
+    # Use IN clause for safety with multiple sessions
+    query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
+    raw_students = run_query(query, {"sessions": tuple(report_sessions)})
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
-        # 3. Display & Print Logic
-        # This includes the header and the CSS to hide UI elements during printing
+    
+    try:
+        raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+    except:
+        raw_alloc = pd.DataFrame()
+
+    if raw_students.empty:
+        st.info("ℹ️ No records found for the selected sessions.")
+    else:
+        # Merge & Clean
+        df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
+        
+        teacher_map = {}
+        if not raw_alloc.empty:
+            teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
+        
+        df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
+        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
+
+        # Categorize
+        def classify(row):
+            cls, sec = str(row['Class']), str(row['Section'])
+            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
+            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
+            return "Other Tiers (DIT)"
+        df['Group_Category'] = df.apply(classify, axis=1)
+
+        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
+            Total=('id', 'count'),
+            Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
+            Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
+        ).reset_index()
+
+        # 3. Display with Header
         st.markdown(f"""
-        <style>
-            @media print {{
-                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] {{ display: none !important; }}
-                #college-header {{ display: block !important; }}
-            }}
-        </style>
-        <div id="college-header" style="text-align: center; margin-bottom: 20px; font-family: sans-serif; display: none;">
-            <img src="https://i.imgur.com/placeholder.png" style="width:80px; float:left;"> 
-            <h1 style="margin: 0; color: #2c3e50;">Concordia College Kasur</h1>
-            <h3 style="margin: 5px 0; color: #7f8c8d;">Daily Attendance Report</h3>
-            <p style="margin: 0;">Date: {report_date}</p>
+        <div id="college-header" style="text-align:center; font-family:sans-serif; margin-bottom:20px;">
+            <h1 style="margin:0; color:#2c3e50;">Concordia College Kasur</h1>
+            <h3 style="margin:0; color:#7f8c8d;">Daily Attendance Report - {report_date}</h3>
         </div>
         """, unsafe_allow_html=True)
 
-        # 4. Final Export Layout
-        col1, col2 = st.columns([1, 4])
-        with col1:
+        # Build Table
+        html_rows = ""
+        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
+            cat_data = summary[summary['Group_Category'] == cat]
+            if cat_data.empty: continue
+            row_span = len(cat_data)
+            for i, (_, row) in enumerate(cat_data.iterrows()):
+                present, total, absent = int(row['Present']), int(row['Total']), int(row['Absent'])
+                pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
+                html_rows += f'<tr>'
+                if i == 0: html_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; text-align:center; vertical-align:middle;">{cat}</td>'
+                html_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000; padding-left:8px;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{present}</td><td style="border:1px solid #000; text-align:center;">{absent}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
+        
+        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#eee;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
+
+        # 4. Export
+        st.write("---")
+        c1, c2 = st.columns([1, 4])
+        with c1:
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
             st.download_button("📥 Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.ms-excel")
-        with col2:
-            # We use a browser-native print trigger
-            st.button("🖨️ Print Report", on_click=lambda: st.write('<script>window.print()</script>', unsafe_allow_html=True))
+        with c2:
+            st.markdown('<button onclick="window.print()" style="padding:10px; cursor:pointer;">🖨️ Print Report</button>', unsafe_allow_html=True)
+            st.markdown('<style>@media print {.stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] { display: none !important; }}</style>', unsafe_allow_html=True)
             
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
