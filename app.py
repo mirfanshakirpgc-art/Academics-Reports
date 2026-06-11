@@ -1532,8 +1532,7 @@ elif menu_choice == "📋 Section Summary Report":
         "GRAPHICS DESIGN": "DESIGN", "PROJECT": "PROJ"
     }
     
-    # --- 4. DYNAMIC SUBJECT LIST ROUTING ---
-    # Define the mapping explicitly for 11th and 12th
+    # --- 4. UPDATED SUBJECT LIST ROUTING ---
     DISCIPLINE_MAP = {
         "MEDICAL": {
             "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"],
@@ -1552,8 +1551,8 @@ elif menu_choice == "📋 Section Summary Report":
             "12th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
         "COMMERCE": {
-            "11th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"],
-            "12th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "PAK_ST", "T_QURAN"]
+            "11th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "ISL_ETH", "T_QURAN"],
+            "12th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "PAK_ST", "T_QURAN"]
         },
         "HUMANITIES": {
             "11th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ETH", "T_QURAN"],
@@ -1562,15 +1561,12 @@ elif menu_choice == "📋 Section Summary Report":
     }
 
     if academic_system == "Annual System":
-        # Normalize discipline key
-        disc_key = sel_disc.upper().replace("ICS_PHYSICS", "ICS_PHYSICS").replace("ICS_STATS", "ICS_STATS")
-        # Ensure we match the exact key in our map
+        # Ensure disc_key matches the keys in DISCIPLINE_MAP
+        disc_key = sel_disc.upper().strip()
+        # Ensure selected_class matches '11th' or '12th'
         subjects = DISCIPLINE_MAP.get(disc_key, {}).get(selected_class, ["ENGLISH", "URDU"])
     else:
-        # Keep your existing Semester logic here
-        if "Semester 1" in selected_class:
-            subjects = ["ICT", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT"]
-        # ... rest of your semester logic
+        # Keep your existing semester logic...
 
     # --- 5. DATABASE INTEGRATION ENGINE ---
     students_df = run_query("""
