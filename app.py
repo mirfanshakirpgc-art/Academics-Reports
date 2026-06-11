@@ -1259,10 +1259,11 @@ if menu_choice == "📅 Attendance Entry Management":
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
+    from io import BytesIO
     
     st.title("📋 Daily Attendance Report")
 
-    # 1. Setup
+    # 1. Setup & Data Fetching
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
@@ -1270,7 +1271,6 @@ elif menu_choice == "📋 Daily Attendance Report":
         
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
-        # Changed to multiselect
         report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
@@ -1279,47 +1279,34 @@ elif menu_choice == "📋 Daily Attendance Report":
         st.warning("Please select at least one session.")
         st.stop()
 
-    # 2. Fetch Data with IN clause
-    # Note: Using tuple for the IN clause
-    query = """
-        SELECT id, class, section, status, session 
-        FROM students 
-        WHERE session IN :sessions
-        AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'DROPOUT'))
-    """
-    raw_students = run_query(query, {"sessions": tuple(report_sessions)})
+    # Fetch Data
+    raw_students = run_query("SELECT id, class, section, status FROM students WHERE session IN :sessions", {"sessions": tuple(report_sessions)})
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
     
-    # Fetch Allocations
-    raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+    try:
+        raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+    except:
+        raw_alloc = pd.DataFrame()
 
-    # ... (rest of your logic remains exactly the same as the previous block)
-
-    if not raw_students.empty:
-        # Merge Attendance
+    if raw_students.empty:
+        st.info("ℹ️ No active students found for selected sessions.")
+    else:
+        # Merge & Map
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
-        
-        # Build Teacher Map using your exact table columns
         teacher_map = {}
         if not raw_alloc.empty:
-            teacher_map = dict(zip(
-                raw_alloc['section_name'].astype(str).str.upper().str.strip(), 
-                raw_alloc['assigned_teacher_name']
-            ))
+            teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
         
-        # Standardize & Map
         df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        df['In_Charge'] = df['Section'].map(teacher_map).fillna('---')
+        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
         df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
 
-        # Categorization
-        def classify_group(row):
-            cls, sec = row['Class'], row['Section']
-            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
-            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
-            return "Other Tiers (DIT)"
-        df['Group_Category'] = df.apply(classify_group, axis=1)
+        # Grouping Logic
+        df['Group_Category'] = df.apply(lambda row: "11th (Girls)" if "11" in row['Class'] and any(x in row['Section'] for x in ["G", "WHITE", "GREEN"]) else 
+                                       ("11th (Boys)" if "11" in row['Class'] else 
+                                       ("12th (Girls)" if "12" in row['Class'] and any(x in row['Section'] for x in ["Q", "G", "WHITE", "GREEN"]) else 
+                                       ("12th (Boys)" if "12" in row['Class'] else "Other Tiers (DIT)"))), axis=1)
 
         summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
             Total_Enrolled=('id', 'count'),
@@ -1327,7 +1314,13 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # Render Table (Keep your existing HTML builder)
+        # 2. Render Header & Table
+        header_html = """
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h1 style="margin: 0;">Concordia College Kasur</h1>
+            <h3 style="margin: 0;">Daily Attendance Report</h3>
+        </div>
+        """
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         for cat in categories:
@@ -1346,9 +1339,19 @@ elif menu_choice == "📋 Daily Attendance Report":
             cat_pct = f"{int((cat_present/cat_enrolled)*100)}%" if cat_enrolled > 0 else "0%"
             html_rows += f'<tr style="background-color:#d9d9d9; font-weight:bold;"><td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">{cat_present}</td><td style="border:1px solid #000; text-align:center;">{cat_absent}</td><td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>'
 
-        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
-    else:
-        st.info(f"ℹ️ No active students found for session {report_session}.")
+        st.markdown(header_html + f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
+
+        # 3. Download & Print
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                summary.to_excel(writer, index=False, sheet_name='Attendance')
+            st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        with col2:
+            st.markdown('<button onclick="window.print()" style="padding: 10px; cursor: pointer;">🖨️ Print Report</button>', unsafe_allow_html=True)
+            st.markdown('<style>@media print {.stButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] { display: none !important; }}</style>', unsafe_allow_html=True)
+            
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
