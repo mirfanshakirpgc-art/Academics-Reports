@@ -1265,7 +1265,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     
     st.title("📋 Daily Attendance Report")
 
-    # 1. Setup & Fetch Data
+    # 1. Setup
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
@@ -1277,13 +1277,14 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # Fetch Data
+    # 2. Fetch Data
     raw_students = run_query("SELECT id, class, section, status FROM students WHERE TRIM(session) = :session", {"session": str(report_session).strip()})
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
-    raw_alloc = pd.DataFrame()
+    
     try:
         raw_alloc = run_query("SELECT * FROM academic_allocations WHERE subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
-    except: pass
+    except:
+        raw_alloc = pd.DataFrame()
 
     if raw_students.empty:
         st.info("ℹ️ No records found.")
@@ -1291,17 +1292,24 @@ elif menu_choice == "📋 Daily Attendance Report":
         # Merge
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
         
-        # Safe Mapping
+        # 3. HIGH-TOLERANCE MAPPING
+        teacher_map = {}
+        if not raw_alloc.empty:
+            # Detect section column
+            cols = raw_alloc.columns
+            sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), cols[0])
+            
+            # Clean both sides: remove all spaces and force uppercase
+            for _, row in raw_alloc.iterrows():
+                clean_sec = str(row[sec_col]).replace(" ", "").upper()
+                teacher_map[clean_sec] = row['instructor']
+        
+        # Standardize df for merge
         df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
         
-        teacher_map = {}
-        if not raw_alloc.empty:
-            cols = raw_alloc.columns
-            sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), cols[0])
-            teacher_map = dict(zip(raw_alloc[sec_col].astype(str).str.upper().str.strip(), raw_alloc['instructor']))
-        
-        df['In_Charge'] = df['Section'].map(teacher_map).fillna('---')
+        # Use a lambda to map even if there are weird spaces in the students table
+        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
         df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
 
         # Categorization
@@ -1312,21 +1320,32 @@ elif menu_choice == "📋 Daily Attendance Report":
             return "Other Tiers (DIT)"
         df['Group_Category'] = df.apply(classify_group, axis=1)
 
-        # 2. THE FIX: Verify columns exist before grouping
-        required_cols = ['Group_Category', 'Section', 'In_Charge', 'Attendance_Status']
-        if all(col in df.columns for col in required_cols):
-            summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
-                Total_Enrolled=('id', 'count'),
-                Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
-                Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
-            ).reset_index()
+        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
+            Total_Enrolled=('id', 'count'),
+            Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
+            Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
+        ).reset_index()
 
-            # Render HTML... (Keep your existing HTML builder here)
-            html_rows = ""
-            # ... (the rest of your table rendering code)
-            st.write("Report generated successfully.")
-        else:
-            st.error(f"Missing columns. Available: {df.columns.tolist()}")
+        # 4. HTML Table Build
+        html_rows = ""
+        categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
+        for cat in categories:
+            cat_data = summary[summary['Group_Category'] == cat]
+            if cat_data.empty: continue
+            row_span = len(cat_data)
+            cat_enrolled, cat_present, cat_absent = 0, 0, 0
+            for i, (_, row) in enumerate(cat_data.iterrows()):
+                present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
+                cat_enrolled += total; cat_present += present; cat_absent += absent
+                pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
+                html_rows += "<tr>"
+                if i == 0: html_rows += f'<td rowspan="{row_span}" style="font-weight:bold; border:1px solid #000; vertical-align:middle; text-align:center;">{cat}</td>'
+                html_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000; padding-left:8px;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{present}</td><td style="border:1px solid #000; text-align:center;">{absent}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
+            
+            cat_pct = f"{int((cat_present/cat_enrolled)*100)}%" if cat_enrolled > 0 else "0%"
+            html_rows += f'<tr style="background-color:#d9d9d9; font-weight:bold;"><td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">{cat_present}</td><td style="border:1px solid #000; text-align:center;">{cat_absent}</td><td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>'
+
+        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
