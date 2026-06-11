@@ -1265,27 +1265,22 @@ elif menu_choice == "📋 Daily Attendance Report":
     
     st.title("📋 Daily Attendance Report")
     
-    # Use the globally defined AVAILABLE_SESSIONS constant, but allow database discovery as a fallback
+    # Use the session list safely
     try:
-        session_choices = AVAILABLE_SESSIONS
+        session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
         session_choices = ["2025-27", "2026-28", "2027-29"]
         
-    # Attempt to fetch fresh sessions from DB to keep the dropdown up-to-date
-    try:
-        db_sess = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''", {})
-        if not db_sess.empty:
-            db_sessions = db_sess['session'].dropna().astype(str).tolist()
-            # Merge and sort
-            session_choices = sorted(list(set(session_choices + db_sessions)))
-    except Exception:
-        pass
-        
     filter_col1, filter_col2 = st.columns(2)
+    
+    # REMOVED KEYS to prevent duplicate key errors during script re-runs
     with filter_col1:
-        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices, index=0, key="global_report_session_select")
+        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices)
     with filter_col2:
-        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
+        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
+
+    # --- REST OF YOUR CODE CONTINUES HERE ---
+    # (Ensure you are NOT rendering these widgets anywhere else in the app!)
         
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
