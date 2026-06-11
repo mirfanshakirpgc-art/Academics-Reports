@@ -1256,9 +1256,6 @@ if menu_choice == "📅 Attendance Entry Management":
                     
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
-# ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (FINAL ROBUST ENGINE)
-# ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
@@ -1277,40 +1274,29 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # 2. Fetch Teachers (Force show all, ignore subject filter)
-    try:
-        # Removing the WHERE subject clause to see if data exists at all
-        raw_alloc = run_query("SELECT * FROM academic_allocations", {})
-        
-        # DEBUG: Show us what is in the table to debug the mismatch
-        st.write("DEBUG - Table Contents:", raw_alloc.head(10)) 
-    except:
-        raw_alloc = pd.DataFrame()
+    # 2. Fetch Data
+    raw_students = run_query("SELECT id, class, section, status FROM students WHERE TRIM(session) = :session", {"session": str(report_session).strip()})
+    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
+    
+    # Fetch Allocations using exact column names from your debug table
+    raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
 
-    if raw_students.empty:
-        st.info("ℹ️ No records found.")
-    else:
-        # Merge
+    if not raw_students.empty:
+        # Merge Attendance
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
         
-        # 3. HIGH-TOLERANCE MAPPING
+        # Build Teacher Map using your exact table columns
         teacher_map = {}
         if not raw_alloc.empty:
-            # Detect section column
-            cols = raw_alloc.columns
-            sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), cols[0])
-            
-            # Clean both sides: remove all spaces and force uppercase
-            for _, row in raw_alloc.iterrows():
-                clean_sec = str(row[sec_col]).replace(" ", "").upper()
-                teacher_map[clean_sec] = row['instructor']
+            teacher_map = dict(zip(
+                raw_alloc['section_name'].astype(str).str.upper().str.strip(), 
+                raw_alloc['assigned_teacher_name']
+            ))
         
-        # Standardize df for merge
+        # Standardize & Map
         df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        
-        # Use a lambda to map even if there are weird spaces in the students table
-        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
+        df['In_Charge'] = df['Section'].map(teacher_map).fillna('---')
         df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
 
         # Categorization
@@ -1327,7 +1313,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 4. HTML Table Build
+        # Render Table (Keep your existing HTML builder)
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         for cat in categories:
@@ -1347,6 +1333,8 @@ elif menu_choice == "📋 Daily Attendance Report":
             html_rows += f'<tr style="background-color:#d9d9d9; font-weight:bold;"><td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">{cat_present}</td><td style="border:1px solid #000; text-align:center;">{cat_absent}</td><td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>'
 
         st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
+    else:
+        st.info(f"ℹ️ No active students found for session {report_session}.")
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
