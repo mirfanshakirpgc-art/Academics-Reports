@@ -1268,17 +1268,13 @@ elif menu_choice == "📋 Daily Attendance Report":
     # 1. AUTO-DETECT COLUMN NAMES (Fixes UndefinedColumn errors)
     try:
         with engine.begin() as conn:
-            # Get columns from academic_allocations
-            cols_query = "SELECT column_name FROM information_schema.columns WHERE table_name = 'academic_allocations'"
-            alloc_cols = [c[0] for c in conn.execute(text(cols_query)).fetchall()]
-            
-            # Find the section column name dynamically
-            possible_names = ['section', 'sec', 'section_name', 'class_section', 'sec_name']
-            section_col = next((col for col in alloc_cols if col in possible_names), 'section')
+            cols = [c[0] for c in conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'academic_allocations'")).fetchall()]
+            # Find the best match for section and session columns
+            sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), 'section')
+            sess_col = next((c for c in cols if c in ['session', 'sess', 'academic_session', 'year']), 'session')
     except:
-        section_col = 'section' # Fallback
+        sec_col, sess_col = 'section', 'session'
 
-    # 2. SELECTION
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
@@ -1290,19 +1286,16 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # 3. DYNAMIC SQL JOIN
+    # 2. DYNAMIC SQL JOIN using the detected column names
     query = f"""
         SELECT 
-            s.class, 
-            s.section, 
-            s.status, 
-            s.session, 
+            s.class, s.section, s.status, s.session, 
             d.status AS att_status,
             a.instructor AS in_charge_name
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-        LEFT JOIN academic_allocations a ON TRIM(s.section) = TRIM(a.{section_col}) 
-            AND TRIM(s.session) = TRIM(a.session) 
+        LEFT JOIN academic_allocations a ON TRIM(s.section) = TRIM(a.{sec_col}) 
+            AND TRIM(s.session) = TRIM(a.{sess_col}) 
             AND a.subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'
         WHERE TRIM(s.session) = :session
         AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT'))
@@ -1317,13 +1310,12 @@ elif menu_choice == "📋 Daily Attendance Report":
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
     else:
-        # Standardize data
+        # Standardize and build summary
         raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['In_Charge'] = raw_students['in_charge_name'].fillna('---').astype(str).str.strip()
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
 
-        # Categorization Logic
         def classify_group(row):
             cls, sec = row['Class'], row['Section']
             if "11" in cls:
@@ -1342,14 +1334,13 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # Final Render
+        # Build HTML Rows (Same as before)
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         
         for cat in categories:
             cat_data = summary[summary['Group_Category'] == cat]
             if cat_data.empty: continue
-            
             row_span = len(cat_data)
             cat_enrolled, cat_present, cat_absent = 0, 0, 0
             
@@ -1357,20 +1348,16 @@ elif menu_choice == "📋 Daily Attendance Report":
                 present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
                 cat_enrolled += total; cat_present += present; cat_absent += absent
                 pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
-                
-                html_rows += "<tr>"
-                if i == 0:
-                    html_rows += f'<td rowspan="{row_span}" style="font-weight:bold; border:1px solid #000; vertical-align:middle; text-align:center;">{cat}</td>'
-                html_rows += f"""
-                    <td style="border:1px solid #000; text-align:center;">{row['Section']}</td>
+                html_rows += f"<tr>"
+                if i == 0: html_rows += f'<td rowspan="{row_span}" style="font-weight:bold; border:1px solid #000; vertical-align:middle; text-align:center;">{cat}</td>'
+                html_rows += f"""<td style="border:1px solid #000; text-align:center;">{row['Section']}</td>
                     <td style="border:1px solid #000; padding-left:8px;">{row['In_Charge']}</td>
                     <td style="border:1px solid #000; text-align:center;">{total}</td>
                     <td style="border:1px solid #000; text-align:center;">0</td>
                     <td style="border:1px solid #000; text-align:center;">{total}</td>
                     <td style="border:1px solid #000; text-align:center;">{present}</td>
                     <td style="border:1px solid #000; text-align:center;">{absent}</td>
-                    <td style="border:1px solid #000; text-align:center;">{pct}</td>
-                </tr>"""
+                    <td style="border:1px solid #000; text-align:center;">{pct}</td></tr>"""
             
             cat_pct = f"{int((cat_present/cat_enrolled)*100)}%" if cat_enrolled > 0 else "0%"
             html_rows += f"""<tr style="background-color:#d9d9d9; font-weight:bold;">
@@ -1380,23 +1367,16 @@ elif menu_choice == "📋 Daily Attendance Report":
                 <td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td>
                 <td style="border:1px solid #000; text-align:center;">{cat_present}</td>
                 <td style="border:1px solid #000; text-align:center;">{cat_absent}</td>
-                <td style="border:1px solid #000; text-align:center;">{cat_pct}</td>
-            </tr>"""
+                <td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>"""
 
-        st.markdown(f"""
-        <table style="width:100%; border-collapse:collapse; font-size:10pt;">
-            <thead>
-                <tr style="background-color:#aeaeae;">
-                    <th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th>
-                    <th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th>
-                    <th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th>
-                    <th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th>
-                    <th style="border:1px solid #000;">%age</th>
-                </tr>
-            </thead>
-            <tbody>{html_rows}</tbody>
-        </table>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<table style="width:100%; border-collapse:collapse; font-size:10pt;">
+            <thead><tr style="background-color:#aeaeae;">
+                <th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th>
+                <th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th>
+                <th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th>
+                <th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th>
+                <th style="border:1px solid #000;">%age</th>
+            </tr></thead><tbody>{html_rows}</tbody></table>""", unsafe_allow_html=True)
 
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT
