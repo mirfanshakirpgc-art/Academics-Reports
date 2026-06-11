@@ -1256,14 +1256,26 @@ if menu_choice == "📅 Attendance Entry Management":
                     
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
-# ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE & SYNCHRONIZED)
-# ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
     
     st.title("📋 Daily Attendance Report")
+    
+    # 1. Self-Healing: Ensure table exists before running the report
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS daily_attendance (
+                    id SERIAL PRIMARY KEY,
+                    student_id INT,
+                    attendance_date DATE NOT NULL,
+                    status VARCHAR(10) NOT NULL,
+                    UNIQUE(student_id, attendance_date)
+                );
+            """))
+    except Exception as e:
+        st.warning(f"Note: Could not verify/create attendance table: {e}")
     
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
@@ -1294,7 +1306,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     try:
         raw_students = run_query(query, {"dt": report_date.isoformat(), "session": str(report_session).strip()})
     except Exception as e:
-        st.error("Database error. Please ensure the 'daily_attendance' table exists.")
+        st.error(f"Database error: {e}")
         st.stop()
 
     if raw_students.empty:
