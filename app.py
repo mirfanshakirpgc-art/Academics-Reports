@@ -1397,7 +1397,7 @@ elif menu_choice == "📋 Daily Attendance Report":
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
-    import io
+import io
     st.title("📋 Section Summary Report Ledger")
 
     try:
