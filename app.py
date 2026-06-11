@@ -1315,25 +1315,23 @@ elif menu_choice == "📋 Daily Attendance Report":
         ).reset_index()
 
         # 2. Render Header & Table
-        # The CSS inside the markdown ensures the header is printed and buttons are hidden
-        header_html = """
+        header_html = f"""
         <style>
-            @media print {
-                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] { display: none !important; }
-                #college-header { display: block !important; }
-            }
+            @media print {{
+                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] {{ display: none !important; }}
+                #college-header {{ display: block !important; }}
+            }}
         </style>
         <div id="college-header" style="text-align: center; margin-bottom: 20px; font-family: sans-serif;">
             <h1 style="margin: 0; color: #2c3e50;">Concordia College Kasur</h1>
             <h3 style="margin: 5px 0; color: #7f8c8d;">Daily Attendance Report</h3>
             <p style="margin: 0;">Date: {report_date}</p>
         </div>
-        """.format(report_date=report_date)
+        """
         
         st.markdown(header_html, unsafe_allow_html=True)
         
-        # ... (keep your existing html_rows rendering code here)
-        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead>...</table>', unsafe_allow_html=True)
+        # ... (rest of your table rendering code remains the same)
         # 3. Download & Print
         col1, col2 = st.columns([1, 4])
         with col1:
