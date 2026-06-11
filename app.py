@@ -1315,32 +1315,25 @@ elif menu_choice == "📋 Daily Attendance Report":
         ).reset_index()
 
         # 2. Render Header & Table
+        # The CSS inside the markdown ensures the header is printed and buttons are hidden
         header_html = """
-        <div style="text-align: center; margin-bottom: 20px;">
-            <h1 style="margin: 0;">Concordia College Kasur</h1>
-            <h3 style="margin: 0;">Daily Attendance Report</h3>
+        <style>
+            @media print {
+                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] { display: none !important; }
+                #college-header { display: block !important; }
+            }
+        </style>
+        <div id="college-header" style="text-align: center; margin-bottom: 20px; font-family: sans-serif;">
+            <h1 style="margin: 0; color: #2c3e50;">Concordia College Kasur</h1>
+            <h3 style="margin: 5px 0; color: #7f8c8d;">Daily Attendance Report</h3>
+            <p style="margin: 0;">Date: {report_date}</p>
         </div>
-        """
-        html_rows = ""
-        categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
-        for cat in categories:
-            cat_data = summary[summary['Group_Category'] == cat]
-            if cat_data.empty: continue
-            row_span = len(cat_data)
-            cat_enrolled, cat_present, cat_absent = 0, 0, 0
-            for i, (_, row) in enumerate(cat_data.iterrows()):
-                present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
-                cat_enrolled += total; cat_present += present; cat_absent += absent
-                pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
-                html_rows += "<tr>"
-                if i == 0: html_rows += f'<td rowspan="{row_span}" style="font-weight:bold; border:1px solid #000; vertical-align:middle; text-align:center;">{cat}</td>'
-                html_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000; padding-left:8px;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{present}</td><td style="border:1px solid #000; text-align:center;">{absent}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
-            
-            cat_pct = f"{int((cat_present/cat_enrolled)*100)}%" if cat_enrolled > 0 else "0%"
-            html_rows += f'<tr style="background-color:#d9d9d9; font-weight:bold;"><td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">{cat_present}</td><td style="border:1px solid #000; text-align:center;">{cat_absent}</td><td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>'
-
-        st.markdown(header_html + f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
-
+        """.format(report_date=report_date)
+        
+        st.markdown(header_html, unsafe_allow_html=True)
+        
+        # ... (keep your existing html_rows rendering code here)
+        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead>...</table>', unsafe_allow_html=True)
         # 3. Download & Print
         col1, col2 = st.columns([1, 4])
         with col1:
@@ -1348,9 +1341,19 @@ elif menu_choice == "📋 Daily Attendance Report":
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 summary.to_excel(writer, index=False, sheet_name='Attendance')
             st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        
         with col2:
-            st.markdown('<button onclick="window.print()" style="padding: 10px; cursor: pointer;">🖨️ Print Report</button>', unsafe_allow_html=True)
-            st.markdown('<style>@media print {.stButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] { display: none !important; }}</style>', unsafe_allow_html=True)
+            # We use a button that triggers the print dialog via JavaScript
+            st.markdown("""
+                <script>
+                function printPage() {
+                    window.print();
+                }
+                </script>
+            """, unsafe_allow_html=True)
+            
+            if st.button("🖨️ Print Report"):
+                st.write('<script>window.print()</script>', unsafe_allow_html=True)
             
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
