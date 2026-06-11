@@ -1225,24 +1225,6 @@ if menu_choice == "📅 Attendance Entry Management":
                         st.success(f"🎉 Roster update completed successfully for {s_name}!")
                         st.rerun()
                         
-                st.markdown("---")
-                st.markdown("##### 📊 Dynamically Compiled Monthly Summary (From Daily Logs)")
-                
-                raw_logs = run_query("""
-                    SELECT attendance_date, status FROM daily_attendance WHERE student_id = :id
-                """, {"id": int(single_id)})
-                
-                if raw_logs.empty:
-                    st.caption("ℹ️ No active daily logs found to compute monthly values yet.")
-                else:
-                    raw_logs['attendance_date'] = pd.to_datetime(raw_logs['attendance_date'], errors='coerce')
-                    raw_logs = raw_logs.dropna(subset=['attendance_date'])
-                    
-                    raw_logs['Month'] = raw_logs['attendance_date'].dt.strftime('%B')
-                    raw_logs['Month_Num'] = raw_logs['attendance_date'].dt.month
-                    raw_logs['Is_Present'] = raw_logs['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])
-                    
-
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
