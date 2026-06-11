@@ -1257,7 +1257,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (FIXED KEYERROR)
+# MODULE: DAILY ATTENDANCE REPORT (FINAL ROBUST ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1265,6 +1265,20 @@ elif menu_choice == "📋 Daily Attendance Report":
     
     st.title("📋 Daily Attendance Report")
     
+    # 1. AUTO-DETECT COLUMN NAMES (Fixes UndefinedColumn errors)
+    try:
+        with engine.begin() as conn:
+            # Get columns from academic_allocations
+            cols_query = "SELECT column_name FROM information_schema.columns WHERE table_name = 'academic_allocations'"
+            alloc_cols = [c[0] for c in conn.execute(text(cols_query)).fetchall()]
+            
+            # Find the section column name dynamically
+            possible_names = ['section', 'sec', 'section_name', 'class_section', 'sec_name']
+            section_col = next((col for col in alloc_cols if col in possible_names), 'section')
+    except:
+        section_col = 'section' # Fallback
+
+    # 2. SELECTION
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
@@ -1276,9 +1290,8 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # UPDATED QUERY: Using a generic join that assumes your academic_allocations
-    # table might have the section column named 'section' or needs to be mapped.
-    query = """
+    # 3. DYNAMIC SQL JOIN
+    query = f"""
         SELECT 
             s.class, 
             s.section, 
@@ -1288,7 +1301,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             a.instructor AS in_charge_name
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-        LEFT JOIN academic_allocations a ON TRIM(s.section) = TRIM(a.section) 
+        LEFT JOIN academic_allocations a ON TRIM(s.section) = TRIM(a.{section_col}) 
             AND TRIM(s.session) = TRIM(a.session) 
             AND a.subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'
         WHERE TRIM(s.session) = :session
@@ -1304,16 +1317,15 @@ elif menu_choice == "📋 Daily Attendance Report":
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
     else:
-        # Standardize data - Note: 'In_Charge' is now a hardcoded placeholder
+        # Standardize data
         raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['In_Charge'] = '---' 
+        raw_students['In_Charge'] = raw_students['in_charge_name'].fillna('---').astype(str).str.strip()
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
 
         # Categorization Logic
         def classify_group(row):
-            cls = row['Class']
-            sec = row['Section']
+            cls, sec = row['Class'], row['Section']
             if "11" in cls:
                 if any(x in sec for x in ["G", "WHITE", "GREEN"]): return "11th (Girls)"
                 return "11th (Boys)"
@@ -1330,6 +1342,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
+        # Final Render
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         
