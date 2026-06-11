@@ -1264,7 +1264,7 @@ elif menu_choice == "📋 Daily Attendance Report":
 
     st.title("📋 Daily Attendance Report")
 
-    # --- SETUP & FETCHING (Same as before) ---
+    # 1. SETUP & FETCH
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
@@ -1274,7 +1274,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     with c1:
         report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
     with c2:
-        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
+        report_date = st.date_input("🗓️ Target Date:", value=datetime.date.today())
 
     if not report_sessions:
         st.warning("Please select at least one session.")
@@ -1287,7 +1287,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     if raw_students.empty:
         st.info("ℹ️ No records found.")
     else:
-        # Merge & Mapping
+        # DATA PROCESSING
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
         teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
         
@@ -1296,7 +1296,6 @@ elif menu_choice == "📋 Daily Attendance Report":
         df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
         df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
 
-        # Categorize
         def classify(row):
             cls, sec = str(row['Class']), str(row['Section'])
             if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
@@ -1309,7 +1308,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # --- GENERATE HTML ENGINE ---
+        # 2. HTML PRINT ENGINE (Modify column widths here)
         table_rows = ""
         for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
             cat_data = summary[summary['Group_Category'] == cat]
@@ -1325,10 +1324,15 @@ elif menu_choice == "📋 Daily Attendance Report":
         <html>
         <head>
             <style>
-                body {{ font-family: "Times New Roman", Times, serif; padding: 20px; }}
-                table {{ width: 100%; border-collapse: collapse; }}
-                th, td {{ border: 1px solid #000; padding: 8px; text-align: center; }}
-                .print-btn {{ padding: 10px 20px; background: #333; color: white; cursor: pointer; border: none; }}
+                body {{ font-family: "Times New Roman", serif; padding: 20px; }}
+                table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+                th {{ border: 1px solid #000; padding: 12px; background: #eee; }}
+                td {{ border: 1px solid #000; padding: 10px; word-wrap: break-word; }}
+                /* --- COLUMN WIDTHS --- */
+                th:nth-child(1) {{ width: 15%; }} th:nth-child(2) {{ width: 10%; }} 
+                th:nth-child(3) {{ width: 30%; }} th:nth-child(4) {{ width: 10%; }}
+                th:nth-child(5) {{ width: 10%; }} th:nth-child(6) {{ width: 10%; }} th:nth-child(7) {{ width: 15%; }}
+                .print-btn {{ padding: 10px 20px; background: #333; color: white; cursor: pointer; }}
                 @media print {{ .print-btn {{ display: none; }} }}
             </style>
         </head>
@@ -1337,20 +1341,24 @@ elif menu_choice == "📋 Daily Attendance Report":
             <h1 style="text-align:center;">CONCORDIA COLLEGE KASUR</h1>
             <h3 style="text-align:center;">Daily Attendance Report - {report_date}</h3>
             <table>
-                <tr style="background:#eee;"><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
+                <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
                 {table_rows}
             </table>
-            <div style="margin-top:50px; text-align:right;">Principal Sign: ___________</div>
         </body>
         </html>
         """
-        
-        # Display via components
         components.html(html_template, height=700, scrolling=True)
 
-        # Excel Export (Still stays in Streamlit)
+        # 3. EXCEL EXPORT (Modify column/row sizes here)
         output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            summary.to_excel(writer, index=False, sheet_name='Attendance')
+            ws = writer.sheets['Attendance']
+            # --- COLUMN WIDTHS ---
+            ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 35)
+            ws.set_column('D:D', 10); ws.set_column('E:E', 10); ws.set_column('F:F', 10); ws.set_column('G:G', 12)
+            # --- ROW HEIGHT ---
+            ws.set_default_row(30)
         st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
             
 # MODULE: 📋 SECTION SUMMARY REPORT
