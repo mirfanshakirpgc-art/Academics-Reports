@@ -2550,7 +2550,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
 # MODULE: 🪪 STUDENT RESULT CARDS 
 # ====================================================================================
 elif menu_choice == "🪪 Student Result Cards":
+    st.cache_data.clear() # <--- ADD THIS LINE TO FORCE REFRESH
     st.title("🪪 Student Result Cards — Print Engine")
+    # ... rest of your code
     
     print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     col_c1, col_c2 = st.columns(2)
