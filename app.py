@@ -1319,28 +1319,45 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 3. Display with Header
-        st.markdown(f"""
-        <div id="college-header" style="text-align:center; font-family:sans-serif; margin-bottom:20px;">
-            <h1 style="margin:0; color:#2c3e50;">Concordia College Kasur</h1>
-            <h3 style="margin:0; color:#7f8c8d;">Daily Attendance Report - {report_date}</h3>
-        </div>
-        """, unsafe_allow_html=True)
+        # 3. Export & Print Options
+        st.write("---")
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
+            st.download_button("📥 Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.ms-excel")
+            
+        with col2:
+            # THIS IS THE ONLY WAY TO FORCE A PRINT DIALOG IN STREAMLIT
+            st.markdown("""
+            <a href="#" onclick="window.print(); return false;" style="
+                display: inline-block;
+                padding: 10px 20px;
+                background-color: #f0f0f0;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                text-decoration: none;
+                color: black;
+                font-weight: bold;
+                font-family: sans-serif;
+                cursor: pointer;">🖨️ Click Here to Print Report</a>
+            """, unsafe_allow_html=True)
 
-        # Build Table
-        html_rows = ""
-        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
-            cat_data = summary[summary['Group_Category'] == cat]
-            if cat_data.empty: continue
-            row_span = len(cat_data)
-            for i, (_, row) in enumerate(cat_data.iterrows()):
-                present, total, absent = int(row['Present']), int(row['Total']), int(row['Absent'])
-                pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
-                html_rows += f'<tr>'
-                if i == 0: html_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; text-align:center; vertical-align:middle;">{cat}</td>'
-                html_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000; padding-left:8px;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{present}</td><td style="border:1px solid #000; text-align:center;">{absent}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
-        
-        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#eee;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
+        # Force the printer to hide everything EXCEPT our header and table
+        st.markdown("""
+            <style>
+            @media print {
+                /* Hide everything you don't want */
+                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"], .stInfo { 
+                    display: none !important; 
+                }
+                /* Show the report content clearly */
+                #college-header { display: block !important; }
+                table { width: 100% !important; margin-top: 20px !important; }
+                body { padding: 20px !important; }
+            }
+            </style>
+        """, unsafe_allow_html=True)
 
         # 4. Export
         st.write("---")
