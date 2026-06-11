@@ -1355,7 +1355,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             summary.to_excel(writer, index=False, sheet_name='Attendance')
             ws = writer.sheets['Attendance']
             # --- COLUMN WIDTHS ---
-            ws.set_column('A:A', 10); ws.set_column('B:B', 12); ws.set_column('C:C', 35)
+            ws.set_column('A:A', 5); ws.set_column('B:B', 10); ws.set_column('C:C', 35)
             ws.set_column('D:D', 10); ws.set_column('E:E', 10); ws.set_column('F:F', 10); ws.set_column('G:G', 12)
             # --- ROW HEIGHT ---
             ws.set_default_row(30)
