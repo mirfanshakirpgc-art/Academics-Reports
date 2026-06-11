@@ -1256,13 +1256,16 @@ if menu_choice == "📅 Attendance Entry Management":
                     
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
+# ====================================================================================
+# MODULE: DAILY ATTENDANCE REPORT (FINAL ROBUST ENGINE)
+# ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
     
     st.title("📋 Daily Attendance Report")
 
-    # 1. Ensure Attendance table exists
+    # 1. Ensure Attendance table exists (Self-Healing)
     try:
         with engine.begin() as conn:
             conn.execute(text("""
@@ -1275,7 +1278,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 );
             """))
     except:
-        pass # Table already exists
+        pass
 
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
@@ -1288,8 +1291,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # 2. Fetch Data Separately (Prevents SQL JOIN errors)
-    # Fetch Students
+    # 2. Fetch Data with Error Handling
     raw_students = run_query("""
         SELECT id, class, section, status 
         FROM students 
@@ -1297,12 +1299,13 @@ elif menu_choice == "📋 Daily Attendance Report":
         AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'DROPOUT'))
     """, {"session": str(report_session).strip()})
 
-    # Fetch Attendance
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
     
-    # Fetch Teachers (Mapping table)
-    # Note: We fetch all columns so we can use what exists
-    raw_alloc = run_query("SELECT * FROM academic_allocations WHERE subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+    # Safe fetch for allocations - prevents crashing if table is missing
+    try:
+        raw_alloc = run_query("SELECT * FROM academic_allocations WHERE subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+    except:
+        raw_alloc = pd.DataFrame()
 
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
@@ -1310,11 +1313,12 @@ elif menu_choice == "📋 Daily Attendance Report":
         # Merge Attendance
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
         
-        # Create Teacher Map safely (Checks available columns in allocations table)
+        # Build Teacher Map safely
         teacher_map = {}
         if not raw_alloc.empty:
-            # Find the section column automatically
-            sec_col = next((c for c in raw_alloc.columns if c in ['section', 'sec', 'section_name', 'class_section']), raw_alloc.columns[0])
+            # Auto-detect column name
+            cols = raw_alloc.columns
+            sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), cols[0])
             teacher_map = dict(zip(raw_alloc[sec_col].astype(str).str.upper().str.strip(), raw_alloc['instructor']))
 
         # Standardize Data
@@ -1360,7 +1364,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             html_rows += f'<tr style="background-color:#d9d9d9; font-weight:bold;"><td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">{cat_present}</td><td style="border:1px solid #000; text-align:center;">{cat_absent}</td><td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>'
 
         st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
-
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
