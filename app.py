@@ -1256,26 +1256,14 @@ if menu_choice == "📅 Attendance Entry Management":
                     
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
+# ====================================================================================
+# MODULE: DAILY ATTENDANCE REPORT (FIXED KEYERROR)
+# ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
     
     st.title("📋 Daily Attendance Report")
-    
-    # 1. Self-Healing: Ensure table exists before running the report
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS daily_attendance (
-                    id SERIAL PRIMARY KEY,
-                    student_id INT,
-                    attendance_date DATE NOT NULL,
-                    status VARCHAR(10) NOT NULL,
-                    UNIQUE(student_id, attendance_date)
-                );
-            """))
-    except Exception as e:
-        st.warning(f"Note: Could not verify/create attendance table: {e}")
     
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
@@ -1288,7 +1276,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # UPDATED QUERY: Removed 'section_in_charge' to resolve the undefined column error
+    # Query without 'section_in_charge'
     query = """
         SELECT 
             s.class, 
@@ -1311,10 +1299,10 @@ elif menu_choice == "📋 Daily Attendance Report":
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
     else:
-        # Standardize data
+        # Standardize data - Note: 'In_Charge' is now a hardcoded placeholder
         raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['In_Charge'] = raw_students['section_in_charge'].fillna('---').astype(str).str.strip()
+        raw_students['In_Charge'] = '---' 
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
 
         # Categorization Logic
@@ -1331,14 +1319,12 @@ elif menu_choice == "📋 Daily Attendance Report":
 
         raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
         
-        # Aggregate Metrics
         summary = raw_students.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
             Total_Enrolled=('Class', 'count'),
             Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # Build HTML Rows
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         
@@ -1350,9 +1336,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             cat_enrolled, cat_present, cat_absent = 0, 0, 0
             
             for i, (_, row) in enumerate(cat_data.iterrows()):
-                present = int(row['Present'])
-                total = int(row['Total_Enrolled'])
-                absent = int(row['Absent'])
+                present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
                 cat_enrolled += total; cat_present += present; cat_absent += absent
                 pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
                 
@@ -1370,7 +1354,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     <td style="border:1px solid #000; text-align:center;">{pct}</td>
                 </tr>"""
             
-            # Subtotal Row
             cat_pct = f"{int((cat_present/cat_enrolled)*100)}%" if cat_enrolled > 0 else "0%"
             html_rows += f"""<tr style="background-color:#d9d9d9; font-weight:bold;">
                 <td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td>
@@ -1382,7 +1365,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                 <td style="border:1px solid #000; text-align:center;">{cat_pct}</td>
             </tr>"""
 
-        # Final Render
         st.markdown(f"""
         <table style="width:100%; border-collapse:collapse; font-size:10pt;">
             <thead>
