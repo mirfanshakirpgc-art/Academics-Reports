@@ -1242,19 +1242,6 @@ if menu_choice == "📅 Attendance Entry Management":
                     raw_logs['Month_Num'] = raw_logs['attendance_date'].dt.month
                     raw_logs['Is_Present'] = raw_logs['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])
                     
-                    summary_df = raw_logs.groupby(['Month_Num', 'Month']).agg(
-                        Present_Days=('Is_Present', 'sum'),
-                        Total_Days=('status', 'count')
-                    ).reset_index()
-                    
-                    summary_df = summary_df.sort_values(by='Month_Num', ascending=False)
-                    
-                    history_df = summary_df[['Month', 'Present_Days', 'Total_Days']].rename(columns={
-                        "Present_Days": "Present Days",
-                        "Total_Days": "Total Days"
-                    })
-                    
-                    st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
