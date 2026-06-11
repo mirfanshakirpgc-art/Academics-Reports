@@ -1256,24 +1256,26 @@ if menu_choice == "📅 Attendance Entry Management":
                     
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
-# ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (FINAL ROBUST ENGINE)
-# ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
     import pandas as pd
     
     st.title("📋 Daily Attendance Report")
-    
-    # 1. AUTO-DETECT COLUMN NAMES (Fixes UndefinedColumn errors)
+
+    # 1. Ensure Attendance table exists
     try:
         with engine.begin() as conn:
-            cols = [c[0] for c in conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'academic_allocations'")).fetchall()]
-            # Find the best match for section and session columns
-            sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), 'section')
-            sess_col = next((c for c in cols if c in ['session', 'sess', 'academic_session', 'year']), 'session')
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS daily_attendance (
+                    id SERIAL PRIMARY KEY,
+                    student_id INT,
+                    attendance_date DATE NOT NULL,
+                    status VARCHAR(10) NOT NULL,
+                    UNIQUE(student_id, attendance_date)
+                );
+            """))
     except:
-        sec_col, sess_col = 'section', 'session'
+        pass # Table already exists
 
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
@@ -1286,97 +1288,78 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # 2. DYNAMIC SQL JOIN using the detected column names
-    query = f"""
-        SELECT 
-            s.class, s.section, s.status, s.session, 
-            d.status AS att_status,
-            a.instructor AS in_charge_name
-        FROM students s
-        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :dt
-        LEFT JOIN academic_allocations a ON TRIM(s.section) = TRIM(a.{sec_col}) 
-            AND TRIM(s.session) = TRIM(a.{sess_col}) 
-            AND a.subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'
-        WHERE TRIM(s.session) = :session
-        AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'DROPOUT'))
-    """
+    # 2. Fetch Data Separately (Prevents SQL JOIN errors)
+    # Fetch Students
+    raw_students = run_query("""
+        SELECT id, class, section, status 
+        FROM students 
+        WHERE TRIM(session) = :session
+        AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'DROPOUT'))
+    """, {"session": str(report_session).strip()})
+
+    # Fetch Attendance
+    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
     
-    try:
-        raw_students = run_query(query, {"dt": report_date.isoformat(), "session": str(report_session).strip()})
-    except Exception as e:
-        st.error(f"Database error: {e}")
-        st.stop()
+    # Fetch Teachers (Mapping table)
+    # Note: We fetch all columns so we can use what exists
+    raw_alloc = run_query("SELECT * FROM academic_allocations WHERE subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
 
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
     else:
-        # Standardize and build summary
-        raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        raw_students['In_Charge'] = raw_students['in_charge_name'].fillna('---').astype(str).str.strip()
-        raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
+        # Merge Attendance
+        df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
+        
+        # Create Teacher Map safely (Checks available columns in allocations table)
+        teacher_map = {}
+        if not raw_alloc.empty:
+            # Find the section column automatically
+            sec_col = next((c for c in raw_alloc.columns if c in ['section', 'sec', 'section_name', 'class_section']), raw_alloc.columns[0])
+            teacher_map = dict(zip(raw_alloc[sec_col].astype(str).str.upper().str.strip(), raw_alloc['instructor']))
 
+        # Standardize Data
+        df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['In_Charge'] = df['Section'].map(teacher_map).fillna('---')
+        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
+
+        # Categorization
         def classify_group(row):
             cls, sec = row['Class'], row['Section']
             if "11" in cls:
-                if any(x in sec for x in ["G", "WHITE", "GREEN"]): return "11th (Girls)"
-                return "11th (Boys)"
+                return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
             if "12" in cls:
-                if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]): return "12th (Girls)"
-                return "12th (Boys)"
+                return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
             return "Other Tiers (DIT)"
 
-        raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
+        df['Group_Category'] = df.apply(classify_group, axis=1)
         
-        summary = raw_students.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
-            Total_Enrolled=('Class', 'count'),
+        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
+            Total_Enrolled=('id', 'count'),
             Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # Build HTML Rows (Same as before)
+        # Build Table
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
-        
         for cat in categories:
             cat_data = summary[summary['Group_Category'] == cat]
             if cat_data.empty: continue
             row_span = len(cat_data)
             cat_enrolled, cat_present, cat_absent = 0, 0, 0
-            
             for i, (_, row) in enumerate(cat_data.iterrows()):
                 present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
                 cat_enrolled += total; cat_present += present; cat_absent += absent
                 pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
-                html_rows += f"<tr>"
+                html_rows += "<tr>"
                 if i == 0: html_rows += f'<td rowspan="{row_span}" style="font-weight:bold; border:1px solid #000; vertical-align:middle; text-align:center;">{cat}</td>'
-                html_rows += f"""<td style="border:1px solid #000; text-align:center;">{row['Section']}</td>
-                    <td style="border:1px solid #000; padding-left:8px;">{row['In_Charge']}</td>
-                    <td style="border:1px solid #000; text-align:center;">{total}</td>
-                    <td style="border:1px solid #000; text-align:center;">0</td>
-                    <td style="border:1px solid #000; text-align:center;">{total}</td>
-                    <td style="border:1px solid #000; text-align:center;">{present}</td>
-                    <td style="border:1px solid #000; text-align:center;">{absent}</td>
-                    <td style="border:1px solid #000; text-align:center;">{pct}</td></tr>"""
+                html_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000; padding-left:8px;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{present}</td><td style="border:1px solid #000; text-align:center;">{absent}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
             
             cat_pct = f"{int((cat_present/cat_enrolled)*100)}%" if cat_enrolled > 0 else "0%"
-            html_rows += f"""<tr style="background-color:#d9d9d9; font-weight:bold;">
-                <td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td>
-                <td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td>
-                <td style="border:1px solid #000; text-align:center;">0</td>
-                <td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td>
-                <td style="border:1px solid #000; text-align:center;">{cat_present}</td>
-                <td style="border:1px solid #000; text-align:center;">{cat_absent}</td>
-                <td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>"""
+            html_rows += f'<tr style="background-color:#d9d9d9; font-weight:bold;"><td colspan="3" style="border:1px solid #000; text-align:center;">{cat} Total</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">0</td><td style="border:1px solid #000; text-align:center;">{cat_enrolled}</td><td style="border:1px solid #000; text-align:center;">{cat_present}</td><td style="border:1px solid #000; text-align:center;">{cat_absent}</td><td style="border:1px solid #000; text-align:center;">{cat_pct}</td></tr>'
 
-        st.markdown(f"""<table style="width:100%; border-collapse:collapse; font-size:10pt;">
-            <thead><tr style="background-color:#aeaeae;">
-                <th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th>
-                <th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th>
-                <th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th>
-                <th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th>
-                <th style="border:1px solid #000;">%age</th>
-            </tr></thead><tbody>{html_rows}</tbody></table>""", unsafe_allow_html=True)
+        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
 
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT
