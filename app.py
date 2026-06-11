@@ -1256,20 +1256,36 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT 
+# MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE ROSTER ENGINE)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
-    session_choices = ["2025-27", "2026-28", "2027-29"] 
+    import datetime
+    import pandas as pd
+    from io import BytesIO
+    
+    st.title("📋 Daily Attendance Report")
+    
+    # Use the globally defined AVAILABLE_SESSIONS constant, but allow database discovery as a fallback
     try:
-        if 'session_options' in globals() or 'session_options' in locals():
-            if session_options:
-                session_choices = session_options
-        else:
-            db_sess = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''", {})
-            if db_sess is not None and not db_sess.empty:
-                session_choices = sorted(db_sess['session'].dropna().astype(str).tolist())
+        session_choices = AVAILABLE_SESSIONS
+    except NameError:
+        session_choices = ["2025-27", "2026-28", "2027-29"]
+        
+    # Attempt to fetch fresh sessions from DB to keep the dropdown up-to-date
+    try:
+        db_sess = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''", {})
+        if not db_sess.empty:
+            db_sessions = db_sess['session'].dropna().astype(str).tolist()
+            # Merge and sort
+            session_choices = sorted(list(set(session_choices + db_sessions)))
     except Exception:
         pass
+        
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices, index=0, key="global_report_session_select")
+    with filter_col2:
+        report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today(), key="global_report_date_select")
         
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
