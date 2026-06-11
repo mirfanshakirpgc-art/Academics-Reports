@@ -1288,12 +1288,11 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # Safely query students and join attendance
+    # UPDATED QUERY: Removed 'section_in_charge' to resolve the undefined column error
     query = """
         SELECT 
             s.class, 
             s.section, 
-            s.section_in_charge, 
             s.status, 
             s.session, 
             d.status AS att_status
