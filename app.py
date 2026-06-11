@@ -1317,40 +1317,32 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 3. Display Report
+        # 3. Display & Print Logic
+        # This includes the header and the CSS to hide UI elements during printing
         st.markdown(f"""
-        <div id="college-header" style="text-align: center; margin-bottom: 20px; font-family: sans-serif;">
+        <style>
+            @media print {{
+                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] {{ display: none !important; }}
+                #college-header {{ display: block !important; }}
+            }}
+        </style>
+        <div id="college-header" style="text-align: center; margin-bottom: 20px; font-family: sans-serif; display: none;">
+            <img src="https://i.imgur.com/placeholder.png" style="width:80px; float:left;"> 
             <h1 style="margin: 0; color: #2c3e50;">Concordia College Kasur</h1>
             <h3 style="margin: 5px 0; color: #7f8c8d;">Daily Attendance Report</h3>
             <p style="margin: 0;">Date: {report_date}</p>
         </div>
         """, unsafe_allow_html=True)
 
-        # Build HTML Table
-        html_rows = ""
-        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
-            cat_data = summary[summary['Group_Category'] == cat]
-            if cat_data.empty: continue
-            row_span = len(cat_data)
-            cat_enrolled = cat_present = cat_absent = 0
-            for i, (_, row) in enumerate(cat_data.iterrows()):
-                present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
-                cat_enrolled += total; cat_present += present; cat_absent += absent
-                pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
-                html_rows += f'<tr>'
-                if i == 0: html_rows += f'<td rowspan="{row_span}" style="font-weight:bold; border:1px solid #000; vertical-align:middle; text-align:center;">{cat}</td>'
-                html_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000; padding-left:8px;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{total-present-absent}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{present}</td><td style="border:1px solid #000; text-align:center;">{absent}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
-        
-        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
-
-        # 4. Export Options
+        # 4. Final Export Layout
         col1, col2 = st.columns([1, 4])
         with col1:
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
             st.download_button("📥 Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.ms-excel")
         with col2:
-            st.markdown('<button onclick="window.print()" style="padding: 10px; cursor: pointer;">🖨️ Print Report</button>', unsafe_allow_html=True)
+            # We use a browser-native print trigger
+            st.button("🖨️ Print Report", on_click=lambda: st.write('<script>window.print()</script>', unsafe_allow_html=True))
             
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
