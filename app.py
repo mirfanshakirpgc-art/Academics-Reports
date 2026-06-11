@@ -1020,15 +1020,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"💥 Critical file parsing system breakdown error: {e}")
 
-import datetime
-import streamlit as st
-
-import datetime
-import streamlit as st
-import pandas as pd
-import io
-import streamlit.components.v1 as components
-
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT
 # ====================================================================================
@@ -1233,24 +1224,178 @@ if menu_choice == "📅 Attendance Entry Management":
                         
                         st.success(f"🎉 Roster update completed successfully for {s_name}!")
                         st.rerun()
+                        
+                st.markdown("---")
+                st.markdown("##### 📊 Dynamically Compiled Monthly Summary (From Daily Logs)")
+                
+                raw_logs = run_query("""
+                    SELECT attendance_date, status FROM daily_attendance WHERE student_id = :id
+                """, {"id": int(single_id)})
+                
+                if raw_logs.empty:
+                    st.caption("ℹ️ No active daily logs found to compute monthly values yet.")
+                else:
+                    raw_logs['attendance_date'] = pd.to_datetime(raw_logs['attendance_date'], errors='coerce')
+                    raw_logs = raw_logs.dropna(subset=['attendance_date'])
+                    
+                    raw_logs['Month'] = raw_logs['attendance_date'].dt.strftime('%B')
+                    raw_logs['Month_Num'] = raw_logs['attendance_date'].dt.month
+                    raw_logs['Is_Present'] = raw_logs['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])
+                    
+                    summary_df = raw_logs.groupby(['Month_Num', 'Month']).agg(
+                        Present_Days=('Is_Present', 'sum'),
+                        Total_Days=('status', 'count')
+                    ).reset_index()
+                    
+                    summary_df = summary_df.sort_values(by='Month_Num', ascending=False)
+                    
+                    history_df = summary_df[['Month', 'Present_Days', 'Total_Days']].rename(columns={
+                        "Present_Days": "Present Days",
+                        "Total_Days": "Total Days"
+                    })
+                    
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
 
-# ====================================================================================
-# MODULE 3: SECTION SUMMARY REPORT (ISOLATED IN CONDITIONS)
+elif menu_choice == "📋 Daily Attendance Report":
+    import datetime
+    import pandas as pd
+    import streamlit.components.v1 as components
+    from io import BytesIO
+
+    st.title("📋 Daily Attendance Report")
+
+    # 1. SETUP
+    try:
+        session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
+    except NameError:
+        session_choices = ["2025-27", "2026-28", "2027-29"]
+        
+    c1, c2 = st.columns(2)
+    with c1:
+        report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
+    with c2:
+        report_date = st.date_input("🗓️ Target Date:", value=datetime.date.today())
+
+    if not report_sessions:
+        st.warning("Please select at least one session.")
+        st.stop()
+
+    # 2. DATA FETCHING (Robust)
+    # Ensure sessions is a tuple for the SQL IN clause
+    session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
+    
+    query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
+    raw_students = run_query(query, {"sessions": session_tuple})
+    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
+    raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+
+    if raw_students.empty:
+        st.info("ℹ️ No student records found for the selected sessions.")
+    else:
+        # DATA PROCESSING
+        df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
+        teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
+        
+        df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
+        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
+        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
+
+        def classify(row):
+            cls, sec = str(row['Class']), str(row['Section'])
+            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
+            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
+            return "Other Tiers (DIT)"
+        df['Group_Category'] = df.apply(classify, axis=1)
+
+        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
+            Total=('id', 'count'), Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
+            Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
+        ).reset_index()
+
+        # 3. HTML PRINT ENGINE
+        table_rows = ""
+        grand_total = {"Total": 0, "Present": 0, "Absent": 0}
+        
+        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
+            cat_data = summary[summary['Group_Category'] == cat]
+            if cat_data.empty: continue
+            
+            sub_total = cat_data.agg({'Total': 'sum', 'Present': 'sum', 'Absent': 'sum'})
+            grand_total['Total'] += sub_total['Total']
+            grand_total['Present'] += sub_total['Present']
+            grand_total['Absent'] += sub_total['Absent']
+            
+            row_span = len(cat_data)
+            for i, (_, row) in enumerate(cat_data.iterrows()):
+                pct = f"{int((row['Present']/row['Total'])*100)}%" if row['Total'] > 0 else "0%"
+                table_rows += f"<tr>"
+                if i == 0: table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold;">{cat}</td>'
+                table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
+            
+            table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
+                          f'<td colspan="3" style="text-align:left; padding-left:10px;">Sub-Total ({cat})</td>' \
+                          f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
+                          f'<td>{int((sub_total["Present"]/sub_total["Total"])*100) if sub_total["Total"] > 0 else 0}%</td></tr>'
+
+        grand_pct = int((grand_total['Present']/grand_total['Total'])*100) if grand_total['Total'] > 0 else 0
+        table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
+                      f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
+                      f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}%</td></tr>'
+
+        html_template = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: "Times New Roman", serif; padding: 10px; }}
+                table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+                th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
+                @media print {{ 
+                    @page {{ size: A4 portrait; margin: 10mm; }}
+                    .print-btn {{ display: none; }} 
+                }}
+            </style>
+        </head>
+        <body>
+            <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
+            <h1 style="text-align:center; font-size: 20px;">CONCORDIA COLLEGE KASUR</h1>
+            <h3 style="text-align:center; font-size: 16px;">Daily Attendance Report - {report_date}</h3>
+            <table>
+                <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
+                {table_rows}
+            </table>
+            <div style="margin-top: 40px; text-align: right; font-weight:bold;">Principal Signature: ___________</div>
+        </body>
+        </html>
+        """
+        components.html(html_template, height=800, scrolling=True)
+
+        # 4. EXCEL EXPORT
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            summary.to_excel(writer, index=False, sheet_name='Attendance')
+            ws = writer.sheets['Attendance']
+            ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
+            ws.set_column('D:G', 10); ws.set_default_row(25)
+        st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
+            
+# MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
-    st.title("📋 Section Performance Summary Report")
-    
+    import io
+    st.title("📋 Section Summary Report Ledger")
+
     try:
-        session_options_summary = list(AVAILABLE_SESSIONS)
-        if "2024-26" in session_options_summary:
-            session_options_summary = [s for s in session_options_summary if s != "2024-26"]
+        session_options = list(AVAILABLE_SESSIONS)
+        if "2024-26" in session_options:
+            session_options = [s for s in session_options if s != "2024-26"]
     except NameError:
-        session_options_summary = ["2025-27", "2026-28", "2027-29"]
+        session_options = ["2025-27", "2026-28", "2027-29"]
 
     col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
-
+    
     with col_sess:
-        selected_session = st.selectbox("Select Session:", session_options_summary, key="summary_session")
+        selected_session = st.selectbox("Select Session:", session_options, key="summary_session")
         db_session_string = str(selected_session).strip() if selected_session else "2025-27"
         
     with col_sys:
@@ -1308,7 +1453,7 @@ elif menu_choice == "📋 Section Summary Report":
                 sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
 
         dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
-        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key=dynamic_widget_key)
+        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key="dynamic_widget_key")
         
     with col_c: 
         exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
@@ -1317,16 +1462,15 @@ elif menu_choice == "📋 Section Summary Report":
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
         "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
-        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST", "PAK STUDIES": "PAK.ST",
+        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST",
         "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN",
         "PRINCIPLES OF ACCOUNTING": "ACC", "ECONOMICS": "ECO", "COMMERCE": "COMM",
-        "COMMERCIAL GEOGRAPHY": "GEOG", "BANKING": "BANK",
         "ICT": "ICT", "INTRODUCTION TO MS-OFFICE": "OFFICE", "COMPUTER NETWORKS": "NETWORKS",
         "OPERATING SYSTEM": "O.S", "INTRODUCTION TO PROGRAMMING": "PROG",
         "DATA BASE SYSTEM": "DBMS", "VIDEO EDITING": "VIDEO", "WEB DEVELOPMENT ESSENTIAL": "WEB",
         "GRAPHICS DESIGN": "DESIGN", "PROJECT": "PROJ"
     }
-
+    
     if academic_system == "Semester System":
         if selected_class == "Semester 1":
             subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
@@ -1335,32 +1479,18 @@ elif menu_choice == "📋 Section Summary Report":
         else:
             subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
     else:
-        if selected_class == "11th":
-            if "STATS" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-            elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-            elif "MEDICAL" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
-            elif "ENGINEERING" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-            elif "COMMERCE" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"]
-            else:
-                subjects = ["ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
-        elif selected_class == "12th":
-            if "STATS" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "PAKISTAN STUDIES", "T_QURAN"]
-            elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "PAKISTAN STUDIES", "T_QURAN"]
-            elif "MEDICAL" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "PAKISTAN STUDIES", "T_QURAN"]
-            elif "ENGINEERING" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "PAKISTAN STUDIES", "T_QURAN"]
-            elif "COMMERCE" in sel_disc:
-                subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "COMMERCIAL GEOGRAPHY", "BANKING", "PAKISTAN STUDIES", "T_QURAN"]
-            else:
-                subjects = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "T_QURAN"]
+        if "STATS" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "MEDICAL" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
+        elif "ENGINEERING" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
+        elif "COMMERCE" in sel_disc:
+            subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"]
+        else:
+            subjects = ["ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
 
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -1371,7 +1501,7 @@ elif menu_choice == "📋 Section Summary Report":
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
     """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
-
+    
     if students_df.empty:
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
     else:
@@ -1422,7 +1552,6 @@ elif menu_choice == "📋 Section Summary Report":
                 elif "PHYS" in sub_upper: alias_list.extend(["PHYSICS"])
                 elif "COMP" in sub_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
                 elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
-                elif "PAK" in sub_upper: alias_list.extend(["PAKISTAN STUDIES", "PAK.ST", "PAK STUDIES"])
                 
                 if not marks_df.empty:
                     sub_match = marks_df[
@@ -1474,6 +1603,7 @@ elif menu_choice == "📋 Section Summary Report":
             summary_rows.append(entry)
             
         final_report_df = pd.DataFrame(summary_rows)
+        
         excel_export_df = final_report_df.copy()
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
         for col_lbl in short_subject_labels:
@@ -1499,6 +1629,7 @@ elif menu_choice == "📋 Section Summary Report":
             )
         
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
+        
         tbody_rows_html = ""
         for _, row in final_report_df.iterrows():
             st_id = str(row["ID"]).strip()
@@ -1552,6 +1683,7 @@ elif menu_choice == "📋 Section Summary Report":
             """
             
         logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+        
         analytics_html_payload = f"""
         <!DOCTYPE html>
         <html>
@@ -1643,570 +1775,7 @@ elif menu_choice == "📋 Section Summary Report":
         </html>
         """
         components.html(analytics_html_payload, height=750, scrolling=True)
-                        
-elif menu_choice == "📋 Daily Attendance Report":
-    import datetime
-    import pandas as pd
-    import streamlit.components.v1 as components
-    from io import BytesIO
 
-    st.title("📋 Daily Attendance Report")
-
-    # 1. SETUP
-    try:
-        session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
-    except NameError:
-        session_choices = ["2025-27", "2026-28", "2027-29"]
-        
-    c1, c2 = st.columns(2)
-    with c1:
-        report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
-    with c2:
-        report_date = st.date_input("🗓️ Target Date:", value=datetime.date.today())
-
-    if not report_sessions:
-        st.warning("Please select at least one session.")
-        st.stop()
-
-    # 2. DATA FETCHING (Robust)
-    # Ensure sessions is a tuple for the SQL IN clause
-    session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
-    
-    query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
-    raw_students = run_query(query, {"sessions": session_tuple})
-    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
-    raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
-
-    if raw_students.empty:
-        st.info("ℹ️ No student records found for the selected sessions.")
-    else:
-        # DATA PROCESSING
-        df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
-        teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
-        
-        df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
-        df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
-        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
-
-        def classify(row):
-            cls, sec = str(row['Class']), str(row['Section'])
-            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
-            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
-            return "Other Tiers (DIT)"
-        df['Group_Category'] = df.apply(classify, axis=1)
-
-        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
-            Total=('id', 'count'), Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
-            Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
-        ).reset_index()
-
-        # 3. HTML PRINT ENGINE
-        table_rows = ""
-        grand_total = {"Total": 0, "Present": 0, "Absent": 0}
-        
-        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
-            cat_data = summary[summary['Group_Category'] == cat]
-            if cat_data.empty: continue
-            
-            sub_total = cat_data.agg({'Total': 'sum', 'Present': 'sum', 'Absent': 'sum'})
-            grand_total['Total'] += sub_total['Total']
-            grand_total['Present'] += sub_total['Present']
-            grand_total['Absent'] += sub_total['Absent']
-            
-            row_span = len(cat_data)
-            for i, (_, row) in enumerate(cat_data.iterrows()):
-                pct = f"{int((row['Present']/row['Total'])*100)}%" if row['Total'] > 0 else "0%"
-                table_rows += f"<tr>"
-                if i == 0: table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold;">{cat}</td>'
-                table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
-            
-            table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
-                          f'<td colspan="3" style="text-align:left; padding-left:10px;">Sub-Total ({cat})</td>' \
-                          f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
-                          f'<td>{int((sub_total["Present"]/sub_total["Total"])*100) if sub_total["Total"] > 0 else 0}%</td></tr>'
-
-        grand_pct = int((grand_total['Present']/grand_total['Total'])*100) if grand_total['Total'] > 0 else 0
-        table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
-                      f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
-                      f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}%</td></tr>'
-
-        # Update the HTML block inside the template:
-        html_template = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: "Times New Roman", serif; padding: 10px; }}
-                /* Header Container: Flexbox aligns logo left, text center */
-                .header-container {{ display: flex; align-items: center; margin-bottom: 20px; }}
-                .logo {{ width: 80px; }}
-                .title-group {{ flex-grow: 1; text-align: center; }}
-                
-                table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
-                th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
-                th {{ background: #eee; }}
-                
-                @media print {{ 
-                    @page {{ size: A4 portrait; margin: 10mm; }}
-                    .print-btn {{ display: none; }} 
-                }}
-            </style>
-        </head>
-        <body>
-            <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
-            
-            <div class="header-container">
-                <img src="https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png" class="logo">
-                <div class="title-group">
-                    <h1 style="font-size: 20px; margin: 0;">CONCORDIA COLLEGE KASUR</h1>
-                    <h3 style="font-size: 16px; margin: 0;">Daily Attendance Report - {report_date}</h3>
-                </div>
-            </div>
-            
-            <table>
-                <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
-                {table_rows}
-            </table>
-            <div style="margin-top: 40px; text-align: right; font-weight:bold;">Principal Signature: ___________</div>
-        </body>
-        </html>
-        """
-        components.html(html_template, height=800, scrolling=True)
-
-        # 4. EXCEL EXPORT
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            summary.to_excel(writer, index=False, sheet_name='Attendance')
-            ws = writer.sheets['Attendance']
-            ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
-            ws.set_column('D:G', 10); ws.set_default_row(25)
-        st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
-
-import streamlit as st
-import pandas as pd
-import io
-import streamlit.components.v1 as components
-
-# MODULE: 📋 SECTION SUMMARY REPORT
-# ====================================================================================
-
-try:
-    session_options = list(AVAILABLE_SESSIONS)
-    if "2024-26" in session_options:
-        session_options = [s for s in session_options if s != "2024-26"]
-except NameError:
-    session_options = ["2025-27", "2026-28", "2027-29"]
-
-col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
-
-with col_sess:
-    selected_session = st.selectbox("Select Session:", session_options, key="summary_session")
-    db_session_string = str(selected_session).strip() if selected_session else "2025-27"
-    
-with col_sys:
-    academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
-    
-with col_class:
-    if academic_system == "Annual System":
-        selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
-    else:
-        selected_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
-    
-with col_a: 
-    if academic_system == "Annual System":
-        disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
-        raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
-        sel_disc = str(raw_disc).strip().upper()
-    else:
-        sel_disc = "DIPLOMA_IN_IT_DIT"
-        st.info("⚡ DIT System Active")
-    
-with col_b: 
-    try:
-        sec_lookup_df = run_query("""
-            SELECT DISTINCT TRIM(section) as section_name 
-            FROM students 
-            WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
-              AND TRIM(session) = TRIM(:sess_val)
-            ORDER BY section_name ASC
-        """, {"class_val": selected_class, "sess_val": db_session_string})
-        
-        db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
-    except Exception:
-        db_sections = []
-
-    if db_sections:
-        if "STATS" in sel_disc:
-            sec_options = [s for s in db_sections if "STATS" in s.upper() or "WHITE" in s.upper() or "3" in s]
-        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-            sec_options = [s for s in db_sections if "PHYS" in s.upper() or "GREEN" in s.upper() or "1" in s or "2" in s]
-        elif "MEDICAL" in sel_disc:
-            sec_options = [s for s in db_sections if "MED" in s.upper() or "M" in s.upper() or "BLUE" in s.upper()]
-        elif "ENGINEERING" in sel_disc:
-            sec_options = [s for s in db_sections if "ENG" in s.upper() or "E" in s.upper()]
-        elif "COMMERCE" in sel_disc:
-            sec_options = [s for s in db_sections if "COM" in s.upper() or "I" in s.upper()]
-        else:
-            sec_options = db_sections
-            
-        if not sec_options:
-            sec_options = db_sections
-    else:
-        if academic_system == "Semester System":
-            sec_options = ["DIT_G", "DIT_B"]
-        else:
-            sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
-
-    dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
-    
-    # CRITICAL FIX: Replaced hardcoded text key="dynamic_widget_key" with dynamic variable key=dynamic_widget_key
-    sel_sec = st.selectbox("Select Section:", sec_options, index=0, key=dynamic_widget_key)
-    
-with col_c: 
-    exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
-    sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
-
-SHORT_SUBJECTS_MAP = {
-    "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
-    "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
-    "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST", "PAK STUDIES": "PAK.ST",
-    "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN",
-    "PRINCIPLES OF ACCOUNTING": "ACC", "ECONOMICS": "ECO", "COMMERCE": "COMM",
-    "COMMERCIAL GEOGRAPHY": "GEOG", "BANKING": "BANK",
-    "ICT": "ICT", "INTRODUCTION TO MS-OFFICE": "OFFICE", "COMPUTER NETWORKS": "NETWORKS",
-    "OPERATING SYSTEM": "O.S", "INTRODUCTION TO PROGRAMMING": "PROG",
-    "DATA BASE SYSTEM": "DBMS", "VIDEO EDITING": "VIDEO", "WEB DEVELOPMENT ESSENTIAL": "WEB",
-    "GRAPHICS DESIGN": "DESIGN", "PROJECT": "PROJ"
-}
-
-# ==========================================
-# REFACTORED SUBJECT ROUTING LOGIC
-# ==========================================
-if academic_system == "Semester System":
-    if selected_class == "Semester 1":
-        subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
-    elif selected_class == "Semester 2":
-        subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-    else:
-        subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
-else:
-    # --- Annual System Mapping ---
-    if selected_class == "11th":
-        if "STATS" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-        elif "MEDICAL" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"]
-        elif "ENGINEERING" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"]
-        elif "COMMERCE" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"]
-        else:
-            subjects = ["ENGLISH", "URDU", "ISL_ETH", "T_QURAN"]
-            
-    elif selected_class == "12th":
-        # Swapped ISL_ETH for PAKISTAN STUDIES for 12th Grade
-        if "STATS" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "PAKISTAN STUDIES", "T_QURAN"]
-        elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "PAKISTAN STUDIES", "T_QURAN"]
-        elif "MEDICAL" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "PAKISTAN STUDIES", "T_QURAN"]
-        elif "ENGINEERING" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "PAKISTAN STUDIES", "T_QURAN"]
-        elif "COMMERCE" in sel_disc:
-            # Custom 12th Commerce mapping (e.g., Commercial Geography/Banking shifts) 
-            subjects = ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "COMMERCIAL GEOGRAPHY", "BANKING", "PAKISTAN STUDIES", "T_QURAN"]
-        else:
-            subjects = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "T_QURAN"]
-
-# ==========================================
-
-students_df = run_query("""
-    SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
-    FROM students 
-    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-      AND TRIM(session) = TRIM(:session_str)
-      AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
-      AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
-    ORDER BY id ASC
-""", {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
-
-if students_df.empty:
-    st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
-else:
-    try:
-        marks_df = run_query("""
-            SELECT CAST(student_id AS TEXT) as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
-            FROM marks 
-            WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-        """, {"exam": sel_exam})
-        if not marks_df.empty:
-            marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
-    except Exception:
-        marks_df = pd.DataFrame()
-
-    try:
-        att_df = run_query("""
-            SELECT CAST(student_id AS TEXT) as student_key, status
-            FROM daily_attendance
-        """, {})
-        if not att_df.empty:
-            att_df["student_key"] = att_df["student_key"].astype(str).str.strip()
-    except Exception:
-        att_df = pd.DataFrame()
-
-    summary_rows = []
-    for _, s_row in students_df.iterrows():
-        s_id = str(s_row["ID"]).strip()
-        s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
-        
-        entry = {
-            "ID": s_row["ID"], 
-            "Student Name": s_row["Student Name"], 
-            "Section": s_row["Section"], 
-            "Class": s_row["Current Class"],
-            "Status": s_status
-        }
-        
-        obtained_total = 0.0
-        max_total = 0.0
-        has_valid_scores = False  
-        
-        for sub in subjects:
-            sub_upper = sub.upper().strip()
-            short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
-            
-            alias_list = [sub_upper]
-            if "STAT" in sub_upper: alias_list.extend(["STATISTICS", "STATS"])
-            elif "PHYS" in sub_upper: alias_list.extend(["PHYSICS"])
-            elif "COMP" in sub_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
-            elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
-            elif "PAK" in sub_upper: alias_list.extend(["PAKISTAN STUDIES", "PAK.ST", "PAK STUDIES"])
-            
-            if not marks_df.empty:
-                sub_match = marks_df[
-                    (marks_df["student_key"] == s_id) & 
-                    (marks_df["subject_name"].isin(alias_list))
-                ]
-            else:
-                sub_match = pd.DataFrame()
-            
-            if not sub_match.empty:
-                val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
-                tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
-                
-                if val == "NC":
-                    entry[short_sub] = "NC"
-                elif val == "A":
-                    entry[short_sub] = "A"
-                    max_total += tot       
-                    has_valid_scores = True
-                elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                    entry[short_sub] = float(val)
-                    obtained_total += float(val)
-                    max_total += tot       
-                    has_valid_scores = True
-                else:
-                    entry[short_sub] = val
-            else:
-                entry[short_sub] = "-"
-
-        if has_valid_scores:
-            entry["Total (Obt)"] = int(obtained_total)
-            entry["Total Max"] = int(max_total)
-        else:
-            entry["Total (Obt)"] = "-"
-            entry["Total Max"] = "-"
-            
-        if not att_df.empty:
-            st_att_logs = att_df[att_df["student_key"] == s_id]
-            if not st_att_logs.empty:
-                total_days = len(st_att_logs)
-                present_days = len(st_att_logs[st_att_logs["status"].str.strip().str.upper().isin(["P", "PRESENT"])])
-                pct = (present_days / total_days) * 100 if total_days > 0 else 100.0
-                entry["Attendance"] = f"{int(pct)}%"
-            else:
-                entry["Attendance"] = "100%"
-        else:
-            entry["Attendance"] = "100%"
-            
-        summary_rows.append(entry)
-        
-    final_report_df = pd.DataFrame(summary_rows)
-    
-    excel_export_df = final_report_df.copy()
-    short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
-    for col_lbl in short_subject_labels:
-        if col_lbl in excel_export_df.columns:
-            excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(
-                lambda cell: int(cell) if isinstance(cell, (int, float)) else cell
-            )
-    
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
-        excel_export_df.to_excel(writer, index=False, sheet_name='Performance_Summary')
-    excel_data_payload = excel_buffer.getvalue()
-
-    col_download_hook, _ = st.columns([2, 4])
-    with col_download_hook:
-        st.download_button(
-            label="📥 Download Excel Spreadsheet Summary",
-            data=excel_data_payload,
-            file_name=f"Summary_Report_{sel_sec}_{selected_class}_{db_session_string}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="summary_excel_downloader_widget",
-            use_container_width=True
-        )
-    
-    thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
-    
-    tbody_rows_html = ""
-    for _, row in final_report_df.iterrows():
-        st_id = str(row["ID"]).strip()
-        current_status = row["Status"]
-        
-        status_badge = ""
-        if current_status == "Re-Active":
-            status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
-        
-        old_marks_badges = []
-        hidden_marks_df = marks_df[marks_df["student_key"] == st_id] if not marks_df.empty else pd.DataFrame()
-        for _, h_row in hidden_marks_df.iterrows():
-            h_sub = h_row["subject_name"]
-            if h_sub not in [sub.upper().strip() for sub in subjects]:
-                short_h_sub = SHORT_SUBJECTS_MAP.get(h_sub, h_sub[:4])
-                h_val = h_row['marks_obtained']
-                try:
-                    h_val = str(int(float(h_val))) if float(h_val).is_integer() else str(h_val)
-                except ValueError:
-                    pass
-                old_marks_badges.append(f"{short_h_sub}: {h_val}")
-        
-        history_str = ""
-        if old_marks_badges:
-            history_str = f"<br><span style='color: #d35400; font-size: 11px; font-style: italic;'>Dropped ({', '.join(old_marks_badges)})</span>"
-        
-        row_subjects_cells = ""
-        for lbl in short_subject_labels:
-            cell_val = row[lbl]
-            if isinstance(cell_val, (int, float)):
-                cell_str = str(int(cell_val))
-            else:
-                cell_str = str(cell_val)
-                
-            cell_style = "color: #e74c3c; font-weight: bold;" if cell_str in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_str == "NC" else "")
-            row_subjects_cells += f'<td style="{cell_style}">{cell_str}</td>'
-        
-        tbody_rows_html += f"""
-        <tr>
-            <td>{row['ID']}</td>
-            <td style="text-align: left; font-weight: bold; padding-left: 12px;">
-                {row['Student Name']} {status_badge} {history_str}
-            </td>
-            <td>{row['Section']}</td>
-            <td>{row['Class']}</td>
-            {row_subjects_cells}
-            <td style="font-weight: bold; background-color: #fcfcfc; color: #0066cc;">{row['Attendance']}</td>
-            <td style="font-weight: bold; background-color: #fcfcfc;">{row['Total (Obt)']}</td>
-            <td style="font-weight: bold; color: #555; background-color: #fcfcfc;">{row['Total Max']}</td>
-        </tr>
-        """
-        
-    logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-    
-    analytics_html_payload = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-        body {{ font-family: "Segoe UI", Arial, sans-serif; color: #333; background-color: #fff; margin: 0; padding: 10px; }}
-        .report-wrapper-container {{ max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
-        .action-panel-bar {{ display: flex; gap: 12px; margin-bottom: 22px; }}
-        .btn-action {{ padding: 10px 22px; font-weight: bold; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }}
-        .btn-print {{ background: #222; color: #fff; }}
-        .btn-image {{ background: #0066cc; color: #fff; }}
-        .btn-action:hover {{ opacity: 0.9; }}
-        .header-banner {{ display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 15px; margin-bottom: 20px; }}
-        .header-branding {{ text-align: left; }}
-        .inst-title {{ font-size: 24px; font-weight: 800; color: #111; letter-spacing: 0.5px; margin: 0; }}
-        .doc-subtitle {{ font-size: 15px; color: #555; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
-        .brand-logo-img {{ max-height: 55px; width: auto; object-fit: contain; }}
-        .analytics-grid-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
-        .analytics-grid-table th, .analytics-grid-table td {{ border: 1px solid #dcdcdc; padding: 10px 8px; text-align: center; }}
-        .analytics-grid-table th {{ background-color: #f8f9fa; font-weight: 700; color: #2c3e50; white-space: nowrap; }}
-        .analytics-grid-table tr:nth-child(even) {{ background-color: #fbfbfb; }}
-        .analytics-grid-table tr:hover {{ background-color: #f5f7fa; }}
-        @media print {{
-            .action-panel-bar {{ display: none !important; }}
-            body {{ padding: 0; margin: 0; }}
-            .report-wrapper-container {{ border: none !important; box-shadow: none !important; padding: 0 !important; }}
-        }}
-    </style>
-    </head>
-    <body>
-        <div class="action-panel-bar">
-            <button class="btn-action btn-print" onclick="window.print();">🖨️ Print Summary Ledger</button>
-            <button class="btn-action btn-image" id="capture-summary-trigger">📸 Save Layout As Image</button>
-        </div>
-        
-        <div class="report-wrapper-container" id="printable-summary-target">
-            <div class="header-banner">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <img class="brand-logo-img" src="{logo_url}" alt="Logo">
-                    <div class="header-branding">
-                        <h1 class="inst-title">CONCORDIA COLLEGE KASUR</h1>
-                        <div class="doc-subtitle">Section Performance Summary Report</div>
-                    </div>
-                </div>
-                <div class="meta-details">
-                    <b>Session:</b> {selected_session}<br>
-                    <b>System Framework:</b> {academic_system}<br>
-                    <b>Class Level / Scope:</b> {selected_class}<br>
-                    <b>Discipline Category:</b> {sel_disc}<br>
-                    <b>Section Identifier:</b> {sel_sec}<br>
-                    <b>Exam Target:</b> {sel_exam}
-                </div>
-            </div>
-            
-            <table class="analytics-grid-table">
-                <thead>
-                    <tr>
-                        <th style="width: 6%;">ID</th>
-                        <th style="text-align: left; padding-left: 12px; width: 22%;">Student Name</th>
-                        <th style="width: 7%;">Section</th>
-                        <th style="width: 6%;">Class</th>
-                        {thead_subjects_html}
-                        <th style="background-color: #e6f2ff; color: #0055b3; width: 7%;">Att %</th>
-                        <th style="background-color: #f1f3f5; width: 9%;">Total (Obt)</th>
-                        <th style="background-color: #f1f3f5; width: 8%;">Total Max</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {tbody_rows_html}
-                </tbody>
-            </table>
-        </div>
-
-        <script>
-            document.getElementById('capture-summary-trigger').addEventListener('click', function() {{
-                const targetEl = document.getElementById('printable-summary-target');
-                const filenameStr = "Summary_Report_{sel_sec}_{selected_class}_{selected_session}.png";
-                
-                html2canvas(targetEl, {{ scale: 2, useCORS: true }}).then(canvas => {{
-                    const linkHook = document.createElement('a');
-                    linkHook.download = filenameStr;
-                    linkHook.href = canvas.toDataURL('image/png');
-                    linkHook.click();
-                }});
-            }});
-        </script>
-    </body>
-    </html>
-    """
-    components.html(analytics_html_payload, height=750, scrolling=True)
 # ====================================================================================
 # MODULE: 📈 MULTI-TEST PROGRESS REPORT
 # ====================================================================================
