@@ -1386,8 +1386,15 @@ elif menu_choice == "📋 Daily Attendance Report":
         <head>
             <style>
                 body {{ font-family: "Times New Roman", serif; padding: 10px; }}
+                /* Header Container: Flexbox aligns logo left, text center */
+                .header-container {{ display: flex; align-items: center; margin-bottom: 20px; }}
+                .logo {{ width: 80px; }}
+                .title-group {{ flex-grow: 1; text-align: center; }}
+                
                 table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
                 th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
+                th {{ background: #eee; }}
+                
                 @media print {{ 
                     @page {{ size: A4 portrait; margin: 10mm; }}
                     .print-btn {{ display: none; }} 
@@ -1396,8 +1403,15 @@ elif menu_choice == "📋 Daily Attendance Report":
         </head>
         <body>
             <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
-            <h1 style="text-align:center; font-size: 20px;">CONCORDIA COLLEGE KASUR</h1>
-            <h3 style="text-align:center; font-size: 16px;">Daily Attendance Report - {report_date}</h3>
+            
+            <div class="header-container">
+                <img src="https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png" class="logo">
+                <div class="title-group">
+                    <h1 style="font-size: 20px; margin: 0;">CONCORDIA COLLEGE KASUR</h1>
+                    <h3 style="font-size: 16px; margin: 0;">Daily Attendance Report - {report_date}</h3>
+                </div>
+            </div>
+            
             <table>
                 <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
                 {table_rows}
@@ -1406,7 +1420,6 @@ elif menu_choice == "📋 Daily Attendance Report":
         </body>
         </html>
         """
-        components.html(html_template, height=800, scrolling=True)
 
         # 4. EXCEL EXPORT
         output = BytesIO()
