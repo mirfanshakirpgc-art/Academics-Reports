@@ -1393,7 +1393,8 @@ elif menu_choice == "📋 Daily Attendance Report":
             ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
             ws.set_column('D:G', 10); ws.set_default_row(25)
         st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
- elif menu_choice == "📋 Section Summary Report":
+        
+elif menu_choice == "📋 Section Summary Report":
     import io
     # Add a bold, clear heading
     st.markdown("## 📋 Section Summary Report Ledger")
