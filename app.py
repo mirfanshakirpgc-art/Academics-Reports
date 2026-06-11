@@ -1263,7 +1263,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     
     st.title("📋 Daily Attendance Report")
 
-    # 1. Setup & Data Fetching
+    # 1. Setup
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
@@ -1279,7 +1279,7 @@ elif menu_choice == "📋 Daily Attendance Report":
         st.warning("Please select at least one session.")
         st.stop()
 
-    # Fetch Data
+    # 2. Fetch Data
     raw_students = run_query("SELECT id, class, section, status FROM students WHERE session IN :sessions", {"sessions": tuple(report_sessions)})
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
     
@@ -1291,8 +1291,9 @@ elif menu_choice == "📋 Daily Attendance Report":
     if raw_students.empty:
         st.info("ℹ️ No active students found for selected sessions.")
     else:
-        # Merge & Map
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
+        
+        # Mapping
         teacher_map = {}
         if not raw_alloc.empty:
             teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
@@ -1302,11 +1303,13 @@ elif menu_choice == "📋 Daily Attendance Report":
         df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
         df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
 
-        # Grouping Logic
-        df['Group_Category'] = df.apply(lambda row: "11th (Girls)" if "11" in row['Class'] and any(x in row['Section'] for x in ["G", "WHITE", "GREEN"]) else 
-                                       ("11th (Boys)" if "11" in row['Class'] else 
-                                       ("12th (Girls)" if "12" in row['Class'] and any(x in row['Section'] for x in ["Q", "G", "WHITE", "GREEN"]) else 
-                                       ("12th (Boys)" if "12" in row['Class'] else "Other Tiers (DIT)"))), axis=1)
+        # Grouping
+        def classify_group(row):
+            cls, sec = str(row['Class']), str(row['Section'])
+            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
+            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
+            return "Other Tiers (DIT)"
+        df['Group_Category'] = df.apply(classify_group, axis=1)
 
         summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
             Total_Enrolled=('id', 'count'),
@@ -1314,44 +1317,40 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 2. Render Header & Table
-        header_html = f"""
-        <style>
-            @media print {{
-                .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"] {{ display: none !important; }}
-                #college-header {{ display: block !important; }}
-            }}
-        </style>
+        # 3. Display Report
+        st.markdown(f"""
         <div id="college-header" style="text-align: center; margin-bottom: 20px; font-family: sans-serif;">
             <h1 style="margin: 0; color: #2c3e50;">Concordia College Kasur</h1>
             <h3 style="margin: 5px 0; color: #7f8c8d;">Daily Attendance Report</h3>
             <p style="margin: 0;">Date: {report_date}</p>
         </div>
-        """
+        """, unsafe_allow_html=True)
+
+        # Build HTML Table
+        html_rows = ""
+        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
+            cat_data = summary[summary['Group_Category'] == cat]
+            if cat_data.empty: continue
+            row_span = len(cat_data)
+            cat_enrolled = cat_present = cat_absent = 0
+            for i, (_, row) in enumerate(cat_data.iterrows()):
+                present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
+                cat_enrolled += total; cat_present += present; cat_absent += absent
+                pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
+                html_rows += f'<tr>'
+                if i == 0: html_rows += f'<td rowspan="{row_span}" style="font-weight:bold; border:1px solid #000; vertical-align:middle; text-align:center;">{cat}</td>'
+                html_rows += f'<td style="border:1px solid #000; text-align:center;">{row["Section"]}</td><td style="border:1px solid #000; padding-left:8px;">{row["In_Charge"]}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{total-present-absent}</td><td style="border:1px solid #000; text-align:center;">{total}</td><td style="border:1px solid #000; text-align:center;">{present}</td><td style="border:1px solid #000; text-align:center;">{absent}</td><td style="border:1px solid #000; text-align:center;">{pct}</td></tr>'
         
-        st.markdown(header_html, unsafe_allow_html=True)
-        
-        # ... (rest of your table rendering code remains the same)
-        # 3. Download & Print
+        st.markdown(f'<table style="width:100%; border-collapse:collapse; font-size:10pt;"><thead><tr style="background-color:#aeaeae;"><th style="border:1px solid #000;">Class</th><th style="border:1px solid #000;">Section</th><th style="border:1px solid #000;">In Charge</th><th style="border:1px solid #000;">Total</th><th style="border:1px solid #000;">Left</th><th style="border:1px solid #000;">Active</th><th style="border:1px solid #000;">Present</th><th style="border:1px solid #000;">Absent</th><th style="border:1px solid #000;">%age</th></tr></thead><tbody>{html_rows}</tbody></table>', unsafe_allow_html=True)
+
+        # 4. Export Options
         col1, col2 = st.columns([1, 4])
         with col1:
             output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                summary.to_excel(writer, index=False, sheet_name='Attendance')
-            st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
+            st.download_button("📥 Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.ms-excel")
         with col2:
-            # We use a button that triggers the print dialog via JavaScript
-            st.markdown("""
-                <script>
-                function printPage() {
-                    window.print();
-                }
-                </script>
-            """, unsafe_allow_html=True)
-            
-            if st.button("🖨️ Print Report"):
-                st.write('<script>window.print()</script>', unsafe_allow_html=True)
+            st.markdown('<button onclick="window.print()" style="padding: 10px; cursor: pointer;">🖨️ Print Report</button>', unsafe_allow_html=True)
             
 # MODULE: 📋 SECTION SUMMARY REPORT
 # ====================================================================================
