@@ -1402,12 +1402,11 @@ elif menu_choice == "📋 Section Summary Report":
     st.markdown("## 📋 Section Summary Report Ledger")
     
     try:
-        session_options = list(AVAILABLE_SESSIONS)
-        if "2024-26" in session_options:
-            session_options = [s for s in session_options if s != "2024-26"]
-    except NameError:
-        session_options = ["2025-27", "2026-28", "2027-29"]
-
+        session_options = list(AVAILABLE_SESSIONS)
+        if "2024-26" in session_options:
+            session_options = [s for s in session_options if s != "2024-26"]
+    except NameError:
+        session_options = ["2025-27", "2026-28", "2027-29"]
     col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
     
     with col_sess:
