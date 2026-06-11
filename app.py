@@ -1265,7 +1265,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     
     st.title("📋 Daily Attendance Report")
 
-    # 1. Ensure Attendance table exists (Self-Healing)
+    # 1. Ensure Attendance table exists
     try:
         with engine.begin() as conn:
             conn.execute(text("""
@@ -1291,7 +1291,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # 2. Fetch Data with Error Handling
+    # 2. Fetch Data Separately
     raw_students = run_query("""
         SELECT id, class, section, status 
         FROM students 
@@ -1301,7 +1301,6 @@ elif menu_choice == "📋 Daily Attendance Report":
 
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
     
-    # Safe fetch for allocations - prevents crashing if table is missing
     try:
         raw_alloc = run_query("SELECT * FROM academic_allocations WHERE subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
     except:
@@ -1310,24 +1309,19 @@ elif menu_choice == "📋 Daily Attendance Report":
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
     else:
-        # Merge Attendance
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
         
-        # Build Teacher Map safely
         teacher_map = {}
         if not raw_alloc.empty:
-            # Auto-detect column name
             cols = raw_alloc.columns
             sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), cols[0])
             teacher_map = dict(zip(raw_alloc[sec_col].astype(str).str.upper().str.strip(), raw_alloc['instructor']))
 
-        # Standardize Data
         df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
         df['In_Charge'] = df['Section'].map(teacher_map).fillna('---')
         df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
 
-        # Categorization
         def classify_group(row):
             cls, sec = row['Class'], row['Section']
             if "11" in cls:
@@ -1344,7 +1338,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # Build Table
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         for cat in categories:
