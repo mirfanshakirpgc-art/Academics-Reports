@@ -1270,16 +1270,30 @@ elif menu_choice == "📋 Daily Attendance Report":
         
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
-        report_session = st.selectbox("🎯 Select Session Grouping:", session_choices)
+        # Changed to multiselect
+        report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # 2. Fetch Data
-    raw_students = run_query("SELECT id, class, section, status FROM students WHERE TRIM(session) = :session", {"session": str(report_session).strip()})
+    if not report_sessions:
+        st.warning("Please select at least one session.")
+        st.stop()
+
+    # 2. Fetch Data with IN clause
+    # Note: Using tuple for the IN clause
+    query = """
+        SELECT id, class, section, status, session 
+        FROM students 
+        WHERE session IN :sessions
+        AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'DROPOUT'))
+    """
+    raw_students = run_query(query, {"sessions": tuple(report_sessions)})
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
     
-    # Fetch Allocations using exact column names from your debug table
+    # Fetch Allocations
     raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+
+    # ... (rest of your logic remains exactly the same as the previous block)
 
     if not raw_students.empty:
         # Merge Attendance
