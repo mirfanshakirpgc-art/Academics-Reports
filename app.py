@@ -1437,19 +1437,38 @@ elif menu_choice == "📋 Section Summary Report":
         elif "COMMERCE" in sel_disc: subjects = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "T_QURAN"] if is_12th else ["ENGLISH", "URDU", "ISL_ETH", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "T_QURAN"]
         else: subjects = ["ENGLISH", "URDU", isl_subject, "T_QURAN"]
 
-    # 3. DATA FETCHING (Corrected Query)
-    students_df = run_query("""
+    # --- DATA FETCHING (DIAGNOSTIC VERSION) ---
+    # We will print the values we are searching for so we can catch the mismatch
+    query = """
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status" 
         FROM students 
-        WHERE class = :class AND section = :section AND session = :session 
-        ORDER BY id ASC
-    """, {"class": selected_class, "section": sel_sec, "session": db_session_string})
+        WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class)) 
+          AND UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+          AND TRIM(session) = TRIM(:session)
+    """
     
+    params = {
+        "class": selected_class, 
+        "section": sel_sec, 
+        "session": db_session_string
+    }
+    
+    # Run the query
+    students_df = run_query(query, params)
+    
+    # DIAGNOSTIC: If empty, show us the truth
     if students_df.empty:
-        st.warning(f"No records found for {selected_class}, {sel_sec}, {db_session_string}. Check your database values.")
+        st.error(f"❌ No records found!")
+        st.write("Search Parameters Used:")
+        st.json(params) # This will show you exactly what is being sent
+        
+        # Look at the database to see what SHOULD have been selected
+        st.write("Checking database for possible value mismatches...")
+        sample = run_query("SELECT DISTINCT class, section, session FROM students LIMIT 5", {})
+        st.dataframe(sample)
     else:
-        # Proceed with tbody_rows_html and components.html as per your existing code
-        st.success(f"Successfully fetched {len(students_df)} students.")         
+        st.success(f"✅ Found {len(students_df)} students.")
+        # Proceed with your table building code here...     
 
 # ====================================================================================
 # MODULE: 📈 MULTI-TEST PROGRESS REPORT
