@@ -75,7 +75,9 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # Add this specific block to your existing function
+        # ... (keep your other table creations here) ...
+        
+        # ADD THIS BLOCK to your initialize_database function:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS daily_attendance (
                 id SERIAL PRIMARY KEY,
