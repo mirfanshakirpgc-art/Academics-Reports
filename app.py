@@ -1311,16 +1311,31 @@ elif menu_choice == "📋 Daily Attendance Report":
     else:
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
         
+        # Build Teacher Map with Debug
         teacher_map = {}
         if not raw_alloc.empty:
-            cols = raw_alloc.columns
-            sec_col = next((c for c in cols if c in ['section', 'sec', 'section_name', 'class_section']), cols[0])
-            teacher_map = dict(zip(raw_alloc[sec_col].astype(str).str.upper().str.strip(), raw_alloc['instructor']))
-
+            # DEBUG: Uncomment the line below to see exactly what's in your table
+            st.write("--- DEBUG: ALLOCATIONS TABLE PREVIEW ---")
+            st.write(raw_alloc.head())
+            
+            # Use the actual column index to map
+            # We iterate through columns to find the most likely 'instructor' column
+            instr_col = next((c for c in raw_alloc.columns if 'instr' in c.lower() or 'name' in c.lower()), raw_alloc.columns[1])
+            sec_col = next((c for c in raw_alloc.columns if c in ['section', 'sec', 'section_name', 'class_section']), raw_alloc.columns[0])
+            
+            teacher_map = dict(zip(
+                raw_alloc[sec_col].astype(str).str.upper().str.strip(), 
+                raw_alloc[instr_col]
+            ))
+        
+        # Standardize Data
         df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
+        
+        # DEBUG: See what is being mapped
+        # st.write("--- DEBUG: TEACHER MAP ---", teacher_map)
+        
         df['In_Charge'] = df['Section'].map(teacher_map).fillna('---')
-        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
 
         def classify_group(row):
             cls, sec = row['Class'], row['Section']
