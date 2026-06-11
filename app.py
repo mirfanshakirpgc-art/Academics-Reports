@@ -1393,80 +1393,60 @@ elif menu_choice == "📋 Daily Attendance Report":
             ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
             ws.set_column('D:G', 10); ws.set_default_row(25)
         st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
-        
+
+# ====================================================================================
+# MODULE: 📈 SECTION SUMMARY REPORT
+# ====================================================================================
+
 elif menu_choice == "📋 Section Summary Report":
     import io
-    # Add a bold, clear heading
+    import streamlit.components.v1 as components
     st.markdown("## 📋 Section Summary Report Ledger")
-    st.write("---")
-
-    # SESSION SETUP
+    
+    # 1. SETUP & DROPDOWNS
     try:
         session_options = list(AVAILABLE_SESSIONS)
-        if "2024-26" in session_options:
-            session_options = [s for s in session_options if s != "2024-26"]
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
     with col_sess:
         selected_session = st.selectbox("Select Session:", session_options, key="summary_session")
-        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
+        db_session_string = str(selected_session).strip()
     with col_sys:
         academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
     with col_class:
-        if academic_system == "Annual System":
-            selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
-        else:
-            selected_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
+        selected_class = st.selectbox("Select Class:", ["11th", "12th"] if academic_system == "Annual System" else ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
     with col_a: 
-        if academic_system == "Annual System":
-            disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
-            sel_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc").strip().upper()
-        else:
-            sel_disc = "DIPLOMA_IN_IT_DIT"
-            st.info("⚡ DIT System Active")
+        sel_disc = st.selectbox("Select Discipline:", ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"], key="summary_disc") if academic_system == "Annual System" else "DIT"
     with col_b: 
-        sec_lookup_df = run_query("SELECT DISTINCT TRIM(section) as section_name FROM students WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val)) AND TRIM(session) = TRIM(:sess_val) ORDER BY section_name ASC", 
-                                 {"class_val": selected_class, "sess_val": db_session_string})
-        db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
-        sel_sec = st.selectbox("Select Section:", db_sections if db_sections else ["N/A"], key="summary_sec")
+        sec_lookup = run_query("SELECT DISTINCT TRIM(section) as section_name FROM students WHERE UPPER(TRIM(class)) = UPPER(TRIM(:c)) AND TRIM(session) = TRIM(:s) ORDER BY section_name ASC", {"c": selected_class, "s": db_session_string})
+        sel_sec = st.selectbox("Select Section:", sec_lookup["section_name"].tolist() if not sec_lookup.empty else ["N/A"], key="summary_sec")
     with col_c: 
-        exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
+        sel_exam = st.selectbox("Select Exam Cycle:", ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"] if academic_system == "Annual System" else ["MID_TERM", "FINAL_TERM"], key="summary_exam")
 
-    # SUBJECT LOGIC (Correctly Indented)
+    # 2. SUBJECT LOGIC
     is_12th = "12" in selected_class
-    if academic_system == "Semester System":
-        if "1" in selected_class: 
-            subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
-        elif "2" in selected_class: 
-            subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-        else: 
-            subjects = ["English", "Urdu", "Isl_Eth", "Stats", "Maths", "T_Quran"]
-    else:
-        if "STATS" in sel_disc: 
-            subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "PHYSICS" in sel_disc or "ICS" in sel_disc: 
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "MEDICAL" in sel_disc: 
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "ENGINEERING" in sel_disc: 
-            subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
-        elif "COMMERCE" in sel_disc:
-            subjects = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "T_QURAN"] if is_12th else ["ENGLISH", "URDU", "ISL_ETH", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "T_QURAN"]
-        else: 
-            subjects = ["ENGLISH", "URDU", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
+    if academic_system == "Annual System":
+        if "STATS" in sel_disc: subjects = ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
+        elif "PHYSICS" in sel_disc or "ICS" in sel_disc: subjects = ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
+        elif "MEDICAL" in sel_disc: subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
+        elif "ENGINEERING" in sel_disc: subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
+        elif "COMMERCE" in sel_disc: subjects = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "T_QURAN"] if is_12th else ["ENGLISH", "URDU", "ISL_ETH", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "T_QURAN"]
+        else: subjects = ["ENGLISH", "URDU", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
+    else: subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
 
-    # FETCH DATA
+    # 3. FETCH AND DISPLAY
     students_df = run_query("SELECT id AS \"ID\", name AS \"Student Name\", section AS \"Section\", class AS \"Current Class\", status AS \"Status\" FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) AND TRIM(session) = TRIM(:session_str) AND UPPER(TRIM(class)) = UPPER(TRIM(:class)) ORDER BY id ASC", 
                            {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
     if students_df.empty:
-        st.warning("💡 No active student records found for this criteria.")
+        st.warning("💡 No records found.")
     else:
         st.success(f"Report generated for {len(students_df)} students.")
-        # Proceed with your table building code here...           
+        
+        # NOTE: Add your table-building logic (the loop creating 'tbody_rows_html') here
+        # and end it with components.html(analytics_html_payload, height=800)          
 
 # ====================================================================================
 # MODULE: 📈 MULTI-TEST PROGRESS REPORT
