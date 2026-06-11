@@ -1264,7 +1264,7 @@ elif menu_choice == "📋 Daily Attendance Report":
 
     st.title("📋 Daily Attendance Report")
 
-    # 1. SETUP & FETCH
+    # 1. SETUP
     try:
         session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
     except NameError:
@@ -1280,12 +1280,17 @@ elif menu_choice == "📋 Daily Attendance Report":
         st.warning("Please select at least one session.")
         st.stop()
 
-    raw_students = run_query("SELECT id, class, section, status FROM students WHERE session IN :sessions", {"sessions": tuple(report_sessions)})
+    # 2. DATA FETCHING (Robust)
+    # Ensure sessions is a tuple for the SQL IN clause
+    session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
+    
+    query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
+    raw_students = run_query(query, {"sessions": session_tuple})
     raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
     raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
 
     if raw_students.empty:
-        st.info("ℹ️ No records found.")
+        st.info("ℹ️ No student records found for the selected sessions.")
     else:
         # DATA PROCESSING
         df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
@@ -1308,7 +1313,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
-        # 2. HTML PRINT ENGINE (Refined Sub-Total Alignment)
+        # 3. HTML PRINT ENGINE
         table_rows = ""
         grand_total = {"Total": 0, "Present": 0, "Absent": 0}
         
@@ -1328,25 +1333,50 @@ elif menu_choice == "📋 Daily Attendance Report":
                 if i == 0: table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold;">{cat}</td>'
                 table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
             
-            # Sub-Total row: Label "Sub-Total" aligned to left, spanning across columns
             table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
                           f'<td colspan="3" style="text-align:left; padding-left:10px;">Sub-Total ({cat})</td>' \
                           f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
                           f'<td>{int((sub_total["Present"]/sub_total["Total"])*100) if sub_total["Total"] > 0 else 0}%</td></tr>'
 
-        # Grand Total row
         grand_pct = int((grand_total['Present']/grand_total['Total'])*100) if grand_total['Total'] > 0 else 0
         table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
                       f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
                       f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}%</td></tr>'
-        # 3. EXCEL EXPORT
+
+        html_template = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: "Times New Roman", serif; padding: 10px; }}
+                table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+                th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
+                @media print {{ 
+                    @page {{ size: A4 portrait; margin: 10mm; }}
+                    .print-btn {{ display: none; }} 
+                }}
+            </style>
+        </head>
+        <body>
+            <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
+            <h1 style="text-align:center; font-size: 20px;">CONCORDIA COLLEGE KASUR</h1>
+            <h3 style="text-align:center; font-size: 16px;">Daily Attendance Report - {report_date}</h3>
+            <table>
+                <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
+                {table_rows}
+            </table>
+            <div style="margin-top: 40px; text-align: right; font-weight:bold;">Principal Signature: ___________</div>
+        </body>
+        </html>
+        """
+        components.html(html_template, height=800, scrolling=True)
+
+        # 4. EXCEL EXPORT
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             summary.to_excel(writer, index=False, sheet_name='Attendance')
             ws = writer.sheets['Attendance']
             ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
-            ws.set_column('D:G', 10)
-            ws.set_default_row(25)
+            ws.set_column('D:G', 10); ws.set_default_row(25)
         st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
             
 # MODULE: 📋 SECTION SUMMARY REPORT
