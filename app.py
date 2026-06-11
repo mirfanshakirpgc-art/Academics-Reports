@@ -1256,7 +1256,7 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 # ====================================================================================
-# MODULE: DAILY ATTENDANCE REPORT (COMPLETE ENGINE)
+# MODULE: DAILY ATTENDANCE REPORT (COMPLETE & INDENTATION FIXED)
 # ====================================================================================
 elif menu_choice == "📋 Daily Attendance Report":
     import datetime
@@ -1294,13 +1294,16 @@ elif menu_choice == "📋 Daily Attendance Report":
     if raw_students.empty:
         st.info(f"ℹ️ No active students found for session {report_session}.")
     else:
+        # Standardize data
         raw_students['Class'] = raw_students['class'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['Section'] = raw_students['section'].fillna('Unknown').astype(str).str.upper().str.strip()
         raw_students['In_Charge'] = raw_students['section_in_charge'].fillna('---').astype(str).str.strip()
         raw_students['Attendance_Status'] = raw_students['att_status'].fillna('').astype(str).str.upper().str.strip()
 
+        # Categorization Logic
         def classify_group(row):
-            cls, sec = row['Class'], row['Section']
+            cls = row['Class']
+            sec = row['Section']
             if "11" in cls:
                 if any(x in sec for x in ["G", "WHITE", "GREEN"]): return "11th (Girls)"
                 return "11th (Boys)"
@@ -1311,12 +1314,14 @@ elif menu_choice == "📋 Daily Attendance Report":
 
         raw_students['Group_Category'] = raw_students.apply(classify_group, axis=1)
         
+        # Aggregate Metrics
         summary = raw_students.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
             Total_Enrolled=('Class', 'count'),
             Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
+        # Build HTML
         html_rows = ""
         categories = ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]
         
@@ -1328,7 +1333,9 @@ elif menu_choice == "📋 Daily Attendance Report":
             cat_enrolled, cat_present, cat_absent = 0, 0, 0
             
             for i, (_, row) in enumerate(cat_data.iterrows()):
-                present, total, absent = int(row['Present']), int(row['Total_Enrolled']), int(row['Absent'])
+                present = int(row['Present'])
+                total = int(row['Total_Enrolled'])
+                absent = int(row['Absent'])
                 cat_enrolled += total; cat_present += present; cat_absent += absent
                 pct = f"{int((present/total)*100)}%" if total > 0 else "0%"
                 
@@ -1372,169 +1379,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             <tbody>{html_rows}</tbody>
         </table>
         """, unsafe_allow_html=True)
-
-            # ==========================================
-            # 📥 DOWNLOADING CONTROL PANEL HOOKS
-            # ==========================================
-            st.markdown("###")
-            action_col1, action_col2 = st.columns(2)
-            
-            with action_col1:
-                try:
-                    import openpyxl
-                    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                    from openpyxl.utils import get_column_letter
-                    
-                    wb = openpyxl.Workbook()
-                    ws = wb.active
-                    ws.title = "Attendance Summary"
-                    ws.views.sheetView[0].showGridLines = True
-                    
-                    gray_header_fill = PatternFill(start_color="AEAEAE", end_color="AEAEAE", fill_type="solid")
-                    subtotal_row_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
-                    
-                    font_title = Font(name="Times New Roman", size=18, bold=True)
-                    font_subtitle = Font(name="Arial", size=11, bold=True)
-                    font_header = Font(name="Arial", size=10, bold=True)
-                    font_bold = Font(name="Arial", size=10, bold=True)
-                    font_regular = Font(name="Arial", size=10)
-                    
-                    black_thin = Side(style='thin', color='000000')
-                    box_border = Border(left=black_thin, right=black_thin, top=black_thin, bottom=black_thin)
-                    
-                    ws.merge_cells("A1:I1")
-                    ws["A1"] = "Concordia College Kasur"
-                    ws["A1"].font = font_title
-                    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-                    
-                    ws.merge_cells("A2:I2")
-                    ws["A2"] = f"Attendance Report — Session {report_session}"
-                    ws["A2"].font = font_subtitle
-                    ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
-                    
-                    ws.merge_cells("A3:I3")
-                    ws["A3"] = f"{report_date.strftime('%A, %B %d, %Y')}"
-                    ws["A3"].font = font_regular
-                    ws["A3"].alignment = Alignment(horizontal="right", vertical="center")
-                    
-                    headers = ["Class", "Section", "In Charge", "Total Enrolled", "Left", "Total Active", "Present", "Absent", "%age"]
-                    ws.append(headers)
-                    header_row_idx = 4
-                    ws.row_dimensions[header_row_idx].height = 24
-                    
-                    for col_num, h_text in enumerate(headers, 1):
-                        cell = ws.cell(row=header_row_idx, column=col_num)
-                        cell.fill = gray_header_fill
-                        cell.font = font_header
-                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                        cell.border = box_border
-                    
-                    start_merge_row = 5
-                    for index, r_item in enumerate(excel_rows_list, 5):
-                        ws.append([r_item["Class"], r_item["Section"], r_item["In_Charge"], r_item["Enrolled"], r_item["Left"], r_item["Active"], r_item["Present"], r_item["Absent"], r_item["Pct"]])
-                        ws.row_dimensions[index].height = 20
-                        
-                        is_sub = (r_item["Type"] == "Subtotal")
-                        for col_num in range(1, 10):
-                            cell = ws.cell(row=index, column=col_num)
-                            cell.border = box_border
-                            cell.font = font_bold if (is_sub or col_num == 1) else font_regular
-                            if is_sub:
-                                cell.fill = subtotal_row_fill
-                            
-                            if col_num in [1, 2, 3]:
-                                cell.alignment = Alignment(horizontal="left" if col_num == 3 else "center", vertical="center")
-                            else:
-                                cell.alignment = Alignment(horizontal="center", vertical="center")
-                        
-                        if is_sub:
-                            if (index - 1) >= start_merge_row:
-                                ws.merge_cells(start_row=start_merge_row, start_column=1, end_row=index-1, end_column=1)
-                            ws.merge_cells(start_row=index, start_column=1, end_row=index, end_column=3)
-                            start_merge_row = index + 1
-                    
-                    curr_r = len(excel_rows_list) + 7
-                    ws.cell(row=curr_r, column=1, value="Statistics of Attendance:-").font = font_bold
-                    
-                    curr_r += 1
-                    stat_headers = ["Date", "Total Enrolled", "Left", "Total Active", "Total Present", "Total Absent", "Grand Percentage"]
-                    ws.row_dimensions[curr_r].height = 22
-                    for col_i, sh_text in enumerate(stat_headers, 1):
-                        target_col = col_i if col_i < 7 else 9
-                        if col_i == 1:
-                            ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
-                        elif col_i == 7:
-                            ws.merge_cells(start_row=curr_r, start_column=7, end_row=curr_r, end_column=9)
-                            
-                        cell = ws.cell(row=curr_r, column=target_col, value=sh_text)
-                        cell.fill = gray_header_fill
-                        cell.font = font_header
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
-                        
-                    for c_num in range(1, 10):
-                        ws.cell(row=curr_r, column=c_num).border = box_border
-                        
-                    curr_r += 1
-                    ws.row_dimensions[curr_r].height = 24
-                    ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
-                    ws.merge_cells(start_row=curr_r, start_column=7, end_row=curr_r, end_column=9)
-                    
-                    stat_values = [report_date.strftime('%d-%b-%Y'), grand_enrolled, grand_left, grand_active, grand_present, grand_absent, grand_pct]
-                    val_mappings = {1: stat_values[0], 3: stat_values[1], 4: stat_values[2], 5: stat_values[3], 6: stat_values[4], 7: stat_values[5], 8: stat_values[6]}
-                    
-                    for c_num in range(1, 10):
-                        cell = ws.cell(row=curr_r, column=c_num)
-                        cell.border = box_border
-                        cell.font = font_bold
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
-                        if c_num in val_mappings:
-                            cell.value = val_mappings[c_num]
-                    
-                    for col in ws.columns:
-                        col_letter = get_column_letter(col[0].column)
-                        ws.column_dimensions[col_letter].width = 14
-                    ws.column_dimensions["C"].width = 24
-                    
-                    excel_stream = BytesIO()
-                    wb.save(excel_stream)
-                    excel_stream.seek(0)
-                    
-                    st.download_button(
-                        label="🟢 Export Formatted Excel Document",
-                        data=excel_stream.getvalue(),
-                        file_name=f"Concordia_Daily_Attendance_{report_date}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                except Exception:
-                    csv_df = pd.DataFrame(excel_rows_list)
-                    if not csv_df.empty:
-                        csv_df = csv_df.drop(columns=['Type'])
-                    csv_data = csv_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="🟢 Export Clean CSV Summary Data",
-                        data=csv_data,
-                        file_name=f"Concordia_Attendance_Data_{report_date}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
-
-            with action_col2:
-                try:
-                    from weasyprint import HTML
-                    pdf_buffer = BytesIO()
-                    HTML(string=ui_screen_html).write_pdf(pdf_buffer)
-                    
-                    st.download_button(
-                        label="🖨️ Print Document to Official PDF",
-                        data=pdf_buffer.getvalue(),
-                        file_name=f"Concordia_Kasur_Daily_Attendance_{report_date}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                        type="primary"
-                    )
-                except Exception:
-                    pass
 
 # ====================================================================================
 # MODULE: 📋 SECTION SUMMARY REPORT
