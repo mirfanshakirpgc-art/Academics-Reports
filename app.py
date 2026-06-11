@@ -1350,19 +1350,16 @@ elif menu_choice == "📋 Daily Attendance Report":
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer: summary.to_excel(writer, index=False)
             st.download_button("📥 Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", "application/vnd.ms-excel")
         with c2:
-            # Using an HTML anchor tag instead of a button
+            st.info("💡 Tip: Press **Ctrl + P** (Windows) or **Cmd + P** (Mac) to print this report.")
+            # This CSS ensures that even without a button, the printout is perfect
             st.markdown("""
-                <a href="javascript:window.print()" style="
-                    display: inline-block;
-                    padding: 10px 20px;
-                    background-color: #f0f0f0;
-                    border: 1px solid #ccc;
-                    border-radius: 5px;
-                    text-decoration: none;
-                    color: black;
-                    cursor: pointer;
-                    font-family: sans-serif;
-                ">🖨️ Print Report</a>
+                <style>
+                    @media print {
+                        .stButton, .stDownloadButton, .stMultiselect, .stDateInput, [data-testid="stSidebar"], .stInfo { display: none !important; }
+                        #college-header { display: block !important; }
+                        table { width: 100% !important; }
+                    }
+                </style>
             """, unsafe_allow_html=True)
             
 # MODULE: 📋 SECTION SUMMARY REPORT
