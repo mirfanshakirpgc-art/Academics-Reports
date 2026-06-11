@@ -1394,8 +1394,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             ws.set_column('D:G', 10); ws.set_default_row(25)
         st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
             
-# MODULE: 📋 SECTION SUMMARY REPORT
-# ====================================================================================
 if academic_system == "Semester System":
         if selected_class == "Semester 1":
             subjects = ["ICT", "Introduction to MS-Office", "Computer Networks", "Operating System", "Introduction to Programming"]
@@ -1416,7 +1414,6 @@ if academic_system == "Semester System":
         elif "ENGINEERING" in sel_disc:
             subjects = ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", ("PAKISTAN STUDIES" if is_12th else "ISL_ETH"), "T_QURAN"]
         elif "COMMERCE" in sel_disc:
-            # Commerce 12th subjects are usually different
             if is_12th:
                 subjects = ["ENGLISH", "URDU", "PAKISTAN STUDIES", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "T_QURAN"]
             else:
