@@ -1398,7 +1398,7 @@ elif menu_choice == "📋 Daily Attendance Report":
 # ====================================================================================
 elif menu_choice == "📋 Section Summary Report":
 import io
-    st.title("📋 Section Summary Report Ledger")
+st.title("📋 Section Summary Report Ledger")
 
     try:
         session_options = list(AVAILABLE_SESSIONS)
