@@ -1277,12 +1277,13 @@ elif menu_choice == "📋 Daily Attendance Report":
     with filter_col2:
         report_date = st.date_input("🗓️ Select Target Date:", value=datetime.date.today())
 
-    # 2. Fetch Data
-    raw_students = run_query("SELECT id, class, section, status FROM students WHERE TRIM(session) = :session", {"session": str(report_session).strip()})
-    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
-    
+    # 2. Fetch Teachers (Force show all, ignore subject filter)
     try:
-        raw_alloc = run_query("SELECT * FROM academic_allocations WHERE subject = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+        # Removing the WHERE subject clause to see if data exists at all
+        raw_alloc = run_query("SELECT * FROM academic_allocations", {})
+        
+        # DEBUG: Show us what is in the table to debug the mismatch
+        st.write("DEBUG - Table Contents:", raw_alloc.head(10)) 
     except:
         raw_alloc = pd.DataFrame()
 
