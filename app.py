@@ -3522,60 +3522,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
-# --- 1. REPLACE YOUR ENTIRE MENU ROUTER WITH THIS ---
 
-if menu_choice == "📊 Home Dashboard":
-    st.title("Concordia College Kasur")
-    # ... your existing home code ...
-
-elif menu_choice == "➕ Add Students":
-    st.title("➕ Student Profile Registration Portal")
-    # ... your existing student code ...
-
-# ... (Keep your other existing 'elif' blocks here) ...
-
-elif menu_choice == "Discipline Analysis":
-    st.subheader("🏢 High-Level Discipline Stream Overview")
-    
-    # Initialize session variables to prevent 'NameError'
-    if 'sel_secs' not in st.session_state: st.session_state.sel_secs = []
-    
-    # UI Section
-    col1, col2 = st.columns(2)
-    with col1:
-        sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
-        sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
-        disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
-        sel_disc = st.selectbox("3. Select Discipline:", disc_options)
-    
-    with col2:
-        all_secs_query = "SELECT DISTINCT section_name FROM academic_allocations WHERE session_term = :sess"
-        all_secs_df = run_query(all_secs_query, {"sess": sel_sess})
-        sec_options = all_secs_df['section_name'].tolist() if not all_secs_df.empty else []
-        
-        sel_secs = st.multiselect("4. Select Multiple Section(s):", options=sec_options)
-        sel_exams = st.multiselect("5. Select Multiple Tests:", options=AVAILABLE_EXAMS)
-
-    # Teacher Filtering
-    if sel_secs:
-        teachers_query = "SELECT DISTINCT assigned_teacher_name FROM academic_allocations WHERE section_name IN :secs AND session_term = :sess"
-        teachers_df = run_query(teachers_query, {"secs": tuple(sel_secs), "sess": sel_sess})
-        t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
-    else:
-        t_options = []
-
-    sel_teachers = st.multiselect("6. Select Teacher(s):", options=t_options, disabled=len(t_options) == 0)
-
-    # Action Logic
-    if st.button("Generate Analysis"):
-        if not sel_exams or not sel_teachers or not sel_secs:
-            st.warning("Please ensure Sections, Teachers, and Tests are all selected.")
-        else:
-            st.success("Data ready for processing.")
-            # ... (Add your data processing here once the page loads)
-
-else:
-    st.info(f"The module '{menu_choice}' is currently being updated.")
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
