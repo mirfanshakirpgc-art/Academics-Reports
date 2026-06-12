@@ -1572,7 +1572,17 @@ elif menu_choice == "📋 Section Summary Report":
         sel_sec = st.selectbox("Select Section:", sec_options, index=0, key="dynamic_widget_key")
         
     with col_c: 
-        exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ"] if academic_system == "Semester System" else ["MT_1", "MT_2", "PRE_BOARD", "MATRIC", "ACADEMICS"]
+        if academic_system == "Semester System":
+            # Show ONLY technical board semester tests
+            exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"]
+        else:
+            # Show ONLY intermediate/matric annual tests
+            exam_options = [
+                "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "MT_5", 
+                "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+                "HALF_BOOK01", "HALF_BOOK02", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"
+            ]
+            
         sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
 
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
