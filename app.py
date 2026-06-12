@@ -3647,7 +3647,6 @@ elif menu_choice == "⚙️ Settings":
             "📑 Test & Exam Frameworks"
         ]
     else:
-        # Standard users / teachers can view the existing settings records without modifying them
         settings_options = [
             "📝 Faculty Registration", 
             "📅 Sessions & Terms", 
@@ -3665,8 +3664,8 @@ elif menu_choice == "⚙️ Settings":
         with st.form("teacher_reg_form", clear_on_submit=True):
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                # Add explicit input for the unique Teacher ID string
-                new_teacher_id = st.text_input("Unique Teacher ID Code (No Spaces):", placeholder="e.g. TCH-2026-01").strip().upper()
+                # Value configured as number input to match the integer 'teacher_id' column
+                new_teacher_id = st.number_input("Teacher ID Number (Numeric Only):", min_value=1, step=1, value=None, placeholder="e.g. 101")
                 new_teacher_name = st.text_input("Teacher Full Name:", placeholder="e.g. Prof. Muhammad Ali").strip()
             with col_f2:
                 new_teacher_phone = st.text_input("Contact Number:", placeholder="e.g. +923001234567").strip()
@@ -3676,25 +3675,25 @@ elif menu_choice == "⚙️ Settings":
             
             if submit_faculty:
                 if not new_teacher_id or not new_teacher_name:
-                    st.error("❌ Both 'Unique Teacher ID Code' and 'Teacher Full Name' are mandatory entries.")
+                    st.error("❌ Both 'Teacher ID Number' and 'Teacher Full Name' are mandatory entries.")
                 else:
                     try:
-                        # Verify the custom ID code doesn't conflict before inserting
-                        check_id = run_query("SELECT teacher_id_code FROM system_teachers WHERE UPPER(TRIM(teacher_id_code)) = :code", {"code": new_teacher_id})
+                        # Fixed: Querying actual 'teacher_id' column matching your schema
+                        check_id = run_query("SELECT teacher_id FROM system_teachers WHERE teacher_id = :code", {"code": int(new_teacher_id)})
                         if not check_id.empty:
-                            st.error(f"❌ A faculty member with the ID Code '{new_teacher_id}' is already registered.")
+                            st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
                         else:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO system_teachers (teacher_id_code, teacher_name, phone_number, email_address, status)
+                                    INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status)
                                     VALUES (:code, :name, :phone, :email, 'ACTIVE')
                                 """), {
-                                    "code": new_teacher_id,
+                                    "code": int(new_teacher_id),
                                     "name": new_teacher_name,
                                     "phone": new_teacher_phone,
                                     "email": new_teacher_email
                                 })
-                            st.success(f"🎉 Successfully registered {new_teacher_name} with ID Code '{new_teacher_id}'!")
+                            st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
                             st.rerun()
                     except Exception as err:
                         st.error(f"❌ Failed to write record to the database: {err}")
@@ -3705,8 +3704,8 @@ elif menu_choice == "⚙️ Settings":
         # --- 🛡️ INITIALIZE AND RENDER DATAFRAME ---
         current_faculty = pd.DataFrame()
         try:
-            # Query updated to fetch your explicit unique string ID as well as the database serial primary key
-            current_faculty = run_query('SELECT id as "System Serial", teacher_id_code as "Teacher ID Code", teacher_name as "Teacher Name", phone_number as "Phone Number", email_address as "Email", status as "Status" FROM system_teachers ORDER BY teacher_name ASC')
+            # Fixed: Query completely synchronized with valid columns verified from Supabase screenshot
+            current_faculty = run_query('SELECT teacher_id as "Teacher ID", teacher_name as "Teacher Name", phone_number as "Phone Number", email_address as "Email", status as "Status" FROM system_teachers ORDER BY teacher_name ASC')
         except Exception as e:
             st.error(f"⚠️ Failed to read faculty profiles from database: {e}")
             
@@ -3715,16 +3714,15 @@ elif menu_choice == "⚙️ Settings":
             
             # --- 🛠️ INTERACTIVE EDIT / DELETE FACULTY PORTAL ---
             st.markdown("### 🛠️ Manage Existing Faculty Members")
-            # Dropdown menu displays the human-assigned Unique Teacher ID Code alongside the name
-            faculty_list = [f"{row['System Serial']} - {row['Teacher Name']} ({row['Teacher ID Code']})" for _, row in current_faculty.iterrows()]
+            faculty_list = [f"{row['Teacher ID']} - {row['Teacher Name']}" for _, row in current_faculty.iterrows()]
             selected_fac_str = st.selectbox("Select a Teacher Profile to Modify or Remove:", faculty_list, key="manage_fac_select")
             
             if selected_fac_str:
-                selected_fac_serial = int(selected_fac_str.split(" - ")[0])
-                target_fac_row = current_faculty[current_faculty['System Serial'] == selected_fac_serial].iloc[0]
+                selected_fac_id = int(selected_fac_str.split(" - ")[0])
+                target_fac_row = current_faculty[current_faculty['Teacher ID'] == selected_fac_id].iloc[0]
                 
                 with st.form("edit_faculty_form"):
-                    updated_fac_code = st.text_input("Change Unique Teacher ID Code:", value=str(target_fac_row['Teacher ID Code'])).strip().upper()
+                    updated_fac_id = st.number_input("Modify Teacher ID Number:", min_value=1, step=1, value=int(target_fac_row['Teacher ID']))
                     updated_fac_name = st.text_input("Change Teacher Full Name:", value=str(target_fac_row['Teacher Name'])).strip()
                     updated_fac_phone = st.text_input("Update Contact Number:", value=str(target_fac_row['Phone Number'])).strip()
                     updated_fac_email = st.text_input("Update Email Address:", value=str(target_fac_row['Email'])).strip()
@@ -3738,27 +3736,27 @@ elif menu_choice == "⚙️ Settings":
                         delete_fac = st.form_submit_button("🗑️ Delete Profile Permanently", type="secondary", use_container_width=True)
                         
                 if save_fac:
-                    if not updated_fac_code or not updated_fac_name:
-                        st.error("❌ Teacher ID Code and Teacher Name cannot be left blank.")
+                    if not updated_fac_id or not updated_fac_name:
+                        st.error("❌ Teacher ID and Teacher Name cannot be left blank.")
                     else:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE system_teachers 
-                                    SET teacher_id_code = :code, teacher_name = :name, phone_number = :phone, email_address = :email, status = :status 
-                                    WHERE id = :serial
+                                    SET teacher_id = :new_id, teacher_name = :name, phone_number = :phone, email_address = :email, status = :status 
+                                    WHERE teacher_id = :old_id
                                 """), {
-                                    "code": updated_fac_code,
+                                    "new_id": int(updated_fac_id),
                                     "name": updated_fac_name, 
                                     "phone": updated_fac_phone, 
                                     "email": updated_fac_email, 
                                     "status": updated_fac_status, 
-                                    "serial": selected_fac_serial
+                                    "old_id": selected_fac_id
                                 })
                             st.success(f"🎉 Successfully updated profile details for {updated_fac_name}!")
                             st.rerun()
                         except Exception as err:
-                            st.error(f"❌ Modification failed. The ID Code might conflict with another teacher's unique record: {err}")
+                            st.error(f"❌ Modification failed. The ID might conflict with another teacher's record: {err}")
                         
                 if delete_fac:
                     if not confirm_fac_del:
@@ -3766,7 +3764,7 @@ elif menu_choice == "⚙️ Settings":
                     else:
                         try:
                             with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM system_teachers WHERE id = :serial"), {"serial": selected_fac_serial})
+                                conn.execute(text("DELETE FROM system_teachers WHERE teacher_id = :id"), {"id": selected_fac_id})
                             st.success("Faculty profile completely removed from system records.")
                             st.rerun()
                         except Exception as err:
