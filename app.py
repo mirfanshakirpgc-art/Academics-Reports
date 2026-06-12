@@ -1946,12 +1946,19 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </style>
     """, unsafe_allow_html=True)
 
-    # --- EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
-    all_frameworks = [
-        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
-        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
-    ]
+    # --- MASTER TEST FRAMEWORK DYNAMIC SYNC ---
+    try:
+        # Pulls active exam codes straight from your database dynamically
+        active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
+        all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
+    except Exception as e:
+        # Fallback list to prevent application downtime if database has a brief latency hiccup
+        all_frameworks = [
+            "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+            "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+            "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th", 
+            "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
+        ]
 
     # --- GLOBAL INTERFACE FILTER PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
