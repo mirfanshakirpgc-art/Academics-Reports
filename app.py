@@ -3788,7 +3788,7 @@ elif menu_choice == "⚙️ Settings":
                             
         st.markdown("---")
         st.write("#### Registered Class Sections")
-        current_sections = run_query("SELECT id as ID, section_name as [Section Name], status as Status FROM system_sections ORDER BY section_name ASC")
+        current_sections = run_query('SELECT id as ID, section_name as "Section Name", status as Status FROM system_sections ORDER BY section_name ASC')
         if not current_sections.empty:
             st.dataframe(current_sections, use_container_width=True, hide_index=True)
         else:
