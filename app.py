@@ -235,6 +235,11 @@ from sqlalchemy import text
 def initialize_settings_tables():
     """Ensures all structural configuration tables exist with proper schemas."""
     try:
+        # FORCE REBUILD: Wipes out old broken structures so they can pick up new columns
+        execute_db_command("DROP TABLE IF EXISTS academic_sessions;")
+        execute_db_command("DROP TABLE IF EXISTS system_sections;")
+        execute_db_command("DROP TABLE IF EXISTS exam_cycles;")
+        
         # 1. Setup Academic Sessions Structure
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS academic_sessions (
