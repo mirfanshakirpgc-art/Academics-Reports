@@ -1,15 +1,32 @@
 # --- LINE 1: ALL IMPORTS MUST BE HERE ---
 import streamlit as st
 import pandas as pd
+import numpy as np
 import sqlite3
 import os
 import base64
+import datetime
 from sqlalchemy import create_engine, text
 import streamlit.components.v1 as components
-import datetime
 
-# --- REPLACEMENT (Must be defined at the TOP of your app.py) ---
-# --- 1. CORE HELPER FUNCTIONS (Place after imports at top of file) ---
+# --- STREAMLIT CONFIGURATION ---
+st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
+
+# --- INITIALIZE GLOBAL IMAGES AND LOGOS ---
+logo_filename = "logo.png"
+logo_base64 = ""
+
+if os.path.exists(logo_filename):
+    try:
+        with open(logo_filename, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
+            if ext == "jpg": ext = "jpeg"
+            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
+    except Exception:
+        pass
+
+# --- CORE HELPER FUNCTIONS ---
 def apply_filters(df, tab_key):
     st.markdown("### ⚙️ Filter Configuration")
     s_options = sorted(df['session'].unique())
@@ -39,57 +56,6 @@ def fetch_analytics_data():
     """
     return run_query(query, {})
 
-# --- LINE 20: THEN YOUR GLOBAL VARIABLES AND ROUTER ---
-# ==============================================================================
-# 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
-# ==============================================================================
-import streamlit as st
-import pandas as pd
-import sqlite3
-import os
-import base64
-
-logo_filename = "logo.png"
-logo_base64 = ""
-
-# Pre-load and encode logo globally so any module can read it instantly
-if os.path.exists(logo_filename):
-    try:
-        with open(logo_filename, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            if ext == "jpg": ext = "jpeg"
-            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
-    except Exception:
-        pass
-
-# ==============================================================================
-# 2. YOUR REST OF THE CODE CONTINUES BELOW HERE...
-# ==============================================================================
-import os
-import base64
-
-# --- GLOBAL SETTINGS (Prevents NameErrors anywhere in the app) ---
-logo_filename = "logo.png" 
-logo_base64 = ""
-
-if os.path.exists(logo_filename):
-    try:
-        with open(logo_filename, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            if ext == "jpg": ext = "jpeg"
-            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
-    except Exception:
-        pass
-import streamlit as st
-import pandas as pd
-import numpy as np
-from sqlalchemy import create_engine, text
-import streamlit.components.v1 as components
-
-st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
-
 # --- DATABASE CONNECTION CONFIGURATION ---
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
@@ -109,7 +75,6 @@ if "assigned_subject" not in st.session_state:
 
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
-    # Display the official logo centered or cleanly sized on the login page
     st.image("logo.png", width=120) 
     st.title("Concordia College Kasur")
     
@@ -136,7 +101,6 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Students Table (Updated with SERIAL for automatic ID creation on Supabase)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
@@ -148,7 +112,6 @@ def initialize_database():
             );
         """))
         
-        # 2. Teachers Registry Table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_teachers (
                 teacher_id SERIAL PRIMARY KEY,
@@ -159,7 +122,6 @@ def initialize_database():
             );
         """))
 
-        # 3. Master Allocation Matrix Table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS academic_allocations (
                 allocation_id SERIAL PRIMARY KEY,
@@ -173,7 +135,6 @@ def initialize_database():
             );
         """))
         
-        # 4. Marks Table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS marks (
                 id SERIAL PRIMARY KEY,
@@ -186,7 +147,6 @@ def initialize_database():
             );
         """))
         
-        # 5. Attendance Table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS attendance (
                 id SERIAL PRIMARY KEY,
@@ -210,20 +170,14 @@ def run_query(query, params=None):
     if params is None:
         params = {}
     
-    # Universal handle for different SQL engine column escaping styles
     clean_query = query.replace("[Session Name]", '"Session Name"')
     
-    # Step 1: Attempt a clean read execution first
     try:
         with engine.connect() as conn:
             return pd.read_sql_query(text(clean_query), conn, params=params)
     except Exception as original_error:
-        # Step 2: SAFE PATCH ENGINE (Triggers only if read query fails due to schema mismatch)
         try:
-            # We open an explicit transaction manager block to force database saves
             with engine.begin() as txn_conn:
-                
-                # 1. Gently build academic_sessions if completely missing
                 try:
                     txn_conn.execute(text("""
                         CREATE TABLE IF NOT EXISTS academic_sessions (
@@ -233,78 +187,20 @@ def run_query(query, params=None):
                         );
                     """))
                 except Exception:
-                    try:
-                        txn_conn.execute(text("""
-                            CREATE TABLE IF NOT EXISTS academic_sessions (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                session_name VARCHAR(50) UNIQUE NOT NULL,
-                                status VARCHAR(20) DEFAULT 'ACTIVE'
-                            );
-                        """))
-                    except Exception:
-                        pass
-                
-                # 2. Gently build system_sections if completely missing
-                try:
-                    txn_conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS system_sections (
-                            id SERIAL PRIMARY KEY,
-                            section_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                except Exception:
-                    try:
-                        txn_conn.execute(text("""
-                            CREATE TABLE IF NOT EXISTS system_sections (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                section_name VARCHAR(50) UNIQUE NOT NULL,
-                                status VARCHAR(20) DEFAULT 'ACTIVE'
-                            );
-                        """))
-                    except Exception:
-                        pass
+                    pass
 
-                # 3. Gently build exam_cycles if completely missing
-                try:
-                    txn_conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS exam_cycles (
-                            id SERIAL PRIMARY KEY,
-                            exam_code VARCHAR(50) UNIQUE NOT NULL,
-                            exam_display_name VARCHAR(100) NOT NULL,
-                            system_type VARCHAR(50) NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                except Exception:
-                    try:
-                        txn_conn.execute(text("""
-                            CREATE TABLE IF NOT EXISTS exam_cycles (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                exam_code VARCHAR(50) UNIQUE NOT NULL,
-                                exam_display_name VARCHAR(100) NOT NULL,
-                                system_type VARCHAR(50) NOT NULL,
-                                status VARCHAR(20) DEFAULT 'ACTIVE'
-                            );
-                        """))
-                    except Exception:
-                        pass
-
-                # 4. Add status column safely if the table exists but lacks the column
                 for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
                     try:
                         txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
                     except Exception:
                         pass 
 
-            # Step 3: Now that schemas are completely secured, retry fetching the data frame
             with engine.connect() as retry_conn:
                 return pd.read_sql_query(text(clean_query), retry_conn, params=params)
-                
         except Exception:
-            # If everything completely breaks, return the original data problem
             raise original_error
- # ==============================================================================
+
+# ==============================================================================
 # SIDEBAR NAVIGATION MODULE 
 # ==============================================================================
 menu_choice = st.sidebar.radio(
@@ -325,53 +221,81 @@ menu_choice = st.sidebar.radio(
         "⚙️ Settings"
     ]
 )
-# --- MAP CONFIGURATIONS ---
-DISCIPLINE_SUBJECTS_MAP = {
-    "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "ENGINEERING": ["CHEMISTRY", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "ICS_PHYSICS": ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "ICS_STATS": ["MATHEMATICS", "STATISTICS", "COMPUTER", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "COMMERCE": ["POA", "POC", "B_MATH", "POE", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "HUMANITIES": ["EDUCATION", "ISL_ELC", "COMPUTER", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
-    "INFORMATION_TECHNOLOGY": ["COMPUTER_1", "COMPUTER_2", "COMPUTER_3", "COMPUTER_4", "COMPUTER_5"]
+
+# ==============================================================================
+# --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
+# ==============================================================================
+CLASS_SUBJECTS_MASTER_MAP = {
+    "11th": {
+        "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+        "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+        "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+        "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+        "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+        "COMMERCE": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"]
+    },
+    "12th": {
+        "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+        "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+        "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+        "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+        "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+        "COMMERCE": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+    },
+    "Semester 1": {
+        "INFORMATION_TECHNOLOGY": ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+    },
+    "Semester 2": {
+        "INFORMATION_TECHNOLOGY": ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+    },
+    "Semester 3": {
+        "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+    },
+    "Semester 4": {
+        "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+    }
 }
 
 DISCIPLINE_SECTIONS_MAP = {
     "MEDICAL": {
         "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-        "12th": ["MQ1", "MQ2", "MK"]                     # Matches your promotion code rules
+        "12th": ["MQ1", "MQ2", "MK"]
     },
     "ENGINEERING": {
         "11th": ["EG_BLUE", "EB_BLUE"],
-        "12th": ["EQ", "EK"]                             # Matches your promotion code rules
+        "12th": ["EQ", "EK"]
     },
     "ICS (PHYSICS)": {
         "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
-        "12th": ["CQ1", "CQ2", "CK1", "CK2"]             # Matches your promotion code rules
+        "12th": ["CQ1", "CQ2", "CK1", "CK2"]
     },
     "ICS (STATS)": {
         "11th": ["CG_STATS", "CB_STATS"],
-        "12th": ["CQ3", "CK3"]                           # Matches your promotion code rules
+        "12th": ["CQ3", "CK3"]
     },
     "COMMERCE": {
         "11th": ["IG", "IB"],
-        "12th": ["IK", "IQ"]                             # Matches your promotion code rules
+        "12th": ["IK", "IQ"]
     },
     "HUMANITIES": {
         "11th": ["FB", "FG"],
-        "12th": ["FK", "FQ"]                             # Matches your promotion code rules
+        "12th": ["FK", "FQ"]
+    },
+    "INFORMATION_TECHNOLOGY": {
+        "Semester 1": ["DIT_B", "DIT_G"],
+        "Semester 2": ["DIT_B", "DIT_G"],
+        "Semester 3": ["DIT_B", "DIT_G"],
+        "Semester 4": ["DIT_B", "DIT_G"]
     }
 }
 
-AVAILABLE_DISCIPLINE = list(DISCIPLINE_SUBJECTS_MAP.keys())
+AVAILABLE_DISCIPLINE = list(CLASS_SUBJECTS_MASTER_MAP["11th"].keys())
 AVAILABLE_EXAMS = [
     "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
-    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", f"T_9", "T_10",
+    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
     "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
 ]
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
-
-# --- GLOBAL ACADEMIC CONSTANTS ---
 AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
 # ----------------- 📊 HOME DASHBOARD -----------------
@@ -390,7 +314,6 @@ if menu_choice == "📊 Home Dashboard":
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
-    # 📋 1. Setup Input Context Option Matrix
     try:
         session_options = AVAILABLE_SESSIONS
         if "2024-26" in session_options:
@@ -400,10 +323,8 @@ elif menu_choice == "➕ Add Students":
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
         
-    # User-facing dropdown items 
     discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
-    # 🛠️ Main Filter Row 1: Session & Academic System Type
     c1, c2 = st.columns(2)
     with c1: 
         selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=0, key="add_stu_sess")
@@ -412,7 +333,6 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
 
-    # 🛠️ Main Filter Row 2: Level, Discipline, Section Context (Dynamic Layouts)
     if academic_system == "🗓️ Annual System":
         c3, c4, c5 = st.columns(3)
         with c3: 
@@ -420,7 +340,6 @@ elif menu_choice == "➕ Add Students":
         with c4: 
             selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
             
-        # 🎯 Dynamic Section Filtering Logic
         with c5:
             normalized_discipline = (
                 selected_discipline.upper()
@@ -432,18 +351,9 @@ elif menu_choice == "➕ Add Students":
             if "PHYSIC" in normalized_discipline:
                 normalized_discipline = "ICS_PHYSICS"
             elif "STAT" in normalized_discipline:
-                normalized_discipline = "ICS_STATISTICS"
+                normalized_discipline = "ICS_STATS"
 
-            local_sections_map = {
-                "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
-                "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-                "ICS_PHYSICS": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
-                "ICS_STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-                "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
-                "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]}
-            }
-            
-            available_sections = local_sections_map.get(normalized_discipline, {}).get(selected_class, [])
+            available_sections = DISCIPLINE_SECTIONS_MAP.get(normalized_discipline, {}).get(selected_class, [])
             cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
             
             if cleaned_sections:
@@ -455,14 +365,15 @@ elif menu_choice == "➕ Add Students":
         c3, c4 = st.columns(2)
         with c3: 
             selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
-        with c4: 
-            selected_section = st.selectbox("📋 3. Select Target Section:", ["DIT_G", "DIT_B"], key="add_stu_sec_semester")
         
-        selected_discipline = "N/A"
+        selected_discipline = "INFORMATION_TECHNOLOGY"
+        available_sections = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(selected_class, ["DIT_B", "DIT_G"])
+        
+        with c4:
+            selected_section = st.selectbox("📋 3. Select Target Section:", available_sections, key="add_stu_sec_semester")
 
     st.markdown("---")
     
-    # ⚙️ Three-Way Workflow Toggle Switch Switch
     workflow_mode = st.radio(
         "⚙️ Select Registration Workflow Mode:", 
         ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)", "🛠️ Manage Existing Students (Edit/Delete)"], 
@@ -499,17 +410,18 @@ elif menu_choice == "➕ Add Students":
                         clean_id = int(input_roll_number.strip())
                         clean_name = input_student_name.strip().upper()
                         
-                        execute_db_command("""
-                            INSERT INTO students (id, name, class, section, session, status)
-                            VALUES (:id, :name, :class, :section, :session, :status)
-                        """, {
-                            "id": clean_id,
-                            "name": clean_name,
-                            "class": selected_class,
-                            "section": selected_section,
-                            "session": selected_session,
-                            "status": input_status
-                        })
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO students (id, name, class, section, session, status)
+                                VALUES (:id, :name, :class, :section, :session, :status)
+                            """), {
+                                "id": clean_id,
+                                "name": clean_name,
+                                "class": selected_class,
+                                "section": selected_section,
+                                "session": selected_session,
+                                "status": input_status
+                            })
                         
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
@@ -550,16 +462,17 @@ elif menu_choice == "➕ Add Students":
                             
                             if raw_id.isdigit() and raw_name != "":
                                 try:
-                                    execute_db_command("""
-                                        INSERT INTO students (id, name, class, section, session, status)
-                                        VALUES (:id, :name, :class, :section, :session, 'ACTIVE')
-                                    """, {
-                                        "id": int(raw_id),
-                                        "name": raw_name,
-                                        "class": selected_class,
-                                        "section": selected_section,
-                                        "session": selected_session
-                                    })
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO students (id, name, class, section, session, status)
+                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE')
+                                        """), {
+                                            "id": int(raw_id),
+                                            "name": raw_name,
+                                            "class": selected_class,
+                                            "section": selected_section,
+                                            "session": selected_session
+                                        })
                                     success_count += 1
                                 except Exception:
                                     error_count += 1
@@ -580,26 +493,14 @@ elif menu_choice == "➕ Add Students":
     else:
         st.subheader(f"🛠️ Update or Remove Records — {selected_class} | Section: {selected_section}")
         
-        # Safe extraction directly using SQLAlchemy or connection engine tools via pandas
         try:
-            import sqlalchemy
-            # Standardize fallback to text construct parameters safely
-            query = sqlalchemy.text("""
+            query = text("""
                 SELECT id, name, status FROM students 
                 WHERE class = :class AND section = :section AND session = :session
                 ORDER BY id ASC
             """)
-            
-            # Using your existing execute_db_command engine parameters dynamically
-            if 'conn' in globals():
-                students_query_df = pd.read_sql(query, conn, params={"class": selected_class, "section": selected_section, "session": selected_session})
-            elif 'engine' in globals():
-                with engine.connect() as connection:
-                    students_query_df = pd.read_sql(query, connection, params={"class": selected_class, "section": selected_section, "session": selected_session})
-            else:
-                # Direct lookup if using database helper blocks
-                students_query_df = pd.read_sql(query, st.connection('postgresql', type='sql').engine, params={"class": selected_class, "section": selected_section, "session": selected_session})
-                
+            with engine.connect() as connection:
+                students_query_df = pd.read_sql(query, connection, params={"class": selected_class, "section": selected_section, "session": selected_session})
         except Exception as query_err:
             st.error(f"Error fetching directory lookup: {query_err}")
             students_query_df = pd.DataFrame()
@@ -642,30 +543,32 @@ elif menu_choice == "➕ Add Students":
                         st.error("❌ Action Rejected: Name field cannot be saved blank.")
                     else:
                         try:
-                            execute_db_command("""
-                                UPDATE students 
-                                SET name = :name, status = :status
-                                WHERE id = :id
-                            """, {
-                                "name": edit_name.strip().upper(),
-                                "status": edit_status,
-                                "id": selected_student_id
-                            })
-                            st.success(f"⚡ Success! Profile record details for ID: {selected_student_id} have been updated.")
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET name = :name, status = :status 
+                                    WHERE id = :id
+                                """), {
+                                    "name": edit_name.strip().upper(),
+                                    "status": edit_status,
+                                    "id": selected_student_id
+                                })
+                            st.success(f"🎉 Changes saved successfully for ID {selected_student_id}!")
                             st.rerun()
-                        except Exception as update_err:
-                            st.error(f"❌ Failed to commit database updates: {update_err}")
+                        except Exception as edit_err:
+                            st.error(f"❌ Failed to execute edit profile update: {edit_err}")
                 
                 if erase_record:
                     if not confirm_delete:
-                        st.error("❌ Action Blocked: You must check the confirmation safety box before deleting records.")
+                        st.error("❌ Action Blocked: You must check the confirmation box before deleting a student record.")
                     else:
                         try:
-                            execute_db_command("DELETE FROM students WHERE id = :id", {"id": selected_student_id})
-                            st.success(f"🗑️ The record for Student ID `{selected_student_id}` has been permanently dropped.")
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": selected_student_id})
+                            st.success(f"🗑️ Student ID {selected_student_id} has been completely removed from the registry.")
                             st.rerun()
-                        except Exception as delete_err:
-                            st.error(f"❌ Database error encountered: {delete_err}")
+                        except Exception as del_err:
+                            st.error(f"❌ Failed to delete student row completely: {del_err}")
 
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
