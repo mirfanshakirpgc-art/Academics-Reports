@@ -200,7 +200,7 @@ menu_choice = st.sidebar.radio(
         "Student Management", 
         "👨‍🏫 Teacher Management",  # Activates the entry point workspace panel option
         "🎓 Promote Students"
-        Academic Analysis Reports"
+        "Academic Analysis Reports"
     ]
 )
 
