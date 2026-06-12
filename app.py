@@ -233,9 +233,25 @@ from datetime import date
 from sqlalchemy import text  
 
 def initialize_settings_tables():
-    """Ensures all structural configuration tables exist with proper schemas."""
+    """Forces old structural tables to drop and rebuilds them with proper columns."""
+    
+    # 1. FORCE DROP STRATEGIES (Clears out any conflicting old versions)
+    drop_commands = [
+        "DROP TABLE IF EXISTS academic_sessions CASCADE;",
+        "DROP TABLE IF EXISTS system_sections CASCADE;",
+        "DROP TABLE IF EXISTS exam_cycles CASCADE;",
+        "DROP TABLE IF EXISTS academic_sessions;",
+        "DROP TABLE IF EXISTS system_sections;",
+        "DROP TABLE IF EXISTS exam_cycles;"
+    ]
+    for cmd in drop_commands:
+        try:
+            execute_db_command(cmd)
+        except Exception:
+            pass
+
+    # 2. REBUILD STRATEGY A (For MySQL / SQLite fallback)
     try:
-        # 1. Setup Academic Sessions Structure (Universal Auto-Increment Syntax)
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS academic_sessions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -243,21 +259,6 @@ def initialize_settings_tables():
                 status VARCHAR(20) DEFAULT 'ACTIVE'
             );
         """)
-    except Exception:
-        # Fallback for PostgreSQL databases which require SERIAL keyword instead
-        try:
-            execute_db_command("""
-                CREATE TABLE IF NOT EXISTS academic_sessions (
-                    id SERIAL PRIMARY KEY,
-                    session_name VARCHAR(50) UNIQUE NOT NULL,
-                    status VARCHAR(20) DEFAULT 'ACTIVE'
-                );
-            """)
-        except Exception:
-            pass
-
-    try:
-        # 2. Setup Sections Structure
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS system_sections (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -265,20 +266,6 @@ def initialize_settings_tables():
                 status VARCHAR(20) DEFAULT 'ACTIVE'
             );
         """)
-    except Exception:
-        try:
-            execute_db_command("""
-                CREATE TABLE IF NOT EXISTS system_sections (
-                    id SERIAL PRIMARY KEY,
-                    section_name VARCHAR(50) UNIQUE NOT NULL,
-                    status VARCHAR(20) DEFAULT 'ACTIVE'
-                );
-            """)
-        except Exception:
-            pass
-
-    try:
-        # 3. Setup Exam Cycles Structure
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS exam_cycles (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -288,21 +275,39 @@ def initialize_settings_tables():
                 status VARCHAR(20) DEFAULT 'ACTIVE'
             );
         """)
+        return # Exit if successful
     except Exception:
-        try:
-            execute_db_command("""
-                CREATE TABLE IF NOT EXISTS exam_cycles (
-                    id SERIAL PRIMARY KEY,
-                    exam_code VARCHAR(50) UNIQUE NOT NULL,
-                    exam_display_name VARCHAR(100) NOT NULL,
-                    system_type VARCHAR(50) NOT NULL,
-                    status VARCHAR(20) DEFAULT 'ACTIVE'
-                );
-            """)
-        except Exception:
-            pass
+        pass
 
-# Safely fire the initialization routine right on application bootup
+    # 3. REBUILD STRATEGY B (For PostgreSQL / ElephantSQL / Supabase)
+    try:
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS academic_sessions (
+                id SERIAL PRIMARY KEY,
+                session_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS system_sections (
+                id SERIAL PRIMARY KEY,
+                section_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS exam_cycles (
+                id SERIAL PRIMARY KEY,
+                exam_code VARCHAR(50) UNIQUE NOT NULL,
+                exam_display_name VARCHAR(100) NOT NULL,
+                system_type VARCHAR(50) NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+    except Exception:
+        pass
+
+# Execute the master override routine
 initialize_settings_tables()
 # ==============================================================================
 
