@@ -3840,11 +3840,31 @@ elif menu_choice == "📈 Academic Analysis Reports":
     tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Matric vs Part-1"])
     
     # --- TOPPER LOGIC ---
+    # --- TOPPER LOGIC ---
     with tab1:
-        st.subheader("Top Performers")
-        # Example: Group by student, sum marks, get top 10
-        # df_agg = df.groupby('name')['marks_obtained'].sum().sort_values(ascending=False).head(10)
-        st.write("Topper table goes here.")
+        st.subheader("🏆 Top Performers")
+        
+        # Calculate total marks obtained and total marks possible per student
+        # We group by student name/id and sum up their marks
+        topper_df = df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+        
+        # Calculate Percentage
+        topper_df['Percentage'] = (topper_df['marks_obtained'] / topper_df['total_marks']) * 100
+        
+        # Sort by percentage and take the top 10
+        top_10 = topper_df.sort_values(by='Percentage', ascending=False).head(10)
+        
+        # Display as a formatted table
+        st.dataframe(
+            top_10[['name', 'marks_obtained', 'total_marks', 'Percentage']],
+            column_config={
+                "name": "Student Name",
+                "marks_obtained": "Total Obtained",
+                "total_marks": "Total Possible",
+                "Percentage": st.column_config.NumberColumn(format="%.2f%%")
+            },
+            use_container_width=True
+        )
 
     # --- BOTTOM PERFORMERS ---
     with tab2:
