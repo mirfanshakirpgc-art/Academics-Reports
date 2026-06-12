@@ -3843,27 +3843,29 @@ elif menu_choice == "📈 Academic Analysis Reports":
     with tab1:
         st.subheader("🏆 Top Performers")
         
-        # Calculate total marks obtained and total marks possible per student
-        # We group by student name/id and sum up their marks
-        topper_df = df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
-        
-        # Calculate Percentage
-        topper_df['Percentage'] = (topper_df['marks_obtained'] / topper_df['total_marks']) * 100
-        
-        # Sort by percentage and take the top 10
-        top_10 = topper_df.sort_values(by='Percentage', ascending=False).head(10)
-        
-        # Display as a formatted table
-        st.dataframe(
-            top_10[['name', 'marks_obtained', 'total_marks', 'Percentage']],
-            column_config={
-                "name": "Student Name",
-                "marks_obtained": "Total Obtained",
-                "total_marks": "Total Possible",
-                "Percentage": st.column_config.NumberColumn(format="%.2f%%")
-            },
-            use_container_width=True
-        )
+        if df is not None and not df.empty:
+            # 1. Force strict numeric conversion and handle errors
+            df['marks_obtained'] = pd.to_numeric(df['marks_obtained'], errors='coerce').fillna(0.0)
+            df['total_marks'] = pd.to_numeric(df['total_marks'], errors='coerce').fillna(0.0)
+            
+            # 2. Force conversion to native float types to bypass Arrow type errors
+            df['marks_obtained'] = df['marks_obtained'].astype(float)
+            df['total_marks'] = df['total_marks'].astype(float)
+            
+            # 3. Aggregate
+            topper_df = df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+            
+            # 4. Filter to avoid DivisionByZero errors
+            topper_df = topper_df[topper_df['total_marks'] > 0]
+            
+            # 5. Calculation
+            topper_df['Percentage'] = (topper_df['marks_obtained'] / topper_df['total_marks']) * 100
+            
+            # 6. Display
+            top_10 = topper_df.sort_values(by='Percentage', ascending=False).head(10)
+            st.dataframe(top_10, use_container_width=True)
+        else:
+            st.error("No data found to process.")
 
     # --- BOTTOM PERFORMERS ---
     with tab2:
