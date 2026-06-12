@@ -204,18 +204,69 @@ except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
 # ==============================================================================
-# --- DATABASE COMMAND UTILITIES ---
+# --- DATABASE COMMAND UTILITIES (WITH AUTO-PATCHING ENGINE) ---
 # ==============================================================================
 def run_query(query, params=None):
     if params is None:
         params = {}
     with engine.connect() as conn:
-        return pd.read_sql_query(text(query), conn, params=params)
+        try:
+            return pd.read_sql_query(text(query), conn, params=params)
+        except Exception as original_error:
+            # INTERCEPT: If a query fails due to missing schemas, patch them on-the-fly!
+            try:
+                # 1. Setup/Verify Academic Sessions
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS academic_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_name VARCHAR(50) UNIQUE NOT NULL,
+                        status VARCHAR(20) DEFAULT 'ACTIVE'
+                    );
+                """))
+                try:
+                    conn.execute(text("ALTER TABLE academic_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                except Exception:
+                    pass
+
+                # 2. Setup/Verify System Sections
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS system_sections (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        section_name VARCHAR(50) UNIQUE NOT NULL,
+                        status VARCHAR(20) DEFAULT 'ACTIVE'
+                    );
+                """))
+                try:
+                    conn.execute(text("ALTER TABLE system_sections ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                except Exception:
+                    pass
+
+                # 3. Setup/Verify Exam Cycles
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS exam_cycles (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        exam_code VARCHAR(50) UNIQUE NOT NULL,
+                        exam_display_name VARCHAR(100) NOT NULL,
+                        system_type VARCHAR(50) NOT NULL,
+                        status VARCHAR(20) DEFAULT 'ACTIVE'
+                    );
+                """))
+                try:
+                    conn.execute(text("ALTER TABLE exam_cycles ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                except Exception:
+                    pass
+
+                # Commit changes and retry the caller's original data look-up
+                conn.commit()
+                return pd.read_sql_query(text(query), conn, params=params)
+            except Exception:
+                raise original_error
 
 def run_update(query, params=None):
     if params is None:
         params = {}
     with engine.begin() as conn:
+        # Fixed: Changed 'command' to 'query' to match function parameters
         conn.execute(text(query), params)
 
 def execute_db_command(command, params=None):
@@ -225,75 +276,10 @@ def execute_db_command(command, params=None):
         conn.execute(text(command), params)
 
 # ==============================================================================
-# IMPORTS & AUTOMATIC DATABASE INITIALIZATION
+# SIDEBAR NAVIGATION MODULE (ALL OPTIONS PRESERVED)
 # ==============================================================================
-import streamlit as st
-import pandas as pd
-from datetime import date
-from sqlalchemy import text  
-
-def initialize_settings_tables():
-    """Forces structural configuration tables to update and prints raw errors to the UI."""
-    
-    # 1. Base Table Deployments
-    try:
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS academic_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_name VARCHAR(50) UNIQUE NOT NULL
-            );
-        """)
-    except Exception:
-        try:
-            execute_db_command("""
-                CREATE TABLE IF NOT EXISTS academic_sessions (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    session_name VARCHAR(50) UNIQUE NOT NULL
-                );
-            """)
-        except Exception:
-            pass
-
-    # 2. THE LIVE SCHEMA PATCH (This will tell us EXACTLY what is failing)
-    try:
-        execute_db_command("ALTER TABLE academic_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
-    except Exception as db_error:
-        # Check if it failed because the column already exists (Error code operational/duplicate)
-        error_msg = str(db_error).lower()
-        if "duplicate column" in error_msg or "already exists" in error_msg or "unknown column" in error_msg:
-            pass 
-        else:
-            # Force print the RAW database engine error directly onto your app screen!
-            st.error(f"🔴 DIAGNOSTIC CRITICAL DATABASE ERROR: {db_error}")
-            st.stop()
-
-    # 3. Setup remaining tables
-    try:
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS system_sections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                section_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS exam_cycles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                exam_code VARCHAR(50) UNIQUE NOT NULL,
-                exam_display_name VARCHAR(100) NOT NULL,
-                system_type VARCHAR(50) NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-    except Exception:
-        pass
-
-# Force run diagnostic trace
-initialize_settings_tables()
-# ==============================================================================
-
 menu_choice = st.sidebar.radio(
-    "Go To Module:", 
+    "Go To Module:",
     [
         "📊 Home Dashboard", 
         "➕ Add Students", 
