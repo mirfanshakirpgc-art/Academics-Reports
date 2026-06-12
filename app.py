@@ -3848,19 +3848,24 @@ elif menu_choice == "🎓 Promote Students":
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     
-    # Initialize df safely
+    # 1. Fetching logic
     df = fetch_analytics_data() 
     
-    if df is not None and not df.empty:
-        # A. Global Filters (The 'expander' remains the same as discussed)
-        # B. Define filtered_df here:
-        filtered_df = df.copy()
-        
-        # C. Your logic for applying multiselect filters here...
-        # Example: filtered_df = filtered_df[filtered_df['session'].isin(sel_sessions)]
-        
-        # D. TABS
+    # 2. Filter Logic (These should be indented with 4 spaces)
+    filtered_df = df.copy() 
+    
+    # ... (Your filter code here) ...
+    
+    # 3. The If Block (This should be indented with 4 spaces)
+    if not filtered_df.empty:
+        # Everything inside here needs to be indented with 8 spaces total
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
+        
+        with tab1:
+            st.subheader("🏆 Top Performers")
+            # ... topper logic ...
+    else:
+        st.info("Please select filters to load data.")
         
 with tab1:
     st.subheader("🏆 Top Performers")
