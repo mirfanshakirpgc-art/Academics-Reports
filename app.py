@@ -204,69 +204,56 @@ except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
 # ==============================================================================
-# --- DATABASE COMMAND UTILITIES (UNIVERSAL CLOUD PATTERNS) ---
+# --- DATABASE COMMAND UTILITIES (FORCE REBUILD ENGINE) ---
 # ==============================================================================
 def run_query(query, params=None):
     if params is None:
         params = {}
+    
+    # Universal fix for square brackets in column aliases across different DB engines
+    # Changes [Session Name] to "Session Name" which works on ALL SQL engines
+    clean_query = query.replace("[Session Name]", '"Session Name"')
+    
     with engine.connect() as conn:
         try:
-            return pd.read_sql_query(text(query), conn, params=params)
+            return pd.read_sql_query(text(clean_query), conn, params=params)
         except Exception as original_error:
-            # INTERCEPT: Fix tables using database engine fallback structures
+            # INTERCEPT: Hard wipe and rebuild old, broken configurations
             try:
-                # 1. Setup/Verify Academic Sessions
+                # 1. FORCE DROP STRATEGY (Clears out hidden column/type mismatch locks)
+                drop_cmds = [
+                    "DROP TABLE IF EXISTS academic_sessions CASCADE;",
+                    "DROP TABLE IF EXISTS system_sections CASCADE;",
+                    "DROP TABLE IF EXISTS exam_cycles CASCADE;",
+                    "DROP TABLE IF EXISTS academic_sessions;",
+                    "DROP TABLE IF EXISTS system_sections;",
+                    "DROP TABLE IF EXISTS exam_cycles;"
+                ]
+                for drop in drop_cmds:
+                    try:
+                        conn.execute(text(drop))
+                    except Exception:
+                        pass
+                
+                # 2. CREATE FRESH TABLES (Universal Cloud Formats)
                 try:
-                    # Try PostgreSQL Serial format
+                    # Cloud DBs (PostgreSQL/Supabase/Neon) Standard Syntax
                     conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS academic_sessions (
+                        CREATE TABLE academic_sessions (
                             id SERIAL PRIMARY KEY,
                             session_name VARCHAR(50) UNIQUE NOT NULL,
                             status VARCHAR(20) DEFAULT 'ACTIVE'
                         );
                     """))
-                except Exception:
-                    # Fallback to MySQL / SQLite AUTOINCREMENT
                     conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS academic_sessions (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            session_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                
-                try:
-                    conn.execute(text("ALTER TABLE academic_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
-                except Exception:
-                    pass
-
-                # 2. Setup/Verify System Sections
-                try:
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS system_sections (
+                        CREATE TABLE system_sections (
                             id SERIAL PRIMARY KEY,
                             section_name VARCHAR(50) UNIQUE NOT NULL,
                             status VARCHAR(20) DEFAULT 'ACTIVE'
                         );
                     """))
-                except Exception:
                     conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS system_sections (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            section_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                
-                try:
-                    conn.execute(text("ALTER TABLE system_sections ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
-                except Exception:
-                    pass
-
-                # 3. Setup/Verify Exam Cycles
-                try:
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS exam_cycles (
+                        CREATE TABLE exam_cycles (
                             id SERIAL PRIMARY KEY,
                             exam_code VARCHAR(50) UNIQUE NOT NULL,
                             exam_display_name VARCHAR(100) NOT NULL,
@@ -275,8 +262,23 @@ def run_query(query, params=None):
                         );
                     """))
                 except Exception:
+                    # Fallback standard syntax for SQLite/MySQL setups
                     conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS exam_cycles (
+                        CREATE TABLE academic_sessions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            session_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE system_sections (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            section_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE exam_cycles (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             exam_code VARCHAR(50) UNIQUE NOT NULL,
                             exam_display_name VARCHAR(100) NOT NULL,
@@ -285,14 +287,9 @@ def run_query(query, params=None):
                         );
                     """))
                 
-                try:
-                    conn.execute(text("ALTER TABLE exam_cycles ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
-                except Exception:
-                    pass
-
-                # Commit changes and retry the caller's original data look-up
+                # Commit the structural update and rerun your caller's query smoothly
                 conn.commit()
-                return pd.read_sql_query(text(query), conn, params=params)
+                return pd.read_sql_query(text(clean_query), conn, params=params)
             except Exception:
                 raise original_error
 
