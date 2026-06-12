@@ -3822,7 +3822,7 @@ elif menu_choice == "🎓 Promote Students":
     else:
         st.info("🍃 No active promotions found in the tracking logs.")
         
-        elif menu_choice == "📈 Academic Analysis Reports":
+elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     
     # 1. Core Data Fetching (Fetch once per interaction)
