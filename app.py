@@ -588,13 +588,6 @@ elif menu_choice == "➕ Add Students":
                         except Exception as delete_err:
                             st.error(f"❌ Database error encountered: {delete_err}")
 
-No worries at all! Trying to trace multiline structures manually can get tricky with matching brackets and trailing commas.
-
-To completely rule out any formatting or indentation issues, here is the full, clean, updated **Module 1** code block. It now safely contains all your new tests (**"BISE-11th", "BISE-12th", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"**) and preserves your single-line, 6-column layout sequence flawlessly.
-
-You can just select everything inside Module 1 in your file, delete it, and paste this block right in:
-
-```python
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
