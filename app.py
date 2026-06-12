@@ -3877,13 +3877,32 @@ elif menu_choice == "📈 Academic Analysis Reports":
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
         with tab1:
-            st.subheader("🏆 Filter Toppers")
-            t_df = apply_filters(df, "toppers")
-            if not t_df.empty:
-                agg = t_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
-                agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks'].replace(0, 1)) * 100
-                st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), use_container_width=True, hide_index=True)
-            else: st.info("No data matches filters.")
+    st.subheader("🏆 Filter Toppers")
+    
+    # Apply filters locally
+    t_df = apply_filters(df, "toppers")
+    
+    if not t_df.empty:
+        # Aggregate marks
+        agg = t_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+        agg = agg[agg['total_marks'] > 0]
+        agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks']) * 100
+        
+        # Display with visual progress bar
+        st.dataframe(
+            agg.sort_values('Percentage', ascending=False).head(10),
+            column_config={
+                "id": "Roll Number",
+                "name": "Student Name",
+                "marks_obtained": st.column_config.NumberColumn("Obtained", format="%d"),
+                "total_marks": st.column_config.NumberColumn("Total", format="%d"),
+                "Percentage": st.column_config.ProgressColumn("Performance %", format="%.2f%%", min_value=0, max_value=100)
+            },
+            use_container_width=True, 
+            hide_index=True
+        )
+    else:
+        st.info("No data matches the selected filters.")
 
         with tab2:
             st.subheader("⚠️ Filter Bottom Performers")
