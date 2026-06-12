@@ -3883,17 +3883,50 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("---")
         st.write("#### Registered Evaluation Profiles")
         
-        # --- 🛡️ INITIALIZE DataFrame TO PREVENT ANY NameError CRASH ---
         current_tests = pd.DataFrame()
-        
         try:
-            # --- 🚀 RUN POSTGRESQL STANDARD PLAIN-TEXT DOUBLE-QUOTED QUERY ---
             current_tests = run_query('SELECT id as "ID", exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
         except Exception as e:
-            st.error(f"⚠️ Failed to read evaluation master lists from backend ledger: {e}")
+            st.error(f"⚠️ Failed to read evaluation configurations: {e}")
             
-        # --- 📊 RENDER TABLE OR FALLBACK DISPLAY GRACEFULLY ---
         if not current_tests.empty:
             st.dataframe(current_tests, use_container_width=True, hide_index=True)
+            
+            # --- 🛠️ INTERACTIVE EDIT / DELETE EXAM PORTAL ---
+            st.markdown("### 🛠️ Manage Existing Evaluation Profiles")
+            test_list = [f"{row['ID']} - {row['Evaluation Name']} ({row['System Code']})" for _, row in current_tests.iterrows()]
+            selected_test_str = st.selectbox("Select a Profile to Modify or Remove:", test_list, key="manage_test_select")
+            
+            if selected_test_str:
+                selected_test_id = int(selected_test_str.split(" - ")[0])
+                target_test_row = current_tests[current_tests['ID'] == selected_test_id].iloc[0]
+                
+                with st.form("edit_exam_form"):
+                    updated_test_name = st.text_input("Change Display Title:", value=str(target_test_row['Evaluation Name'])).strip()
+                    updated_test_status = st.selectbox("Change Evaluation Status:", ["ACTIVE", "INACTIVE"], index=0 if target_test_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_tu, col_td = st.columns(2)
+                    with col_tu:
+                        save_test_mod = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                    with col_td:
+                        confirm_test_del = st.checkbox("⚠️ Confirm complete deletion", key="del_test_chk")
+                        delete_test_mod = st.form_submit_button("🗑️ Delete Evaluation Profile", type="secondary", use_container_width=True)
+                        
+                if save_test_mod:
+                    if not updated_test_name:
+                        st.error("Evaluation title cannot be left blank.")
+                    else:
+                        execute_db_command("UPDATE exam_cycles SET exam_display_name = :name, status = :status WHERE id = :id", 
+                                           {"name": updated_test_name, "status": updated_test_status, "id": selected_test_id})
+                        st.success("Evaluation profile configuration updated successfully!")
+                        st.rerun()
+                        
+                if delete_test_mod:
+                    if not confirm_test_del:
+                        st.error("Please check the confirmation box to authorize permanent deletion.")
+                    else:
+                        execute_db_command("DELETE FROM exam_cycles WHERE id = :id", {"id": selected_test_id})
+                        st.success("Evaluation profile removed from system registers.")
+                        st.rerun()
         else:
-            st.info("ℹ️ No evaluation profiles or exam cycles are currently configured inside this framework track.")
+            st.info("ℹ️ No evaluation profiles or exam cycles are currently configured.")
