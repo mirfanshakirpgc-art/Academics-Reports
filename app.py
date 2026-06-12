@@ -578,12 +578,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
-    # Shared framework array to guarantee synchronization across modules
-    all_frameworks = [
-        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
-        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
-    ]
+    # --- DYNAMIC FRAMEWORK FETCH FROM DATABASE ---
+    try:
+        active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
+        all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
+    except Exception:
+        # Fallback list just in case the database connection blips
+        all_frameworks = [
+            "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", 
+            "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"
+        ]
 
     try:
         session_options = AVAILABLE_SESSIONS
