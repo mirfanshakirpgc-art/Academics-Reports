@@ -3849,77 +3849,70 @@ elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     
     # 1. Fetch initial data
-    df = fetch_analytics_data()
+    df = fetch_analytics_data() 
     
-    # 2. DEFINE FILTERS FIRST
-    st.markdown("### ⚙️ Filter Configuration")
-    
-    # Session
-    sel_sessions = st.multiselect("1. Select Session:", options=sorted(df['session'].unique()))
-    df_filtered = df[df['session'].isin(sel_sessions)] if sel_sessions else df.copy()
-    
-    # System & Gender
-    col_a, col_b = st.columns(2)
-    sel_system = col_a.selectbox("2. Academic System:", ["Annual System", "Semester System"])
-    sel_gender = col_b.selectbox("3. Select Gender:", ["Boys", "Girls"])
-    
-    if sel_system == "Annual System":
-        df_filtered = df_filtered[~df_filtered['section'].str.contains('DIT', na=False)]
-    else:
-        df_filtered = df_filtered[df_filtered['section'].str.contains('DIT', na=False)]
-
-    # Discipline & Section
-    sel_disciplines = st.multiselect("4. Select Discipline(s):", options=sorted(df_filtered['discipline'].unique()))
-    if sel_disciplines:
-        df_filtered = df_filtered[df_filtered['discipline'].isin(sel_disciplines)]
+    # 2. DATA PRE-PROCESSING & SAFETY
+    if not df.empty:
+        # Standardize numeric columns
+        df['marks_obtained'] = pd.to_numeric(df['marks_obtained'], errors='coerce').fillna(0.0)
+        df['total_marks'] = pd.to_numeric(df['total_marks'], errors='coerce').fillna(1.0)
         
-    sel_sections = st.multiselect("5. Select Section(s):", options=sorted(df_filtered['section'].unique()))
-    if sel_sections:
-        df_filtered = df_filtered[df_filtered['section'].isin(sel_sections)]
+        # Ensure 'discipline' exists by deriving it if missing
+        if 'discipline' not in df.columns:
+            # Derived logic based on section names (Update this to match your data)
+            df['discipline'] = df['section'].apply(lambda x: 'MEDICAL' if 'M' in str(x).upper() else 'ENGINEERING' if 'E' in str(x).upper() else 'OTHER')
 
-    st.markdown("---")
-
-    # 3. NOW RENDER TABS
-    if not df_filtered.empty:
-        # Prepare numeric data for analysis
-        f_df = df_filtered.copy()
-        f_df['marks_obtained'] = pd.to_numeric(f_df['marks_obtained'], errors='coerce').fillna(0.0)
-        f_df['total_marks'] = pd.to_numeric(f_df['total_marks'], errors='coerce').fillna(1.0)
+        # 3. FILTERING INTERFACE
+        st.markdown("### ⚙️ Filter Configuration")
+        col_f1, col_f2 = st.columns(2)
         
+        with col_f1:
+            sel_sessions = st.multiselect("Select Session(s):", sorted(df['session'].unique()))
+        with col_f2:
+            sel_disciplines = st.multiselect("Select Discipline(s):", sorted(df['discipline'].unique()))
+            
+        # Apply filters
+        df_filtered = df.copy()
+        if sel_sessions: df_filtered = df_filtered[df_filtered['session'].isin(sel_sessions)]
+        if sel_disciplines: df_filtered = df_filtered[df_filtered['discipline'].isin(sel_disciplines)]
+        
+        # Section filter (dependent on previous filters)
+        sel_sections = st.multiselect("Select Section(s):", sorted(df_filtered['section'].unique()))
+        if sel_sections: df_filtered = df_filtered[df_filtered['section'].isin(sel_sections)]
+
+        st.markdown("---")
+
+        # 4. TABBED REPORTS
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
         with tab1:
             st.subheader("🏆 Top Performers")
-            topper_df = f_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
-            topper_df = topper_df[topper_df['total_marks'] > 0]
-            topper_df['Percentage'] = (topper_df['marks_obtained'] / topper_df['total_marks']) * 100
-            top_10 = topper_df.sort_values(by='Percentage', ascending=False).head(10)
-            
-            st.dataframe(
-                top_10,
-                column_config={
-                    "id": "Roll Number",
-                    "name": "Student Name",
-                    "marks_obtained": st.column_config.NumberColumn("Obtained", format="%d"),
-                    "total_marks": st.column_config.NumberColumn("Total", format="%d"),
-                    "Percentage": st.column_config.ProgressColumn("Performance %", format="%.2f%%", min_value=0, max_value=100)
-                },
-                use_container_width=True, hide_index=True
-            )
+            agg = df_filtered.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+            agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks']) * 100
+            st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), hide_index=True, use_container_width=True)
             
         with tab2:
             st.subheader("⚠️ Bottom Performers")
-            # Logic for Bottom Performers
-            bottom_10 = topper_df.sort_values(by='Percentage', ascending=True).head(10)
-            st.dataframe(bottom_10, use_container_width=True, hide_index=True)
+            bottom = agg[agg['total_marks'] > 0].sort_values('Percentage', ascending=True).head(10)
+            st.dataframe(bottom, hide_index=True, use_container_width=True)
 
         with tab3:
             st.subheader("🏢 Discipline Analysis")
-            st.bar_chart(f_df.groupby('discipline')['marks_obtained'].mean())
+            st.bar_chart(df_filtered.groupby('discipline')['marks_obtained'].mean())
 
         with tab4:
             st.subheader("🎓 Comparison Engine")
-            # Add your part-1 vs part-2 pivot logic here
-            st.info("Comparison tools active.")
+            c_a, c_b = st.columns(2)
+            test_1 = c_a.selectbox("Exam / Part 1:", AVAILABLE_EXAMS, index=0)
+            test_2 = c_b.selectbox("Exam / Part 2:", AVAILABLE_EXAMS, index=1)
+            
+            comp = df_filtered[df_filtered['exam_type'].isin([test_1, test_2])]
+            if not comp.empty:
+                pivot = comp.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
+                if test_1 in pivot.columns and test_2 in pivot.columns:
+                    pivot['Diff'] = pivot[test_2] - pivot[test_1]
+                    st.dataframe(pivot, use_container_width=True)
+            else:
+                st.info("No data found for these exams.")
     else:
-        st.info("Please select filters to populate report data.")
+        st.info("Database empty or connection failed.")
