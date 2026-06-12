@@ -3865,7 +3865,6 @@ elif menu_choice == "🎓 Promote Students":
         
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
-    
     df = fetch_analytics_data() 
     
     if not df.empty:
@@ -3904,14 +3903,12 @@ elif menu_choice == "📈 Academic Analysis Reports":
             st.subheader("🎓 Comparison Engine")
             c_df = apply_filters(df, "comp")
             c_a, c_b = st.columns(2)
-            # Ensure AVAILABLE_EXAMS is defined globally in your script
             test_1 = c_a.selectbox("Exam 1:", AVAILABLE_EXAMS, key="c_t1")
             test_2 = c_b.selectbox("Exam 2:", AVAILABLE_EXAMS, key="c_t2")
-            
             comp = c_df[c_df['exam_type'].isin([test_1, test_2])]
             if not comp.empty:
                 pivot = comp.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
                 st.dataframe(pivot, use_container_width=True)
             else: st.info("Select two exams to compare.")
     else:
-        st.info("No data available.")
+        st.info("No data available to analyze.")
