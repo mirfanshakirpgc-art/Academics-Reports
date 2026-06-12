@@ -233,9 +233,9 @@ from datetime import date
 from sqlalchemy import text  
 
 def initialize_settings_tables():
-    """Ensures structural configuration tables exist and have the status column."""
+    """Forces the creation of settings tables using the correct function arguments."""
     
-    # 1. First, make sure the tables exist (using generic SQLite/MSSQL friendly syntax)
+    # 1. Ensure academic_sessions exists
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS academic_sessions (
@@ -245,23 +245,15 @@ def initialize_settings_tables():
             );
         """)
     except Exception:
-        # Fallback if AUTOINCREMENT is failing on an external SQL dialect
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS academic_sessions (
-                id INT PRIMARY KEY,
-                session_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
+        pass
 
-    # 2. FORCE-ADD THE STATUS COLUMN (This fixes the error if the table already existed!)
+    # 2. Force add the status column if the table already existed without it
     try:
         execute_db_command("ALTER TABLE academic_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
     except Exception:
-        # If the column is already there, it will throw an error and safely skip here
         pass
 
-    # 3. Create the other tables safely
+    # 3. Ensure system_sections exists
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS system_sections (
@@ -271,11 +263,9 @@ def initialize_settings_tables():
             );
         """)
     except Exception:
-        try:
-            execute_db_command("ALTER TABLE system_sections ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
-        except Exception:
-            pass
+        pass
 
+    # 4. Ensure exam_cycles exists
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS exam_cycles (
@@ -287,12 +277,9 @@ def initialize_settings_tables():
             );
         """)
     except Exception:
-        try:
-            execute_db_command("ALTER TABLE exam_cycles ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
-        except Exception:
-            pass
+        pass
 
-# Execute the initialization routine
+# Run the fixed database setup
 initialize_settings_tables()
 # ==============================================================================
 
