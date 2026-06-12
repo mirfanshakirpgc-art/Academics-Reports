@@ -136,10 +136,10 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Students Table (Updated to include session and status safely)
+        # 1. Students Table (Updated with SERIAL for automatic ID creation on Supabase)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
-                id INT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 section VARCHAR(100),
                 class VARCHAR(100),
