@@ -3522,10 +3522,10 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
-		elif menu_choice == "Discipline Analysis":
-	st.subheader("🏢 High-Level Discipline Stream Overview")
+elif menu_choice == "Discipline Analysis":
+    st.subheader("🏢 High-Level Discipline Stream Overview")
 	
-	col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 	with col1:
 		sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
 		sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
