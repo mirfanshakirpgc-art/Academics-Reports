@@ -320,14 +320,6 @@ menu_choice = st.sidebar.radio(
         "⚙️ Settings"
     ]
 )
-
-# ==============================================================================
-# MODULE ROUTING LOGIC (Line 354 starts right here!)
-# ==============================================================================
-if menu_choice == "📊 Home Dashboard":
-    # Your home dashboard code continues here...
-
-# ==============================================================================
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
     "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
