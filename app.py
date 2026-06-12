@@ -217,50 +217,87 @@ def run_query(query, params=None):
         try:
             return pd.read_sql_query(text(clean_query), conn, params=params)
         except Exception as original_error:
-            # AUTO-REBUILD: If tables or columns are missing, seamlessly rebuild them
+            # SAFE ENGINE: We completely REMOVED the 'DROP TABLE' loop to protect your data!
             try:
-                # 1. Clear out old conflicting instances if possible
-                for drop_table in ["academic_sessions", "system_sections", "exam_cycles"]:
+                # 1. Gently build academic_sessions if completely missing
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS academic_sessions (
+                            id SERIAL PRIMARY KEY,
+                            session_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                except Exception:
                     try:
-                        conn.execute(text(f"DROP TABLE IF EXISTS {drop_table} CASCADE;"))
-                        conn.execute(text(f"DROP TABLE IF EXISTS {drop_table};"))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS academic_sessions (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                session_name VARCHAR(50) UNIQUE NOT NULL,
+                                status VARCHAR(20) DEFAULT 'ACTIVE'
+                            );
+                        """))
                     except Exception:
                         pass
                 
-                # 2. Rebuild with universal Cloud DB compatibility
+                # 2. Gently build system_sections if completely missing
                 try:
                     conn.execute(text("""
-                        CREATE TABLE academic_sessions (
-                            id SERIAL PRIMARY KEY,
-                            session_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                except Exception:
-                    conn.execute(text("""
-                        CREATE TABLE academic_sessions (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            session_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                    
-                try:
-                    conn.execute(text("""
-                        CREATE TABLE system_sections (
+                        CREATE TABLE IF NOT EXISTS system_sections (
                             id SERIAL PRIMARY KEY,
                             section_name VARCHAR(50) UNIQUE NOT NULL,
                             status VARCHAR(20) DEFAULT 'ACTIVE'
                         );
                     """))
                 except Exception:
+                    try:
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS system_sections (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                section_name VARCHAR(50) UNIQUE NOT NULL,
+                                status VARCHAR(20) DEFAULT 'ACTIVE'
+                            );
+                        """))
+                    except Exception:
+                        pass
+
+                # 3. Gently build exam_cycles if completely missing
+                try:
                     conn.execute(text("""
-                        CREATE TABLE system_sections (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            section_name VARCHAR(50) UNIQUE NOT NULL,
+                        CREATE TABLE IF NOT EXISTS exam_cycles (
+                            id SERIAL PRIMARY KEY,
+                            exam_code VARCHAR(50) UNIQUE NOT NULL,
+                            exam_display_name VARCHAR(100) NOT NULL,
+                            system_type VARCHAR(50) NOT NULL,
                             status VARCHAR(20) DEFAULT 'ACTIVE'
                         );
                     """))
+                except Exception:
+                    try:
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS exam_cycles (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                exam_code VARCHAR(50) UNIQUE NOT NULL,
+                                exam_display_name VARCHAR(100) NOT NULL,
+                                system_type VARCHAR(50) NOT NULL,
+                                status VARCHAR(20) DEFAULT 'ACTIVE'
+                            );
+                        """))
+                    except Exception:
+                        pass
+
+                # 4. Safe Patch: Add status column if table exists but lacks the column
+                for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                    except Exception:
+                        pass # Column is already there, ignore it safely
+
+                # Commit modifications and rerun selection query smoothly
+                conn.commit()
+                return pd.read_sql_query(text(clean_query), conn, params=params)
+            except Exception:
+                raise original_error
 
                 try:
                     conn.execute(text("""
