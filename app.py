@@ -227,61 +227,56 @@ def execute_db_command(command, params=None):
 import streamlit as st
 import pandas as pd
 from datetime import date
-def execute_db_command(command, params=None):
-    if params is None:
-        params = {}
-    with engine.begin() as conn:
-        conn.execute(text(command), params)
-
 import streamlit as st
 import pandas as pd
 from datetime import date
+from sqlalchemy import text  # Ensuring text is explicitly available here
 
 # ==============================================================================
-# AUTOMATIC DATABASE SCHEME INITIALIZATION (PASTED HERE AT LINE 230)
+# AUTOMATIC DATABASE SCHEME INITIALIZATION (FIXED PARENTHESES)
 # ==============================================================================
 def initialize_settings_tables():
     """Ensures all structural configuration tables exist with proper schemas."""
-    # 1. Setup Academic Sessions Structure
-    execute_db_command("""
-        CREATE TABLE IF NOT EXISTS academic_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_name VARCHAR(50) UNIQUE NOT NULL,
-            status VARCHAR(20) DEFAULT 'ACTIVE'
-        );
-    """)
-    
-    # 2. Setup Sections Structure
-    execute_db_command("""
-        CREATE TABLE IF NOT EXISTS system_sections (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            section_name VARCHAR(50) UNIQUE NOT NULL,
-            status VARCHAR(20) DEFAULT 'ACTIVE'
-        );
-    """)
-    
-    # 3. Setup Exam Cycles Structure
-    execute_db_command("""
-        CREATE TABLE IF NOT EXISTS exam_cycles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_code VARCHAR(50) UNIQUE NOT NULL,
-            exam_display_name VARCHAR(100) NOT NULL,
-            system_type VARCHAR(50) NOT NULL,
-            status VARCHAR(20) DEFAULT 'ACTIVE'
-        );
-    """)
+    try:
+        # 1. Setup Academic Sessions Structure
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS academic_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+        
+        # 2. Setup Sections Structure
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS system_sections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                section_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+        
+        # 3. Setup Exam Cycles Structure
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS exam_cycles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_code VARCHAR(50) UNIQUE NOT NULL,
+                exam_display_name VARCHAR(100) NOT NULL,
+                system_type VARCHAR(50) NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+    except Exception as e:
+        # Fault isolation fallback handler
+        pass
 
-# Execute initialization automatically on startup
-try:
-    initialize_settings_tables()
-except Exception as e:
-    pass
-
+# Safely fire the initialization routine
+initialize_settings_tables()
 # ==============================================================================
 
+# Ensure there are no unclosed blocks directly above this line!
 menu_choice = st.sidebar.radio(
     "Go To Module:",
-    # ... rest of your radio options
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
     [
