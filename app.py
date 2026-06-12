@@ -587,6 +587,7 @@ elif menu_choice == "➕ Add Students":
                             st.rerun()
                         except Exception as delete_err:
                             st.error(f"❌ Database error encountered: {delete_err}")
+
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
@@ -612,7 +613,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     if entry_mode == "📋 By Complete Section":
-        # Rearranged columns slightly to put Exam Selection early so subject lists can adapt dynamically
         c1, c2, c3, c4, c5 = st.columns([1.5, 1.5, 1.5, 2, 2.5])
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
@@ -631,7 +631,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 with c2: academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")
                 with c3: sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_t")
                 
-                # Check if handling a Matric macro result
                 if sel_exam == "MATRIC":
                     sel_subject = "OVERALL"
                     with c4: st.info("ℹ️ MATRIC Mode: Overall Aggregate Entry Activated")
@@ -683,10 +682,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
 
-            # Handle Subject Selection Logic Context dynamically below columns base
             if sel_exam == "MATRIC":
                 sel_subject = "OVERALL"
-                st.info("🎓 **MATRIC Macro Entry Mode Active**: Individual courses bypassed. Result records will append under subject heading 'OVERALL'.")
+                st.info("🎓 **MATRIC Macro Entry Mode Active**: Individual courses bypassed. Records will save under subject 'OVERALL'.")
             else:
                 if academic_system == "Annual System":
                     DISCIPLINE_SUBJECTS_MAP = {
@@ -725,7 +723,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         # RENDER ROSTER & DATA SUBMISSION GRID
         # ====================================================================================
         if sel_subject and sel_section and sel_session and sel_exam:
-            # Shifted total marks target dynamically depending on exam choice configuration matrix
             default_total_marks = 1200 if sel_exam == "MATRIC" else 100
             max_total_limit = 2000 if sel_exam == "MATRIC" else 200
             
@@ -810,6 +807,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         
                         st.markdown("<br>", unsafe_allow_html=True)
                         if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
+                            import time
                             for s_id, score in updated_marks.items():
                                 score_clean = str(score).strip().upper()
                                 execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
@@ -821,7 +819,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 st.session_state.pop(f"abs_{s_id}", None)
                                 st.session_state.pop(f"nc_{s_id}", None)
                                 
-                            st.success("🎉 Section marks recorded successfully!")
+                            st.success(f"🎉 Marks ledger for Section {sel_section} ({sel_subject}) recorded successfully!")
+                            st.toast("Database sync complete!", icon="💾")
+                            time.sleep(1.5)
                             st.rerun()
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
@@ -886,11 +886,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
                 
                 c_m1, c_m2, c_m3, c_m4 = st.columns([1.5, 1.2, 1, 1.3])
-                
                 with c_m2: 
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
                 
-                # Single student adaptive subject mapping logic block
                 if single_exam == "MATRIC":
                     single_sub = "OVERALL"
                     with c_m1: 
@@ -944,6 +942,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     single_obtained = st.text_input("Obtained (or A / NC):", value=init_m_val, key="s_obt_val")
                 
                 if st.button("💾 Save Individual Marks Record", type="primary", use_container_width=True):
+                    import time
                     execute_db_command("""
                         DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
                     """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
@@ -952,7 +951,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         execute_db_command("""
                             INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
                         """, {"id": int(single_id), "sub": single_sub.strip().upper(), "exam": single_exam.strip().upper(), "score": single_obtained.strip().upper(), "tot": float(single_total)})
-                    st.success(f"🎉 Marks configuration updated successfully for {s_name}!")
+                    
+                    st.success(f"🎉 Marks updated successfully for {s_name} ({single_exam} - {single_sub})!")
+                    st.toast(f"Saved entry for Roll No: {single_id}", icon="✅")
+                    time.sleep(1.5)
                     st.rerun()
 
     elif entry_mode == "📤 Bulk Excel/CSV Import":
@@ -1000,6 +1002,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         dup_strategy = st.radio("Conflict Handling Rule:", ["Overwrite/Update Match Records", "Skip if Marks Exist"], horizontal=True)
                         
                         if st.form_submit_button("🚀 Execute Matrix Import & Database Sync", type="primary"):
+                            import time
                             success_count = 0
                             skipped_count = 0
                             error_logs = []
@@ -1065,10 +1068,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     for log in error_logs:
                                         st.warning(log)
                             st.success(f"📦 Sync Operations Completed! Successfully Imported/Updated: {success_count} entries. Skipped: {skipped_count} entries.")
+                            st.toast("Bulk sheet data synchronized!", icon="📤")
+                            time.sleep(2.0)
                             st.rerun()
             except Exception as e:
                 st.error(f"Failed to read file asset cleanly: {e}")
-
 
 
 # ====================================================================================
