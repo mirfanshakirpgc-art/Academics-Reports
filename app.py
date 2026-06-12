@@ -206,8 +206,6 @@ menu_choice = st.sidebar.radio(
         "📈 Academic Analysis Reports"
     ]
 )
-    ]
-)
 
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
