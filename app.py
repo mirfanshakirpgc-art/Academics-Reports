@@ -3519,10 +3519,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
             else:
                 st.warning("This teacher profile holds no active database class allocation nodes.")
 
-    # ---------------------------------------------------------
-    # SUB-MODULE D: DISCIPLINE ANALYSIS
-    # ---------------------------------------------------------
-
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
