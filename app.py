@@ -232,44 +232,77 @@ import pandas as pd
 from datetime import date
 from sqlalchemy import text  
 
-# 1. FORCE THE CORRUPTED TABLES TO DROP IMMEDIATELY
-execute_db_command("DROP TABLE IF EXISTS academic_sessions;")
-execute_db_command("DROP TABLE IF EXISTS system_sections;")
-execute_db_command("DROP TABLE IF EXISTS exam_cycles;")
-
-# 2. FRESH REBUILD WITH CORRECT COLUMNS
 def initialize_settings_tables():
     """Ensures all structural configuration tables exist with proper schemas."""
-    # 1. Setup Academic Sessions Structure
-    execute_db_command("""
-        CREATE TABLE IF NOT EXISTS academic_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_name VARCHAR(50) UNIQUE NOT NULL,
-            status VARCHAR(20) DEFAULT 'ACTIVE'
-        );
-    """)
-    
-    # 2. Setup Sections Structure
-    execute_db_command("""
-        CREATE TABLE IF NOT EXISTS system_sections (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            section_name VARCHAR(50) UNIQUE NOT NULL,
-            status VARCHAR(20) DEFAULT 'ACTIVE'
-        );
-    """)
-    
-    # 3. Setup Exam Cycles Structure
-    execute_db_command("""
-        CREATE TABLE IF NOT EXISTS exam_cycles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_code VARCHAR(50) UNIQUE NOT NULL,
-            exam_display_name VARCHAR(100) NOT NULL,
-            system_type VARCHAR(50) NOT NULL,
-            status VARCHAR(20) DEFAULT 'ACTIVE'
-        );
-    """)
+    try:
+        # 1. Setup Academic Sessions Structure (Universal Auto-Increment Syntax)
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS academic_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+    except Exception:
+        # Fallback for PostgreSQL databases which require SERIAL keyword instead
+        try:
+            execute_db_command("""
+                CREATE TABLE IF NOT EXISTS academic_sessions (
+                    id SERIAL PRIMARY KEY,
+                    session_name VARCHAR(50) UNIQUE NOT NULL,
+                    status VARCHAR(20) DEFAULT 'ACTIVE'
+                );
+            """)
+        except Exception:
+            pass
 
-# Fire the initialization routine directly
+    try:
+        # 2. Setup Sections Structure
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS system_sections (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                section_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+    except Exception:
+        try:
+            execute_db_command("""
+                CREATE TABLE IF NOT EXISTS system_sections (
+                    id SERIAL PRIMARY KEY,
+                    section_name VARCHAR(50) UNIQUE NOT NULL,
+                    status VARCHAR(20) DEFAULT 'ACTIVE'
+                );
+            """)
+        except Exception:
+            pass
+
+    try:
+        # 3. Setup Exam Cycles Structure
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS exam_cycles (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                exam_code VARCHAR(50) UNIQUE NOT NULL,
+                exam_display_name VARCHAR(100) NOT NULL,
+                system_type VARCHAR(50) NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+    except Exception:
+        try:
+            execute_db_command("""
+                CREATE TABLE IF NOT EXISTS exam_cycles (
+                    id SERIAL PRIMARY KEY,
+                    exam_code VARCHAR(50) UNIQUE NOT NULL,
+                    exam_display_name VARCHAR(100) NOT NULL,
+                    system_type VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) DEFAULT 'ACTIVE'
+                );
+            """)
+        except Exception:
+            pass
+
+# Safely fire the initialization routine right on application bootup
 initialize_settings_tables()
 # ==============================================================================
 
