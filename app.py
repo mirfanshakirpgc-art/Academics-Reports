@@ -8,6 +8,24 @@ from sqlalchemy import create_engine, text
 import streamlit.components.v1 as components
 import datetime
 
+# --- HELPER FUNCTION: MUST BE AT THE TOP ---
+def apply_filters(df, tab_key):
+    """Reusable filter logic for independent tab states."""
+    st.markdown("### ⚙️ Filter Configuration")
+    col1, col2 = st.columns(2)
+    with col1:
+        s = st.multiselect("Session:", sorted(df['session'].unique()), key=f"s_{tab_key}")
+        d = st.multiselect("Discipline:", sorted(df['discipline'].unique()), key=f"d_{tab_key}")
+    with col2:
+        sec = st.multiselect("Section:", sorted(df['section'].unique()), key=f"sec_{tab_key}")
+    
+    # Filter logic
+    f_df = df.copy()
+    if s: f_df = f_df[f_df['session'].isin(s)]
+    if d: f_df = f_df[f_df['discipline'].isin(d)]
+    if sec: f_df = f_df[f_df['section'].isin(sec)]
+    return f_df
+
 # --- LINE 9: NOW DEFINE YOUR FUNCTIONS ---
 # This is safe because 'st' was already imported above
 @st.cache_data(ttl=600)
