@@ -3835,8 +3835,18 @@ elif menu_choice == "⚙️ Settings":
                             
         st.markdown("---")
         st.write("#### Registered Evaluation Profiles")
-        current_tests = run_query('SELECT id as ID, exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as Status FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
+        
+        # --- 🛡️ INITIALIZE DataFrame TO PREVENT ANY NameError CRASH ---
+        current_tests = pd.DataFrame()
+        
+        try:
+            # --- 🚀 RUN POSTGRESQL STANDARD PLAIN-TEXT DOUBLE-QUOTED QUERY ---
+            current_tests = run_query('SELECT id as "ID", exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read evaluation master lists from backend ledger: {e}")
+            
+        # --- 📊 RENDER TABLE OR FALLBACK DISPLAY GRACEFULLY ---
         if not current_tests.empty:
             st.dataframe(current_tests, use_container_width=True, hide_index=True)
         else:
-            st.info("No specific exam profiles currently configured.")
+            st.info("ℹ️ No evaluation profiles or exam cycles are currently configured inside this framework track.")
