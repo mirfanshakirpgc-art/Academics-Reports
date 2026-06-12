@@ -3031,7 +3031,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
     
     # Updated menu options to include the brand-new registration form
     if current_role == 'controller':
-        menu_options = ["📝 Register New Faculty", "Subject Allocations", "Teacher Marks Portal", "Teacher Analysis", "Discipline Analysis"]
+        menu_options = ["📝 Register New Faculty", "Subject Allocations", "Teacher Marks Portal", "Teacher Analysis"]
     else:
         menu_options = ["Teacher Marks Portal", "Teacher Analysis"]
         
