@@ -3903,7 +3903,6 @@ elif menu_choice == "📈 Academic Analysis Reports":
         session_filtered_df = raw_df[raw_df['session'].isin(selected_sessions if selected_sessions else session_options)]
         
         with col_f2:
-            # Safely classify internal rows based on explicit keyword rules
             def determine_system(row_class):
                 return "🎓 Semester System" if "SEMESTER" in str(row_class).upper() else "🗓️ Annual System"
             
@@ -3961,6 +3960,34 @@ elif menu_choice == "📈 Academic Analysis Reports":
 
             with tab3:
                 st.subheader("🏢 Discipline Performance Overview")
-                disc_grouped = df.groupby('discipline')[...
+                disc_grouped = df.groupby('discipline')[['marks_obtained', 'total_marks']].sum().reset_index()
+                disc_grouped['Average Percentage'] = (disc_grouped['marks_obtained'] / disc_grouped['total_marks'].replace(0, 1)) * 100
+                
+                chart_data = disc_grouped.set_index('discipline')[['Average Percentage']]
+                st.bar_chart(chart_data)
+                st.dataframe(
+                    disc_grouped, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={"Average Percentage": st.column_config.NumberColumn(format="%.2f%%")}
+                )
 
-[The rest of the metrics calculation and chart logic follows the original script structure smoothly.]
+            with tab4:
+                st.subheader("🎓 Comparison Engine")
+                c_a, c_b = st.columns(2)
+                test_1 = c_a.selectbox("Exam 1:", AVAILABLE_EXAMS, key="c_t1")
+                test_2 = c_b.selectbox("Exam 2:", AVAILABLE_EXAMS, key="c_t2")
+                
+                comp = df[df['exam_type'].isin([test_1, test_2])]
+                if not comp.empty:
+                    pivot = comp.pivot_table(
+                        index=['id', 'name', 'discipline', 'section'], 
+                        columns='exam_type', 
+                        values='marks_obtained', 
+                        aggfunc='sum'
+                    ).reset_index()
+                    st.dataframe(pivot, use_container_width=True, hide_index=True)
+                else: 
+                    st.info("Select two exams to see data comparison.")
+    else:
+        st.info("No data available to analyze inside database.")
