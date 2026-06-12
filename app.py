@@ -3864,51 +3864,95 @@ elif menu_choice == "🎓 Promote Students":
     else:
         st.info("🍃 No active promotions found in the tracking logs.")
         
+# ----------------- 📈 ACADEMIC ANALYSIS REPORTS -----------------
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     df = fetch_analytics_data() 
     
     if not df.empty:
+        # Clean numeric data up front safely
         df['marks_obtained'] = pd.to_numeric(df['marks_obtained'], errors='coerce').fillna(0.0)
         df['total_marks'] = pd.to_numeric(df['total_marks'], errors='coerce').fillna(1.0)
-        if 'discipline' not in df.columns:
-            df['discipline'] = df['section'].apply(lambda x: 'MEDICAL' if 'M' in str(x).upper() else 'ENGINEERING' if 'E' in str(x).upper() else 'OTHER')
+        
+        # --- ROBUST BACKWARDS MAPPING FROM DISCIPLINE_SECTIONS_MAP ---
+        # Reconstructs a flat dictionary mapping: {"MG_BLUE": "MEDICAL", "CG_WHITE": "ICS (PHYSICS)", ...}
+        section_to_discipline_map = {}
+        for disc_name, class_dict in DISCIPLINE_SECTIONS_MAP.items():
+            for class_level, sections_list in class_dict.items():
+                for sec in sections_list:
+                    section_to_discipline_map[str(sec).strip().upper()] = disc_name
 
+        # Map the dataframe sections back to their actual academic discipline
+        df['discipline'] = df['section'].apply(
+            lambda x: section_to_discipline_map.get(str(x).strip().upper(), 'OTHER')
+        )
+
+        # --- VIEW TABS SETUP ---
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
         with tab1:
             st.subheader("🏆 Filter Toppers")
             t_df = apply_filters(df, "toppers")
             if not t_df.empty:
-                agg = t_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+                agg = t_df.groupby(['id', 'name', 'discipline', 'section'])[['marks_obtained', 'total_marks']].sum().reset_index()
                 agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks'].replace(0, 1)) * 100
-                st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), use_container_width=True, hide_index=True)
-            else: st.info("No data matches filters.")
+                st.dataframe(
+                    agg.sort_values('Percentage', ascending=False).head(10), 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={"Percentage": st.column_config.NumberColumn(format="%.2f%%")}
+                )
+            else: 
+                st.info("No data matches filters.")
 
         with tab2:
             st.subheader("⚠️ Filter Bottom Performers")
             b_df = apply_filters(df, "bottom")
             if not b_df.empty:
-                agg_b = b_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+                agg_b = b_df.groupby(['id', 'name', 'discipline', 'section'])[['marks_obtained', 'total_marks']].sum().reset_index()
                 agg_b['Percentage'] = (agg_b['marks_obtained'] / agg_b['total_marks'].replace(0, 1)) * 100
-                st.dataframe(agg_b.sort_values('Percentage', ascending=True).head(10), use_container_width=True, hide_index=True)
-            else: st.info("No data matches filters.")
+                st.dataframe(
+                    agg_b.sort_values('Percentage', ascending=True).head(10), 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={"Percentage": st.column_config.NumberColumn(format="%.2f%%")}
+                )
+            else: 
+                st.info("No data matches filters.")
 
         with tab3:
-            st.subheader("Discipline Average Performance")
+            st.subheader("🏢 Discipline Average Performance Breakdown")
             d_df = apply_filters(df, "disc")
-            st.bar_chart(d_df.groupby('discipline')['marks_obtained'].mean())
+            if not d_df.empty:
+                # Calculate percentages for accurate performance breakdown representation across exams
+                disc_grouped = d_df.groupby('discipline')[['marks_obtained', 'total_marks']].sum().reset_index()
+                disc_grouped['Average Percentage'] = (disc_grouped['marks_obtained'] / disc_grouped['total_marks'].replace(0, 1)) * 100
+                
+                # Set discipline column as index specifically to display clean categorical labels on the X-axis
+                chart_data = disc_grouped.set_index('discipline')[['Average Percentage']]
+                st.bar_chart(chart_data)
+                st.dataframe(disc_grouped, use_container_width=True, hide_index=True)
+            else:
+                st.info("No data matches filters.")
 
         with tab4:
             st.subheader("🎓 Comparison Engine")
             c_df = apply_filters(df, "comp")
+            
             c_a, c_b = st.columns(2)
             test_1 = c_a.selectbox("Exam 1:", AVAILABLE_EXAMS, key="c_t1")
             test_2 = c_b.selectbox("Exam 2:", AVAILABLE_EXAMS, key="c_t2")
+            
             comp = c_df[c_df['exam_type'].isin([test_1, test_2])]
             if not comp.empty:
-                pivot = comp.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
-                st.dataframe(pivot, use_container_width=True)
-            else: st.info("Select two exams to compare.")
+                pivot = comp.pivot_table(
+                    index=['id', 'name', 'discipline', 'section'], 
+                    columns='exam_type', 
+                    values='marks_obtained', 
+                    aggfunc='sum'
+                ).reset_index()
+                st.dataframe(pivot, use_container_width=True, hide_index=True)
+            else: 
+                st.info("Select two exams to see data comparison.")
     else:
-        st.info("No data available to analyze.")
+        st.info("No data available to analyze inside database.")
