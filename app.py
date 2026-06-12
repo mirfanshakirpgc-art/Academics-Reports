@@ -3089,11 +3089,6 @@ elif menu_choice == "Student Management":
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
-
-
-    # ---------------------------------------------------------
-    # SUB-MODULE A: SUBJECT ALLOCATIONS
-    # ---------------------------------------------------------
     elif sub_menu == "Subject Allocations":
         st.subheader("🔗 Allocate Subjects & Sections to Registered Faculty")
         
