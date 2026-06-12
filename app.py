@@ -3529,6 +3529,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
         else:
             with st.spinner("Processing performance matrix..."):
                 # Fetching marks for selected teachers and exams
+                # Note: tuple(...) is critical here to avoid SQL errors with IN clauses
                 marks_df = run_query("""
                     SELECT m.subject, m.marks_obtained, m.total_marks, m.exam_type, a.assigned_teacher_name
                     FROM marks m
@@ -3536,13 +3537,17 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     WHERE a.assigned_teacher_name IN :teachers
                     AND m.exam_type IN :exams
                     AND a.section_name IN :secs
-                """, {"teachers": tuple(sel_teachers), "exams": tuple(sel_exams), "secs": tuple(sel_secs)})
+                """, {
+                    "teachers": tuple(sel_teachers), 
+                    "exams": tuple(sel_exams), 
+                    "secs": tuple(sel_secs)
+                })
                 
                 if not marks_df.empty:
                     # Convert to numeric for calculation
                     marks_df['marks_obtained'] = pd.to_numeric(marks_df['marks_obtained'], errors='coerce')
                     
-                    # Grouping data
+                    # Grouping data for the summary table
                     summary = marks_df.groupby(['assigned_teacher_name', 'subject', 'exam_type']).agg(
                         Avg_Marks=('marks_obtained', 'mean'),
                         Count=('marks_obtained', 'count')
@@ -3551,7 +3556,8 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     st.write("### 📊 Performance Summary")
                     st.dataframe(summary, use_container_width=True)
                     
-                    # Trigger chart for visualization
+                    # Visualization
+                    st.write("### 📈 Average Marks per Subject")
                     st.bar_chart(summary, x='subject', y='Avg_Marks', color='assigned_teacher_name')
                 else:
                     st.info("No performance data found for the selected criteria.")
