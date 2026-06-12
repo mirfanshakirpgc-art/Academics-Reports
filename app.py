@@ -200,6 +200,7 @@ menu_choice = st.sidebar.radio(
         "Student Management", 
         "👨‍🏫 Teacher Management",  # Activates the entry point workspace panel option
         "🎓 Promote Students"
+        Academic Analysis Reports"
     ]
 )
 
@@ -3820,3 +3821,45 @@ elif menu_choice == "🎓 Promote Students":
                     st.rerun()
     else:
         st.info("🍃 No active promotions found in the tracking logs.")
+        
+        elif menu_choice == "📈 Academic Analysis Reports":
+    st.title("📊 Advanced Academic Analytics")
+    
+    # 1. Core Data Fetching (Fetch once per interaction)
+    @st.cache_data(ttl=600)
+    def fetch_analytics_data():
+        return run_query("""
+            SELECT s.id, s.name, s.class, s.section, m.subject, m.marks_obtained, m.total_marks, m.exam_type
+            FROM students s
+            JOIN marks m ON s.id = m.student_id
+        """, {})
+
+    df = fetch_analytics_data()
+    
+    # 2. Organize with Tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Matric vs Part-1"])
+    
+    # --- TOPPER LOGIC ---
+    with tab1:
+        st.subheader("Top Performers")
+        # Example: Group by student, sum marks, get top 10
+        # df_agg = df.groupby('name')['marks_obtained'].sum().sort_values(ascending=False).head(10)
+        st.write("Topper table goes here.")
+
+    # --- BOTTOM PERFORMERS ---
+    with tab2:
+        st.subheader("Need Support")
+        # Logic for identifying students below a certain threshold
+        st.write("Bottom performers table goes here.")
+
+    # --- DISCIPLINE ANALYSIS ---
+    with tab3:
+        st.subheader("Discipline-wise Overview")
+        # Logic to aggregate by Discipline map
+        st.write("Discipline comparison charts.")
+
+    # --- MATRIC vs PART-1 ---
+    with tab4:
+        st.subheader("Comparative Analysis: Matric vs Part-1")
+        # Logic to join 'MATRIC' exam data with 'PART-1' (e.g., T_1 or MT_1)
+        st.write("Comparison metrics.")
