@@ -3544,7 +3544,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
         sel_exams = st.multiselect("5. Select Multiple Tests:", options=AVAILABLE_EXAMS)
 
     # 2. Robust Teacher Filtering
-    # Only fetch teachers if sections are selected to avoid unnecessary queries
     if sel_secs:
         teachers_query = """
             SELECT DISTINCT assigned_teacher_name 
@@ -3552,7 +3551,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
             WHERE section_name IN :secs 
             AND session_term = :sess
         """
-        # Note: tuple(sel_secs) is required for SQL IN clause
         teachers_df = run_query(teachers_query, {"secs": tuple(sel_secs), "sess": sel_sess})
         t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
     else:
@@ -3573,8 +3571,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
         else:
             st.write(f"### Generating Analysis for {sel_disc}")
             st.write(f"**Teachers selected:** {len(sel_teachers)} | **Tests selected:** {len(sel_exams)}")
-            
-            # Logic for rendering charts or tables goes here
             st.success("Analysis report generated successfully.")
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
