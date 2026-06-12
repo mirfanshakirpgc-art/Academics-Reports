@@ -3697,13 +3697,78 @@ elif menu_choice == "⚙️ Settings":
                             st.warning("An instructor profile with this name already exists.")
                             
         st.markdown("---")
-        st.write("#### Current Registered Faculty Roster")
-        current_teachers = run_query("SELECT teacher_id as ID, teacher_name as Name, phone_number as Phone, email_address as Email, status as Status FROM system_teachers ORDER BY teacher_name ASC")
-        if not current_teachers.empty:
-            st.dataframe(current_teachers, use_container_width=True, hide_index=True)
+        st.write("#### Registered Institutional Faculty")
+        
+        # --- 🛡️ INITIALIZE THE CORRECT VARIABLE ---
+        current_faculty = pd.DataFrame()
+        
+        try:
+            # --- 🚀 RUN QUERY SAVING INTO THE CORRECT VARIABLE ---
+            current_faculty = run_query('SELECT teacher_id as "ID", teacher_name as "Teacher Name", phone_number as "Phone Number", email_address as "Email", status as "Status" FROM system_teachers ORDER BY teacher_name ASC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read faculty profiles from database: {e}")
+            
+        # --- 📊 CHECK AND RENDER ---
+        if not current_faculty.empty:
+            st.dataframe(current_faculty, use_container_width=True, hide_index=True)
+            
+            # --- 🛠️ INTERACTIVE EDIT / DELETE FACULTY PORTAL ---
+            st.markdown("### 🛠️ Manage Existing Faculty Members")
+            faculty_list = [f"{row['ID']} - {row['Teacher Name']}" for _, row in current_faculty.iterrows()]
+            selected_fac_str = st.selectbox("Select a Teacher Profile to Modify or Remove:", faculty_list, key="manage_fac_select")
+            
+            if selected_fac_str:
+                selected_fac_id = int(selected_fac_str.split(" - ")[0])
+                target_fac_row = current_faculty[current_faculty['ID'] == selected_fac_id].iloc[0]
+                
+                with st.form("edit_faculty_form"):
+                    updated_fac_name = st.text_input("Change Teacher Full Name:", value=str(target_fac_row['Teacher Name'])).strip()
+                    updated_fac_phone = st.text_input("Update Contact Number:", value=str(target_fac_row['Phone Number'])).strip()
+                    updated_fac_email = st.text_input("Update Email Address:", value=str(target_fac_row['Email'])).strip()
+                    updated_fac_status = st.selectbox("Change Employment Status:", ["ACTIVE", "INACTIVE"], index=0 if target_fac_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_fu, col_fd = st.columns(2)
+                    with col_fu:
+                        save_fac = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                    with col_fd:
+                        confirm_fac_del = st.checkbox("⚠️ Confirm complete deletion", key="del_fac_chk")
+                        delete_fac = st.form_submit_button("🗑️ Delete Profile Permanently", type="secondary", use_container_width=True)
+                        
+                if save_fac:
+                    if not updated_fac_name:
+                        st.error("Teacher Name cannot be left blank.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE system_teachers 
+                                    SET teacher_name = :name, phone_number = :phone, email_address = :email, status = :status 
+                                    WHERE teacher_id = :id
+                                """), {
+                                    "name": updated_fac_name, 
+                                    "phone": updated_fac_phone, 
+                                    "email": updated_fac_email, 
+                                    "status": updated_fac_status, 
+                                    "id": selected_fac_id
+                                })
+                            st.success(f"🎉 Successfully updated profile details for {updated_fac_name}!")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Modification failed. This name might conflict with another unique record: {err}")
+                        
+                if delete_fac:
+                    if not confirm_fac_del:
+                        st.error("Please check the confirmation box to authorize permanent deletion.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM system_teachers WHERE teacher_id = :id"), {"id": selected_fac_id})
+                            st.success("Faculty profile completely removed from system records.")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Cannot delete this teacher because they are currently assigned to active subject allocations. Clear their course allocations first! Details: {err}")
         else:
-            st.info("No active faculty profiles currently configured.")
-
+            st.info("No faculty profiles are currently registered.")
     # ---------------------------------------------------------
     # SUB-MODULE 2: SESSIONS & TERMS
     # ---------------------------------------------------------
@@ -3743,11 +3808,60 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("---")
         st.write("#### Registered Academic Sessions")
         
-        # Universal quote identifier for table columns instead of square brackets
-        current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
+        # --- 🛡️ INITIALIZE DataFrame TO PREVENT ANY NameError CRASH ---
+        current_sessions = pd.DataFrame()
         
+        try:
+            # --- 🚀 RUN THE POSTGRESQL COMPLIANT QUERY ---
+            current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read session records from database: {e}")
+            
         if not current_sessions.empty:
             st.dataframe(current_sessions, use_container_width=True, hide_index=True)
+            
+            # --- 🛠️ INTERACTIVE EDIT / DELETE SESSION PORTAL ---
+            st.markdown("### 🛠️ Manage Existing Academic Sessions")
+            session_list = [f"{row['ID']} - {row['Session Name']}" for _, row in current_sessions.iterrows()]
+            selected_sess_str = st.selectbox("Select a Session to Modify or Remove:", session_list, key="manage_sess_select")
+            
+            if selected_sess_str:
+                selected_sess_id = int(selected_sess_str.split(" - ")[0])
+                target_sess_row = current_sessions[current_sessions['ID'] == selected_sess_id].iloc[0]
+                
+                with st.form("edit_session_form"):
+                    updated_sess_name = st.text_input("Change Session Code/Year:", value=str(target_sess_row['Session Name'])).strip()
+                    updated_sess_status = st.selectbox("Change Session Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sess_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_su, col_sd = st.columns(2)
+                    with col_su:
+                        save_sess = st.form_submit_button("💾 Save Session Changes", type="primary", use_container_width=True)
+                    with col_sd:
+                        confirm_sess_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sess_chk")
+                        delete_sess = st.form_submit_button("🗑️ Delete Session Permanently", type="secondary", use_container_width=True)
+                        
+                if save_sess:
+                    if not updated_sess_name:
+                        st.error("Session Code/Year cannot be left blank.")
+                    else:
+                        try:
+                            # Using the standard context manager approach for execution to match initialization style
+                            with engine.begin() as conn:
+                                conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), 
+                                             {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
+                            st.success("Session information successfully updated!")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Modification failed. The session name might already exist: {err}")
+                        
+                if delete_sess:
+                    if not confirm_sess_del:
+                        st.error("Please check the confirmation box to authorize permanent deletion.")
+                    else:
+                        with engine.begin() as conn:
+                            conn.execute(text("DELETE FROM academic_sessions WHERE id = :id"), {"id": selected_sess_id})
+                        st.success("Session removed from system registers completely.")
+                        st.rerun()
         else:
             st.info("No academic sessions currently configured.")
 
