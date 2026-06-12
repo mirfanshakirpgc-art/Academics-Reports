@@ -3819,21 +3819,25 @@ elif menu_choice == "⚙️ Settings":
                         check_existing = run_query("SELECT id FROM academic_sessions WHERE UPPER(TRIM(session_name)) = UPPER(TRIM(:name))", {"name": new_session_name.strip()})
                         
                         if check_existing.empty:
-                            execute_db_command("""
+                            # Using run_update ensures it auto-commits smoothly on your cloud DB
+                            run_update("""
                                 INSERT INTO academic_sessions (session_name, status)
                                 VALUES (:name, :status)
                             """, {
                                 "name": new_session_name.strip(),
                                 "status": new_session_status
                             })
-                            st.success(f"🎉 Successfully registered session '{new_session_name}'!")
+                            st.success(f"🎉 Successfully registered session '{new_session_name.strip()}'!")
                             st.rerun()
                         else:
                             st.warning("A session with this name already exists.")
                             
         st.markdown("---")
-        st.write("#### Active Academic Sessions")
-        current_sessions = run_query("SELECT id as ID, session_name as [Session Name], status as Status FROM academic_sessions ORDER BY session_name DESC")
+        st.write("#### Registered Academic Sessions")
+        
+        # Universal quote identifier for table columns instead of square brackets
+        current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
+        
         if not current_sessions.empty:
             st.dataframe(current_sessions, use_container_width=True, hide_index=True)
         else:
