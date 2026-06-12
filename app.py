@@ -3825,78 +3825,65 @@ elif menu_choice == "🎓 Promote Students":
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     
-    # --- 1. FILTERING INTERFACE ---
+    # 1. DATA FETCHING ENGINE (Cached)
+    @st.cache_data(ttl=600)
+    def fetch_data():
+        # Fetching students + marks joined
+        return run_query("""
+            SELECT s.id, s.name, s.section, s.class, s.session, 
+                   m.subject, m.marks_obtained, m.total_marks, m.exam_type
+            FROM students s
+            JOIN marks m ON s.id = m.student_id
+        """, {})
+
+    # Initialize data
+    df = fetch_data()
+    
+    # 2. GLOBAL FILTERS (For all tabs)
     with st.expander("⚙️ Filter Report Options", expanded=True):
         col1, col2, col3 = st.columns(3)
-        
         with col1:
             sel_sessions = st.multiselect("Select Session(s):", AVAILABLE_SESSIONS, default=[AVAILABLE_SESSIONS[0]])
-            sel_gender = st.multiselect("Select Gender:", ["Boys", "Girls"]) # Assuming you can infer this from section names
-        
         with col2:
             sel_disciplines = st.multiselect("Select Discipline(s):", AVAILABLE_DISCIPLINE)
-            
         with col3:
-            # Dynamically fetch sections based on previous filters
-            sel_sections = st.multiselect("Select Section(s):", ["All Sections"]) # Replace with query logic
+            # Simple dynamic filtering for sections based on session
+            sel_sections = st.multiselect("Select Section(s):", ["All Sections"] + list(df['section'].unique()))
 
-    # --- 2. APPLY FILTERS TO DATAFRAME ---
-    # Apply these filters to your 'df' before the tabs
-    filtered_df = df.copy()
-    if sel_sessions:
-        filtered_df = filtered_df[filtered_df['session'].isin(sel_sessions)]
-    # ... add your other filter logic here ...
+    # Apply Filters to the Dataframe
+    f_df = df.copy()
+    if sel_sessions: f_df = f_df[f_df['session'].isin(sel_sessions)]
+    if sel_disciplines: pass # Add your discipline mapping logic here
+    if sel_sections and "All Sections" not in sel_sections:
+        f_df = f_df[f_df['section'].isin(sel_sections)]
 
-    # --- 3. TABS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Matric vs Part-1"])
+    # 3. TABS
+    tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
     
+    # Data Cleaning for all tabs
+    f_df['marks_obtained'] = pd.to_numeric(f_df['marks_obtained'], errors='coerce').fillna(0.0)
+    f_df['total_marks'] = pd.to_numeric(f_df['total_marks'], errors='coerce').fillna(1.0)
+    
+    # --- Tab 1: Toppers ---
     with tab1:
         st.subheader("🏆 Top Performers")
-        # Now use filtered_df instead of df
-        # ... your topper logic ...
-    
-    # --- TOPPER LOGIC ---
-    with tab1:
-        st.subheader("🏆 Top Performers")
-        
-        if df is not None and not df.empty:
-            # 1. Force strict numeric conversion and handle errors
-            df['marks_obtained'] = pd.to_numeric(df['marks_obtained'], errors='coerce').fillna(0.0)
-            df['total_marks'] = pd.to_numeric(df['total_marks'], errors='coerce').fillna(0.0)
-            
-            # 2. Force conversion to native float types to bypass Arrow type errors
-            df['marks_obtained'] = df['marks_obtained'].astype(float)
-            df['total_marks'] = df['total_marks'].astype(float)
-            
-            # 3. Aggregate
-            topper_df = df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
-            
-            # 4. Filter to avoid DivisionByZero errors
-            topper_df = topper_df[topper_df['total_marks'] > 0]
-            
-            # 5. Calculation
-            topper_df['Percentage'] = (topper_df['marks_obtained'] / topper_df['total_marks']) * 100
-            
-            # 6. Display
-            top_10 = topper_df.sort_values(by='Percentage', ascending=False).head(10)
-            st.dataframe(top_10, use_container_width=True)
-        else:
-            st.error("No data found to process.")
+        agg = f_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+        agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks']) * 100
+        st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), use_container_width=True)
 
-    # --- BOTTOM PERFORMERS ---
-    with tab2:
-        st.subheader("Need Support")
-        # Logic for identifying students below a certain threshold
-        st.write("Bottom performers table goes here.")
-
-    # --- DISCIPLINE ANALYSIS ---
-    with tab3:
-        st.subheader("Discipline-wise Overview")
-        # Logic to aggregate by Discipline map
-        st.write("Discipline comparison charts.")
-
-    # --- MATRIC vs PART-1 ---
+    # --- Tab 4: Comparison Engine (Part-1 vs Part-2 / Test vs Test) ---
     with tab4:
-        st.subheader("Comparative Analysis: Matric vs Part-1")
-        # Logic to join 'MATRIC' exam data with 'PART-1' (e.g., T_1 or MT_1)
-        st.write("Comparison metrics.")
+        st.subheader("🎓 Comparative Analysis")
+        c_a, c_b = st.columns(2)
+        test_1 = c_a.selectbox("Exam / Part 1:", AVAILABLE_EXAMS, index=0)
+        test_2 = c_b.selectbox("Exam / Part 2:", AVAILABLE_EXAMS, index=1)
+        
+        comp_df = f_df[f_df['exam_type'].isin([test_1, test_2])]
+        if not comp_df.empty:
+            pivot = comp_df.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
+            if test_1 in pivot.columns and test_2 in pivot.columns:
+                pivot['Diff'] = pivot[test_2] - pivot[test_1]
+                st.dataframe(pivot, use_container_width=True)
+                st.bar_chart(pivot.set_index('name')[[test_1, test_2]])
+            else:
+                st.info("Select two exams that have data in the system.")
