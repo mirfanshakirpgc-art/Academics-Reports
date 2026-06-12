@@ -189,9 +189,6 @@ from datetime import date
 menu_choice = st.sidebar.radio(
     "Go To Module:", 
     [
-        menu_choice = st.sidebar.radio(
-    "Go To Module:", 
-    [
         "📊 Home Dashboard", 
         "➕ Add Students", 
         "📝 Academic Exam Marks Entry",      
@@ -201,8 +198,8 @@ menu_choice = st.sidebar.radio(
         "📈 Multi-Test Progress Report", 
         "🪪 Student Result Cards", 
         "Student Management", 
-        "👨‍🏫 Teacher Management",
-        "🎓 Promote Students",  # <--- COMMA ADDED HERE
+        "👨‍🏫 Teacher Management", 
+        "🎓 Promote Students", 
         "📈 Academic Analysis Reports"
     ]
 )
