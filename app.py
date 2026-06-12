@@ -588,6 +588,13 @@ elif menu_choice == "➕ Add Students":
                         except Exception as delete_err:
                             st.error(f"❌ Database error encountered: {delete_err}")
 
+No worries at all! Trying to trace multiline structures manually can get tricky with matching brackets and trailing commas.
+
+To completely rule out any formatting or indentation issues, here is the full, clean, updated **Module 1** code block. It now safely contains all your new tests (**"BISE-11th", "BISE-12th", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"**) and preserves your single-line, 6-column layout sequence flawlessly.
+
+You can just select everything inside Module 1 in your file, delete it, and paste this block right in:
+
+```python
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
@@ -596,11 +603,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
-    # Shared framework array to guarantee synchronization across modules
+    # Shared framework array containing all standard, BISE, and PBTE test structures
     all_frameworks = [
         "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
         "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th",
+        "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
     ]
 
     try:
@@ -613,7 +621,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     if entry_mode == "📋 By Complete Section":
-        # Exactly 6 columns to manage all filter components in a single line
+        # Exactly 6 columns to manage all filter components in a single line sequential format
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
@@ -1089,6 +1097,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.rerun()
             except Exception as e:
                 st.error(f"Failed to read file asset cleanly: {e}")
+
+```
 
 
 # ====================================================================================
