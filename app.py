@@ -271,8 +271,6 @@ initialize_settings_tables()
 # ==============================================================================
 
 menu_choice = st.sidebar.radio(
-    "Go To Module:",
-menu_choice = st.sidebar.radio(
     "Go To Module:", 
     [
         "📊 Home Dashboard", 
