@@ -1558,19 +1558,34 @@ elif menu_choice == "📋 Section Summary Report":
         sel_sec = st.selectbox("Select Section:", sec_options, index=0, key="dynamic_widget_key")
         
     with col_c: 
-        if academic_system == "Semester System":
-            # Show ONLY technical board semester tests
-            exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"]
-        else:
-            # Show ONLY intermediate/matric annual tests
-            exam_options = [
-                "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "MT_5", 
-                "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-                "HALF_BOOK01", "HALF_BOOK02", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"
-            ]
+        # --- DYNAMIC FETCH BASED ON SYSTEM TRACK ---
+        try:
+            # Queries database dynamically matching the system track (Annual vs Semester)
+            exam_data = run_query("""
+                SELECT exam_code 
+                FROM exam_cycles 
+                WHERE system_type = :sys_type AND status = 'ACTIVE'
+                ORDER BY exam_display_name ASC
+            """, {"sys_type": academic_system})
             
-        sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
+            exam_options = exam_data["exam_code"].tolist() if not exam_data.empty else []
+        except Exception as e:
+            # Bulletproof Fallback lists if the database connection ever drops
+            if academic_system == "Semester System":
+                exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"]
+            else:
+                exam_options = [
+                    "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "MT_5", 
+                    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+                    "HALF_BOOK01", "HALF_BOOK02", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"
+                ]
 
+        # Render the drop-down selector securely
+        if exam_options:
+            sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
+        else:
+            st.warning("⚠️ No active evaluation frameworks registered for this academic track.")
+            sel_exam = None
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
