@@ -596,13 +596,499 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
-    # Shared framework array containing all standard, BISE, and PBTE test structures
+    # Shared framework array to guarantee synchronization across modules
     all_frameworks = [
         "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
         "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th",
-        "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
     ]
+
+    try:
+        session_options = AVAILABLE_SESSIONS
+        if "2024-26" in session_options:
+            session_options = [s for s in session_options if s != "2024-26"]
+        if "2027-29" not in session_options:
+            session_options.append("2027-29")
+    except NameError:
+        session_options = ["2025-27", "2026-28", "2027-29"]
+
+    if entry_mode == "📋 By Complete Section":
+        # Exactly 6 columns to manage all filter components in a single line
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        
+        current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
+        current_user_id = st.session_state.get('user_id', None)
+        
+        sel_discipline = "MEDICAL" 
+        sel_class = "ALL"
+        
+        if current_role == 'teacher' and current_user_id is not None:
+            teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
+            if not teacher_rights.empty:
+                allowed_subs = sorted(list(teacher_rights['subject'].unique()))
+                allowed_secs = sorted(list(teacher_rights['section'].unique()))
+                
+                with c1: 
+                    sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_t")  # 1
+                with c2: 
+                    academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")  # 2
+                with c3: 
+                    sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_class_teacher")  # 3
+                with c4: 
+                    st.text_input("Select Discipline:", value="ALLOCATED", disabled=True, key="teacher_disc_disabled")  # 4
+                    sel_discipline = "TEACHER_MODE"
+                with c5: 
+                    sel_section = st.selectbox("Select Target Section:", allowed_secs, key="entry_sec_filter_teacher")  # 5
+                with c6: 
+                    sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_t")  # 6
+                
+                if sel_exam == "MATRIC":
+                    sel_subject = "OVERALL"
+                else:
+                    sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
+            else:
+                st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
+        else:
+            # --- Admin Filter Grid Layout Sequenced strictly (1 to 6) in a Single Row ---
+            with c1: 
+                sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")  # Position 1
+                
+            with c2:
+                academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")  # Position 2
+                
+            with c3:
+                if academic_system == "Annual System":
+                    sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")  # Position 3
+                else:
+                    sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")  # Position 3
+
+            with c4: 
+                if academic_system == "Annual System":
+                    discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                    selected_ui_discipline = st.selectbox("Select Discipline:", discipline_ui_options, key="marks_disc_sel")  # Position 4
+                    sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
+                    if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
+                    elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
+                else:
+                    sel_discipline = "DIPLOMA_IN_IT_DIT"
+                    st.text_input("Select Discipline:", value="DIT", disabled=True, key="marks_disc_sel_disabled")
+
+            with c5: 
+                valid_sections_list = []
+                if academic_system == "Annual System":
+                    lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
+                    try:
+                        target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
+                        for c_lvl in target_class_levels:
+                            sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
+                            valid_sections_list.extend(sections_found)
+                    except NameError:
+                        pass
+                else:
+                    valid_sections_list = ["DIT_G", "DIT_B"]
+
+                valid_sections_list = sorted(list(set(valid_sections_list)))
+                if not valid_sections_list:
+                    valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
+                
+                sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")  # Position 5
+
+            with c6:
+                sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_a")  # Position 6
+
+            # Determine dynamic subjects below the single-row layout filters
+            if sel_exam == "MATRIC":
+                sel_subject = "OVERALL"
+                st.info("🎓 **MATRIC Macro Entry Mode Active**: Ledger updates mapped directly to record column 'OVERALL'.")
+            else:
+                if academic_system == "Annual System":
+                    DISCIPLINE_SUBJECTS_MAP = {
+                        "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+                        "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+                        "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+                        "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                        "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                        "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                        "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+                        "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+                        "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
+                        "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+                    }
+                    if sel_class == "ALL":
+                        list_11th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_11TH", [])
+                        list_12th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_12TH", [])
+                        available_subjects = list(dict.fromkeys(list_11th + list_12th))
+                    else:
+                        suffix = "_12TH" if sel_class == "12th" else "_11TH"
+                        lookup_key = f"{sel_discipline}{suffix}"
+                        available_subjects = DISCIPLINE_SUBJECTS_MAP.get(lookup_key, ["English", "Urdu", "Physics"])
+                else:
+                    if "1st Semester" in sel_class:
+                        available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                    elif "2nd Semester" in sel_class:
+                        available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                    else: 
+                        available_subjects = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+                
+                sel_subject = st.selectbox("📚 Select Course/Subject to Grade:", available_subjects, key="entry_sub_filter_a")
+        
+        # ====================================================================================
+        # RENDER ROSTER & DATA SUBMISSION GRID
+        # ====================================================================================
+        if sel_subject and sel_section and sel_session and sel_exam:
+            default_total_marks = 1200 if sel_exam == "MATRIC" else 100
+            max_total_limit = 2000 if sel_exam == "MATRIC" else 200
+            
+            st.markdown("##### ⚙️ Setup Score Schema Boundaries")
+            total_marks = st.number_input("Set Total Marks Scale for this Entry Ledger:", min_value=1, max_value=max_total_limit, value=default_total_marks, key="sec_global_marks")
+            
+            try:
+                query_params = {
+                    "subject": str(sel_subject).strip().upper(),
+                    "exam": str(sel_exam).strip().upper(),
+                    "section": str(sel_section).strip().upper(),
+                    "session": str(sel_session).strip()
+                }
+
+                roster_df = run_query("""
+                    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                    FROM students s
+                    LEFT JOIN marks m ON s.id = m.student_id 
+                        AND UPPER(TRIM(m.subject)) = :subject
+                        AND UPPER(TRIM(m.exam_type)) = :exam
+                    WHERE UPPER(TRIM(s.section)) = :section
+                      AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = :session
+                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                    ORDER BY s.id ASC
+                """, query_params)
+                
+                if roster_df.empty:
+                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session {sel_session}.")
+                else:
+                    st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
+                    
+                    col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
+                    with col_b2:
+                        if st.button("🏁 Mark All Absent", use_container_width=True, key="bulk_absent_btn"):
+                            for r_idx, r_row in roster_df.iterrows():
+                                st.session_state[f"abs_{r_row['ID']}"] = True
+                                st.session_state[f"nc_{r_row['ID']}"] = False
+                            st.rerun()
+                    with col_b3:
+                        if st.button("🚫 Mark All NC", use_container_width=True, key="bulk_nc_btn"):
+                            for r_idx, r_row in roster_df.iterrows():
+                                st.session_state[f"abs_{r_row['ID']}"] = False
+                                st.session_state[f"nc_{r_row['ID']}"] = True
+                            st.rerun()
+                    
+                    with st.form("bulk_marks_form"):
+                        updated_marks = {}
+                        
+                        h_c1, h_c2, h_c3, h_c4 = st.columns([3, 1, 0.6, 0.6])
+                        h_c2.caption("🔢 **Obtained**")
+                        h_c3.caption("❌ **Absent**")
+                        h_c4.caption("➖ **NC**")
+                        st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+
+                        for idx, row in roster_df.iterrows():
+                            col_s1, col_s2, col_s3, col_s4 = st.columns([3, 1, 0.6, 0.6])
+                            col_s1.write(f"👤 **{row['ID']}** — {row['Student Name']}")
+                            
+                            db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
+                            
+                            if f"abs_{row['ID']}" not in st.session_state:
+                                st.session_state[f"abs_{row['ID']}"] = (db_val in ['A', 'ABSENT'])
+                            if f"nc_{row['ID']}" not in st.session_state:
+                                st.session_state[f"nc_{row['ID']}"] = (db_val == 'NC')
+
+                            chk_absent = col_s3.checkbox("", key=f"abs_{row['ID']}", label_visibility="collapsed")
+                            chk_nc = col_s4.checkbox("", key=f"nc_{row['ID']}", label_visibility="collapsed")
+                            
+                            initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
+                            is_disabled = chk_absent or chk_nc
+                            display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
+                            
+                            score_input = col_s2.text_input(
+                                "Obtained", 
+                                value=display_score if is_disabled else initial_score, 
+                                key=f"marks_{row['ID']}", 
+                                label_visibility="collapsed",
+                                disabled=is_disabled
+                            )
+                            
+                            updated_marks[row['ID']] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                        
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
+                            import time
+                            for s_id, score in updated_marks.items():
+                                score_clean = str(score).strip().upper()
+                                execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": sel_subject, "exam": sel_exam})
+                                if score_clean != "":
+                                    execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
+                                                      {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip().upper(), "score": score_clean, "total": float(total_marks)})
+                            
+                            for s_id in updated_marks.keys():
+                                st.session_state.pop(f"abs_{s_id}", None)
+                                st.session_state.pop(f"nc_{s_id}", None)
+                                
+                            st.success(f"🎉 Marks ledger for Section {sel_section} ({sel_subject}) recorded successfully!")
+                            st.toast("Database sync complete!", icon="💾")
+                            time.sleep(1.5)
+                            st.rerun()
+            except Exception as e:
+                st.error(f"Database sync issue: {e}")
+
+    elif entry_mode == "👤 By Single Student Roll Number":
+        st.subheader("👤 Single Student Marks Record Manager")
+        
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            s_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_type")
+        with sc2:
+            s_session_sel = st.selectbox("Session Context:", session_options, key="single_sess_type")
+        with sc3:
+            if s_system == "Annual System":
+                s_class_sel = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="single_class_type")
+            else:
+                s_class_sel = st.selectbox("Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_class_type")
+
+        single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
+        
+        if single_id and single_id.isdigit():
+            query_conds = {
+                "id": int(single_id), 
+                "sess": str(s_session_sel).strip()
+            }
+            
+            base_sql = """
+                SELECT name, section, session, class FROM students 
+                WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = :sess
+            """
+            if s_class_sel != "ALL":
+                base_sql += " AND UPPER(TRIM(class)) = :cls"
+                query_conds["cls"] = str(s_class_sel).strip().upper()
+                
+            student_info = run_query(base_sql, query_conds)
+            
+            if student_info.empty:
+                st.error(f"❌ Roll number '{single_id}' not found matching Session ({s_session_sel}) and Class ({s_class_sel}).")
+            else:
+                s_name = student_info['name'].iloc[0].upper()
+                s_section = student_info['section'].iloc[0].upper().strip()
+                s_session = student_info['session'].iloc[0]
+                s_class = str(student_info['class'].iloc[0]).upper().strip()
+                
+                detected_discipline = "MEDICAL"  
+                if s_system == "Annual System":
+                    try:
+                        for disc_key, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                            for cls_level, sections in class_map.items():
+                                cleaned_sections = [str(sec).upper().strip() for sec in sections]
+                                if s_section in cleaned_sections:
+                                    detected_discipline = str(disc_key).upper().replace(" ", "_").replace("(", "").replace(")", "")
+                                    if "PHYSIC" in detected_discipline: detected_discipline = "ICS_PHYSICS"
+                                    elif "STAT" in detected_discipline: detected_discipline = "ICS_STATISTICS"
+                                    break
+                    except NameError:
+                        if any(k in s_section for k in ["EG", "ENG", "ENGINEERING"]): detected_discipline = "ENGINEERING"
+                        elif "ICS" in s_section: detected_discipline = "ICS_PHYSICS"
+                        elif any(k in s_section for k in ["CG", "COM", "COMMERCE"]): detected_discipline = "COMMERCE"
+                        elif any(k in s_section for k in ["HUM", "ARTS"]): detected_discipline = "HUMANITIES"
+                
+                st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
+                
+                c_m1, c_m2, c_m3, c_m4 = st.columns([1.5, 1.2, 1, 1.3])
+                with c_m2: 
+                    single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
+                
+                if single_exam == "MATRIC":
+                    single_sub = "OVERALL"
+                    with c_m1: 
+                        st.text_input("Course/Subject:", value="OVERALL (AGGREGATE)", disabled=True, key="s_sub_val_disabled")
+                    default_single_total = 1200
+                else:
+                    if s_system == "Annual System":
+                        DISCIPLINE_SUBJECTS_MAP = {
+                            "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+                            "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+                            "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+                            "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+                            "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                            "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                            "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                            "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                            "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+                            "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+                            "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
+                            "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+                        }
+                        if "12" in s_class: cls_suffix = "_12TH"
+                        elif "11" in s_class: cls_suffix = "_11TH"
+                        else: cls_suffix = "_11TH"
+                            
+                        single_sub_options = DISCIPLINE_SUBJECTS_MAP.get(f"{detected_discipline}{cls_suffix}", None)
+                        if not single_sub_options:
+                            if detected_discipline == "ENGINEERING": single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
+                            elif "ICS" in detected_discipline: single_sub_options = ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
+                            elif detected_discipline == "COMMERCE": single_sub_options = ["English", "Urdu", "Principles of Accounting", "Islamic Studies", "T_Quran", "Pak_St"]
+                            elif detected_discipline == "HUMANITIES": single_sub_options = ["English", "Urdu", "Education", "Islamic Studies", "T_Quran", "Pak_St"]
+                            else: single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran", "Pak_St"]
+                    else:
+                        if "1ST" in s_class or "1" in s_class: single_sub_options = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                        elif "2ND" in s_class or "2" in s_class: single_sub_options = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                        else: single_sub_options = ["Information Technology", "Office Automation", "Networking", "Data Base System", "Web Development Essential"]
+                    
+                    with c_m1: 
+                        single_sub = st.selectbox("Course/Subject:", single_sub_options, key="s_sub_val")
+                    default_single_total = 100
+                
+                with c_m3: 
+                    single_total = st.number_input("Total Marks:", min_value=1, value=default_single_total, key="s_tot_val")
+                
+                existing_m = run_query("""
+                    SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
+                init_m_val = str(existing_m['marks_obtained'].iloc[0]) if not existing_m.empty else ""
+                
+                with c_m4: 
+                    single_obtained = st.text_input("Obtained (or A / NC):", value=init_m_val, key="s_obt_val")
+                
+                if st.button("💾 Save Individual Marks Record", type="primary", use_container_width=True):
+                    import time
+                    execute_db_command("""
+                        DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                    """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
+                    
+                    if single_obtained.strip() != "":
+                        execute_db_command("""
+                            INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
+                        """, {"id": int(single_id), "sub": single_sub.strip().upper(), "exam": single_exam.strip().upper(), "score": single_obtained.strip().upper(), "tot": float(single_total)})
+                    
+                    st.success(f"🎉 Marks updated successfully for {s_name} ({single_exam} - {single_sub})!")
+                    st.toast(f"Saved entry for Roll No: {single_id}", icon="✅")
+                    time.sleep(1.5)
+                    st.rerun()
+
+    elif entry_mode == "📤 Bulk Excel/CSV Import":
+        st.subheader("📤 Bulk Upload Exam Marks Matrix")
+        
+        with st.expander("ℹ️ View Expected File Schema & Rules", expanded=True):
+            st.markdown("""
+            Your uploaded sheet **must** contain the following exact column headings:
+            * `Roll Number` or `Student ID` (Integer corresponding to Student Roll Number)
+            * `Subject` (Use **`OVERALL`** for Matriculation aggregate marks entry; otherwise use courses like *Physics, Urdu, Banking*)
+            * `Exam Type` (Must exactly match an entry in the system cycle list below like **`MATRIC`**, **`MT_1`**)
+            * `Total Marks` (Numeric limit value, e.g., **`1200`** for Matriculation)
+            * `Marks Obtained` (Numeric value, or `A` / `ABSENT` for absent students)
+            """)
+            st.caption(f"**Valid System Cycles:** {', '.join(all_frameworks)}")
+
+        uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
+        
+        if uploaded_file is not None:
+            try:
+                import pandas as pd
+                if uploaded_file.name.endswith('.csv'):
+                    df_raw = pd.read_csv(uploaded_file)
+                else:
+                    df_raw = pd.read_excel(uploaded_file)
+                
+                df_raw.columns = [str(c).strip().upper() for c in df_raw.columns]
+                
+                id_col = next((c for c in ['ROLL NUMBER', 'STUDENT ID', 'ID', 'ROLL_NO'] if c in df_raw.columns), None)
+                sub_col = next((c for c in ['SUBJECT', 'COURSE', 'SUBJECT NAME'] if c in df_raw.columns), None)
+                exam_col = next((c for c in ['EXAM TYPE', 'EXAMINATION CYCLE', 'EXAM', 'EXAM_TYPE'] if c in df_raw.columns), None)
+                tot_col = next((c for c in ['TOTAL MARKS', 'TOTAL_MARKS', 'TOTAL'] if c in df_raw.columns), None)
+                obt_col = next((c for c in ['MARKS OBTAINED', 'MARKS', 'OBTAINED', 'OBTAINED MARKS'] if c in df_raw.columns), None)
+                
+                if not all([id_col, sub_col, exam_col, tot_col, obt_col]):
+                    st.error("❌ Failed to parse file. Missing one or more required columns: Roll Number, Subject, Exam Type, Total Marks, and Marks Obtained.")
+                elif df_raw.empty:
+                    st.warning("⚠️ The uploaded spreadsheet file contains no rows of data.")
+                else:
+                    st.success(f"📊 Read {len(df_raw)} records successfully. Previewing data below:")
+                    st.dataframe(df_raw.head(10), use_container_width=True)
+                    
+                    with st.form("bulk_import_confirmation"):
+                        st.markdown("##### ⚙️ File Import Execution Configurations")
+                        dup_strategy = st.radio("Conflict Handling Rule:", ["Overwrite/Update Match Records", "Skip if Marks Exist"], horizontal=True)
+                        
+                        if st.form_submit_button("🚀 Execute Matrix Import & Database Sync", type="primary"):
+                            import time
+                            success_count = 0
+                            skipped_count = 0
+                            error_logs = []
+                            valid_exams_upper = [f.strip().upper() for f in all_frameworks]
+                            
+                            for index, row in df_raw.iterrows():
+                                try:
+                                    raw_id = str(row[id_col]).strip().split('.')[0]
+                                    if not raw_id.isdigit():
+                                        error_logs.append(f"Row {index+2}: Invalid Roll Number structure format '{row[id_col]}'")
+                                        continue
+                                    
+                                    s_id = int(raw_id)
+                                    subject_str = str(row[sub_col]).strip().upper()
+                                    exam_str = str(row[exam_col]).strip().upper()
+                                    
+                                    if exam_str not in valid_exams_upper:
+                                        error_logs.append(f"Row {index+2}: Invalid Exam Cycle '{exam_str}'. Not found in system framework.")
+                                        continue
+                                        
+                                    total_val = float(row[tot_col])
+                                    obtained_val = str(row[obt_col]).strip().upper()
+                                    
+                                    if obtained_val == "" or pd.isna(row[obt_col]):
+                                        skipped_count += 1
+                                        continue
+                                        
+                                    chk_student = run_query("SELECT id FROM students WHERE id = :id", {"id": s_id})
+                                    if chk_student.empty:
+                                        error_logs.append(f"Row {index+2}: Student ID '{s_id}' does not exist in student database.")
+                                        continue
+                                        
+                                    chk_marks = run_query("""
+                                        SELECT student_id FROM marks 
+                                        WHERE student_id = :id 
+                                          AND UPPER(TRIM(subject)) = :sub 
+                                          AND UPPER(TRIM(exam_type)) = :exam
+                                    """, {"id": s_id, "sub": subject_str, "exam": exam_str})
+                                    
+                                    if not chk_marks.empty:
+                                        if dup_strategy == "Skip if Marks Exist":
+                                            skipped_count += 1
+                                            continue
+                                        else:
+                                            execute_db_command("""
+                                                DELETE FROM marks 
+                                                WHERE student_id = :id 
+                                                  AND UPPER(TRIM(subject)) = :sub 
+                                                  AND UPPER(TRIM(exam_type)) = :exam
+                                            """, {"id": s_id, "sub": subject_str, "exam": exam_str})
+                                            
+                                    execute_db_command("""
+                                        INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                        VALUES (:id, :sub, :exam, :score, :tot)
+                                    """, {"id": s_id, "sub": subject_str, "exam": exam_str, "score": obtained_val, "tot": total_val})
+                                    
+                                    success_count += 1
+                                except Exception as inner_e:
+                                    error_logs.append(f"Row {index+2}: Structural error - {str(inner_e)}")
+                            
+                            if error_logs:
+                                with st.expander("⚠️ Review Upload Processing Logs & Warnings", expanded=True):
+                                    for log in error_logs:
+                                        st.warning(log)
+                            st.success(f"📦 Sync Operations Completed! Successfully Imported/Updated: {success_count} entries. Skipped: {skipped_count} entries.")
+                            st.toast("Bulk sheet data synchronized!", icon="📤")
+                            time.sleep(2.0)
+                            st.rerun()
+            except Exception as e:
+                st.error(f"Failed to read file asset cleanly: {e}")
 
 
 # ====================================================================================
