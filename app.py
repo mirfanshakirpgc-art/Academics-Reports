@@ -3840,7 +3840,6 @@ elif menu_choice == "📈 Academic Analysis Reports":
     tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Matric vs Part-1"])
     
     # --- TOPPER LOGIC ---
-    # --- TOPPER LOGIC ---
     with tab1:
         st.subheader("🏆 Top Performers")
         
