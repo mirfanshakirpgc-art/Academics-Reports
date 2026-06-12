@@ -233,71 +233,53 @@ from datetime import date
 from sqlalchemy import text  
 
 def initialize_settings_tables():
-    """Forces old structural tables to drop and rebuilds them with proper columns."""
+    """Ensures structural configuration tables exist and have the status column."""
     
-    # 1. FORCE DROP STRATEGIES (Clears out any conflicting old versions)
-    drop_commands = [
-        "DROP TABLE IF EXISTS academic_sessions CASCADE;",
-        "DROP TABLE IF EXISTS system_sections CASCADE;",
-        "DROP TABLE IF EXISTS exam_cycles CASCADE;",
-        "DROP TABLE IF EXISTS academic_sessions;",
-        "DROP TABLE IF EXISTS system_sections;",
-        "DROP TABLE IF EXISTS exam_cycles;"
-    ]
-    for cmd in drop_commands:
+    # 1. First, make sure the tables exist (using generic SQLite/MSSQL friendly syntax)
+    try:
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS academic_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+    except Exception:
+        # Fallback if AUTOINCREMENT is failing on an external SQL dialect
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS academic_sessions (
+                id INT PRIMARY KEY,
+                session_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+
+    # 2. FORCE-ADD THE STATUS COLUMN (This fixes the error if the table already existed!)
+    try:
+        execute_db_command("ALTER TABLE academic_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
+    except Exception:
+        # If the column is already there, it will throw an error and safely skip here
+        pass
+
+    # 3. Create the other tables safely
+    try:
+        execute_db_command("""
+            CREATE TABLE IF NOT EXISTS system_sections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                section_name VARCHAR(50) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'ACTIVE'
+            );
+        """)
+    except Exception:
         try:
-            execute_db_command(cmd)
+            execute_db_command("ALTER TABLE system_sections ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
         except Exception:
             pass
 
-    # 2. REBUILD STRATEGY A (For MySQL / SQLite fallback)
     try:
         execute_db_command("""
-            CREATE TABLE IF NOT EXISTS academic_sessions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS system_sections (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                section_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        execute_db_command("""
             CREATE TABLE IF NOT EXISTS exam_cycles (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                exam_code VARCHAR(50) UNIQUE NOT NULL,
-                exam_display_name VARCHAR(100) NOT NULL,
-                system_type VARCHAR(50) NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        return # Exit if successful
-    except Exception:
-        pass
-
-    # 3. REBUILD STRATEGY B (For PostgreSQL / ElephantSQL / Supabase)
-    try:
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS academic_sessions (
-                id SERIAL PRIMARY KEY,
-                session_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS system_sections (
-                id SERIAL PRIMARY KEY,
-                section_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS exam_cycles (
-                id SERIAL PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 exam_code VARCHAR(50) UNIQUE NOT NULL,
                 exam_display_name VARCHAR(100) NOT NULL,
                 system_type VARCHAR(50) NOT NULL,
@@ -305,9 +287,12 @@ def initialize_settings_tables():
             );
         """)
     except Exception:
-        pass
+        try:
+            execute_db_command("ALTER TABLE exam_cycles ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
+        except Exception:
+            pass
 
-# Execute the master override routine
+# Execute the initialization routine
 initialize_settings_tables()
 # ==============================================================================
 
