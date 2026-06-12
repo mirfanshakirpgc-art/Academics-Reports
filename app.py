@@ -613,8 +613,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     if entry_mode == "📋 By Complete Section":
-        # Rearranged columns to exactly match your numbered wireframe layout
-        c1, c2, c3, c4, c5 = st.columns([1.5, 1.8, 1.5, 1.8, 1.8])
+        # Exactly 6 columns to manage all filter components in a single line
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
@@ -633,34 +633,35 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 with c2: 
                     academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")  # 2
                 with c3: 
+                    sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_class_teacher")  # 3
+                with c4: 
+                    st.text_input("Select Discipline:", value="ALLOCATED", disabled=True, key="teacher_disc_disabled")  # 4
+                    sel_discipline = "TEACHER_MODE"
+                with c5: 
+                    sel_section = st.selectbox("Select Target Section:", allowed_secs, key="entry_sec_filter_teacher")  # 5
+                with c6: 
                     sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_t")  # 6
                 
                 if sel_exam == "MATRIC":
                     sel_subject = "OVERALL"
-                    with c4: st.info("ℹ️ MATRIC Mode Active")
                 else:
-                    with c4: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
-                    
-                with c5: 
-                    sel_section = st.selectbox("Select Section:", allowed_secs, key="entry_sec_filter_teacher")
+                    sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
             else:
                 st.warning("🚨 You do not have any active subjects or sections assigned yet.")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
         else:
-            # --- Admin Layout Configurations Matching Image ---
+            # --- Admin Filter Grid Layout Sequenced strictly (1 to 6) in a Single Row ---
             with c1: 
                 sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")  # Position 1
                 
             with c2:
                 academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")  # Position 2
-                # Nested row layout structure logic to place Class/Semester directly beneath Academic System
+                
+            with c3:
                 if academic_system == "Annual System":
                     sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")  # Position 3
                 else:
                     sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")  # Position 3
-
-            with c3:
-                sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_a")  # Position 6
 
             with c4: 
                 if academic_system == "Annual System":
@@ -693,10 +694,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")  # Position 5
 
-            # Dynamic structural mode context processing
+            with c6:
+                sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_a")  # Position 6
+
+            # Determine dynamic subjects below the single-row layout filters
             if sel_exam == "MATRIC":
                 sel_subject = "OVERALL"
-                st.info("🎓 **MATRIC Macro Entry Mode Active**: Individual courses bypassed. Records will save under subject 'OVERALL'.")
+                st.info("🎓 **MATRIC Macro Entry Mode Active**: Ledger updates mapped directly to record column 'OVERALL'.")
             else:
                 if academic_system == "Annual System":
                     DISCIPLINE_SUBJECTS_MAP = {
@@ -729,7 +733,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     else: 
                         available_subjects = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
                 
-                # Render the dynamic course selector row cleanly right above the rosters
                 sel_subject = st.selectbox("📚 Select Course/Subject to Grade:", available_subjects, key="entry_sub_filter_a")
         
         # ====================================================================================
