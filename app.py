@@ -299,6 +299,33 @@ def execute_db_command(command, params=None):
         params = {}
     with engine.begin() as conn:
         conn.execute(text(command), params)
+ # ==============================================================================
+# SIDEBAR NAVIGATION MODULE 
+# ==============================================================================
+menu_choice = st.sidebar.radio(
+    "Go To Module:",
+    [
+        "📊 Home Dashboard", 
+        "➕ Add Students", 
+        "📝 Academic Exam Marks Entry",      
+        "📅 Attendance Entry Management",    
+        "📋 Daily Attendance Report",
+        "📋 Section Summary Report", 
+        "📈 Multi-Test Progress Report", 
+        "🪪 Student Result Cards", 
+        "Student Management", 
+        "👨‍🏫 Teacher Management", 
+        "🎓 Promote Students", 
+        "📈 Academic Analysis Reports",
+        "⚙️ Settings"
+    ]
+)
+
+# ==============================================================================
+# MODULE ROUTING LOGIC (Line 354 starts right here!)
+# ==============================================================================
+if menu_choice == "📊 Home Dashboard":
+    # Your home dashboard code continues here...
 
 # ==============================================================================
 # --- MAP CONFIGURATIONS ---
