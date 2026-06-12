@@ -3522,7 +3522,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
-elif menu_choice == "Discipline Analysis":
+	elif menu_choice == "Discipline Analysis":
 	st.subheader("🏢 High-Level Discipline Stream Overview")
 	
 	col1, col2 = st.columns(2)
