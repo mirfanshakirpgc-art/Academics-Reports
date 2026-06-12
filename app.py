@@ -204,7 +204,7 @@ except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
 # ==============================================================================
-# --- DATABASE COMMAND UTILITIES (WITH AUTO-PATCHING ENGINE) ---
+# --- DATABASE COMMAND UTILITIES (UNIVERSAL CLOUD PATTERNS) ---
 # ==============================================================================
 def run_query(query, params=None):
     if params is None:
@@ -213,44 +213,78 @@ def run_query(query, params=None):
         try:
             return pd.read_sql_query(text(query), conn, params=params)
         except Exception as original_error:
-            # INTERCEPT: If a query fails due to missing schemas, patch them on-the-fly!
+            # INTERCEPT: Fix tables using database engine fallback structures
             try:
                 # 1. Setup/Verify Academic Sessions
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS academic_sessions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_name VARCHAR(50) UNIQUE NOT NULL,
-                        status VARCHAR(20) DEFAULT 'ACTIVE'
-                    );
-                """))
+                try:
+                    # Try PostgreSQL Serial format
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS academic_sessions (
+                            id SERIAL PRIMARY KEY,
+                            session_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                except Exception:
+                    # Fallback to MySQL / SQLite AUTOINCREMENT
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS academic_sessions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            session_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                
                 try:
                     conn.execute(text("ALTER TABLE academic_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
                 except Exception:
                     pass
 
                 # 2. Setup/Verify System Sections
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS system_sections (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        section_name VARCHAR(50) UNIQUE NOT NULL,
-                        status VARCHAR(20) DEFAULT 'ACTIVE'
-                    );
-                """))
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS system_sections (
+                            id SERIAL PRIMARY KEY,
+                            section_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                except Exception:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS system_sections (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            section_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                
                 try:
                     conn.execute(text("ALTER TABLE system_sections ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
                 except Exception:
                     pass
 
                 # 3. Setup/Verify Exam Cycles
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS exam_cycles (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        exam_code VARCHAR(50) UNIQUE NOT NULL,
-                        exam_display_name VARCHAR(100) NOT NULL,
-                        system_type VARCHAR(50) NOT NULL,
-                        status VARCHAR(20) DEFAULT 'ACTIVE'
-                    );
-                """))
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS exam_cycles (
+                            id SERIAL PRIMARY KEY,
+                            exam_code VARCHAR(50) UNIQUE NOT NULL,
+                            exam_display_name VARCHAR(100) NOT NULL,
+                            system_type VARCHAR(50) NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                except Exception:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS exam_cycles (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            exam_code VARCHAR(50) UNIQUE NOT NULL,
+                            exam_display_name VARCHAR(100) NOT NULL,
+                            system_type VARCHAR(50) NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                
                 try:
                     conn.execute(text("ALTER TABLE exam_cycles ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
                 except Exception:
@@ -266,7 +300,6 @@ def run_update(query, params=None):
     if params is None:
         params = {}
     with engine.begin() as conn:
-        # Fixed: Changed 'command' to 'query' to match function parameters
         conn.execute(text(query), params)
 
 def execute_db_command(command, params=None):
@@ -296,7 +329,6 @@ menu_choice = st.sidebar.radio(
         "⚙️ Settings"
     ]
 )
-
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
     "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
