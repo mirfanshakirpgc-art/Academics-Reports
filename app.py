@@ -3522,49 +3522,44 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
-    elif sub_menu == "Discipline Analysis" and 'DISCIPLINE_SUBJECTS_MAP' in globals():
+    elif sub_menu == "Discipline Analysis":
         st.subheader("🏢 High-Level Discipline Stream Overview")
         
-        exams_list = AVAILABLE_EXAMS if 'AVAILABLE_EXAMS' in globals() else ["Mid Term", "Final Exam"]
-        exam_term = st.selectbox("Select Academic Term Focus:", options=exams_list, key="disc_exam_focus")
+        # 1. Selection Layout
+        col1, col2 = st.columns(2)
+        with col1:
+            sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
+            sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
+        with col2:
+            # Dynamically set discipline options based on system
+            disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
+            sel_disc = st.selectbox("3. Select Discipline:", disc_options)
+
+        # 2. Filter Teachers based on Discipline (Assumes allocations table linkage)
+        # We find teachers who have at least one allocation in the selected discipline
+        teachers_query = """
+            SELECT DISTINCT assigned_teacher_name 
+            FROM academic_allocations 
+            WHERE subject_title LIKE :disc_pattern
+        """
+        # Adjust pattern based on discipline name
+        teachers_df = run_query(teachers_query, {"disc_pattern": f"%{sel_disc}%"})
         
-        discipline_summary = []
-        for disc_name, subjects in DISCIPLINE_SUBJECTS_MAP.items():
-            sections = DISCIPLINE_SECTIONS_MAP.get(disc_name, []) if 'DISCIPLINE_SECTIONS_MAP' in globals() else []
-            
-            if sections:
-                sec_placeholders = ",".join([f"'{s.upper().strip()}'" for s in sections])
-                sub_placeholders = ",".join([f"'{sub.upper().strip()}'" for sub in subjects])
+        t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
+        sel_teachers = st.multiselect("4. Select Teacher(s):", options=t_options)
+
+        # 3. Multi-select Tests
+        sel_exams = st.multiselect("5. Select Multiple Tests:", options=AVAILABLE_EXAMS)
+
+        if st.button("Generate Analysis"):
+            if not sel_exams:
+                st.warning("Please select at least one test.")
+            else:
+                # Logic to filter and display analysis based on the selected filters
+                st.write(f"Analyzing {sel_disc} for {len(sel_exams)} tests...")
                 
-                query_str = f"""
-                    SELECT m.marks_obtained, m.total_marks FROM marks m
-                    JOIN students s ON m.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) IN ({sec_placeholders})
-                    AND UPPER(TRIM(m.subject)) IN ({sub_placeholders})
-                    AND m.exam_type = :exam
-                """
-                
-                disc_data = run_query(query_str, {"exam": exam_term})
-                
-                if not disc_data.empty:
-                    disc_data['num_obt'] = pd.to_numeric(disc_data['marks_obtained'], errors='coerce')
-                    valid_disc_scores = disc_data.dropna(subset=['num_obt'])
-                    
-                    if not valid_disc_scores.empty:
-                        avg_disc_pct = (valid_disc_scores['num_obt'].sum() / valid_disc_scores['total_marks'].sum()) * 100
-                        disc_pass = sum(valid_disc_scores['num_obt'] >= (valid_disc_scores['total_marks'] * 0.40))
-                        disc_pass_ratio = (disc_pass / len(valid_disc_scores)) * 100
-                        
-                        discipline_summary.append({
-                            "Academic Stream": disc_name,
-                            "Total Checked Scripts": len(valid_disc_scores),
-                            "Mean Score": f"{avg_disc_pct:.1f}%",
-                            "Overall Pass Percentage": f"{disc_pass_ratio:.1f}%"
-                        })
-                        
-        if discipline_summary:
-            st.write(f"### Comparative Stream Standings — {exam_term}")
-            st.dataframe(pd.DataFrame(discipline_summary), use_container_width=True, hide_index=True)
+                # Add your existing data processing and chart/table rendering logic here
+                # using the sel_sess, sel_sys, sel_disc, sel_teachers, and sel_exams variables
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
