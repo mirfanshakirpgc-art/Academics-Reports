@@ -3525,17 +3525,24 @@ if menu_choice == "👨‍🏫 Teacher Management":
 elif menu_choice == "Discipline Analysis":
     st.subheader("🏢 High-Level Discipline Stream Overview")
     
+    # --- SAFETY INITIALIZATION ---
+    # These ensure variables exist even if the widgets haven't been touched yet
+    sel_sess = None
+    sel_sys = None
+    sel_disc = None
+    sel_secs = []
+    sel_exams = []
+    t_options = []
+    
     # 1. Selection Layout
     col1, col2 = st.columns(2)
     with col1:
         sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
         sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
-        # Discipline filter
         disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
         sel_disc = st.selectbox("3. Select Discipline:", disc_options)
     
     with col2:
-        # Dynamic Section Multi-select
         all_secs_query = "SELECT DISTINCT section_name FROM academic_allocations WHERE session_term = :sess"
         all_secs_df = run_query(all_secs_query, {"sess": sel_sess})
         sec_options = all_secs_df['section_name'].tolist() if not all_secs_df.empty else []
@@ -3551,11 +3558,8 @@ elif menu_choice == "Discipline Analysis":
             WHERE section_name IN :secs 
             AND session_term = :sess
         """
-        # Convert list to tuple for SQL 'IN' clause
         teachers_df = run_query(teachers_query, {"secs": tuple(sel_secs), "sess": sel_sess})
         t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
-    else:
-        t_options = []
 
     # 3. Teacher Selection
     sel_teachers = st.multiselect(
@@ -3570,9 +3574,8 @@ elif menu_choice == "Discipline Analysis":
         if not sel_exams or not sel_teachers or not sel_secs:
             st.warning("Please ensure Sections, Teachers, and Tests are all selected.")
         else:
-            st.write(f"### Generating Analysis for {sel_disc}")
-            st.write(f"**Teachers selected:** {len(sel_teachers)} | **Tests selected:** {len(sel_exams)}")
-            st.success("Analysis report generated successfully.")
+            # Place your data processing logic here
+            st.success(f"Analysis ready for {len(sel_teachers)} teachers.")
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
