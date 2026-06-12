@@ -3862,8 +3862,8 @@ elif menu_choice == "📈 Academic Analysis Reports":
         # D. TABS
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
-        with tab1:
-st.subheader("🏆 Top Performers")
+with tab1:
+    st.subheader("🏆 Top Performers")
         
         # 1. Ensure we have data
         if not df_filtered.empty:
