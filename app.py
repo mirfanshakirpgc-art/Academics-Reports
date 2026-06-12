@@ -3801,6 +3801,43 @@ elif menu_choice == "⚙️ Settings":
         # --- 📊 CHECK AND RENDER ---
         if not current_sections.empty:
             st.dataframe(current_sections, use_container_width=True, hide_index=True)
+            
+            # --- 🛠️ INTERACTIVE EDIT / DELETE SECTION PORTAL ---
+            st.markdown("### 🛠️ Manage Existing Sections")
+            section_list = [f"{row['ID']} - {row['Section Name']}" for _, row in current_sections.iterrows()]
+            selected_sec_str = st.selectbox("Select a Section to Modify or Remove:", section_list, key="manage_sec_select")
+            
+            if selected_sec_str:
+                selected_sec_id = int(selected_sec_str.split(" - ")[0])
+                target_row = current_sections[current_sections['ID'] == selected_sec_id].iloc[0]
+                
+                with st.form("edit_section_form"):
+                    updated_name = st.text_input("Change Section Label:", value=str(target_row['Section Name'])).upper().strip()
+                    updated_status = st.selectbox("Change Section Status:", ["ACTIVE", "INACTIVE"], index=0 if target_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_u, col_d = st.columns(2)
+                    with col_u:
+                        save_sec = st.form_submit_button("💾 Save Section Changes", type="primary", use_container_width=True)
+                    with col_d:
+                        confirm_sec_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sec_chk")
+                        delete_sec = st.form_submit_button("🗑️ Delete Section", type="secondary", use_container_width=True)
+                        
+                if save_sec:
+                    if not updated_name:
+                        st.error("Section label cannot be left blank.")
+                    else:
+                        execute_db_command("UPDATE system_sections SET section_name = :name, status = :status WHERE id = :id", 
+                                           {"name": updated_name, "status": updated_status, "id": selected_sec_id})
+                        st.success("Section updated successfully!")
+                        st.rerun()
+                        
+                if delete_sec:
+                    if not confirm_sec_del:
+                        st.error("Please check the confirmation box to authorize permanent deletion.")
+                    else:
+                        execute_db_command("DELETE FROM system_sections WHERE id = :id", {"id": selected_sec_id})
+                        st.success("Section removed from registry permanently.")
+                        st.rerun()
         else:
             st.info("No class sections currently configured.")
 
