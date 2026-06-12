@@ -3863,11 +3863,42 @@ elif menu_choice == "📈 Academic Analysis Reports":
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
         with tab1:
-            # Perform calculations ONLY using filtered_df
-            st.subheader("🏆 Top Performers")
-            # ... insert logic here ...
-    else:
-        st.info("Data is loading or empty. Please check your database connection.")
+        st.subheader("🏆 Top Performers")
+        
+        # 1. Ensure we have data
+        if not df_filtered.empty:
+            # 2. Strict Numeric Conversion (Handles 'NC', 'A', and text labels)
+            f_df['marks_obtained'] = pd.to_numeric(f_df['marks_obtained'], errors='coerce').fillna(0.0)
+            f_df['total_marks'] = pd.to_numeric(f_df['total_marks'], errors='coerce').fillna(1.0)
+            
+            # 3. Aggregate: Sum marks per student
+            # We use 'id' and 'name' to keep unique profiles
+            topper_df = f_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+            
+            # 4. Remove entries where total marks might be zero to prevent math errors
+            topper_df = topper_df[topper_df['total_marks'] > 0]
+            
+            # 5. Calculate percentage
+            topper_df['Percentage'] = (topper_df['marks_obtained'] / topper_df['total_marks']) * 100
+            
+            # 6. Top 10 logic
+            top_10 = topper_df.sort_values(by='Percentage', ascending=False).head(10)
+            
+            # 7. Professional Display
+            st.dataframe(
+                top_10,
+                column_config={
+                    "id": "Roll Number",
+                    "name": "Student Name",
+                    "marks_obtained": st.column_config.NumberColumn("Obtained", format="%d"),
+                    "total_marks": st.column_config.NumberColumn("Total", format="%d"),
+                    "Percentage": st.column_config.ProgressColumn("Performance %", format="%.2f%%", min_value=0, max_value=100)
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.warning("No student records match the current filter criteria.")
     
     # Step 1: Session
     sel_sessions = st.multiselect("1. Select Session:", options=sorted(df['session'].unique()))
