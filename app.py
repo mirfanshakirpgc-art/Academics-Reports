@@ -233,27 +233,41 @@ from datetime import date
 from sqlalchemy import text  
 
 def initialize_settings_tables():
-    """Forces the creation of settings tables using the correct function arguments."""
+    """Forces structural configuration tables to update and prints raw errors to the UI."""
     
-    # 1. Ensure academic_sessions exists
+    # 1. Base Table Deployments
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS academic_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
+                session_name VARCHAR(50) UNIQUE NOT NULL
             );
         """)
     except Exception:
-        pass
+        try:
+            execute_db_command("""
+                CREATE TABLE IF NOT EXISTS academic_sessions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    session_name VARCHAR(50) UNIQUE NOT NULL
+                );
+            """)
+        except Exception:
+            pass
 
-    # 2. Force add the status column if the table already existed without it
+    # 2. THE LIVE SCHEMA PATCH (This will tell us EXACTLY what is failing)
     try:
         execute_db_command("ALTER TABLE academic_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';")
-    except Exception:
-        pass
+    except Exception as db_error:
+        # Check if it failed because the column already exists (Error code operational/duplicate)
+        error_msg = str(db_error).lower()
+        if "duplicate column" in error_msg or "already exists" in error_msg or "unknown column" in error_msg:
+            pass 
+        else:
+            # Force print the RAW database engine error directly onto your app screen!
+            st.error(f"🔴 DIAGNOSTIC CRITICAL DATABASE ERROR: {db_error}")
+            st.stop()
 
-    # 3. Ensure system_sections exists
+    # 3. Setup remaining tables
     try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS system_sections (
@@ -262,11 +276,6 @@ def initialize_settings_tables():
                 status VARCHAR(20) DEFAULT 'ACTIVE'
             );
         """)
-    except Exception:
-        pass
-
-    # 4. Ensure exam_cycles exists
-    try:
         execute_db_command("""
             CREATE TABLE IF NOT EXISTS exam_cycles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -279,7 +288,7 @@ def initialize_settings_tables():
     except Exception:
         pass
 
-# Run the fixed database setup
+# Force run diagnostic trace
 initialize_settings_tables()
 # ==============================================================================
 
