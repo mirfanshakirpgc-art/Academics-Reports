@@ -285,7 +285,12 @@ DISCIPLINE_SECTIONS_MAP = {
 }
 
 AVAILABLE_DISCIPLINE = list(DISCIPLINE_SUBJECTS_MAP.keys())
-AVAILABLE_EXAMS = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5", "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
+AVAILABLE_EXAMS = [# Shared framework array to guarantee synchronization across modules
+    all_frameworks = [
+        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"
+    ]
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 
 # --- GLOBAL ACADEMIC CONSTANTS ---
@@ -594,9 +599,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
     # Shared framework array to guarantee synchronization across modules
     all_frameworks = [
+        # Shared framework array to guarantee synchronization across modules
+    all_frameworks = [
         "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
         "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"
     ]
 
     try:
@@ -1927,9 +1934,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     # --- EXPLICIT TEST FRAMEWORK GLOBAL LIST ---
     all_frameworks = [
+        # Shared framework array to guarantee synchronization across modules
+    all_frameworks = [
         "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
         "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD"
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"
     ]
 
     # --- GLOBAL INTERFACE FILTER PANEL ---
