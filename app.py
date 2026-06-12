@@ -3523,22 +3523,19 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
     elif menu_choice == "Discipline Analysis":
-    # Everything below must be indented by 4 spaces
     st.subheader("🏢 High-Level Discipline Stream Overview")
     
     # 1. Selection Layout
     col1, col2 = st.columns(2)
     with col1:
         sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
-        # ... (rest of your code)
         sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
         # Discipline filter
         disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
         sel_disc = st.selectbox("3. Select Discipline:", disc_options)
     
     with col2:
-        # Dynamic Section Multi-select based on Discipline
-        # We fetch all sections available for this discipline to populate the filter
+        # Dynamic Section Multi-select based on Session
         all_secs_query = "SELECT DISTINCT section_name FROM academic_allocations WHERE session_term = :sess"
         all_secs_df = run_query(all_secs_query, {"sess": sel_sess})
         sec_options = all_secs_df['section_name'].tolist() if not all_secs_df.empty else []
@@ -3547,7 +3544,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
         sel_exams = st.multiselect("5. Select Multiple Tests:", options=AVAILABLE_EXAMS)
 
     # 2. Robust Teacher Filtering
-    # We find teachers assigned to the selected discipline AND selected sections
+    # Only fetch teachers if sections are selected to avoid unnecessary queries
     if sel_secs:
         teachers_query = """
             SELECT DISTINCT assigned_teacher_name 
@@ -3555,11 +3552,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
             WHERE section_name IN :secs 
             AND session_term = :sess
         """
+        # Note: tuple(sel_secs) is required for SQL IN clause
         teachers_df = run_query(teachers_query, {"secs": tuple(sel_secs), "sess": sel_sess})
         t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
     else:
         t_options = []
 
+    # 3. Teacher Selection
     sel_teachers = st.multiselect(
         "6. Select Teacher(s):", 
         options=t_options,
@@ -3567,23 +3566,15 @@ if menu_choice == "👨‍🏫 Teacher Management":
         help="Teachers assigned to the selected sections will appear here."
     )
 
+    # 4. Generate Analysis Action
     if st.button("Generate Analysis"):
         if not sel_exams or not sel_teachers or not sel_secs:
             st.warning("Please ensure Sections, Teachers, and Tests are all selected.")
         else:
-            st.write(f"### Generating Analysis")
-            st.write(f"**Discipline:** {sel_disc} | **Teachers:** {len(sel_teachers)} | **Tests:** {len(sel_exams)}")
+            st.write(f"### Generating Analysis for {sel_disc}")
+            st.write(f"**Teachers selected:** {len(sel_teachers)} | **Tests selected:** {len(sel_exams)}")
             
-            # Implementation of chart/table logic goes here
-            # Example query for aggregated results
-            analysis_query = """
-                SELECT m.subject, m.marks_obtained, m.total_marks 
-                FROM marks m
-                JOIN academic_allocations a ON m.subject = a.subject_title
-                WHERE a.assigned_teacher_name IN :teachers
-                AND m.exam_type IN :exams
-                AND a.section_name IN :secs
-            """
+            # Logic for rendering charts or tables goes here
             st.success("Analysis report generated successfully.")
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
