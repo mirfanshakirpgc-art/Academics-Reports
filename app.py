@@ -3983,7 +3983,7 @@ elif menu_choice == "⚙️ Settings":
                         
                         if check_existing.empty:
             try:
-                # Fixed: Changed execute_db_command to engine transaction
+                # This block must be indented 4 spaces deeper than 'try'
                 with engine.begin() as conn:
                     conn.execute(text("""
                         INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
