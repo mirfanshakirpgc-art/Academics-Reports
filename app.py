@@ -9,29 +9,35 @@ import streamlit.components.v1 as components
 import datetime
 
 # --- REPLACEMENT (Must be defined at the TOP of your app.py) ---
+# --- 1. CORE HELPER FUNCTIONS (Place after imports at top of file) ---
 def apply_filters(df, tab_key):
     st.markdown("### ⚙️ Filter Configuration")
-    
-    # 1. Define ALL possible options from the master dataframe first
     s_options = sorted(df['session'].unique())
     d_options = sorted(df['discipline'].unique())
     sec_options = sorted(df['section'].unique())
     
     col1, col2 = st.columns(2)
     with col1:
-        # 2. 'default=...' ensures everything is selected by default (Select All)
         s = st.multiselect("Session:", s_options, default=s_options, key=f"s_{tab_key}")
         d = st.multiselect("Discipline:", d_options, default=d_options, key=f"d_{tab_key}")
     with col2:
         sec = st.multiselect("Section:", sec_options, default=sec_options, key=f"sec_{tab_key}")
     
-    # 3. Filter logic: Use user selection, or the full list if empty
     f_df = df.copy()
     f_df = f_df[f_df['session'].isin(s if s else s_options)]
     f_df = f_df[f_df['discipline'].isin(d if d else d_options)]
     f_df = f_df[f_df['section'].isin(sec if sec else sec_options)]
-    
     return f_df
+
+@st.cache_data(ttl=600)
+def fetch_analytics_data():
+    query = """
+        SELECT s.id, s.name, s.section, s.class, s.session, 
+               m.subject, m.marks_obtained, m.total_marks, m.exam_type
+        FROM students s
+        LEFT JOIN marks m ON s.id = m.student_id
+    """
+    return run_query(query, {})
 
 # --- LINE 20: THEN YOUR GLOBAL VARIABLES AND ROUTER ---
 # ==============================================================================
@@ -3860,34 +3866,25 @@ elif menu_choice == "🎓 Promote Students":
         
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
-    
-    # Fetch initial data
     df = fetch_analytics_data() 
     
     if not df.empty:
-        # 1. Global Data Cleaning
         df['marks_obtained'] = pd.to_numeric(df['marks_obtained'], errors='coerce').fillna(0.0)
         df['total_marks'] = pd.to_numeric(df['total_marks'], errors='coerce').fillna(1.0)
-        
-        # Ensure 'discipline' column exists
         if 'discipline' not in df.columns:
             df['discipline'] = df['section'].apply(lambda x: 'MEDICAL' if 'M' in str(x).upper() else 'ENGINEERING' if 'E' in str(x).upper() else 'OTHER')
 
-        # 2. Define Tabs
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
-        # --- TAB 1: TOPPERS ---
         with tab1:
             st.subheader("🏆 Filter Toppers")
-            t_df = apply_filters(df, "toppers") # Uses updated "Select All" helper
+            t_df = apply_filters(df, "toppers")
             if not t_df.empty:
                 agg = t_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
                 agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks'].replace(0, 1)) * 100
                 st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), use_container_width=True, hide_index=True)
-            else: 
-                st.info("No data matches selected filters.")
+            else: st.info("No data matches filters.")
 
-        # --- TAB 2: BOTTOM PERFORMERS ---
         with tab2:
             st.subheader("⚠️ Filter Bottom Performers")
             b_df = apply_filters(df, "bottom")
@@ -3895,28 +3892,23 @@ elif menu_choice == "📈 Academic Analysis Reports":
                 agg_b = b_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
                 agg_b['Percentage'] = (agg_b['marks_obtained'] / agg_b['total_marks'].replace(0, 1)) * 100
                 st.dataframe(agg_b.sort_values('Percentage', ascending=True).head(10), use_container_width=True, hide_index=True)
-            else: 
-                st.info("No data matches selected filters.")
+            else: st.info("No data matches filters.")
 
-        # --- TAB 3: DISCIPLINE ANALYSIS ---
         with tab3:
             st.subheader("Discipline Average Performance")
             d_df = apply_filters(df, "disc")
             st.bar_chart(d_df.groupby('discipline')['marks_obtained'].mean())
 
-        # --- TAB 4: COMPARISON ENGINE ---
         with tab4:
             st.subheader("🎓 Comparison Engine")
             c_df = apply_filters(df, "comp")
             c_a, c_b = st.columns(2)
             test_1 = c_a.selectbox("Exam 1:", AVAILABLE_EXAMS, key="c_t1")
             test_2 = c_b.selectbox("Exam 2:", AVAILABLE_EXAMS, key="c_t2")
-            
             comp = c_df[c_df['exam_type'].isin([test_1, test_2])]
             if not comp.empty:
                 pivot = comp.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
                 st.dataframe(pivot, use_container_width=True)
-            else: 
-                st.info("Select two exams to compare performance.")
+            else: st.info("Select two exams to compare.")
     else:
         st.info("No data available to analyze.")
