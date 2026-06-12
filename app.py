@@ -3865,13 +3865,37 @@ elif menu_choice == "📈 Academic Analysis Reports":
         
         # --- TAB 1: TOPPERS (Independent Filtering) ---
         with tab1:
-            st.subheader("Filter Toppers")
-            t_sess = st.multiselect("Session:", sorted(df['session'].unique()), key="t_sess")
-            t_df = df[df['session'].isin(t_sess)] if t_sess else df.copy()
+            st.subheader("🏆 Filter Toppers")
             
-            agg = t_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
-            agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks']) * 100
-            st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), use_container_width=True, hide_index=True)
+            # Independent Filter Row 1
+            col1, col2 = st.columns(2)
+            with col1:
+                t_sessions = st.multiselect("Select Session(s):", sorted(df['session'].unique()), key="t_sess")
+                t_disciplines = st.multiselect("Select Discipline(s):", sorted(df['discipline'].unique()), key="t_disc")
+            with col2:
+                # Assuming 'Academic System' is a column; if not, use string matching
+                t_systems = st.multiselect("Select Academic System(s):", ["Annual System", "Semester System"], key="t_sys")
+                t_sections = st.multiselect("Select Section(s):", sorted(df['section'].unique()), key="t_sect")
+
+            # Apply filters locally to t_df
+            t_df = df.copy()
+            if t_sessions: t_df = t_df[t_df['session'].isin(t_sessions)]
+            if t_disciplines: t_df = t_df[t_df['discipline'].isin(t_disciplines)]
+            if t_sections: t_df = t_df[t_df['section'].isin(t_sections)]
+            # If system logic is based on section names, add it here:
+            if t_systems:
+                if "Annual System" in t_systems and "Semester System" not in t_systems:
+                    t_df = t_df[~t_df['section'].str.contains('DIT', na=False)]
+                elif "Semester System" in t_systems and "Annual System" not in t_systems:
+                    t_df = t_df[t_df['section'].str.contains('DIT', na=False)]
+
+            # Calculation
+            if not t_df.empty:
+                agg = t_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+                agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks']) * 100
+                st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), use_container_width=True, hide_index=True)
+            else:
+                st.info("No data matches these filter criteria.")
 
         # --- TAB 2: BOTTOM PERFORMERS (Independent) ---
         with tab2:
