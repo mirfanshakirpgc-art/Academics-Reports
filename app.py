@@ -3788,7 +3788,17 @@ elif menu_choice == "⚙️ Settings":
                             
         st.markdown("---")
         st.write("#### Registered Class Sections")
-        current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
+        
+        # --- 🛡️ INITIALIZE THE CORRECT VARIABLE ---
+        current_sections = pd.DataFrame()
+        
+        try:
+            # --- 🚀 RUN QUERY SAVING INTO THE CORRECT VARIABLE FROM THE CORRECT TABLE ---
+            current_sections = run_query('SELECT id as "ID", section_name as "Section Name", status as "Status" FROM system_sections ORDER BY section_name ASC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read section configurations from database: {e}")
+            
+        # --- 📊 CHECK AND RENDER ---
         if not current_sections.empty:
             st.dataframe(current_sections, use_container_width=True, hide_index=True)
         else:
