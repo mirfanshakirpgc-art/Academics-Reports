@@ -3825,19 +3825,35 @@ elif menu_choice == "🎓 Promote Students":
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     
-    # 1. Core Data Fetching (Fetch once per interaction)
-    @st.cache_data(ttl=600)
-    def fetch_analytics_data():
-        return run_query("""
-            SELECT s.id, s.name, s.class, s.section, m.subject, m.marks_obtained, m.total_marks, m.exam_type
-            FROM students s
-            JOIN marks m ON s.id = m.student_id
-        """, {})
+    # --- 1. FILTERING INTERFACE ---
+    with st.expander("⚙️ Filter Report Options", expanded=True):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            sel_sessions = st.multiselect("Select Session(s):", AVAILABLE_SESSIONS, default=[AVAILABLE_SESSIONS[0]])
+            sel_gender = st.multiselect("Select Gender:", ["Boys", "Girls"]) # Assuming you can infer this from section names
+        
+        with col2:
+            sel_disciplines = st.multiselect("Select Discipline(s):", AVAILABLE_DISCIPLINE)
+            
+        with col3:
+            # Dynamically fetch sections based on previous filters
+            sel_sections = st.multiselect("Select Section(s):", ["All Sections"]) # Replace with query logic
 
-    df = fetch_analytics_data()
-    
-    # 2. Organize with Tabs
+    # --- 2. APPLY FILTERS TO DATAFRAME ---
+    # Apply these filters to your 'df' before the tabs
+    filtered_df = df.copy()
+    if sel_sessions:
+        filtered_df = filtered_df[filtered_df['session'].isin(sel_sessions)]
+    # ... add your other filter logic here ...
+
+    # --- 3. TABS ---
     tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Matric vs Part-1"])
+    
+    with tab1:
+        st.subheader("🏆 Top Performers")
+        # Now use filtered_df instead of df
+        # ... your topper logic ...
     
     # --- TOPPER LOGIC ---
     with tab1:
