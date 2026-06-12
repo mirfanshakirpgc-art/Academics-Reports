@@ -612,7 +612,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         session_options = ["2025-27", "2026-28", "2027-29"]
 
     if entry_mode == "📋 By Complete Section":
-        c1, c2, c3, c4, c5 = st.columns([1.5, 1.5, 2, 1.5, 2])
+        # Rearranged columns slightly to put Exam Selection early so subject lists can adapt dynamically
+        c1, c2, c3, c4, c5 = st.columns([1.5, 1.5, 1.5, 2, 2.5])
         
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_user_id = st.session_state.get('user_id', None)
@@ -628,21 +629,28 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_t")
                 with c2: academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")
-                with c3: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
-                with c4: sel_section = st.selectbox("Select Section:", allowed_secs, key="entry_sec_filter_teacher")
-                with c5: st.info("🔒 Bound to Profile")
-                sel_class = "ALL"
+                with c3: sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_t")
+                
+                # Check if handling a Matric macro result
+                if sel_exam == "MATRIC":
+                    sel_subject = "OVERALL"
+                    with c4: st.info("ℹ️ MATRIC Mode: Overall Aggregate Entry Activated")
+                else:
+                    with c4: sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
+                    
+                with c5: sel_section = st.selectbox("Select Section:", allowed_secs, key="entry_sec_filter_teacher")
             else:
                 st.warning("🚨 You do not have any active subjects or sections assigned yet.")
-                sel_subject, sel_section, sel_session, sel_class = None, None, None, None
+                sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
         else:
             with c1: 
                 sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
-            
             with c2:
                 academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
+            with c3:
+                sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_a")
 
-            with c3: 
+            with c4: 
                 if academic_system == "Annual System":
                     discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
                     selected_ui_discipline = st.selectbox("Select Discipline:", discipline_ui_options, key="marks_disc_sel")
@@ -655,11 +663,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     sel_discipline = "DIPLOMA_IN_IT_DIT"
                     sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
 
-            with c4: 
+            with c5: 
                 valid_sections_list = []
                 if academic_system == "Annual System":
                     lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
-                    
                     try:
                         target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
                         for c_lvl in target_class_levels:
@@ -675,8 +682,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
                 
                 sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
-                
-            with c5: 
+
+            # Handle Subject Selection Logic Context dynamically below columns base
+            if sel_exam == "MATRIC":
+                sel_subject = "OVERALL"
+                st.info("🎓 **MATRIC Macro Entry Mode Active**: Individual courses bypassed. Result records will append under subject heading 'OVERALL'.")
+            else:
                 if academic_system == "Annual System":
                     DISCIPLINE_SUBJECTS_MAP = {
                         "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
@@ -692,7 +703,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
                         "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
                     }
-
                     if sel_class == "ALL":
                         list_11th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_11TH", [])
                         list_12th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_12TH", [])
@@ -714,12 +724,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         # ====================================================================================
         # RENDER ROSTER & DATA SUBMISSION GRID
         # ====================================================================================
-        if sel_subject and sel_section and sel_session:
-            row2_1, row2_2 = st.columns(2)
-            with row2_1: 
-                sel_exam = st.selectbox("Select Examination Cycle:", all_frameworks, index=1, key="entry_exam_sel")
-            with row2_2: 
-                total_marks = st.number_input("Set Total Marks:", min_value=1, max_value=200, value=100, key="sec_global_marks")
+        if sel_subject and sel_section and sel_session and sel_exam:
+            # Shifted total marks target dynamically depending on exam choice configuration matrix
+            default_total_marks = 1200 if sel_exam == "MATRIC" else 100
+            max_total_limit = 2000 if sel_exam == "MATRIC" else 200
+            
+            st.markdown("##### ⚙️ Setup Score Schema Boundaries")
+            total_marks = st.number_input("Set Total Marks Scale for this Entry Ledger:", min_value=1, max_value=max_total_limit, value=default_total_marks, key="sec_global_marks")
             
             try:
                 query_params = {
@@ -818,7 +829,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     elif entry_mode == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Marks Record Manager")
         
-        # 🏢 Layout Phase 1: Filters Top Row
         sc1, sc2, sc3 = st.columns(3)
         with sc1:
             s_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_type")
@@ -830,11 +840,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             else:
                 s_class_sel = st.selectbox("Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_class_type")
 
-        # 🔍 Layout Phase 2: Enter Roll Number Input Field
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
         
         if single_id and single_id.isdigit():
-            # Query constraints explicitly checking selected context variables
             query_conds = {
                 "id": int(single_id), 
                 "sess": str(s_session_sel).strip()
@@ -844,7 +852,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 SELECT name, section, session, class FROM students 
                 WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = :sess
             """
-            
             if s_class_sel != "ALL":
                 base_sql += " AND UPPER(TRIM(class)) = :cls"
                 query_conds["cls"] = str(s_class_sel).strip().upper()
@@ -859,9 +866,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_session = student_info['session'].iloc[0]
                 s_class = str(student_info['class'].iloc[0]).upper().strip()
                 
-                # 🎯 Smart Reverse Lookup: Identify discipline purely by the student's Section!
-                detected_discipline = "MEDICAL"  # Default fallback
-                
+                detected_discipline = "MEDICAL"  
                 if s_system == "Annual System":
                     try:
                         for disc_key, class_map in DISCIPLINE_SECTIONS_MAP.items():
@@ -873,7 +878,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     elif "STAT" in detected_discipline: detected_discipline = "ICS_STATISTICS"
                                     break
                     except NameError:
-                        # Hardcoded fallback heuristics based on common section name formats
                         if any(k in s_section for k in ["EG", "ENG", "ENGINEERING"]): detected_discipline = "ENGINEERING"
                         elif "ICS" in s_section: detected_discipline = "ICS_PHYSICS"
                         elif any(k in s_section for k in ["CG", "COM", "COMMERCE"]): detected_discipline = "COMMERCE"
@@ -881,61 +885,55 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
                 
-                # Dynamic context-based subject list mapping helper options
-                if s_system == "Annual System":
-                    DISCIPLINE_SUBJECTS_MAP = {
-                        "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
-                        "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
-                        "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
-                        "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
-                        "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-                        "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-                        "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-                        "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-                        "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
-                        "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
-                        "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
-                        "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
-                    }
-                    
-                    # Safe normalization for 11th vs 12th matching keys
-                    if "12" in s_class:
-                        cls_suffix = "_12TH"
-                    elif "11" in s_class:
-                        cls_suffix = "_11TH"
-                    else:
-                        cls_suffix = "_11TH" # Catch-all safe option
-                        
-                    single_sub_options = DISCIPLINE_SUBJECTS_MAP.get(f"{detected_discipline}{cls_suffix}", None)
-                    
-                    # Complete absolute fallback list if key matching completely fails
-                    if not single_sub_options:
-                        if detected_discipline == "ENGINEERING":
-                            single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
-                        elif "ICS" in detected_discipline:
-                            single_sub_options = ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
-                        elif detected_discipline == "COMMERCE":
-                            single_sub_options = ["English", "Urdu", "Principles of Accounting", "Islamic Studies", "T_Quran", "Pak_St"]
-                        elif detected_discipline == "HUMANITIES":
-                            single_sub_options = ["English", "Urdu", "Education", "Islamic Studies", "T_Quran", "Pak_St"]
-                        else:
-                            single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran", "Pak_St"]
-                else:
-                    if "1ST" in s_class or "1" in s_class:
-                        single_sub_options = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                    elif "2ND" in s_class or "2" in s_class:
-                        single_sub_options = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                    else: 
-                        single_sub_options = ["Information Technology", "Office Automation", "Networking", "Data Base System", "Web Development Essential"]
-                
                 c_m1, c_m2, c_m3, c_m4 = st.columns([1.5, 1.2, 1, 1.3])
-                with c_m1: 
-                    single_sub = st.selectbox("Course/Subject:", single_sub_options, key="s_sub_val")
                 
                 with c_m2: 
                     single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
+                
+                # Single student adaptive subject mapping logic block
+                if single_exam == "MATRIC":
+                    single_sub = "OVERALL"
+                    with c_m1: 
+                        st.text_input("Course/Subject:", value="OVERALL (AGGREGATE)", disabled=True, key="s_sub_val_disabled")
+                    default_single_total = 1200
+                else:
+                    if s_system == "Annual System":
+                        DISCIPLINE_SUBJECTS_MAP = {
+                            "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+                            "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+                            "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+                            "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+                            "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                            "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                            "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+                            "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+                            "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+                            "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+                            "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
+                            "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+                        }
+                        if "12" in s_class: cls_suffix = "_12TH"
+                        elif "11" in s_class: cls_suffix = "_11TH"
+                        else: cls_suffix = "_11TH"
+                            
+                        single_sub_options = DISCIPLINE_SUBJECTS_MAP.get(f"{detected_discipline}{cls_suffix}", None)
+                        if not single_sub_options:
+                            if detected_discipline == "ENGINEERING": single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
+                            elif "ICS" in detected_discipline: single_sub_options = ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
+                            elif detected_discipline == "COMMERCE": single_sub_options = ["English", "Urdu", "Principles of Accounting", "Islamic Studies", "T_Quran", "Pak_St"]
+                            elif detected_discipline == "HUMANITIES": single_sub_options = ["English", "Urdu", "Education", "Islamic Studies", "T_Quran", "Pak_St"]
+                            else: single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran", "Pak_St"]
+                    else:
+                        if "1ST" in s_class or "1" in s_class: single_sub_options = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                        elif "2ND" in s_class or "2" in s_class: single_sub_options = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                        else: single_sub_options = ["Information Technology", "Office Automation", "Networking", "Data Base System", "Web Development Essential"]
+                    
+                    with c_m1: 
+                        single_sub = st.selectbox("Course/Subject:", single_sub_options, key="s_sub_val")
+                    default_single_total = 100
+                
                 with c_m3: 
-                    single_total = st.number_input("Total Marks:", min_value=1, value=100, key="s_tot_val")
+                    single_total = st.number_input("Total Marks:", min_value=1, value=default_single_total, key="s_tot_val")
                 
                 existing_m = run_query("""
                     SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -964,9 +962,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             st.markdown("""
             Your uploaded sheet **must** contain the following exact column headings:
             * `Roll Number` or `Student ID` (Integer corresponding to Student Roll Number)
-            * `Subject` (e.g., *Physics, Pak_St, Banking, Education, T_Quran*)
-            * `Exam Type` (Must exactly match an entry in the system cycle list below)
-            * `Total Marks` (Numeric limit value)
+            * `Subject` (Use **`OVERALL`** for Matriculation aggregate marks entry; otherwise use courses like *Physics, Urdu, Banking*)
+            * `Exam Type` (Must exactly match an entry in the system cycle list below like **`MATRIC`**, **`MT_1`**)
+            * `Total Marks` (Numeric limit value, e.g., **`1200`** for Matriculation)
             * `Marks Obtained` (Numeric value, or `A` / `ABSENT` for absent students)
             """)
             st.caption(f"**Valid System Cycles:** {', '.join(all_frameworks)}")
@@ -1056,31 +1054,20 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     execute_db_command("""
                                         INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
                                         VALUES (:id, :sub, :exam, :score, :tot)
-                                    """, {
-                                        "id": s_id, "sub": subject_str, "exam": exam_str, "score": obtained_val, "tot": total_val
-                                    })
-                                    success_count += 1
+                                    """, {"id": s_id, "sub": subject_str, "exam": exam_str, "score": obtained_val, "tot": total_val})
                                     
-                                except Exception as row_err:
-                                    error_logs.append(f"Row {index+2}: Unexpected formatting issue. Detail: {row_err}")
-                            
-                            st.success(f"🏁 Processing Completed! Successfully added/updated **{success_count}** records.")
-                            if skipped_count > 0:
-                                st.info(f"ℹ️ Skipped **{skipped_count}** entries based on configuration rules or empty status values.")
+                                    success_count += 1
+                                except Exception as inner_e:
+                                    error_logs.append(f"Row {index+2}: Structural error - {str(inner_e)}")
                             
                             if error_logs:
-                                with st.expander("🚨 View Processing Logs & Mismatches", expanded=True):
+                                with st.expander("⚠️ Review Upload Processing Logs & Warnings", expanded=True):
                                     for log in error_logs:
-                                        st.error(log)
-                                        
-                            try:
-                                st.cache_data.clear()
-                            except Exception:
-                                pass
+                                        st.warning(log)
+                            st.success(f"📦 Sync Operations Completed! Successfully Imported/Updated: {success_count} entries. Skipped: {skipped_count} entries.")
                             st.rerun()
-                            
             except Exception as e:
-                st.error(f"💥 Critical file parsing system breakdown error: {e}")
+                st.error(f"Failed to read file asset cleanly: {e}")
 
 
 
