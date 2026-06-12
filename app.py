@@ -213,15 +213,19 @@ def run_query(query, params=None):
     # Universal handle for different SQL engine column escaping styles
     clean_query = query.replace("[Session Name]", '"Session Name"')
     
-    with engine.connect() as conn:
-        try:
+    # Step 1: Attempt a clean read execution first
+    try:
+        with engine.connect() as conn:
             return pd.read_sql_query(text(clean_query), conn, params=params)
-        except Exception as original_error:
-            # SAFE ENGINE: We completely REMOVED the 'DROP TABLE' loop to protect your data!
-            try:
+    except Exception as original_error:
+        # Step 2: SAFE PATCH ENGINE (Triggers only if read query fails due to schema mismatch)
+        try:
+            # We open an explicit transaction manager block to force database saves
+            with engine.begin() as txn_conn:
+                
                 # 1. Gently build academic_sessions if completely missing
                 try:
-                    conn.execute(text("""
+                    txn_conn.execute(text("""
                         CREATE TABLE IF NOT EXISTS academic_sessions (
                             id SERIAL PRIMARY KEY,
                             session_name VARCHAR(50) UNIQUE NOT NULL,
@@ -230,7 +234,7 @@ def run_query(query, params=None):
                     """))
                 except Exception:
                     try:
-                        conn.execute(text("""
+                        txn_conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS academic_sessions (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 session_name VARCHAR(50) UNIQUE NOT NULL,
@@ -242,7 +246,7 @@ def run_query(query, params=None):
                 
                 # 2. Gently build system_sections if completely missing
                 try:
-                    conn.execute(text("""
+                    txn_conn.execute(text("""
                         CREATE TABLE IF NOT EXISTS system_sections (
                             id SERIAL PRIMARY KEY,
                             section_name VARCHAR(50) UNIQUE NOT NULL,
@@ -251,7 +255,7 @@ def run_query(query, params=None):
                     """))
                 except Exception:
                     try:
-                        conn.execute(text("""
+                        txn_conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS system_sections (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 section_name VARCHAR(50) UNIQUE NOT NULL,
@@ -263,7 +267,7 @@ def run_query(query, params=None):
 
                 # 3. Gently build exam_cycles if completely missing
                 try:
-                    conn.execute(text("""
+                    txn_conn.execute(text("""
                         CREATE TABLE IF NOT EXISTS exam_cycles (
                             id SERIAL PRIMARY KEY,
                             exam_code VARCHAR(50) UNIQUE NOT NULL,
@@ -274,7 +278,7 @@ def run_query(query, params=None):
                     """))
                 except Exception:
                     try:
-                        conn.execute(text("""
+                        txn_conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS exam_cycles (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 exam_code VARCHAR(50) UNIQUE NOT NULL,
@@ -286,56 +290,20 @@ def run_query(query, params=None):
                     except Exception:
                         pass
 
-                # 4. Safe Patch: Add status column if table exists but lacks the column
+                # 4. Add status column safely if the table exists but lacks the column
                 for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
                     try:
-                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                        txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
                     except Exception:
-                        pass # Column is already there, ignore it safely
+                        pass 
 
-                # Commit modifications and rerun selection query smoothly
-                conn.commit()
-                return pd.read_sql_query(text(clean_query), conn, params=params)
-            except Exception:
-                raise original_error
-
-                try:
-                    conn.execute(text("""
-                        CREATE TABLE exam_cycles (
-                            id SERIAL PRIMARY KEY,
-                            exam_code VARCHAR(50) UNIQUE NOT NULL,
-                            exam_display_name VARCHAR(100) NOT NULL,
-                            system_type VARCHAR(50) NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                except Exception:
-                    conn.execute(text("""
-                        CREATE TABLE exam_cycles (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            exam_code VARCHAR(50) UNIQUE NOT NULL,
-                            exam_display_name VARCHAR(100) NOT NULL,
-                            system_type VARCHAR(50) NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
+            # Step 3: Now that schemas are completely secured, retry fetching the data frame
+            with engine.connect() as retry_conn:
+                return pd.read_sql_query(text(clean_query), retry_conn, params=params)
                 
-                conn.commit()
-                return pd.read_sql_query(text(clean_query), conn, params=params)
-            except Exception:
-                raise original_error
-
-def run_update(query, params=None):
-    if params is None:
-        params = {}
-    with engine.begin() as conn:
-        conn.execute(text(query), params)
-
-def execute_db_command(command, params=None):
-    if params is None:
-        params = {}
-    with engine.begin() as conn:
-        conn.execute(text(command), params)
+        except Exception:
+            # If everything completely breaks, return the original data problem
+            raise original_error
  # ==============================================================================
 # SIDEBAR NAVIGATION MODULE 
 # ==============================================================================
