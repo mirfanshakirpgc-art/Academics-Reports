@@ -1212,15 +1212,21 @@ if menu_choice == "📅 Attendance Entry Management":
                     st.markdown("###")
                     if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
                         try:
-                            for s_id, checked_present in attendance_checkbox_map.items():
-                                status_code = "P" if checked_present else "A"
-                                param_pack = {"s_id": int(s_id), "att_date": str(target_date), "status": status_code}
-                                
-                                execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", {"s_id": int(s_id), "att_date": str(target_date)})
-                                execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", param_pack)
+                            with st.spinner("Writing records to database..."):
+                                for s_id, checked_present in attendance_checkbox_map.items():
+                                    status_code = "P" if checked_present else "A"
+                                    param_pack = {"s_id": int(s_id), "att_date": str(target_date), "status": status_code}
+                                    
+                                    execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", {"s_id": int(s_id), "att_date": str(target_date)})
+                                    execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", param_pack)
                             
+                            # --- UPGRADED SUCCESS ALERTS ---
+                            st.toast(f"✅ Attendance updated for {sel_section}!", icon="🎉")
                             st.success(f"🎉 Roster saved successfully for section {sel_section}!")
+                            
+                            # Give Streamlit a split second to render the success boxes cleanly
                             st.rerun()
+
                         except Exception as e:
                             st.error(f"Error encountered during standard write cycle: {e}")
 
