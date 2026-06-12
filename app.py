@@ -3530,10 +3530,12 @@ elif menu_choice == "Discipline Analysis":
     with col1:
         sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
         sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
+        # Discipline filter
         disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
         sel_disc = st.selectbox("3. Select Discipline:", disc_options)
     
     with col2:
+        # Dynamic Section Multi-select based on Session
         all_secs_query = "SELECT DISTINCT section_name FROM academic_allocations WHERE session_term = :sess"
         all_secs_df = run_query(all_secs_query, {"sess": sel_sess})
         sec_options = all_secs_df['section_name'].tolist() if not all_secs_df.empty else []
