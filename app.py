@@ -224,17 +224,14 @@ def execute_db_command(command, params=None):
     with engine.begin() as conn:
         conn.execute(text(command), params)
 
+# ==============================================================================
+# IMPORTS & AUTOMATIC DATABASE INITIALIZATION
+# ==============================================================================
 import streamlit as st
 import pandas as pd
 from datetime import date
-import streamlit as st
-import pandas as pd
-from datetime import date
-from sqlalchemy import text  # Ensuring text is explicitly available here
+from sqlalchemy import text  
 
-# ==============================================================================
-# AUTOMATIC DATABASE SCHEME INITIALIZATION (FIXED PARENTHESES)
-# ==============================================================================
 def initialize_settings_tables():
     """Ensures all structural configuration tables exist with proper schemas."""
     try:
@@ -267,14 +264,12 @@ def initialize_settings_tables():
             );
         """)
     except Exception as e:
-        # Fault isolation fallback handler
         pass
 
-# Safely fire the initialization routine
+# Safely fire the initialization routine right on application bootup
 initialize_settings_tables()
 # ==============================================================================
 
-# Ensure there are no unclosed blocks directly above this line!
 menu_choice = st.sidebar.radio(
     "Go To Module:",
 menu_choice = st.sidebar.radio(
