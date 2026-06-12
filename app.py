@@ -3959,18 +3959,103 @@ elif menu_choice == "📈 Academic Analysis Reports":
                 )
 
             with tab3:
-                st.subheader("🏢 Discipline Performance Overview")
-                disc_grouped = df.groupby('discipline')[['marks_obtained', 'total_marks']].sum().reset_index()
-                disc_grouped['Average Percentage'] = (disc_grouped['marks_obtained'] / disc_grouped['total_marks'].replace(0, 1)) * 100
+                st.subheader("🏢 Discipline Performance & Grade Distribution Overview")
                 
-                chart_data = disc_grouped.set_index('discipline')[['Average Percentage']]
-                st.bar_chart(chart_data)
-                st.dataframe(
-                    disc_grouped, 
-                    use_container_width=True, 
-                    hide_index=True,
-                    column_config={"Average Percentage": st.column_config.NumberColumn(format="%.2f%%")}
-                )
+                if not df.empty:
+                    # 1. Aggregate marks at the individual student level first
+                    student_perf = df.groupby(['id', 'name', 'discipline'])[['marks_obtained', 'total_marks']].sum().reset_index()
+                    student_perf['Final_Percentage'] = (student_perf['marks_obtained'] / student_perf['total_marks'].replace(0, 1)) * 100
+
+                    # 2. Define vectorized grading, scale, and remark boundaries
+                    def assign_grade_details(pct):
+                        if 95.0 <= pct <= 100.0:
+                            return "A++", "Outstanding"
+                        elif 80.0 <= pct < 95.0:
+                            return "A+", "Exceptional"
+                        elif 70.0 <= pct < 80.0:
+                            return "A", "Excellent"
+                        elif 60.0 <= pct < 70.0:
+                            return "B", "Very Good"
+                        elif 50.0 <= pct < 60.0:
+                            return "C", "Good"
+                        elif 40.0 <= pct < 50.0:
+                            return "D", "Fair"
+                        elif 33.0 <= pct < 40.0:
+                            return "E", "Satisfactory"
+                        else:
+                            return "F", "Fail"
+
+                    # Apply grading rules to each unique student
+                    grade_details = student_perf['Final_Percentage'].apply(assign_grade_details)
+                    student_perf['Grade'] = [g[0] for g in grade_details]
+                    student_perf['Remarks'] = [g[1] for g in grade_details]
+
+                    # 3. Create a master reference matrix of your explicit grade tiers for sorting
+                    grade_order = ["A++", "A+", "A", "B", "C", "D", "E", "F"]
+                    grade_scale_mapped = {
+                        "A++": {"Percentage": "95% – 100%", "Marks (out of 1200)": "1140 – 1200", "Remarks": "Outstanding"},
+                        "A+":  {"Percentage": "80% – 94.99%", "Marks (out of 1200)": "960 – 1139", "Remarks": "Exceptional"},
+                        "A":   {"Percentage": "70% – 79.99%", "Marks (out of 1200)": "840 – 959",  "Remarks": "Excellent"},
+                        "B":   {"Percentage": "60% – 69.99%", "Marks (out of 1200)": "720 – 839",  "Remarks": "Very Good"},
+                        "C":   {"Percentage": "50% – 59.99%", "Marks (out of 1200)": "600 – 719",  "Remarks": "Good"},
+                        "D":   {"Percentage": "40% – 49.99%", "Marks (out of 1200)": "480 – 599",  "Remarks": "Fair"},
+                        "E":   {"Percentage": "33% – 39.99%", "Marks (out of 1200)": "396 – 479",  "Remarks": "Satisfactory"},
+                        "F":   {"Percentage": "Below 33%",    "Marks (out of 1200)": "Below 396",  "Remarks": "Fail"}
+                    }
+
+                    # 4. User Selector to pivot analysis view by specific Academic Disciplines
+                    available_disciplines = sorted(list(student_perf['discipline'].unique()))
+                    selected_analysis_disc = st.selectbox("🎯 Select Discipline to View Grade Breakdown:", available_disciplines, key="disc_analysis_select")
+                    
+                    # Filter student pool down to selected discipline view
+                    filtered_students = student_perf[student_perf['discipline'] == selected_analysis_disc]
+                    total_discipline_students = len(filtered_students)
+
+                    # 5. Generate counts for every single grade tier safely
+                    grade_counts = filtered_students['Grade'].value_counts()
+                    
+                    analysis_report_data = []
+                    for grade in grade_order:
+                        count = int(grade_counts.get(grade, 0))
+                        # Format output explicitly to match your layout requirement: "X out of Y students"
+                        ratio_string = f"{count} out of {total_discipline_students} students" if total_discipline_students > 0 else "0 out of 0 students"
+                        
+                        analysis_report_data.append({
+                            "Grade": grade,
+                            "Percentage Scale": grade_scale_mapped[grade]["Percentage"],
+                            "Marks (scaled to 1200)": grade_scale_mapped[grade]["Marks (out of 1200)"],
+                            "Student Volume Breakdown": ratio_string,
+                            "Student Count": count,
+                            "Status Remarks": grade_scale_mapped[grade]["Remarks"]
+                        })
+
+                    analysis_df = pd.DataFrame(analysis_report_data)
+
+                    # --- Visualizations & UI Rendering ---
+                    col_chart, col_stats = st.columns([3, 2])
+                    
+                    with col_chart:
+                        st.markdown(f"##### 📊 **{selected_analysis_disc}** Grade Distribution Curve")
+                        chart_payload = analysis_df.set_index("Grade")[["Student Count"]]
+                        st.bar_chart(chart_payload)
+                        
+                    with col_stats:
+                        st.markdown(f"##### 📋 Summary Insights")
+                        st.metric(label=f"Total Evaluated Students ({selected_analysis_disc})", value=total_discipline_students)
+                        if total_discipline_students > 0:
+                            passed_students = len(filtered_students[filtered_students['Grade'] != 'F'])
+                            pass_rate = (passed_students / total_discipline_students) * 100
+                            st.metric(label="Overall Pass Rate (>= 33%)", value=f"{pass_rate:.2f}%")
+
+                    # Display the final, clean customized data analysis matrix
+                    st.markdown("##### 📝 Detailed Academic Standing Matrix")
+                    st.dataframe(
+                        analysis_df.drop(columns=["Student Count"]), 
+                        use_container_width=True, 
+                        hide_index=True
+                    )
+                else:
+                    st.info("No underlying dataset data matched query filters.")
 
             with tab4:
                 st.subheader("🎓 Comparison Engine")
