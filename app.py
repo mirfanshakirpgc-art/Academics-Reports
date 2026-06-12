@@ -204,40 +204,31 @@ except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
 # ==============================================================================
-# --- DATABASE COMMAND UTILITIES (FORCE REBUILD ENGINE) ---
+# --- DATABASE COMMAND UTILITIES ---
 # ==============================================================================
 def run_query(query, params=None):
     if params is None:
         params = {}
     
-    # Universal fix for square brackets in column aliases across different DB engines
-    # Changes [Session Name] to "Session Name" which works on ALL SQL engines
+    # Universal handle for different SQL engine column escaping styles
     clean_query = query.replace("[Session Name]", '"Session Name"')
     
     with engine.connect() as conn:
         try:
             return pd.read_sql_query(text(clean_query), conn, params=params)
         except Exception as original_error:
-            # INTERCEPT: Hard wipe and rebuild old, broken configurations
+            # AUTO-REBUILD: If tables or columns are missing, seamlessly rebuild them
             try:
-                # 1. FORCE DROP STRATEGY (Clears out hidden column/type mismatch locks)
-                drop_cmds = [
-                    "DROP TABLE IF EXISTS academic_sessions CASCADE;",
-                    "DROP TABLE IF EXISTS system_sections CASCADE;",
-                    "DROP TABLE IF EXISTS exam_cycles CASCADE;",
-                    "DROP TABLE IF EXISTS academic_sessions;",
-                    "DROP TABLE IF EXISTS system_sections;",
-                    "DROP TABLE IF EXISTS exam_cycles;"
-                ]
-                for drop in drop_cmds:
+                # 1. Clear out old conflicting instances if possible
+                for drop_table in ["academic_sessions", "system_sections", "exam_cycles"]:
                     try:
-                        conn.execute(text(drop))
+                        conn.execute(text(f"DROP TABLE IF EXISTS {drop_table} CASCADE;"))
+                        conn.execute(text(f"DROP TABLE IF EXISTS {drop_table};"))
                     except Exception:
                         pass
                 
-                # 2. CREATE FRESH TABLES (Universal Cloud Formats)
+                # 2. Rebuild with universal Cloud DB compatibility
                 try:
-                    # Cloud DBs (PostgreSQL/Supabase/Neon) Standard Syntax
                     conn.execute(text("""
                         CREATE TABLE academic_sessions (
                             id SERIAL PRIMARY KEY,
@@ -245,6 +236,16 @@ def run_query(query, params=None):
                             status VARCHAR(20) DEFAULT 'ACTIVE'
                         );
                     """))
+                except Exception:
+                    conn.execute(text("""
+                        CREATE TABLE academic_sessions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            session_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                    
+                try:
                     conn.execute(text("""
                         CREATE TABLE system_sections (
                             id SERIAL PRIMARY KEY,
@@ -252,6 +253,16 @@ def run_query(query, params=None):
                             status VARCHAR(20) DEFAULT 'ACTIVE'
                         );
                     """))
+                except Exception:
+                    conn.execute(text("""
+                        CREATE TABLE system_sections (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            section_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+
+                try:
                     conn.execute(text("""
                         CREATE TABLE exam_cycles (
                             id SERIAL PRIMARY KEY,
@@ -262,21 +273,6 @@ def run_query(query, params=None):
                         );
                     """))
                 except Exception:
-                    # Fallback standard syntax for SQLite/MySQL setups
-                    conn.execute(text("""
-                        CREATE TABLE academic_sessions (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            session_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE system_sections (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            section_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
                     conn.execute(text("""
                         CREATE TABLE exam_cycles (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -287,7 +283,6 @@ def run_query(query, params=None):
                         );
                     """))
                 
-                # Commit the structural update and rerun your caller's query smoothly
                 conn.commit()
                 return pd.read_sql_query(text(clean_query), conn, params=params)
             except Exception:
@@ -306,26 +301,6 @@ def execute_db_command(command, params=None):
         conn.execute(text(command), params)
 
 # ==============================================================================
-# SIDEBAR NAVIGATION MODULE (ALL OPTIONS PRESERVED)
-# ==============================================================================
-menu_choice = st.sidebar.radio(
-    "Go To Module:",
-    [
-        "📊 Home Dashboard", 
-        "➕ Add Students", 
-        "📝 Academic Exam Marks Entry",      
-        "📅 Attendance Entry Management",    
-        "📋 Daily Attendance Report",
-        "📋 Section Summary Report", 
-        "📈 Multi-Test Progress Report", 
-        "🪪 Student Result Cards", 
-        "Student Management", 
-        "👨‍🏫 Teacher Management", 
-        "🎓 Promote Students", 
-        "📈 Academic Analysis Reports",
-        "⚙️ Settings"
-    ]
-)
 # --- MAP CONFIGURATIONS ---
 DISCIPLINE_SUBJECTS_MAP = {
     "MEDICAL": ["CHEMISTRY", "BIOLOGY", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"],
