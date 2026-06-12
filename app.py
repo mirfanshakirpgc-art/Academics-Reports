@@ -243,6 +243,7 @@ menu_choice = st.sidebar.radio(
         "👨‍🏫 Teacher Management", 
         "🎓 Promote Students", 
         "📈 Academic Analysis Reports"
+        "⚙️ Settings"
     ]
 )
 
@@ -3088,66 +3089,7 @@ elif menu_choice == "Student Management":
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
-if menu_choice == "👨‍🏫 Teacher Management":
-    st.title("👨‍🏫 Teacher Allocation & Performance Engine")
-    
-    # Safely acquire access credentials
-    current_user = st.session_state.get('username', 'admin')
-    current_role = st.session_state.get('role', 'controller') 
-    
-    # Updated menu options to include the brand-new registration form
-    if current_role == 'controller':
-        menu_options = ["📝 Register New Faculty", "Subject Allocations", "Teacher Marks Portal", "Teacher Analysis"]
-    else:
-        menu_options = ["Teacher Marks Portal", "Teacher Analysis"]
-        
-    sub_menu = st.sidebar.radio("Navigate Module:", menu_options, key="teacher_sub_menu")
 
-    # ---------------------------------------------------------
-    # NEW SUB-MODULE: FACULTY REGISTRATION
-    # ---------------------------------------------------------
-    if sub_menu == "📝 Register New Faculty":
-        st.subheader("📝 Professional Faculty onboarding Registry")
-        
-        with st.form("teacher_reg_form", clear_on_submit=True):
-            col_reg1, col_reg2 = st.columns(2)
-            with col_reg1:
-                new_teacher_name = st.text_input("Full Name of Teacher:", placeholder="e.g. Professor Smith")
-                new_teacher_email = st.text_input("Email Address (Optional):", placeholder="teacher@college.edu")
-            with col_reg2:
-                new_teacher_phone = st.text_input("Phone Number (Optional):", placeholder="e.g. +923001234567")
-                new_teacher_status = st.selectbox("Initial System Status:", options=["ACTIVE", "INACTIVE"])
-                
-            submit_reg = st.form_submit_button("💾 Save Profile to Registry")
-            
-            if submit_reg:
-                if new_teacher_name.strip() == "":
-                    st.error("Teacher Name is required.")
-                else:
-                    # Check if teacher name already exists
-                    check_existing = run_query("SELECT teacher_id FROM system_teachers WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:name))", {"name": new_teacher_name.strip()})
-                    
-                    if check_existing.empty:
-                        execute_db_command("""
-                            INSERT INTO system_teachers (teacher_name, phone_number, email_address, status)
-                            VALUES (:name, :phone, :email, :status)
-                        """, {
-                            "name": new_teacher_name.strip(),
-                            "phone": new_teacher_phone.strip(),
-                            "email": new_teacher_email.strip(),
-                            "status": new_teacher_status
-                        })
-                        st.success(f"🎉 Successfully registered {new_teacher_name} into the institutional archive!")
-                    else:
-                        st.warning("An instructor profile with this name already exists.")
-                        
-        st.markdown("---")
-        st.write("#### Current Registered Faculty Roster")
-        current_teachers = run_query("SELECT teacher_id as ID, teacher_name as Name, phone_number as Phone, email_address as Email, status as Status FROM system_teachers ORDER BY teacher_name ASC")
-        if not current_teachers.empty:
-            st.dataframe(current_teachers, use_container_width=True, hide_index=True)
-        else:
-            st.info("No active faculty profiles currently configured.")
 
     # ---------------------------------------------------------
     # SUB-MODULE A: SUBJECT ALLOCATIONS
@@ -4104,3 +4046,212 @@ elif menu_choice == "📈 Academic Analysis Reports":
                     st.info("Select two exams to see data comparison.")
     else:
         st.info("No data available to analyze inside database.")
+        # ==============================================================================
+# ROUTER INTEGRATION: ⚙️ ADMINISTRATIVE SYSTEM SETTINGS
+# ==============================================================================
+elif menu_choice == "⚙️ Settings":
+    st.title("⚙️ Global Academic & Core Settings")
+    st.markdown("Centralized administrative control console to manage institutional profiles, calendars, and evaluation tracks.")
+    
+    # Safely acquire access credentials
+    current_user = st.session_state.get('username', 'admin')
+    current_role = st.session_state.get('role', 'controller') 
+    
+    # Enforce role-based structural routing arrays
+    if current_role == 'controller':
+        settings_options = [
+            "📝 Faculty Registration", 
+            "📅 Sessions & Terms", 
+            "🗂️ Section Master", 
+            "📑 Test & Exam Frameworks"
+        ]
+    else:
+        # Standard users / teachers can view the existing settings records without modifying them
+        settings_options = [
+            "📝 Faculty Registration", 
+            "📅 Sessions & Terms", 
+            "🗂️ Section Master", 
+            "📑 Test & Exam Frameworks"
+        ]
+        
+    sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
+
+    # ---------------------------------------------------------
+    # SUB-MODULE 1: FACULTY REGISTRATION
+    # ---------------------------------------------------------
+    if sub_menu == "📝 Faculty Registration":
+        st.subheader("📝 Professional Faculty Onboarding Registry")
+        
+        if current_role == 'controller':
+            with st.form("teacher_reg_form", clear_on_submit=True):
+                col_reg1, col_reg2 = st.columns(2)
+                with col_reg1:
+                    new_teacher_name = st.text_input("Full Name of Teacher:", placeholder="e.g. Professor Smith")
+                    new_teacher_email = st.text_input("Email Address (Optional):", placeholder="teacher@college.edu")
+                with col_reg2:
+                    new_teacher_phone = st.text_input("Phone Number (Optional):", placeholder="e.g. +923001234567")
+                    new_teacher_status = st.selectbox("Initial System Status:", options=["ACTIVE", "INACTIVE"])
+                    
+                submit_reg = st.form_submit_button("💾 Save Profile to Registry")
+                
+                if submit_reg:
+                    if new_teacher_name.strip() == "":
+                        st.error("Teacher Name is required.")
+                    else:
+                        check_existing = run_query("SELECT teacher_id FROM system_teachers WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:name))", {"name": new_teacher_name.strip()})
+                        
+                        if check_existing.empty:
+                            execute_db_command("""
+                                INSERT INTO system_teachers (teacher_name, phone_number, email_address, status)
+                                VALUES (:name, :phone, :email, :status)
+                            """, {
+                                "name": new_teacher_name.strip(),
+                                "phone": new_teacher_phone.strip(),
+                                "email": new_teacher_email.strip(),
+                                "status": new_teacher_status
+                            })
+                            st.success(f"🎉 Successfully registered {new_teacher_name} into the institutional archive!")
+                            st.rerun()
+                        else:
+                            st.warning("An instructor profile with this name already exists.")
+                            
+        st.markdown("---")
+        st.write("#### Current Registered Faculty Roster")
+        current_teachers = run_query("SELECT teacher_id as ID, teacher_name as Name, phone_number as Phone, email_address as Email, status as Status FROM system_teachers ORDER BY teacher_name ASC")
+        if not current_teachers.empty:
+            st.dataframe(current_teachers, use_container_width=True, hide_index=True)
+        else:
+            st.info("No active faculty profiles currently configured.")
+
+    # ---------------------------------------------------------
+    # SUB-MODULE 2: SESSIONS & TERMS
+    # ---------------------------------------------------------
+    elif sub_menu == "📅 Sessions & Terms":
+        st.subheader("📅 Academic Session Management")
+        
+        if current_role == 'controller':
+            with st.form("session_reg_form", clear_on_submit=True):
+                col_s1, col_s2 = st.columns(2)
+                with col_s1:
+                    new_session_name = st.text_input("Session Code/Year:", placeholder="e.g. 2025-27")
+                with col_s2:
+                    new_session_status = st.selectbox("Session Status:", options=["ACTIVE", "INACTIVE"])
+                    
+                submit_session = st.form_submit_button("💾 Save Session to Registry")
+                
+                if submit_session:
+                    if new_session_name.strip() == "":
+                        st.error("Session Name is required.")
+                    else:
+                        check_existing = run_query("SELECT id FROM academic_sessions WHERE UPPER(TRIM(session_name)) = UPPER(TRIM(:name))", {"name": new_session_name.strip()})
+                        
+                        if check_existing.empty:
+                            execute_db_command("""
+                                INSERT INTO academic_sessions (session_name, status)
+                                VALUES (:name, :status)
+                            """, {
+                                "name": new_session_name.strip(),
+                                "status": new_session_status
+                            })
+                            st.success(f"🎉 Successfully registered session '{new_session_name}'!")
+                            st.rerun()
+                        else:
+                            st.warning("A session with this name already exists.")
+                            
+        st.markdown("---")
+        st.write("#### Active Academic Sessions")
+        current_sessions = run_query("SELECT id as ID, session_name as [Session Name], status as Status FROM academic_sessions ORDER BY session_name DESC")
+        if not current_sessions.empty:
+            st.dataframe(current_sessions, use_container_width=True, hide_index=True)
+        else:
+            st.info("No academic sessions currently configured.")
+
+    # ---------------------------------------------------------
+    # SUB-MODULE 3: SECTION MASTER
+    # ---------------------------------------------------------
+    elif sub_menu == "🗂️ Section Master":
+        st.subheader("🗂️ Class Section Configuration")
+        
+        if current_role == 'controller':
+            with st.form("section_reg_form", clear_on_submit=True):
+                col_sec1, col_sec2 = st.columns(2)
+                with col_sec1:
+                    new_section_name = st.text_input("Section Structural Label:", placeholder="e.g. Section A")
+                with col_sec2:
+                    new_section_status = st.selectbox("Section Status:", options=["ACTIVE", "INACTIVE"])
+                    
+                submit_section = st.form_submit_button("💾 Save Section to Registry")
+                
+                if submit_section:
+                    if new_section_name.strip() == "":
+                        st.error("Section Name is required.")
+                    else:
+                        check_existing = run_query("SELECT id FROM system_sections WHERE UPPER(TRIM(section_name)) = UPPER(TRIM(:name))", {"name": new_section_name.strip()})
+                        
+                        if check_existing.empty:
+                            execute_db_command("""
+                                INSERT INTO system_sections (section_name, status)
+                                VALUES (:name, :status)
+                            """, {
+                                "name": new_section_name.strip(),
+                                "status": new_section_status
+                            })
+                            st.success(f"🎉 Successfully registered section '{new_section_name}'!")
+                            st.rerun()
+                        else:
+                            st.warning("A section with this name already exists.")
+                            
+        st.markdown("---")
+        st.write("#### Registered Class Sections")
+        current_sections = run_query("SELECT id as ID, section_name as [Section Name], status as Status FROM system_sections ORDER BY section_name ASC")
+        if not current_sections.empty:
+            st.dataframe(current_sections, use_container_width=True, hide_index=True)
+        else:
+            st.info("No class sections currently configured.")
+
+    # ---------------------------------------------------------
+    # SUB-MODULE 4: TEST & EXAM FRAMEWORKS
+    # ---------------------------------------------------------
+    elif sub_menu == "📑 Test & Exam Frameworks":
+        st.subheader("📑 Evaluation Type & Test Profile Settings")
+        
+        if current_role == 'controller':
+            with st.form("test_reg_form", clear_on_submit=True):
+                col_t1, col_t2 = st.columns(2)
+                with col_t1:
+                    new_test_name = st.text_input("Test / Exam Display Title:", placeholder="e.g. Mid-Term Examination")
+                    new_test_code = st.text_input("System Reference Key (No Spaces):", placeholder="e.g. MID_TERM").upper().strip()
+                with col_t2:
+                    system_routing = st.selectbox("Academic Stream Association:", options=["Annual System", "Semester System"])
+                    new_test_status = st.selectbox("Configuration Status:", options=["ACTIVE", "INACTIVE"])
+                    
+                submit_test = st.form_submit_button("💾 Save Test Framework Type")
+                
+                if submit_test:
+                    if new_test_name.strip() == "" or new_test_code == "":
+                        st.error("Both Test Name and Reference Key are mandatory entries.")
+                    else:
+                        check_existing = run_query("SELECT id FROM exam_cycles WHERE UPPER(TRIM(exam_code)) = :code", {"code": new_test_code})
+                        
+                        if check_existing.empty:
+                            execute_db_command("""
+                                INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
+                                VALUES (:code, :name, :sys, :status)
+                            """, {
+                                "code": new_test_code,
+                                "name": new_test_name.strip(),
+                                "sys": system_routing,
+                                "status": new_test_status
+                            })
+                            st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
+                            st.rerun()
+                        else:
+                            st.warning("An evaluation pattern with this code identifier already exists.")
+                            
+        st.markdown("---")
+        st.write("#### Registered Evaluation Profiles")
+        current_tests = run_query("SELECT id as ID, exam_code as [System Code], exam_display_name as [Evaluation Name], system_type as [System Track], status as Status FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC")
+        if not current_tests.empty:
+            st.dataframe(current_tests, use_container_width=True, hide_index=True)
+        else:
+            st.info("No specific exam profiles currently configured.")
