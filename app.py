@@ -3522,21 +3522,30 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
+# --- 1. REPLACE YOUR ENTIRE MENU ROUTER WITH THIS ---
+
+if menu_choice == "📊 Home Dashboard":
+    st.title("Concordia College Kasur")
+    # ... your existing home code ...
+
+elif menu_choice == "➕ Add Students":
+    st.title("➕ Student Profile Registration Portal")
+    # ... your existing student code ...
+
+# ... (Keep your other existing 'elif' blocks here) ...
+
 elif menu_choice == "Discipline Analysis":
     st.subheader("🏢 High-Level Discipline Stream Overview")
     
-    # 1. PRE-INITIALIZE VARIABLES (Prevents NameError)
-    sel_sess = st.sidebar.session_state.get('sel_sess', None) # Or use a default
-    sel_exams = []
-    sel_secs = []
-    sel_teachers = []
+    # Initialize session variables to prevent 'NameError'
+    if 'sel_secs' not in st.session_state: st.session_state.sel_secs = []
     
-    # 2. SELECTION UI
+    # UI Section
     col1, col2 = st.columns(2)
     with col1:
         sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
         sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
-        disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
+        disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
         sel_disc = st.selectbox("3. Select Discipline:", disc_options)
     
     with col2:
@@ -3547,27 +3556,29 @@ elif menu_choice == "Discipline Analysis":
         sel_secs = st.multiselect("4. Select Multiple Section(s):", options=sec_options)
         sel_exams = st.multiselect("5. Select Multiple Tests:", options=AVAILABLE_EXAMS)
 
-    # 3. TEACHER FILTERING
-    t_options = []
+    # Teacher Filtering
     if sel_secs:
         teachers_query = "SELECT DISTINCT assigned_teacher_name FROM academic_allocations WHERE section_name IN :secs AND session_term = :sess"
         teachers_df = run_query(teachers_query, {"secs": tuple(sel_secs), "sess": sel_sess})
         t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
-        
+    else:
+        t_options = []
+
     sel_teachers = st.multiselect("6. Select Teacher(s):", options=t_options, disabled=len(t_options) == 0)
 
-    # 4. GENERATE ANALYSIS (Button logic)
+    # Action Logic
     if st.button("Generate Analysis"):
-        # Check if lists are actually populated
         if not sel_exams or not sel_teachers or not sel_secs:
             st.warning("Please ensure Sections, Teachers, and Tests are all selected.")
         else:
-            try:
-                st.write(f"### Generating Analysis for {sel_disc}")
-                st.success(f"Successfully processed {len(sel_teachers)} teachers and {len(sel_exams)} exams.")
-                # Your data processing logic goes here
-            except Exception as e:
-                st.error(f"Analysis failed: {e}")
+            st.success("Data ready for processing.")
+            # ... (Add your data processing here once the page loads)
+
+else:
+    st.info(f"The module '{menu_choice}' is currently being updated.")
+
+# --- 2. VERIFYING YOUR FILE STRUCTURE ---
+# Ensure no code exists after this that isn't inside a function!
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
