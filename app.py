@@ -3865,55 +3865,64 @@ elif menu_choice == "🎓 Promote Students":
         
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
+    
+    # 1. Fetch initial data
     df = fetch_analytics_data() 
     
     if not df.empty:
-        # Pre-processing
+        # 2. Data Cleaning
         df['marks_obtained'] = pd.to_numeric(df['marks_obtained'], errors='coerce').fillna(0.0)
         df['total_marks'] = pd.to_numeric(df['total_marks'], errors='coerce').fillna(1.0)
+        
         if 'discipline' not in df.columns:
             df['discipline'] = df['section'].apply(lambda x: 'MEDICAL' if 'M' in str(x).upper() else 'ENGINEERING' if 'E' in str(x).upper() else 'OTHER')
 
+        # 3. Define Tabs
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
         # --- TAB 1: TOPPERS ---
         with tab1:
-            st.subheader("🏆 Filter Toppers")  # <--- MUST HAVE EXTRA INDENTATION
-            
-            # Use the reusable filter function
+            st.subheader("🏆 Filter Toppers")
             t_df = apply_filters(df, "toppers")
-            
-            # Ensure the IF statement is also indented correctly
             if not t_df.empty:
                 agg = t_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
-                # ... (rest of your logic)
+                agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks'].replace(0, 1)) * 100
+                st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), 
+                             use_container_width=True, hide_index=True)
             else:
                 st.info("No data matches filters.")
 
+        # --- TAB 2: BOTTOM PERFORMERS ---
         with tab2:
             st.subheader("⚠️ Filter Bottom Performers")
             b_df = apply_filters(df, "bottom")
             if not b_df.empty:
                 agg_b = b_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
                 agg_b['Percentage'] = (agg_b['marks_obtained'] / agg_b['total_marks'].replace(0, 1)) * 100
-                st.dataframe(agg_b.sort_values('Percentage', ascending=True).head(10), use_container_width=True, hide_index=True)
-            else: st.info("No data matches filters.")
+                st.dataframe(agg_b.sort_values('Percentage', ascending=True).head(10), 
+                             use_container_width=True, hide_index=True)
+            else:
+                st.info("No data matches filters.")
 
+        # --- TAB 3: DISCIPLINE ANALYSIS ---
         with tab3:
             st.subheader("Discipline Average Performance")
             d_df = apply_filters(df, "disc")
             st.bar_chart(d_df.groupby('discipline')['marks_obtained'].mean())
 
+        # --- TAB 4: COMPARISON ENGINE ---
         with tab4:
             st.subheader("🎓 Comparison Engine")
             c_df = apply_filters(df, "comp")
             c_a, c_b = st.columns(2)
             test_1 = c_a.selectbox("Exam 1:", AVAILABLE_EXAMS, key="c_t1")
             test_2 = c_b.selectbox("Exam 2:", AVAILABLE_EXAMS, key="c_t2")
+            
             comp = c_df[c_df['exam_type'].isin([test_1, test_2])]
             if not comp.empty:
                 pivot = comp.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
                 st.dataframe(pivot, use_container_width=True)
-            else: st.info("Select two exams to compare.")
+            else:
+                st.info("Select two exams to compare performance.")
     else:
         st.info("No data available to analyze.")
