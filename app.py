@@ -3522,57 +3522,39 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ---------------------------------------------------------
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
-elif menu_choice == "Discipline Analysis":
-    st.subheader("🏢 High-Level Discipline Stream Overview")
-    
-    # 1. Selection Layout
-    col1, col2 = st.columns(2)
-    with col1:
-        sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
-        sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
-        # Discipline filter
-        disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
-        sel_disc = st.selectbox("3. Select Discipline:", disc_options)
-    
-    with col2:
-        # Dynamic Section Multi-select
-        all_secs_query = "SELECT DISTINCT section_name FROM academic_allocations WHERE session_term = :sess"
-        all_secs_df = run_query(all_secs_query, {"sess": sel_sess})
-        sec_options = all_secs_df['section_name'].tolist() if not all_secs_df.empty else []
-        
-        sel_secs = st.multiselect("4. Select Multiple Section(s):", options=sec_options)
-        sel_exams = st.multiselect("5. Select Multiple Tests:", options=AVAILABLE_EXAMS)
-
-    # 2. Robust Teacher Filtering
-    if sel_secs:
-        teachers_query = """
-            SELECT DISTINCT assigned_teacher_name 
-            FROM academic_allocations 
-            WHERE section_name IN :secs 
-            AND session_term = :sess
-        """
-        # Convert list to tuple for SQL 'IN' clause
-        teachers_df = run_query(teachers_query, {"secs": tuple(sel_secs), "sess": sel_sess})
-        t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
-    else:
-        t_options = []
-
-    # 3. Teacher Selection
-    sel_teachers = st.multiselect(
-        "6. Select Teacher(s):", 
-        options=t_options,
-        disabled=len(t_options) == 0,
-        help="Teachers assigned to the selected sections will appear here."
-    )
-
-    # 4. Generate Analysis Action
+# 4. Generate Analysis Action
     if st.button("Generate Analysis"):
         if not sel_exams or not sel_teachers or not sel_secs:
             st.warning("Please ensure Sections, Teachers, and Tests are all selected.")
         else:
-            st.write(f"### Generating Analysis for {sel_disc}")
-            st.write(f"**Teachers selected:** {len(sel_teachers)} | **Tests selected:** {len(sel_exams)}")
-            st.success("Analysis report generated successfully.")
+            with st.spinner("Processing performance matrix..."):
+                # Fetching marks for selected teachers and exams
+                marks_df = run_query("""
+                    SELECT m.subject, m.marks_obtained, m.total_marks, m.exam_type, a.assigned_teacher_name
+                    FROM marks m
+                    JOIN academic_allocations a ON m.subject = a.subject_title
+                    WHERE a.assigned_teacher_name IN :teachers
+                    AND m.exam_type IN :exams
+                    AND a.section_name IN :secs
+                """, {"teachers": tuple(sel_teachers), "exams": tuple(sel_exams), "secs": tuple(sel_secs)})
+                
+                if not marks_df.empty:
+                    # Convert to numeric for calculation
+                    marks_df['marks_obtained'] = pd.to_numeric(marks_df['marks_obtained'], errors='coerce')
+                    
+                    # Grouping data
+                    summary = marks_df.groupby(['assigned_teacher_name', 'subject', 'exam_type']).agg(
+                        Avg_Marks=('marks_obtained', 'mean'),
+                        Count=('marks_obtained', 'count')
+                    ).reset_index()
+                    
+                    st.write("### 📊 Performance Summary")
+                    st.dataframe(summary, use_container_width=True)
+                    
+                    # Trigger chart for visualization
+                    st.bar_chart(summary, x='subject', y='Avg_Marks', color='assigned_teacher_name')
+                else:
+                    st.info("No performance data found for the selected criteria.")
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
