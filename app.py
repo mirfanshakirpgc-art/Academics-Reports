@@ -3982,26 +3982,32 @@ elif menu_choice == "⚙️ Settings":
                         check_existing = run_query("SELECT id FROM exam_cycles WHERE UPPER(TRIM(exam_code)) = :code", {"code": new_test_code})
                         
                         if check_existing.empty:
-                            execute_db_command("""
-                                INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
-                                VALUES (:code, :name, :sys, :status)
-                            """, {
-                                "code": new_test_code,
-                                "name": new_test_name.strip(),
-                                "sys": system_routing,
-                                "status": new_test_status
-                            })
-                            st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
-                            st.rerun()
-                        else:
-                            st.warning("An evaluation pattern with this code identifier already exists.")
+            try:
+                # Fixed: Changed execute_db_command to engine transaction
+                with engine.begin() as conn:
+                    conn.execute(text("""
+                        INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
+                        VALUES (:code, :name, :sys, :status)
+                    """), {
+                        "code": new_test_code,
+                        "name": new_test_name.strip(),
+                        "sys": system_routing,
+                        "status": new_test_status
+                    })
+                st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
+                st.rerun()
+            except Exception as err:
+                st.error(f"❌ Failed to insert framework record: {err}")
+        else:
+            st.warning("An evaluation pattern with this code identifier already exists.")
                             
         st.markdown("---")
         st.write("#### Registered Evaluation Profiles")
         
         current_tests = pd.DataFrame()
         try:
-            current_tests = run_query('SELECT id as "ID", exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
+            # Safe Fallback: Fetching code and configuration directly
+            current_tests = run_query('SELECT exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
         except Exception as e:
             st.error(f"⚠️ Failed to read evaluation configurations: {e}")
             
@@ -4010,21 +4016,22 @@ elif menu_choice == "⚙️ Settings":
             
             # --- 🛠️ INTERACTIVE EDIT / DELETE EXAM PORTAL ---
             st.markdown("### 🛠️ Manage Existing Evaluation Profiles")
-            test_list = [f"{row['ID']} - {row['Evaluation Name']} ({row['System Code']})" for _, row in current_tests.iterrows()]
+            test_list = [f"{row['Evaluation Name']} ({row['System Code']})" for _, row in current_tests.iterrows()]
             selected_test_str = st.selectbox("Select a Profile to Modify or Remove:", test_list, key="manage_test_select")
             
             if selected_test_str:
-                selected_test_id = int(selected_test_str.split(" - ")[0])
-                target_test_row = current_tests[current_tests['ID'] == selected_test_id].iloc[0]
+                # Safely parsing the Unique string Code identifier
+                selected_test_code = selected_test_str.split("(")[-1].replace(")", "").strip()
+                target_test_row = current_tests[current_tests['System Code'] == selected_test_code].iloc[0]
                 
                 with st.form("edit_exam_form"):
                     updated_test_name = st.text_input("Change Display Title:", value=str(target_test_row['Evaluation Name'])).strip()
                     updated_test_status = st.selectbox("Change Evaluation Status:", ["ACTIVE", "INACTIVE"], index=0 if target_test_row['Status'] == 'ACTIVE' else 1)
                     
                     col_tu, col_td = st.columns(2)
-                    with col_tu:
+                    with col_fu: # Synchronized column variable keys
                         save_test_mod = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
-                    with col_td:
+                    with col_fd:
                         confirm_test_del = st.checkbox("⚠️ Confirm complete deletion", key="del_test_chk")
                         delete_test_mod = st.form_submit_button("🗑️ Delete Evaluation Profile", type="secondary", use_container_width=True)
                         
@@ -4032,17 +4039,30 @@ elif menu_choice == "⚙️ Settings":
                     if not updated_test_name:
                         st.error("Evaluation title cannot be left blank.")
                     else:
-                        execute_db_command("UPDATE exam_cycles SET exam_display_name = :name, status = :status WHERE id = :id", 
-                                           {"name": updated_test_name, "status": updated_test_status, "id": selected_test_id})
-                        st.success("Evaluation profile configuration updated successfully!")
-                        st.rerun()
+                        try:
+                            # Fixed execution structure matching database criteria
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE exam_cycles 
+                                    SET exam_display_name = :name, status = :status 
+                                    WHERE exam_code = :code
+                                """), {"name": updated_test_name, "status": updated_test_status, "code": selected_test_code})
+                            st.success("Evaluation profile configuration updated successfully!")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Failed to update evaluation item: {err}")
                         
                 if delete_test_mod:
                     if not confirm_test_del:
                         st.error("Please check the confirmation box to authorize permanent deletion.")
                     else:
-                        execute_db_command("DELETE FROM exam_cycles WHERE id = :id", {"id": selected_test_id})
-                        st.success("Evaluation profile removed from system registers.")
-                        st.rerun()
+                        try:
+                            # Fixed delete transaction block
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM exam_cycles WHERE exam_code = :code"), {"code": selected_test_code})
+                            st.success("Evaluation profile removed from system registers.")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Complete removal failed: {err}")
         else:
             st.info("ℹ️ No evaluation profiles or exam cycles are currently configured.")
