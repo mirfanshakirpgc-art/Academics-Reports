@@ -1,9 +1,17 @@
-# --- PLACE THIS AT THE VERY TOP OF APP.PY ---
-# --- MUST BE BEFORE YOUR MENU ROUTER ---
+# --- LINE 1: ALL IMPORTS MUST BE HERE ---
+import streamlit as st
+import pandas as pd
+import sqlite3
+import os
+import base64
+from sqlalchemy import create_engine, text
+import streamlit.components.v1 as components
+import datetime
 
+# --- LINE 9: NOW DEFINE YOUR FUNCTIONS ---
+# This is safe because 'st' was already imported above
 @st.cache_data(ttl=600)
 def fetch_analytics_data():
-    # Make sure 'run_query' is defined globally before this
     query = """
         SELECT s.id, s.name, s.section, s.class, s.session, 
                m.subject, m.marks_obtained, m.total_marks, m.exam_type
@@ -11,6 +19,8 @@ def fetch_analytics_data():
         LEFT JOIN marks m ON s.id = m.student_id
     """
     return run_query(query, {})
+
+# --- LINE 20: THEN YOUR GLOBAL VARIABLES AND ROUTER ---
 # ==============================================================================
 # 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
 # ==============================================================================
