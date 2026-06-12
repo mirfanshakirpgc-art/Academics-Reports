@@ -8,35 +8,30 @@ from sqlalchemy import create_engine, text
 import streamlit.components.v1 as components
 import datetime
 
-# --- HELPER FUNCTION: MUST BE AT THE TOP ---
+# --- REPLACEMENT (Must be defined at the TOP of your app.py) ---
 def apply_filters(df, tab_key):
-    """Reusable filter logic for independent tab states."""
     st.markdown("### ⚙️ Filter Configuration")
+    
+    # 1. Define ALL possible options from the master dataframe first
+    s_options = sorted(df['session'].unique())
+    d_options = sorted(df['discipline'].unique())
+    sec_options = sorted(df['section'].unique())
+    
     col1, col2 = st.columns(2)
     with col1:
-        s = st.multiselect("Session:", sorted(df['session'].unique()), key=f"s_{tab_key}")
-        d = st.multiselect("Discipline:", sorted(df['discipline'].unique()), key=f"d_{tab_key}")
+        # 2. 'default=...' ensures everything is selected by default (Select All)
+        s = st.multiselect("Session:", s_options, default=s_options, key=f"s_{tab_key}")
+        d = st.multiselect("Discipline:", d_options, default=d_options, key=f"d_{tab_key}")
     with col2:
-        sec = st.multiselect("Section:", sorted(df['section'].unique()), key=f"sec_{tab_key}")
+        sec = st.multiselect("Section:", sec_options, default=sec_options, key=f"sec_{tab_key}")
     
-    # Filter logic
+    # 3. Filter logic: Use user selection, or the full list if empty
     f_df = df.copy()
-    if s: f_df = f_df[f_df['session'].isin(s)]
-    if d: f_df = f_df[f_df['discipline'].isin(d)]
-    if sec: f_df = f_df[f_df['section'].isin(sec)]
+    f_df = f_df[f_df['session'].isin(s if s else s_options)]
+    f_df = f_df[f_df['discipline'].isin(d if d else d_options)]
+    f_df = f_df[f_df['section'].isin(sec if sec else sec_options)]
+    
     return f_df
-
-# --- LINE 9: NOW DEFINE YOUR FUNCTIONS ---
-# This is safe because 'st' was already imported above
-@st.cache_data(ttl=600)
-def fetch_analytics_data():
-    query = """
-        SELECT s.id, s.name, s.section, s.class, s.session, 
-               m.subject, m.marks_obtained, m.total_marks, m.exam_type
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id
-    """
-    return run_query(query, {})
 
 # --- LINE 20: THEN YOUR GLOBAL VARIABLES AND ROUTER ---
 # ==============================================================================
