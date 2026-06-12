@@ -1552,13 +1552,13 @@ elif menu_choice == "📋 Section Summary Report":
             "12th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
         "COMMERCE": {
-            "11th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "ISL_ETH", "T_QURAN"],
-            "12th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "PAK_ST", "T_QURAN"]
+            "11th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "ISL_ETH", "T_QURAN"],
+            "12th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "PAK_ST", "T_QURAN"]
         },
         "HUMANITIES": {
             "11th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ELC", "ISL_ETH", "T_QURAN"],
             "12th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ELC", "PAK_ST", "T_QURAN"]
-        }
+        },
     }
 
     if academic_system == "Annual System":
