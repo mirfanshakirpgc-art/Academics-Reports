@@ -3835,7 +3835,7 @@ elif menu_choice == "⚙️ Settings":
                             
         st.markdown("---")
         st.write("#### Registered Evaluation Profiles")
-        current_tests = run_query("SELECT id as ID, exam_code as [System Code], exam_display_name as [Evaluation Name], system_type as [System Track], status as Status FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC")
+        current_tests = run_query('SELECT id as ID, exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as Status FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
         if not current_tests.empty:
             st.dataframe(current_tests, use_container_width=True, hide_index=True)
         else:
