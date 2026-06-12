@@ -3523,12 +3523,14 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # SUB-MODULE D: DISCIPLINE ANALYSIS
     # ---------------------------------------------------------
     elif menu_choice == "Discipline Analysis":
+    # Everything below must be indented by 4 spaces
     st.subheader("🏢 High-Level Discipline Stream Overview")
     
     # 1. Selection Layout
     col1, col2 = st.columns(2)
     with col1:
         sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
+        # ... (rest of your code)
         sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
         # Discipline filter
         disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
