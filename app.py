@@ -3576,9 +3576,6 @@ elif menu_choice == "Discipline Analysis":
 
 else:
     st.info(f"The module '{menu_choice}' is currently being updated.")
-
-# --- 2. VERIFYING YOUR FILE STRUCTURE ---
-# Ensure no code exists after this that isn't inside a function!
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
