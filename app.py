@@ -3979,33 +3979,33 @@ elif menu_choice == "⚙️ Settings":
                     if new_test_name.strip() == "" or new_test_code == "":
                         st.error("Both Test Name and Reference Key are mandatory entries.")
                     else:
-                        check_existing = run_query("SELECT id FROM exam_cycles WHERE UPPER(TRIM(exam_code)) = :code", {"code": new_test_code})
+                        check_existing = run_query("SELECT exam_code FROM exam_cycles WHERE UPPER(TRIM(exam_code)) = :code", {"code": new_test_code})
                         
+                        # --- Perfectly Nested 24-Space Indentation Block ---
                         if check_existing.empty:
-            try:
-                with engine.begin() as conn:
-                    conn.execute(text("""
-                        INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
-                        VALUES (:code, :name, :sys, :status)
-                    """), {
-                        "code": new_test_code,
-                        "name": new_test_name.strip(),
-                        "sys": system_routing,
-                        "status": new_test_status
-                    })
-                st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
-                st.rerun()
-            except Exception as err:
-                st.error(f"❌ Failed to insert framework record: {err}")
-        else:
-            st.warning("An evaluation pattern with this code identifier already exists.")
-                            
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
+                                        VALUES (:code, :name, :sys, :status)
+                                    """), {
+                                        "code": new_test_code,
+                                        "name": new_test_name.strip(),
+                                        "sys": system_routing,
+                                        "status": new_test_status
+                                    })
+                                st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
+                                st.rerun()
+                            except Exception as err:
+                                st.error(f"❌ Failed to insert framework record: {err}")
+                        else:
+                            st.warning("An evaluation pattern with this code identifier already exists.")
+                                    
         st.markdown("---")
         st.write("#### Registered Evaluation Profiles")
         
         current_tests = pd.DataFrame()
         try:
-            # Safe Fallback: Fetching code and configuration directly
             current_tests = run_query('SELECT exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
         except Exception as e:
             st.error(f"⚠️ Failed to read evaluation configurations: {e}")
@@ -4019,7 +4019,6 @@ elif menu_choice == "⚙️ Settings":
             selected_test_str = st.selectbox("Select a Profile to Modify or Remove:", test_list, key="manage_test_select")
             
             if selected_test_str:
-                # Safely parsing the Unique string Code identifier
                 selected_test_code = selected_test_str.split("(")[-1].replace(")", "").strip()
                 target_test_row = current_tests[current_tests['System Code'] == selected_test_code].iloc[0]
                 
@@ -4027,8 +4026,8 @@ elif menu_choice == "⚙️ Settings":
                     updated_test_name = st.text_input("Change Display Title:", value=str(target_test_row['Evaluation Name'])).strip()
                     updated_test_status = st.selectbox("Change Evaluation Status:", ["ACTIVE", "INACTIVE"], index=0 if target_test_row['Status'] == 'ACTIVE' else 1)
                     
-                    col_tu, col_td = st.columns(2)
-                    with col_fu: # Synchronized column variable keys
+                    col_fu, col_fd = st.columns(2)
+                    with col_fu:
                         save_test_mod = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
                     with col_fd:
                         confirm_test_del = st.checkbox("⚠️ Confirm complete deletion", key="del_test_chk")
@@ -4039,7 +4038,6 @@ elif menu_choice == "⚙️ Settings":
                         st.error("Evaluation title cannot be left blank.")
                     else:
                         try:
-                            # Fixed execution structure matching database criteria
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE exam_cycles 
@@ -4056,7 +4054,6 @@ elif menu_choice == "⚙️ Settings":
                         st.error("Please check the confirmation box to authorize permanent deletion.")
                     else:
                         try:
-                            # Fixed delete transaction block
                             with engine.begin() as conn:
                                 conn.execute(text("DELETE FROM exam_cycles WHERE exam_code = :code"), {"code": selected_test_code})
                             st.success("Evaluation profile removed from system registers.")
