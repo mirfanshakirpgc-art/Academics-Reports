@@ -1556,8 +1556,8 @@ elif menu_choice == "📋 Section Summary Report":
             "12th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "ECONOMICS", "COMMERCE", "PAK_ST", "T_QURAN"]
         },
         "HUMANITIES": {
-            "11th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ETH", "T_QURAN"],
-            "12th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "PAK_ST", "T_QURAN"]
+            "11th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ELC", "ISL_ETH", "T_QURAN"],
+            "12th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ELC", "PAK_ST", "T_QURAN"]
         }
     }
 
