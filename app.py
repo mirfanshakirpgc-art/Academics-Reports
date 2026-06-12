@@ -232,46 +232,44 @@ import pandas as pd
 from datetime import date
 from sqlalchemy import text  
 
+# 1. FORCE THE CORRUPTED TABLES TO DROP IMMEDIATELY
+execute_db_command("DROP TABLE IF EXISTS academic_sessions;")
+execute_db_command("DROP TABLE IF EXISTS system_sections;")
+execute_db_command("DROP TABLE IF EXISTS exam_cycles;")
+
+# 2. FRESH REBUILD WITH CORRECT COLUMNS
 def initialize_settings_tables():
     """Ensures all structural configuration tables exist with proper schemas."""
-    try:
-        # FORCE REBUILD: Wipes out old broken structures so they can pick up new columns
-        execute_db_command("DROP TABLE IF EXISTS academic_sessions;")
-        execute_db_command("DROP TABLE IF EXISTS system_sections;")
-        execute_db_command("DROP TABLE IF EXISTS exam_cycles;")
-        
-        # 1. Setup Academic Sessions Structure
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS academic_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        
-        # 2. Setup Sections Structure
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS system_sections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                section_name VARCHAR(50) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-        
-        # 3. Setup Exam Cycles Structure
-        execute_db_command("""
-            CREATE TABLE IF NOT EXISTS exam_cycles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                exam_code VARCHAR(50) UNIQUE NOT NULL,
-                exam_display_name VARCHAR(100) NOT NULL,
-                system_type VARCHAR(50) NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE'
-            );
-        """)
-    except Exception as e:
-        pass
+    # 1. Setup Academic Sessions Structure
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS academic_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_name VARCHAR(50) UNIQUE NOT NULL,
+            status VARCHAR(20) DEFAULT 'ACTIVE'
+        );
+    """)
+    
+    # 2. Setup Sections Structure
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS system_sections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            section_name VARCHAR(50) UNIQUE NOT NULL,
+            status VARCHAR(20) DEFAULT 'ACTIVE'
+        );
+    """)
+    
+    # 3. Setup Exam Cycles Structure
+    execute_db_command("""
+        CREATE TABLE IF NOT EXISTS exam_cycles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_code VARCHAR(50) UNIQUE NOT NULL,
+            exam_display_name VARCHAR(100) NOT NULL,
+            system_type VARCHAR(50) NOT NULL,
+            status VARCHAR(20) DEFAULT 'ACTIVE'
+        );
+    """)
 
-# Safely fire the initialization routine right on application bootup
+# Fire the initialization routine directly
 initialize_settings_tables()
 # ==============================================================================
 
