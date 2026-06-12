@@ -3848,22 +3848,24 @@ elif menu_choice == "🎓 Promote Students":
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     
-    # 1. Fetch initial data (Global)
+    # 1. Fetch initial data
     df = fetch_analytics_data() 
     
     if not df.empty:
-        # 2. Global Pre-processing
+        # 2. Data Cleaning (Global for all tabs)
         df['marks_obtained'] = pd.to_numeric(df['marks_obtained'], errors='coerce').fillna(0.0)
         df['total_marks'] = pd.to_numeric(df['total_marks'], errors='coerce').fillna(1.0)
+        
+        # Ensure 'discipline' exists by deriving it if missing
         if 'discipline' not in df.columns:
             df['discipline'] = df['section'].apply(lambda x: 'MEDICAL' if 'M' in str(x).upper() else 'ENGINEERING' if 'E' in str(x).upper() else 'OTHER')
 
         # 3. Define Tabs
         tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
         
-        # --- TAB 1: TOPPERS (Independent) ---
+        # --- TAB 1: TOPPERS (Independent Filtering) ---
         with tab1:
-            st.subheader("🏆 Filter Toppers")
+            st.subheader("Filter Toppers")
             t_sess = st.multiselect("Session:", sorted(df['session'].unique()), key="t_sess")
             t_df = df[df['session'].isin(t_sess)] if t_sess else df.copy()
             
@@ -3871,53 +3873,33 @@ elif menu_choice == "📈 Academic Analysis Reports":
             agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks']) * 100
             st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), use_container_width=True, hide_index=True)
 
+        # --- TAB 2: BOTTOM PERFORMERS (Independent) ---
+        with tab2:
+            st.subheader("Filter Bottom Performers")
+            b_sess = st.multiselect("Session:", sorted(df['session'].unique()), key="b_sess")
+            b_df = df[df['session'].isin(b_sess)] if b_sess else df.copy()
+            
+            agg_b = b_df.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
+            agg_b['Percentage'] = (agg_b['marks_obtained'] / agg_b['total_marks']) * 100
+            st.dataframe(agg_b.sort_values('Percentage', ascending=True).head(10), use_container_width=True, hide_index=True)
+
+        # --- TAB 3: DISCIPLINE ANALYSIS ---
+        with tab3:
+            st.subheader("Discipline Average Performance")
+            st.bar_chart(df.groupby('discipline')['marks_obtained'].mean())
+
         # --- TAB 4: COMPARISON ENGINE (Independent) ---
         with tab4:
-            st.subheader("🎓 Filter Comparison")
-            c_sess = st.multiselect("Session:", sorted(df['session'].unique()), key="c_sess")
-            c_df = df[df['session'].isin(c_sess)] if c_sess else df.copy()
-            
+            st.subheader("🎓 Comparison Engine")
             c_a, c_b = st.columns(2)
             test_1 = c_a.selectbox("Exam 1:", AVAILABLE_EXAMS, key="c_t1")
             test_2 = c_b.selectbox("Exam 2:", AVAILABLE_EXAMS, key="c_t2")
             
-            comp = c_df[c_df['exam_type'].isin([test_1, test_2])]
+            comp = df[df['exam_type'].isin([test_1, test_2])]
             if not comp.empty:
                 pivot = comp.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
                 st.dataframe(pivot, use_container_width=True)
             else:
-                st.info("Select exams to compare.")
+                st.info("Select two exams to compare performance.")
     else:
-        st.info("Database empty or connection failed.")
-        
-        with tab1:
-            st.subheader("🏆 Top Performers")
-            agg = df_filtered.groupby(['id', 'name'])[['marks_obtained', 'total_marks']].sum().reset_index()
-            agg['Percentage'] = (agg['marks_obtained'] / agg['total_marks']) * 100
-            st.dataframe(agg.sort_values('Percentage', ascending=False).head(10), hide_index=True, use_container_width=True)
-            
-        with tab2:
-            st.subheader("⚠️ Bottom Performers")
-            bottom = agg[agg['total_marks'] > 0].sort_values('Percentage', ascending=True).head(10)
-            st.dataframe(bottom, hide_index=True, use_container_width=True)
-
-        with tab3:
-            st.subheader("🏢 Discipline Analysis")
-            st.bar_chart(df_filtered.groupby('discipline')['marks_obtained'].mean())
-
-        with tab4:
-            st.subheader("🎓 Comparison Engine")
-            c_a, c_b = st.columns(2)
-            test_1 = c_a.selectbox("Exam / Part 1:", AVAILABLE_EXAMS, index=0)
-            test_2 = c_b.selectbox("Exam / Part 2:", AVAILABLE_EXAMS, index=1)
-            
-            comp = df_filtered[df_filtered['exam_type'].isin([test_1, test_2])]
-            if not comp.empty:
-                pivot = comp.pivot_table(index=['id', 'name'], columns='exam_type', values='marks_obtained', aggfunc='sum').reset_index()
-                if test_1 in pivot.columns and test_2 in pivot.columns:
-                    pivot['Diff'] = pivot[test_2] - pivot[test_1]
-                    st.dataframe(pivot, use_container_width=True)
-            else:
-                st.info("No data found for these exams.")
-    else:
-        st.info("Database empty or connection failed.")
+        st.info("No data available to analyze.")
