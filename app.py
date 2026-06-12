@@ -1,3 +1,16 @@
+# --- PLACE THIS AT THE VERY TOP OF APP.PY ---
+# --- MUST BE BEFORE YOUR MENU ROUTER ---
+
+@st.cache_data(ttl=600)
+def fetch_analytics_data():
+    # Make sure 'run_query' is defined globally before this
+    query = """
+        SELECT s.id, s.name, s.section, s.class, s.session, 
+               m.subject, m.marks_obtained, m.total_marks, m.exam_type
+        FROM students s
+        LEFT JOIN marks m ON s.id = m.student_id
+    """
+    return run_query(query, {})
 # ==============================================================================
 # 1. ABSOLUTE TOP OF APP.PY: GLOBAL INITIALIZATIONS (Fixes Line 532 NameError)
 # ==============================================================================
@@ -3825,11 +3838,26 @@ elif menu_choice == "🎓 Promote Students":
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📊 Advanced Academic Analytics")
     
-    # 1. Fetch initial data (Ensure this returns a full DataFrame)
+    # Initialize df safely
     df = fetch_analytics_data() 
-
-    # --- REACTIVE FILTERING SYSTEM ---
-    st.markdown("### ⚙️ Filter Configuration")
+    
+    if df is not None and not df.empty:
+        # A. Global Filters (The 'expander' remains the same as discussed)
+        # B. Define filtered_df here:
+        filtered_df = df.copy()
+        
+        # C. Your logic for applying multiselect filters here...
+        # Example: filtered_df = filtered_df[filtered_df['session'].isin(sel_sessions)]
+        
+        # D. TABS
+        tab1, tab2, tab3, tab4 = st.tabs(["🏆 Toppers", "⚠️ Bottom Performers", "🏢 Discipline Analysis", "🎓 Comparison Engine"])
+        
+        with tab1:
+            # Perform calculations ONLY using filtered_df
+            st.subheader("🏆 Top Performers")
+            # ... insert logic here ...
+    else:
+        st.info("Data is loading or empty. Please check your database connection.")
     
     # Step 1: Session
     sel_sessions = st.multiselect("1. Select Session:", options=sorted(df['session'].unique()))
