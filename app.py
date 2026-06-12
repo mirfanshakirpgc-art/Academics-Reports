@@ -3657,21 +3657,22 @@ elif menu_choice == "⚙️ Settings":
         
     sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
 
-    st.write("### ### ➕ Register New Faculty Member")
+    # --- SUB-ROUTER: FACULTY REGISTRATION TRACK ---
+    if sub_menu == "📝 Faculty Registration":
+        st.write("### ➕ Register New Faculty Member")
 
-# --- REGISTRATION FORM ---
-# This line must be completely flush to the left wall (no leading spaces)
-with st.form("teacher_reg_form", clear_on_submit=True):
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        # Add explicit input for the unique Teacher ID string
-        new_teacher_id = st.text_input("Unique Teacher ID Code (No Spaces):", placeholder="e.g. TCH-2026-01").strip().upper()
-        new_teacher_name = st.text_input("Teacher Full Name:", placeholder="e.g. Prof. Muhammad Ali").strip()
-    with col_f2:
-        new_teacher_phone = st.text_input("Contact Number:", placeholder="e.g. +923001234567").strip()
-        new_teacher_email = st.text_input("Email Address:", placeholder="e.g. ali@institution.edu").strip()
-        
-    submit_faculty = st.form_submit_button("💾 Register Faculty Member", type="primary")
+        # --- REGISTRATION FORM ---
+        with st.form("teacher_reg_form", clear_on_submit=True):
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                # Add explicit input for the unique Teacher ID string
+                new_teacher_id = st.text_input("Unique Teacher ID Code (No Spaces):", placeholder="e.g. TCH-2026-01").strip().upper()
+                new_teacher_name = st.text_input("Teacher Full Name:", placeholder="e.g. Prof. Muhammad Ali").strip()
+            with col_f2:
+                new_teacher_phone = st.text_input("Contact Number:", placeholder="e.g. +923001234567").strip()
+                new_teacher_email = st.text_input("Email Address:", placeholder="e.g. ali@institution.edu").strip()
+                
+            submit_faculty = st.form_submit_button("💾 Register Faculty Member", type="primary")
             
             if submit_faculty:
                 if not new_teacher_id or not new_teacher_name:
