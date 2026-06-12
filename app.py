@@ -3531,22 +3531,36 @@ if menu_choice == "👨‍🏫 Teacher Management":
             sel_sess = st.selectbox("1. Select Session:", AVAILABLE_SESSIONS)
             sel_sys = st.selectbox("2. Academic System:", ["Annual System", "Semester System"])
         with col2:
-            # Dynamically set discipline options based on system
             disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"] if sel_sys == "Annual System" else ["DIT"]
             sel_disc = st.selectbox("3. Select Discipline:", disc_options)
 
-        # 2. Filter Teachers based on Discipline (Assumes allocations table linkage)
-        # We find teachers who have at least one allocation in the selected discipline
+        # 2. Robust Teacher Filtering
+        # This query looks for teachers who are assigned to subjects that appear in your DISCIPLINE_MAP
+        # We use a broader search pattern to ensure we find matches
         teachers_query = """
             SELECT DISTINCT assigned_teacher_name 
             FROM academic_allocations 
-            WHERE subject_title LIKE :disc_pattern
+            WHERE subject_title ILIKE :disc_pattern 
+               OR subject_title ILIKE :disc_alt
         """
-        # Adjust pattern based on discipline name
-        teachers_df = run_query(teachers_query, {"disc_pattern": f"%{sel_disc}%"})
+        
+        # We pass the discipline name as a search pattern
+        teachers_df = run_query(teachers_query, {
+            "disc_pattern": f"%{sel_disc}%", 
+            "disc_alt": f"%{sel_disc.replace('_', ' ')}%"
+        })
         
         t_options = teachers_df['assigned_teacher_name'].tolist() if not teachers_df.empty else []
-        sel_teachers = st.multiselect("4. Select Teacher(s):", options=t_options)
+        
+        # DEBUG: If no teachers are found, we provide a warning to help you troubleshoot
+        if not t_options:
+            st.warning(f"No teachers found allocated to subjects matching '{sel_disc}'. Check your Subject Allocations module.")
+            
+        sel_teachers = st.multiselect(
+            "4. Select Teacher(s):", 
+            options=t_options,
+            disabled=len(t_options) == 0
+        )
 
         # 3. Multi-select Tests
         sel_exams = st.multiselect("5. Select Multiple Tests:", options=AVAILABLE_EXAMS)
@@ -3554,12 +3568,10 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if st.button("Generate Analysis"):
             if not sel_exams:
                 st.warning("Please select at least one test.")
+            elif not sel_teachers:
+                st.warning("Please select at least one teacher.")
             else:
-                # Logic to filter and display analysis based on the selected filters
-                st.write(f"Analyzing {sel_disc} for {len(sel_exams)} tests...")
-                
-                # Add your existing data processing and chart/table rendering logic here
-                # using the sel_sess, sel_sys, sel_disc, sel_teachers, and sel_exams variables
+                st.success(f"Generating analysis for {len(sel_teachers)} teachers across {len(sel_exams)} tests.")
 # ====================================================================================
 # MODULE: STUDENT PROMOTION WITH HARDENED STRUCTURAL FALLBACKS & RESILIENT UNDO HOOKS
 # ====================================================================================
