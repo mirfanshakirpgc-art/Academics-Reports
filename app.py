@@ -1997,6 +1997,32 @@ if menu_choice == "📈 Multi-Test Progress Report":
             "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
         ]
 
+    # --- DYNAMIC SESSION SYNCHRONIZATION ---
+    # Fallback default configuration matching your working sessions
+    synchronized_sessions = ["2025-27", "2026-28", "2027-29"] 
+    try:
+        # Pulls unique sessions that only contain active student records
+        db_active_sessions = run_query("""
+            SELECT DISTINCT session 
+            FROM students 
+            WHERE session IS NOT NULL 
+              AND session != ''
+              AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+        """)
+        if not db_active_sessions.empty:
+            synchronized_sessions = sorted(db_active_sessions['session'].dropna().astype(str).tolist())
+    except Exception:
+        # If the query encounters schema variance, safely use baseline fallback values
+        if "AVAILABLE_SESSIONS" in locals() or "AVAILABLE_SESSIONS" in globals():
+            synchronized_sessions = AVAILABLE_SESSIONS
+            
+    # Universal fallback cleanup: Safety filter to strip legacy configurations out of the checklist array
+    if "2024-26" in synchronized_sessions:
+        synchronized_sessions.remove("2024-26")
+
+    # Ensure index out-of-bounds protection for the selectbox component
+    default_session_index = 0 if len(synchronized_sessions) > 0 else None
+
     # --- GLOBAL INTERFACE FILTER PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     st.markdown('##### 🎛️ Filter Configuration Panel')
@@ -2004,7 +2030,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     # 1. Base Configuration Options (System & Session)
     col_base1, col_base2 = st.columns(2)
     with col_base1:
-        sel_session_global = st.selectbox("Select Session Context:", AVAILABLE_SESSIONS, index=1, key="global_sel_sess")
+        sel_session_global = st.selectbox("Select Session Context:", synchronized_sessions, index=default_session_index, key="global_sel_sess")
     with col_base2:
         academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="mt_system_type")
 
