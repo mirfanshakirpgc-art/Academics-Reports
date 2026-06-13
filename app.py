@@ -1997,6 +1997,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
             "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
         ]
 
+    # =========================================================================
+    # ⏬ THIS IS THE REPLACED WORKHORSE COMPONENT FOR YOUR SESSIONS DROPDOWN ⏬
+    # =========================================================================
     # --- DYNAMIC SESSION SYNCHRONIZATION ---
     synchronized_sessions = []
     
@@ -2010,7 +2013,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         if not db_settings_sessions.empty:
             synchronized_sessions = db_settings_sessions['session_name'].dropna().astype(str).tolist()
     except Exception:
-        pass  # Fall back to active student records tracking if settings query fails
+        pass  
 
     # 2. Secondary Sync: Collect unique session codes from student profiles
     if not synchronized_sessions:
@@ -2062,7 +2065,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
     with col_base2:
         academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="mt_system_type")
 
-    # Separator line to keep things visually structured
     st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
 
     # 2. Sequential Options based on Academic System Choice
@@ -2073,16 +2075,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
         with col_dyn2:
-            # Dynamically extract actual campus sections from DISCIPLINE_SECTIONS_MAP
             annual_sections = []
             for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
                 if "DIT" not in discipline.upper():
                     sections_list = class_data.get(sel_class_global, [])
                     annual_sections.extend(sections_list)
             
-            # Remove duplicates and sort alphabetically
             annual_sections = sorted(list(set(annual_sections)))
-            
             if not annual_sections:
                 annual_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CB_WHITE"]
                 
@@ -2093,18 +2092,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     else:  # --- SEMESTER SYSTEM BRANCH ---
         with col_dyn1:
-            # Expanded to support all 4 semesters
             sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="global_sel_class")
             
         with col_dyn2:
-            # Fixed: Always offer DIT_G and DIT_B for all semesters
             semester_sections = ["DIT_G", "DIT_B"]
             sel_sec = st.selectbox("Select Target Section:", options=semester_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
-            # Standard test framework names (MT_1, MT_2...) for semesters
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
-            
     st.markdown("---")
 
     # Scope Selector Strategy
