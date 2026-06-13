@@ -1085,54 +1085,75 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # --- GRID MATRIX HEADER & MASTER COLUMNS ---
-                    m_col_sub, m_col_marks, m_col_abs, m_col_nc = st.columns([4, 2, 1, 1])
-
-                    m_col_sub.caption("📖 **Subject Title**")
-                    m_col_marks.caption("🔢 **Obtained Marks**")
-                    m_col_abs.caption("❌ **Absent**")
-                    m_col_nc.caption("➖ **NC**")
+                    # --- GRID MATRIX HEADER ---
+                    h_m1, h_m2, h_m3, h_m4 = st.columns([4, 2, 1, 1])
+                    h_m1.caption("📖 **Subject Title**")
+                    h_m2.caption("🔢 **Obtained Marks**")
+                    h_m3.caption("❌ **Absent**")
+                    h_m4.caption("➖ **NC**")
                     st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
+                    # --- THE MAGIC JUMP-DOWN SCRIPT ---
+                    # This script listens for the 'Enter' key inside your marks inputs.
+                    # When Enter is pressed, it prevents the form from submitting and forces focus downward.
+                    st.components.v1.html("""
+                        <script>
+                            const doc = window.parent.document;
+                            doc.addEventListener('keydown', function(e) {
+                                if (e.key === 'Enter') {
+                                    const activeEl = doc.activeElement;
+                                    if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.includes('s_marks_')) {
+                                        e.preventDefault(); // Stop the form from submitting early
+                                        
+                                        // Find all marks input fields on the screen
+                                        const allInputs = Array.from(doc.querySelectorAll('input[id*="s_marks_"]'));
+                                        const currentIndex = allInputs.indexOf(activeEl);
+                                        
+                                        // If there is an input below this one, jump straight into it
+                                        if (currentIndex > -1 && currentIndex < allInputs.length - 1) {
+                                            allInputs[currentIndex + 1].focus();
+                                        }
+                                    }
+                                }
+                            });
+                        </script>
+                    """, height=0)
 
                     updated_scores = {}
-
-                    # --- TRACK 1: SUBJECT NAMES ---
-                    with m_col_sub:
-                        for subject in subjects_list:
-                            st.markdown(f"<div style='height: 44px; display: flex; align-items: center; font-weight: bold;'>{subject}</div>", unsafe_allow_html=True)
-
-                    # --- TRACK 2: OBTAINED MARKS INPUT FIELDS ---
-                    with m_col_marks:
-                        # We use loop enumeration to assign a sequential tab order (e.g., 101, 102, 103...)
-                        for idx, subject in enumerate(subjects_list):
-                            existing_mark_df = run_query("""
-                                SELECT marks_obtained FROM marks 
-                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                            """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                    
+                    # --- RENDER ROWS SIDE-BY-SIDE AS ORIGINAL ---
+                    for subject in subjects_list:
+                        col_sub, col_marks, col_abs, col_nc = st.columns([4, 2, 1, 1])
+                        
+                        with col_sub:
+                            st.markdown(f"<div style='padding-top: 5px; font-weight: bold;'>{subject}</div>", unsafe_allow_html=True)
+                        
+                        existing_mark_df = run_query("""
+                            SELECT marks_obtained FROM marks 
+                            WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                        """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                        
+                        db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
+                        
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        
+                        if state_abs_key not in st.session_state:
+                            st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                        if state_nc_key not in st.session_state:
+                            st.session_state[state_nc_key] = (db_val == 'NC')
                             
-                            db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
+                        with col_abs:
+                            chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                        with col_nc:
+                            chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
                             
-                            state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            
-                            chk_absent = st.session_state.get(state_abs_key, False)
-                            chk_nc = st.session_state.get(state_nc_key, False)
-                            
-                            initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                            is_disabled = chk_absent or chk_nc
-                            display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-                            
-                            # Custom HTML injection to inject focus-controlling tab indexes right into the input box
-                            # Every text input field gets sequential index paths: 101 -> 102 -> 103
-                            st.markdown(f"""
-                                <style>
-                                    div[data-testid="stTextInput"]:has(input[id*="{state_marks_key}"]) input {{
-                                        tabindex: {100 + idx} !important;
-                                    }}
-                                </style>
-                            """, unsafe_allow_html=True)
-
+                        initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
+                        is_disabled = chk_absent or chk_nc
+                        display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
+                        
+                        with col_marks:
                             score_input = st.text_input(
                                 "Obtained",
                                 value=display_score if is_disabled else initial_score,
@@ -1140,7 +1161,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 label_visibility="collapsed",
                                 disabled=is_disabled
                             )
-                            updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                        updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
 
                     # --- TRACK 3: ABSENT CHECKBOXES ---
                     with m_col_abs:
