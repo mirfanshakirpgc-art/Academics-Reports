@@ -3324,12 +3324,12 @@ elif menu_choice == "👥 Student Operations Management":
         global_system = "annual" if global_system_display == "Annual System" else "semester"
 
     with col_g3:
-        # DYNAMIC LAYOUT: Swaps parameters seamlessly based on selected system track
+        # DYNAMIC SYSTEM ASSIGNMENT LAYER: Adjusts dropdown options dynamically based on selection
         if global_system == "annual":
             global_term_label = "🏫 Current Grade Level Focus:"
             global_term_options = ["11th", "12th"]
         else:
-            global_term_label = "⏱️ No. Semester:"
+            global_term_label = "⏱️ Current Semester Focus:"
             global_term_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
             
         global_term = st.selectbox(global_term_label, global_term_options, key="global_stud_term_filter")
@@ -3355,7 +3355,7 @@ elif menu_choice == "👥 Student Operations Management":
             if not search_id.isdigit():
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
-                # FIXED: Changed :cls parameter mapping to use global_term explicitly
+                # Query strictly uses 'global_term' to capture either class grades or semesters cleanly
                 stu_df = run_query("""
                     SELECT id, name, class, section, session, status, system_type 
                     FROM students 
@@ -3389,6 +3389,7 @@ elif menu_choice == "👥 Student Operations Management":
                             target_sess = st.selectbox("Migrate to Different Multi-Year Session:", session_options, index=session_options.index(student['session']) if student['session'] in session_options else 0, key="sub_mod_sess_drop")
                             
                             if st.button("🔄 Change Session Track", use_container_width=True):
+                                # FIXED: Solved NameError by correctly mapping parameter variables to s_id
                                 run_update("UPDATE students SET session = :session WHERE id = :id", {"session": target_sess, "id": s_id})
                                 run_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
@@ -3402,7 +3403,7 @@ elif menu_choice == "👥 Student Operations Management":
                         # ----------------------------------------------------------------------------
                         with st.container(border=True):
                             st.markdown("#### 3️⃣ Section Re-allocation")
-                            st.caption(f"Current Assigned Section: `{student['section']}`")
+                            st.caption(f"Current Class Section: `{student['section']}`")
                             
                             section_pool_df = run_query("""
                                 SELECT DISTINCT section FROM students 
@@ -3515,7 +3516,6 @@ elif menu_choice == "👥 Student Operations Management":
     elif workspace_mode == "🗂️ Whole Section Batch Operations":
         st.markdown("### 📦 Bulk Section Operations Matrix")
         
-        # FIXED: Updated lookup criteria constraint from :cls to :term matching global_term variable
         sections_data = run_query("""
             SELECT DISTINCT section FROM students 
             WHERE session = :sess 
@@ -3539,7 +3539,7 @@ elif menu_choice == "👥 Student Operations Management":
                 
                 selected_source_sec = st.selectbox("📁 Select Source Section to Update:", found_sections)
                 
-                # FIXED: Computes destination based on current system architecture path chosen
+                # INFERENCE LOGIC: Dynamically pathways upcoming step depending on chosen academic context
                 if global_system == "annual":
                     inferred_next_term = "12th" if global_term == "11th" else "Graduated/Alumni"
                     dest_label = f"##### 🎯 Destination Section Setup (Moving to Class: **{inferred_next_term}**)"
