@@ -73,6 +73,14 @@ if "user_role" not in st.session_state:
 if "assigned_subject" not in st.session_state:
     st.session_state.assigned_subject = None
 
+# 🚀 --- SYSTEM SETTINGS: GLOBAL ACADEMIC SESSION TRACKING ---
+if "current_session" not in st.session_state:
+    st.session_state["current_session"] = "2026-28"  # Default system active session
+
+if "available_sessions" not in st.session_state:
+    st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
+
+
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
     st.image("logo.png", width=120) 
@@ -200,7 +208,6 @@ def run_query(query, params=None):
         except Exception:
             raise original_error
 
-# 🌟 ADDED SECURE WRITE FUNCTION TO PREVENT NAMEERROR ON LINE 948
 def execute_db_command(query, params=None):
     """
     Executes database modifications (INSERT, UPDATE, DELETE)
