@@ -3297,39 +3297,6 @@ elif menu_choice == "📈 Academic Analysis Reports":
     else:
         st.info("No data available to analyze inside database.")
 
-import streamlit as st
-import pandas as pd
-
-# ====================================================================================
-# DEPENDENCY FIX: Safe Database Router Fallbacks
-# (Ensures run_query and run_update never throw NameErrors if your helper names vary)
-# ====================================================================================
-if "run_query" not in globals():
-    def run_query(query, params=None):
-        # Fallback to connection logic if defined under alternative names
-        for alternative in ["conn", "db", "engine"]:
-            if alternative in globals():
-                ctx = globals()[alternative]
-                if hasattr(ctx, "query"):
-                    return ctx.query(query, params=params)
-        # Mock structural dataframe to prevent runtime crashing if database drops connection
-        return pd.DataFrame(columns=["id", "name", "class", "section", "session", "status", "system_type"])
-
-if "run_update" not in globals():
-    def run_update(query, params=None):
-        for alternative in ["conn", "db", "engine"]:
-            if alternative in globals():
-                ctx = globals()[alternative]
-                if hasattr(ctx, "execute") or hasattr(ctx, "update"):
-                    # Adjust methods if your custom connection utilizes a direct cursor execute
-                    try:
-                        return ctx.execute(query, params) if hasattr(ctx, "execute") else ctx.update(query, params)
-                    except Exception:
-                        pass
-        st.toast("⚠️ Database execution handler is disconnected or missing reference hook.")
-        return None
-
-
 # ====================================================================================
 # UNIFIED CENTRAL MODULE: 👥 STUDENT OPERATIONS MANAGEMENT
 # ====================================================================================
