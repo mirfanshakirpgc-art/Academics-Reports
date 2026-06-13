@@ -2345,61 +2345,34 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Attendance Scanner Segment (Fixed Type Comparisons & Summary Mapping)
+        # 2. Attendance Scanner Segment (Direct Supabase Summary Mapping)
         try:
-            # 1. Fetch an empty dataframe to inspect actual column names safely
-            schema_df = run_query("SELECT * FROM attendance WHERE 1=0", {})
-            cols_att = [c.lower() for c in schema_df.columns]
+            # 1. Clean parameters to use matching absolute integers
+            clean_params = {}
+            clean_placeholders = []
             
-            # 2. Check if this is a Monthly Summary table or a Daily Log table
-            is_summary_table = any(m in cols_att for m in ["month_name", "month", "total_days", "present_days"])
+            for idx, (k, v) in enumerate(params_dict.items()):
+                digits_only = ''.join(c for c in str(v) if c.isdigit())
+                if digits_only:
+                    int_key = f"sid_int_{idx}"
+                    clean_params[int_key] = int(digits_only)
+                    clean_placeholders.append(f":{int_key}")
             
-            if is_summary_table:
-                # Summary table mode: Grab whatever structural column targets exist
-                month_col = "month_name" if "month_name" in cols_att else ("month" if "month" in cols_att else cols_att[1])
-                t_days_col = "total_days" if "total_days" in cols_att else ("total" if "total" in cols_att else cols_att[2])
-                p_days_col = "present_days" if "present_days" in cols_att else ("present" if "present" in cols_att else cols_att[3])
-                
-                # Formulate structural query using explicit text parameter casting for Postgres compatibility
-                query_str = f"""
-                    SELECT student_id, {month_col} AS month_name, {t_days_col} AS total_days, {p_days_col} AS present_days
-                    FROM attendance
-                    WHERE CAST(student_id AS VARCHAR) IN ({", ".join([f"CAST(:{k} AS VARCHAR)" for k in params_dict.keys()])})
-                """
+            if clean_placeholders:
+                # 2. Query matching your real column structures perfectly
+                attendance_df = run_query(f"""
+                    SELECT student_id, month_name, total_days, present_days 
+                    FROM attendance 
+                    WHERE student_id IN ({", ".join(clean_placeholders)})
+                """, clean_params)
             else:
-                # Daily log table mode: Resolve individual dates & statuses
-                date_col = "attendance_date" if "attendance_date" in cols_att else \
-                           ("date_marked" if "date_marked" in cols_att else \
-                           ("date" if "date" in cols_att else cols_att[1]))
-                
-                status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
-                
-                query_str = f"""
-                    SELECT student_id, {date_col} AS attendance_date, {status_col} AS status
-                    FROM attendance
-                    WHERE CAST(student_id AS VARCHAR) IN ({", ".join([f"CAST(:{k} AS VARCHAR)" for k in params_dict.keys()])})
-                """
+                attendance_df = pd.DataFrame()
 
-            # 3. Execute query with synchronized variable types
-            attendance_df = run_query(query_str, params_dict)
-            
-            # Fallback Fetch: If string casting yields empty, attempt direct numerical matching
-            if attendance_df.empty:
-                try:
-                    int_params = {k: int(v) for k, v in params_dict.items() if str(v).isdigit()}
-                    if int_params:
-                        placeholders_int = ", ".join([f":{k}" for k in int_params.keys()])
-                        if is_summary_table:
-                            fallback_query = f"SELECT student_id, {month_col} AS month_name, {t_days_col} AS total_days, {p_days_col} AS present_days FROM attendance WHERE student_id IN ({placeholders_int})"
-                        else:
-                            fallback_query = f"SELECT student_id, {date_col} AS attendance_date, {status_col} AS status FROM attendance WHERE student_id IN ({placeholders_int})"
-                        attendance_df = run_query(fallback_query, int_params)
-                except Exception:
-                    pass
-
+            # 3. Force lowercase columns and clean up strings for matching
             if not attendance_df.empty:
-                attendance_df.columns = [c.lower() for c in attendance_df.columns]
-                attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip().str.lstrip('0')
+                attendance_df.columns = ['student_id', 'month_name', 'total_days', 'present_days']
+                attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
+                attendance_df["month_name"] = attendance_df["month_name"].astype(str).str.strip()
                 
         except Exception as e:
             st.error(f"⚠️ Failed fetching attendance matrix records: {str(e)}")
