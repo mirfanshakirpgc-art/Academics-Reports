@@ -1222,36 +1222,36 @@ elif entry_mode == "👤 By Single Student Roll Number":
                         
                         # JavaScript Injector: Locks focus chain onto marks fields, ignores checkboxes
                         st.components.v1.html(f"""
-                            <script>
-                                setTimeout(() => {{
-                                    const doc = window.parent.document;
-                                    
-                                    // 1. Force explicit sequential order to this student's input
-                                    const inputAnchor = doc.getElementById('sec_m_anchor_{idx}');
-                                    if (inputAnchor) {{
-                                        const inputField = inputAnchor.parentElement.querySelector('input');
-                                        if (inputField) {{
-                                            inputField.id = 'sec_m_{idx}';
-                                            inputField.setAttribute('tabindex', '{idx + 1}');
-                                        }}
-                                    }}
-                                    
-                                    // 2. Remove the Absent checkbox from tab sequence
-                                    const absAnchor = doc.getElementById('sec_abs_anchor_{idx}');
-                                    if (absAnchor) {{
-                                        const absCheck = absAnchor.parentElement.querySelector('input[type="checkbox"]');
-                                        if (absCheck) {{ absCheck.setAttribute('tabindex', '-1'); }}
-                                    }}
-                                    
-                                    // 3. Remove the NC checkbox from tab sequence
-                                    const ncAnchor = doc.getElementById('sec_nc_anchor_{idx}');
-                                    if (ncAnchor) {{
-                                        const ncCheck = ncAnchor.parentElement.querySelector('input[type="checkbox"]');
-                                        if (ncCheck) {{ ncCheck.setAttribute('tabindex', '-1'); }}
-                                    }}
-                                }}, 80);
-                            </script>
-                        """, height=0)
+    <script>
+        setTimeout(() => {{
+            const doc = window.parent.document;
+
+            // 1. Force explicit sequential order to this student's input
+            const inputAnchor = doc.getElementById('sec_m_anchor_{idx}');
+            if (inputAnchor) {{
+                const inputField = inputAnchor.parentElement.querySelector('input');
+                if (inputField) {{
+                    inputField.id = 'sec_m_{idx}';
+                    inputField.setAttribute('tabindex', '{idx + 1}');
+                }}
+            }}
+
+            // 2. Remove the Absent checkbox from tab sequence
+            const absAnchor = doc.getElementById('sec_abs_anchor_{idx}');
+            if (absAnchor) {{
+                const absCheck = absAnchor.parentElement.querySelector('input[type="checkbox"]');
+                if (absCheck) {{ absCheck.setAttribute('tabindex', '-1'); }}
+            }}
+
+            // 3. Remove the NC checkbox from tab sequence
+            const ncAnchor = doc.getElementById('sec_nc_anchor_{idx}');
+            if (ncAnchor) {{
+                const ncCheck = ncAnchor.parentElement.querySelector('input[type="checkbox"]');
+                if (ncCheck) {{ ncCheck.setAttribute('tabindex', '-1'); }}
+            }}
+        }}, 80);
+    </script>
+""", height=0)
                         
                     st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER BOUNDARY END ---
                     
