@@ -1227,40 +1227,51 @@ setTimeout(() => {
 
     const doc = window.parent.document;
 
-    doc.addEventListener('keydown', function(e) {
+    function getMarksInputs() {
+        return Array.from(
+            doc.querySelectorAll('input[type="text"]')
+        ).filter(el =>
+            !el.disabled &&
+            el.offsetParent !== null
+        );
+    }
 
-        const active = doc.activeElement;
+    if (!window.parent.__verticalTabInstalled) {
 
-        if (
-            e.key === 'Tab' &&
-            active &&
-            active.tagName === 'INPUT'
-        ) {
+        window.parent.__verticalTabInstalled = true;
 
-            const allInputs = Array.from(
-                doc.querySelectorAll('input[type="text"]')
-            ).filter(el =>
-                !el.disabled &&
-                el.offsetParent !== null
-            );
+        doc.addEventListener('keydown', function(e) {
 
-            const currentIndex = allInputs.indexOf(active);
+            if (e.key !== 'Tab') return;
 
-            if (currentIndex >= 0) {
-                e.preventDefault();
+            const active = doc.activeElement;
 
-                const nextIndex = currentIndex + 1;
+            if (!active || active.tagName !== 'INPUT')
+                return;
 
-                if (allInputs[nextIndex]) {
-                    allInputs[nextIndex].focus();
-                    allInputs[nextIndex].select();
-                }
+            const inputs = getMarksInputs();
+
+            const current = inputs.indexOf(active);
+
+            if (current === -1)
+                return;
+
+            e.preventDefault();
+
+            let target =
+                e.shiftKey
+                    ? current - 1
+                    : current + 1;
+
+            if (target >= 0 && target < inputs.length) {
+                inputs[target].focus();
+                inputs[target].select();
             }
-        }
 
-    }, true);
+        }, true);
+    }
 
-}, 500);
+}, 1000);
 </script>
 """, height=0)
                         
