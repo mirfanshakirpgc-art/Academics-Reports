@@ -773,7 +773,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     """, unsafe_allow_html=True)
 
     # ====================================================================================
-    # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY (SIDE-BY-SIDE FRAMES)
+    # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY (SWAPPED FRAMES)
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -915,39 +915,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     with st.form(f"bulk_marks_form_{sel_exam}_{sel_subject}"):
                         updated_section_scores = {}
                         
-                        # CREATING TWO SIDE-BY-SIDE MACRO FRAMES
-                        left_frame, right_frame = st.columns([2.5, 5.5])
+                        # LEFT SIDE: TEXT FIELDS | RIGHT SIDE: TOGGLE FLAGS
+                        left_frame, right_frame = st.columns([5.5, 2.5])
                         
-                        # --- LEFT FRAME: STATUS CHECKBOXES ---
+                        # --- LEFT FRAME: STUDENT IDENTIFIERS AND MARKS ---
                         with left_frame:
-                            st.markdown('<div class="frame-header">❌ Status Flags</div>', unsafe_allow_html=True)
-                            
-                            # Sub headers
-                            sh1, sh2 = st.columns(2)
-                            sh1.caption("**Absent**")
-                            sh2.caption("**NC**")
-                            
-                            for idx, row in roster_df.iterrows():
-                                student_id = int(row['ID'])
-                                db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
-                                
-                                state_abs_key = f"sec_abs_{student_id}_{target_sub_slug}_{target_exam}"
-                                state_nc_key = f"sec_nc_{student_id}_{target_sub_slug}_{target_exam}"
-                                
-                                if state_abs_key not in st.session_state: st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                                if state_nc_key not in st.session_state: st.session_state[state_nc_key] = (db_val == 'NC')
-                                
-                                st.markdown('<div class="cell-height">', unsafe_allow_html=True)
-                                c_abs, c_nc = st.columns(2)
-                                with c_abs: st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                                with c_nc: st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-                                st.markdown('</div>', unsafe_allow_html=True)
-                        
-                        # --- RIGHT FRAME: STUDENT IDENTIFIERS AND TEXT FIELD MARKS INPUTS ---
-                        with right_frame:
-                            st.markdown('<div class="frame-header">🆔 Student & Evaluation Ledger (Press Tab to go Down)</div>', unsafe_allow_html=True)
-                            
-                            # Sub headers
+                            st.markdown('<div class="frame-header">🆔 Student Ledger (Press Tab to go Down)</div>', unsafe_allow_html=True)
                             sh3, sh4, sh5 = st.columns([1.5, 3.5, 3])
                             sh3.caption("**Roll No**")
                             sh4.caption("**Student Name**")
@@ -961,6 +934,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 state_abs_key = f"sec_abs_{student_id}_{target_sub_slug}_{target_exam}"
                                 state_nc_key = f"sec_nc_{student_id}_{target_sub_slug}_{target_exam}"
                                 state_marks_key = f"sec_mark_in_{student_id}_{target_sub_slug}_{target_exam}"
+                                
+                                # Access state keys safely handled downstream
+                                if state_abs_key not in st.session_state: st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                                if state_nc_key not in st.session_state: st.session_state[state_nc_key] = (db_val == 'NC')
                                 
                                 chk_absent = st.session_state[state_abs_key]
                                 chk_nc = st.session_state[state_nc_key]
@@ -985,6 +962,24 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 st.markdown('</div>', unsafe_allow_html=True)
                                 updated_section_scores[student_id] = {"marks": score_input, "abs_key": state_abs_key, "nc_key": state_nc_key}
                         
+                        # --- RIGHT FRAME: STATUS CHECKBOXES ---
+                        with right_frame:
+                            st.markdown('<div class="frame-header">❌ Status Flags</div>', unsafe_allow_html=True)
+                            sh1, sh2 = st.columns(2)
+                            sh1.caption("**Absent**")
+                            sh2.caption("**NC**")
+                            
+                            for idx, row in roster_df.iterrows():
+                                student_id = int(row['ID'])
+                                state_abs_key = f"sec_abs_{student_id}_{target_sub_slug}_{target_exam}"
+                                state_nc_key = f"sec_nc_{student_id}_{target_sub_slug}_{target_exam}"
+                                
+                                st.markdown('<div class="cell-height">', unsafe_allow_html=True)
+                                c_abs, c_nc = st.columns(2)
+                                with c_abs: st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                                with c_nc: st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                                st.markdown('</div>', unsafe_allow_html=True)
+                        
                         st.markdown("<br>", unsafe_allow_html=True)
                         if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
                             import time
@@ -1005,7 +1000,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.error(f"Database sync issue: {e}")
 
     # ====================================================================================
-    # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY (SIDE-BY-SIDE FRAMES)
+    # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY (SWAPPED FRAMES)
     # ====================================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
@@ -1082,40 +1077,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     updated_scores = {}
                     
-                    # CREATING TWO SIDE-BY-SIDE MACRO FRAMES FOR SINGLE ENTRY
-                    left_s_frame, right_s_frame = st.columns([2.5, 5.5])
+                    # LEFT SIDE: TEXT FIELDS | RIGHT SIDE: TOGGLE FLAGS
+                    left_s_frame, right_s_frame = st.columns([5.5, 2.5])
                     
-                    # --- LEFT FRAME: SINGLE STATUS TOGGLES ---
+                    # --- LEFT FRAME: SINGLE COURSE SUBJECTS AND SCORE CHANNELS ---
                     with left_s_frame:
-                        st.markdown('<div class="frame-header">❌ Status Flags</div>', unsafe_allow_html=True)
-                        s_sh1, s_sh2 = st.columns(2)
-                        s_sh1.caption("**Absent**")
-                        s_sh2.caption("**NC**")
-                        
-                        for idx, subject_name in enumerate(subjects_list):
-                            sub_slug = str(subject_name).strip().upper().replace(" ", "_")
-                            
-                            existing_df = run_query("""
-                                SELECT marks_obtained FROM marks 
-                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam
-                            """, {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug})
-                            
-                            db_score = str(existing_df.iloc[0]['marks_obtained']).strip().upper() if not existing_df.empty else ""
-                            
-                            s_abs_key = f"s_abs_{single_id}_{sub_slug}_{target_exam_slug}"
-                            s_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
-                            
-                            if s_abs_key not in st.session_state: st.session_state[s_abs_key] = (db_score in ['A', 'ABSENT'])
-                            if s_nc_key not in st.session_state: st.session_state[s_nc_key] = (db_score == 'NC')
-                            
-                            st.markdown('<div class="cell-height">', unsafe_allow_html=True)
-                            c_a, c_n = st.columns(2)
-                            with c_a: st.checkbox("", key=s_abs_key, label_visibility="collapsed")
-                            with c_n: st.checkbox("", key=s_nc_key, label_visibility="collapsed")
-                            st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    # --- RIGHT FRAME: SINGLE COURSE CHANNELS AND NUMERIC FIELD MARK INPUTS ---
-                    with right_s_frame:
                         st.markdown('<div class="frame-header">📖 Subjects & Scores (Press Tab to go Down)</div>', unsafe_allow_html=True)
                         s_sh3, s_sh4 = st.columns([5, 3])
                         s_sh3.caption("**Course Subject**")
@@ -1134,6 +1100,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             s_abs_key = f"s_abs_{single_id}_{sub_slug}_{target_exam_slug}"
                             s_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
                             s_mark_key = f"s_mark_in_{single_id}_{sub_slug}_{target_exam_slug}"
+                            
+                            if s_abs_key not in st.session_state: st.session_state[s_abs_key] = (db_score in ['A', 'ABSENT'])
+                            if s_nc_key not in st.session_state: st.session_state[s_nc_key] = (db_score == 'NC')
                             
                             chk_abs = st.session_state[s_abs_key]
                             chk_nc = st.session_state[s_nc_key]
@@ -1155,6 +1124,24 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 )
                             st.markdown('</div>', unsafe_allow_html=True)
                             updated_scores[sub_slug] = {"marks": score_input, "abs_key": s_abs_key, "nc_key": s_nc_key}
+
+                    # --- RIGHT FRAME: SINGLE STATUS TOGGLES ---
+                    with right_s_frame:
+                        st.markdown('<div class="frame-header">❌ Status Flags</div>', unsafe_allow_html=True)
+                        s_sh1, s_sh2 = st.columns(2)
+                        s_sh1.caption("**Absent**")
+                        s_sh2.caption("**NC**")
+                        
+                        for idx, subject_name in enumerate(subjects_list):
+                            sub_slug = str(subject_name).strip().upper().replace(" ", "_")
+                            s_abs_key = f"s_abs_{single_id}_{sub_slug}_{target_exam_slug}"
+                            s_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
+                            
+                            st.markdown('<div class="cell-height">', unsafe_allow_html=True)
+                            c_a, c_n = st.columns(2)
+                            with c_a: st.checkbox("", key=s_abs_key, label_visibility="collapsed")
+                            with c_n: st.checkbox("", key=s_nc_key, label_visibility="collapsed")
+                            st.markdown('</div>', unsafe_allow_html=True)
 
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", type="primary", use_container_width=True):
