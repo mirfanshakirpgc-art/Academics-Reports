@@ -936,7 +936,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     updated_scores = {}
                     
-                    # Loop out layout fields for EVERY subject found dynamically
+                    # Loop layout fields out for EVERY subject found dynamically
                     for subject in subjects_list:
                         col_sub, col_marks = st.columns([3, 2])
                         with col_sub:
