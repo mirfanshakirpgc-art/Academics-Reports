@@ -1085,8 +1085,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # --- PREPARE DATASET FOR SPREADSHEET MATRIX ---
-                    rows_list = []
+                    # --- PREPARE DATA EXTRACTION FOR RAW PORTAL MATRIX ---
+                    matrix_rows = []
                     for subject in subjects_list:
                         existing_mark_df = run_query("""
                             SELECT marks_obtained FROM marks 
@@ -1095,48 +1095,113 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         
                         db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
                         
-                        rows_list.append({
-                            "Subject Title": subject,
-                            "Obtained Marks": "" if db_val in ['A', 'ABSENT', 'NC'] else db_val,
-                            "Absent": (db_val in ['A', 'ABSENT']),
-                            "No Class (NC)": (db_val == 'NC')
+                        initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
+                        is_abs = "true" if db_val in ['A', 'ABSENT'] else "false"
+                        is_nc = "true" if db_val == 'NC' else "false"
+                        
+                        matrix_rows.append({
+                            "subject": subject,
+                            "initial_score": initial_score,
+                            "is_abs": is_abs,
+                            "is_nc": is_nc
                         })
 
-                    import pandas as pd
-                    editor_df = pd.DataFrame(rows_list)
+                    import json
+                    json_payload = json.dumps(matrix_rows)
 
-                    st.markdown("### 📊 Marks Entry Sheet")
-                    st.caption("Double-click a cell to edit. Use **Tab**, **Enter**, or **Arrow Keys** to navigate downward instantly.")
+                    st.markdown("### 🔢 Marks Entry Sheet")
+                    st.caption("Press **Tab** to skip the checkboxes and move straight down to the next row field.")
 
-                    # --- THE SPREADSHEET COMPONENT ---
-                    edited_df = st.data_editor(
-                        editor_df,
-                        column_config={
-                            "Subject Title": st.column_config.TextColumn("📖 Subject Title", disabled=True),
-                            "Obtained Marks": st.column_config.TextColumn("🔢 Obtained Marks"),
-                            "Absent": st.column_config.CheckboxColumn("❌ Absent"),
-                            "No Class (NC)": st.column_config.CheckboxColumn("➖ NC")
-                        },
-                        disabled=["Subject Title"],
-                        hide_index=True,
-                        use_container_width=True,
-                        key=f"grid_editor_{single_id}_{single_exam}"
-                    )
+                    # --- SINGLE CONTEXT DOM TREE SHEET ---
+                    calc_height = 60 + (len(subjects_list) * 48)
+                    
+                    raw_html_code = f"""
+                    <div style="font-family: system-ui, sans-serif; color: #31333F;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="text-align: left; font-size: 0.85rem; color: #555; border-bottom: 2px solid #e0e2e6;">
+                                    <th style="padding: 10px; width: 45%;">📖 Subject Title</th>
+                                    <th style="padding: 10px; width: 25%;">🔢 Obtained Marks</th>
+                                    <th style="padding: 10px; width: 15%; text-align: center;">❌ Absent</th>
+                                    <th style="padding: 10px; width: 15%; text-align: center;">➖ NC</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
+                    </div>
 
-                    # --- PARSE DATA BACK TO YOUR SAVE PIPELINE ---
+                    <script>
+                        const dataRows = {json_payload};
+                        const tbody = document.getElementById('table-body');
+                        
+                        dataRows.forEach((row, idx) => {{
+                            const tr = document.createElement('tr');
+                            tr.style.borderBottom = '1px solid #e0e2e6';
+                            
+                            const val = row.is_abs === "true" ? "A" : (row.is_nc === "true" ? "NC" : row.initial_score);
+                            const disabledAttr = (row.is_abs === "true" || row.is_nc === "true") ? "disabled" : "";
+                            
+                            tr.innerHTML = `
+                                <td style="padding: 12px 10px; font-weight: bold; font-size: 0.95rem;">${{row.subject}}</td>
+                                <td style="padding: 6px 10px;">
+                                    <input type="text" class="mark-input" id="m_${{idx}}" data-sub="${{row.subject}}" value="${{val}}" ${{disabledAttr}}
+                                        style="width: 90%; padding: 6px 10px; border: 1px solid #bfc2c7; border-radius: 4px;" tabindex="${{idx + 1}}">
+                                </td>
+                                <td style="padding: 6px 10px; text-align: center;">
+                                    <input type="checkbox" class="abs-cb" id="a_${{idx}}" ${{row.is_abs === "true" ? "checked" : ""}} tabindex="${{100 + idx}}">
+                                </td>
+                                <td style="padding: 6px 10px; text-align: center;">
+                                    <input type="checkbox" class="nc-cb" id="n_${{idx}}" ${{row.is_nc === "true" ? "checked" : ""}} tabindex="${{200 + idx}}">
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        }});
+
+                        // Track input adjustments dynamically
+                        tbody.addEventListener('change', function(e) {{
+                            if (e.target.type === 'checkbox') {{
+                                const tr = e.target.closest('tr');
+                                const txt = tr.querySelector('.mark-input');
+                                const abs = tr.querySelector('.abs-cb');
+                                const nc = tr.querySelector('.nc-cb');
+                                
+                                if (e.target.classList.contains('abs-cb') && abs.checked) nc.checked = false;
+                                if (e.target.classList.contains('nc-cb') && nc.checked) abs.checked = false;
+                                
+                                if (abs.checked) {{ txt.value = "A"; txt.disabled = true; }}
+                                else if (nc.checked) {{ txt.value = "NC"; txt.disabled = true; }}
+                                else {{ txt.value = ""; txt.disabled = false; }}
+                            }}
+                            pushData();
+                        }});
+
+                        tbody.addEventListener('input', pushData);
+
+                        function pushData() {{
+                            const res = {{}};
+                            document.querySelectorAll('.mark-input').forEach(i => {{
+                                res[i.dataset.sub] = i.value;
+                            }});
+                            window.parent.postMessage({{type: 'streamlit:setComponentValue', value: JSON.stringify(res)}}, '*');
+                        }}
+                        setTimeout(pushData, 200);
+                    </script>
+                    """
+                    
+                    from streamlit.components.v1 import html
+                    raw_response = html(raw_html_code, height=calc_height, scrolling=False)
+                    
+                    # --- PARSE INCOMING DATA BACK TO DATABASE WRITE STREAM ---
                     updated_scores = {}
-                    for _, row in edited_df.iterrows():
-                        sub = row["Subject Title"]
-                        marks_val = str(row["Obtained Marks"]).strip()
-                        is_abs = row["Absent"]
-                        is_nc = row["No Class (NC)"]
-
-                        if is_abs:
-                            updated_scores[sub] = "A"
-                        elif is_nc:
-                            updated_scores[sub] = "NC"
-                        else:
-                            updated_scores[sub] = marks_val
+                    if raw_response:
+                        try:
+                            updated_scores = json.loads(raw_response)
+                        except:
+                            pass
+                            
+                    if not updated_scores:
+                        for row in matrix_rows:
+                            updated_scores[row['subject']] = row['initial_score']
                     # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
                     # We drop down and run a completely separate loop for checkboxes.
                     st.markdown("<br><br>", unsafe_allow_html=True)
