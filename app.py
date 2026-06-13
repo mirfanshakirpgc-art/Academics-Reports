@@ -2345,52 +2345,46 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Attendance Scanner Segment
+        # 2. Attendance Scanner Segment (Hardened Data Type Fetch)
         try:
             sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
             cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
             
-            if "attendance_date" in cols_att:
-                date_col = "attendance_date"
-            elif "date_marked" in cols_att:
-                date_col = "date_marked"
-            elif "date" in cols_att:
-                date_col = "date"
-            elif "att_date" in cols_att:
-                date_col = "att_date"
-            else:
-                date_col = cols_att[1] if len(cols_att) > 1 else "date"
+            date_col = "attendance_date" if "attendance_date" in cols_att else \
+                       ("date_marked" if "date_marked" in cols_att else \
+                       ("date" if "date" in cols_att else \
+                       ("att_date" if "att_date" in cols_att else cols_att[1])))
             
             status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
 
+            # Primary Fetch: Exact key evaluation
             attendance_df = run_query(f"""
                 SELECT student_id, {date_col} as attendance_date, {status_col} as status
                 FROM attendance
-                WHERE student_id IN ({placeholders_str})
+                WHERE CAST(student_id AS CHAR) IN ({placeholders_str})
+                   OR TRIM(student_id) IN ({placeholders_str})
             """, params_dict)
             
+            # Fallback Fetch: If primary returns completely blank, try stripping values to plain integers
+            if attendance_df.empty:
+                try:
+                    int_params = {k: int(v) for k, v in params_dict.items() if str(v).isdigit()}
+                    if int_params:
+                        attendance_df = run_query(f"""
+                            SELECT student_id, {date_col} as attendance_date, {status_col} as status
+                            FROM attendance
+                            WHERE student_id IN ({", ".join([f":{k}" for k in int_params.keys()])})
+                        """, int_params)
+                except Exception:
+                    pass
+
             if not attendance_df.empty:
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
-                attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
+                # Force ID to stripped string format for matching loops
+                attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip().str.lstrip('0')
                 
         except Exception as e:
-            try:
-                attendance_df = run_query(f"SELECT * FROM attendance WHERE student_id IN ({placeholders_str})", params_dict)
-                if not attendance_df.empty:
-                    attendance_df.columns = [c.lower() for c in attendance_df.columns]
-                    attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
-                    
-                    for field in ["date_marked", "date", "att_date", "attendance_date"]:
-                        if field in attendance_df.columns:
-                            attendance_df = attendance_df.rename(columns={field: "attendance_date"})
-                            break
-                    for field in ["status", "attendance_status"]:
-                        if field in attendance_df.columns:
-                            attendance_df = attendance_df.rename(columns={field: "status"})
-                            break
-            except Exception as internal_err:
-                st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve: {str(internal_err)}")
-
+            st.error(f"⚠️ Failed fetching attendance matrix records: {str(e)}")
         # --- RE-ENGINEERED ATTENDANCE MATRIX AGGREGATOR ---
         # (Replace your current matrix loop down in the code with this safer datetime parse)
 
@@ -2553,23 +2547,27 @@ if menu_choice == "📈 Multi-Test Progress Report":
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
-                s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
+                # Normalize target ID search keys to prevent look-up misses
+                clean_s_id = str(s_id).strip().lstrip('0')
+                s_att = attendance_df[attendance_df["student_id"] == clean_s_id].copy()
+                
+                # Double fallback check: try matching raw numerical casting values
+                if s_att.empty and clean_s_id.isdigit():
+                    s_att = attendance_df[attendance_df["student_id"].astype(float).astype(int) == int(clean_s_id)].copy()
+
                 if not s_att.empty:
-                    # Clean strings before running datetime converter to catch legacy formats securely
                     s_att['attendance_date'] = s_att['attendance_date'].astype(str).str.strip()
                     s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
 
                     for m_name, m_num in month_map.items():
-                        # Primary check: using standard datetime elements
+                        # Engine Strategy A: Native Datetime Fields
                         if 'parsed_date' in s_att.columns and not s_att['parsed_date'].isna().all():
                             month_records = s_att[s_att['parsed_date'].dt.month == m_num]
                             t_days = len(month_records)
                             p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
+                        # Engine Strategy B: Descriptive Text Backups
                         else:
-                            # Secondary structural backup check: look for textual string names in database
-                            has_month_col = any(x in s_att.columns for x in ['month_name', 'month'])
                             matched_col = 'month_name' if 'month_name' in s_att.columns else ('month' if 'month' in s_att.columns else '')
-                            
                             if matched_col:
                                 month_records = s_att[s_att[matched_col].astype(str).str.strip().str.lower().str.startswith(m_name.lower()[:3])]
                                 t_days = int(month_records['total_days'].sum()) if 'total_days' in month_records.columns and not month_records.empty else len(month_records)
@@ -2579,6 +2577,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
                         if t_days > 0:
                             attendance_matrix[m_name] = {"total": t_days, "present": p_days}
+
+            # Render HTML Rows securely
+            for m_name in month_map.keys():
+                t_d = attendance_matrix[m_name].get("total", 0)
+                a_d = attendance_matrix[m_name].get("present", 0)
+                overall_tot_days += t_d
+                overall_att_days += a_d
+
+                tot_days_row += f"<td>{f'{t_d:02d}' if t_d > 0 else '-'}</td>"
+                att_days_row += f"<td>{f'{a_d:02d}' if t_d > 0 else '-'}</td>"
+                pct_days_row += f"<td>{f'{int((a_d/t_d)*100)}%' if t_d > 0 else '-'}</td>"
 
             for m_name in month_map.keys():
                 t_d = attendance_matrix[m_name].get("total", 0)
