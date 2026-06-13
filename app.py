@@ -2512,7 +2512,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
             # =========================================================================
-            # --- ATTENDANCE REPORT MATRIX (MULTI-PATH FALLBACK ENGINE) ---
+            # --- ATTENDANCE REPORT MATRIX (NATIVE SYSTEM TYPE FIXED CODES) ---
             # =========================================================================
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
@@ -2525,64 +2525,50 @@ if menu_choice == "📈 Multi-Test Progress Report":
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
-                # 1. Clean up our current loop targets
-                raw_target_id = str(s_id).strip().split('.')[0].lstrip('0')
-                clean_target_name = str(s_name).strip().lower()
+                # Direct Integer Casting matching PostgreSQL SERIAL field mapping structures
+                try:
+                    if isinstance(s_id, (int, np.integer)):
+                        target_student_id = int(s_id)
+                    else:
+                        target_student_id = int(float(str(s_id).strip()))
+                except (ValueError, TypeError):
+                    target_student_id = None
 
-                # 2. Create standardized matching tracks inside a copy of your attendance data
-                att_df_copy = attendance_df.copy()
-                
-                # Convert student_id column to clean strings (removes .0 and leading zeroes)
-                att_df_copy['match_id_str'] = att_df_copy['student_id'].astype(str).str.strip().str.split('.').str[0].str.lstrip('0')
-                
-                # If your table has student names anywhere, we can use it as an automatic backup track
-                name_col = next((col for col in att_df_copy.columns if 'name' in col.lower()), None)
-                if name_col:
-                    att_df_copy['match_name_str'] = att_df_copy[name_col].astype(str).str.strip().str.lower()
-                else:
-                    att_df_copy['match_name_str'] = ""
-
-                # --- TRACK A: PRIMARY ID STR MATCH ---
-                s_att = att_df_copy[att_df_copy["match_id_str"] == raw_target_id]
-
-                # --- TRACK B: INT MATCH FALLBACK (If Pandas structural types are acting up) ---
-                if s_att.empty:
+                if target_student_id is not None:
+                    # Enforce standardized integer data types across the lookup dataframe column boundaries
+                    att_df_copy = attendance_df.copy()
                     try:
-                        target_id_int = int(float(raw_target_id))
-                        # Direct check against the raw column in case casting it failed earlier
-                        s_att = att_df_copy[att_df_copy["student_id"] == target_id_int]
-                    except:
-                        pass
-
-                # --- TRACK C: NAME FRACTION FALLBACK (Emergency safety if IDs are structurally different) ---
-                if s_att.empty and name_col and len(clean_target_name) > 2:
-                    # Match if the student's name is found in the attendance row name
-                    s_att = att_df_copy[att_df_copy['match_name_str'].str.contains(clean_target_name, na=False) | 
-                                        att_df_copy['match_id_str'].str.contains(raw_target_id, na=False)]
-
-                # If any of the tracking systems found our records, update the matrix!
-                if not s_att.empty:
-                    for _, row in s_att.iterrows():
-                        db_month = str(row.get("month_name", "")).strip()
-                        
-                        # Match variants like "May" or "June"
-                        matched_month = None
-                        for m_name in month_map.keys():
-                            if db_month.lower().startswith(m_name.lower()[:3]):
-                                matched_month = m_name
-                                break
-                        
-                        if matched_month:
-                            try:
-                                t_days = int(float(str(row.get("total_days", 0))))
-                                p_days = int(float(str(row.get("present_days", 0))))
-                                
-                                attendance_matrix[matched_month] = {
-                                    "total": t_days, 
-                                    "present": p_days
-                                }
-                            except (ValueError, TypeError):
-                                pass
+                        att_df_copy["student_id"] = pd.to_numeric(att_df_copy["student_id"], errors='coerce').astype('Int64')
+                        s_att = att_df_copy[att_df_copy["student_id"] == target_student_id]
+                    except Exception:
+                        # Resilient Fallback to clean normalized string matches if column frames hold null fragments
+                        target_s_str = str(target_student_id)
+                        att_df_copy["student_id_str"] = att_df_copy["student_id"].astype(str).str.strip().str.split('.').str[0]
+                        s_att = att_df_copy[att_df_copy["student_id_str"] == target_s_str]
+                    
+                    if not s_att.empty:
+                        # Extract monthly matrices directly out of pre-aggregated rows
+                        for _, row in s_att.iterrows():
+                            db_month = str(row.get("month_name", "")).strip()
+                            
+                            # Match variants safely (e.g., "May" or "June")
+                            matched_month = None
+                            for m_name in month_map.keys():
+                                if db_month.lower().startswith(m_name.lower()[:3]):
+                                    matched_month = m_name
+                                    break
+                            
+                            if matched_month:
+                                try:
+                                    t_days = int(float(str(row.get("total_days", 0))))
+                                    p_days = int(float(str(row.get("present_days", 0))))
+                                    
+                                    attendance_matrix[matched_month] = {
+                                        "total": t_days, 
+                                        "present": p_days
+                                    }
+                                except (ValueError, TypeError):
+                                    pass
 
             # --- GENERATE CELL HTML CODES FOR THIS CARD ---
             for m_name in month_map.keys():
