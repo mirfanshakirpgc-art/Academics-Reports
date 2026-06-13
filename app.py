@@ -1284,13 +1284,16 @@ elif entry_mode == "👤 By Single Student Roll Number":
                         time.sleep(1.2)
                         st.rerun()
                     else:
-                        st.warning("⚠️ No mark entries were added. Check input values.")
+                            st.warning("⚠️ No mark entries were added. Check input values.")
 
-    st.markdown('</div>', unsafe_allow_html=True) # --- END OF MAIN PARENT MODULE CONTAINER ---
+        # THIS IS CRITICAL: Make sure the HTML div tag for the main module is closed
+        # and aligned perfectly inside the "By Single Student Roll Number" block!
+        st.markdown('</div>', unsafe_allow_html=True) 
 
-    elif entry_mode == "📤 Bulk Excel/CSV Import":
-        st.subheader("📤 Bulk Marks Ledger Import Processing Pipeline")
-        # Bulk module implementation follows here...
+# Line 1291 - Ensure this has the EXACT same indentation as your other main "if/elif" entry modes
+elif entry_mode == "📤 Bulk Excel/CSV Import":
+    st.subheader("📤 Bulk Marks Import Portal")
+    # Your bulk import code continues here...
 
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC DAILY LOGGING & ON-THE-FLY AGGREGATES)
