@@ -4120,7 +4120,7 @@ elif menu_choice == "⚙️ Settings":
                                         })
                                     st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
                                     st.rerun()
-                                catch Exception as err:
+                                except Exception as err:
                                     st.error(f"❌ Failed to insert framework record: {err}")
                             else:
                                 st.warning("An evaluation pattern with this code identifier already exists.")
