@@ -1196,17 +1196,18 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         time.sleep(1.2)
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-# Line 1199: Existing condition block
-elif entry_mode == "📊 Bulk Excel/CSV Import":
-    st.subheader("📊 Bulk Marks Import Portal")
-    # Your bulk import code continues here...
+
+elif entry_mode == "📊 Bulk Excel/CSV Import": # Line 1199
+        st.subheader("📊 Bulk Marks Import Portal")
+        # Your bulk import code continues here...
+    # --- SUB-MENU NAVIGATION END ---
+
 
 # ==============================================================================
-# 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT 
+# 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Back to Main Margin)
 # ==============================================================================
-# CHANGE THIS FROM 'if' TO 'elif' TO SECURE THE CONTEXT HOOK
-elif menu_choice == "🗓️ Attendance Entry Management":
-    import datetime  # Scoped import
+elif menu_choice == "🗓️ Attendance Entry Management": # Line 1206
+    import datetime  
     import pandas as pd
     
     st.title("🗓️ Attendance Entry Management Panel")
