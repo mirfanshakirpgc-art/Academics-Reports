@@ -2512,7 +2512,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
             # =========================================================================
-            # --- ATTENDANCE REPORT MATRIX (Correctly Indented Inside Loop) ---
+            # --- ATTENDANCE REPORT MATRIX (UPGRADED LOOKUP STRATEGY) ---
             # =========================================================================
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
@@ -2524,22 +2524,45 @@ if menu_choice == "📈 Multi-Test Progress Report":
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
-                clean_s_id = str(s_id).strip().lstrip('0')
-                s_att = attendance_df[attendance_df["student_id"] == clean_s_id].copy()
+                # 1. Standardize our loop student ID to plain strings and plain integers
+                clean_s_id_str = str(s_id).strip().lstrip('0')
+                if not clean_s_id_str: # Safe fallback if ID was literally "0" or "000"
+                    clean_s_id_str = "0"
                 
-                if s_att.empty and clean_s_id.isdigit():
-                    s_att = attendance_df[attendance_df["student_id"].astype(float).astype(int) == int(clean_s_id)].copy()
+                # 2. Try casting to clean integers if possible
+                try:
+                    clean_s_id_int = int(float(clean_s_id_str))
+                except ValueError:
+                    clean_s_id_int = None
 
+                # 3. Create variants of the attendance column to compare against
+                att_df_copy = attendance_df.copy()
+                att_df_copy['match_str'] = att_df_copy['student_id'].astype(str).str.strip().str.split('.').str[0].str.lstrip('0')
+                
+                # Try String variant match first
+                s_att = att_df_copy[att_df_copy["match_str"] == clean_s_id_str].copy()
+                
+                # Fallback: Try Raw Numeric match if string evaluation came up blank
+                if s_att.empty and clean_s_id_int is not None:
+                    try:
+                        s_att = attendance_df[attendance_df["student_id"].astype(float).astype(int) == clean_s_id_int].copy()
+                    except:
+                        pass
+
+                # If we successfully located the records, aggregate them by month!
                 if not s_att.empty:
                     s_att['attendance_date'] = s_att['attendance_date'].astype(str).str.strip()
                     if 'parsed_date' not in s_att.columns:
                         s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
 
                     for m_name, m_num in month_map.items():
+                        # Engine Strategy A: Native Datetime Filtering
                         if 'parsed_date' in s_att.columns and not s_att['parsed_date'].isna().all():
                             month_records = s_att[s_att['parsed_date'].dt.month == m_num]
                             t_days = len(month_records)
                             p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
+                        
+                        # Engine Strategy B: Descriptive Text / Summary Row Backups
                         else:
                             matched_col = 'month_name' if 'month_name' in s_att.columns else ('month' if 'month' in s_att.columns else '')
                             if matched_col:
