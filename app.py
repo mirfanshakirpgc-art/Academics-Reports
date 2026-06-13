@@ -1059,15 +1059,24 @@ if menu_choice == "📅 Attendance Entry Management":
     )
     st.markdown("###")
 
-    # 🔗 Fetch live sessions directly from the database safely
-    session_options = ["2025-27", "2026-28", "2027-29"] # Baseline fallback array
+    # 🚀 DYNAMIC STATE INTEGRATION: Merge settings state tracking with database values
+    global_sessions = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
+    active_session = st.session_state.get("current_session", "2026-28")
+    
+    # Check database records to see if extra historic/future tracks exist
     try:
         db_sessions = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''")
         if not db_sessions.empty:
-            session_options = sorted(db_sessions['session'].dropna().astype(str).tolist())
+            extracted_list = db_sessions['session'].dropna().astype(str).tolist()
+            # Combine both lists cleanly without duplicate records
+            session_options = sorted(list(set(global_sessions + extracted_list)))
+        else:
+            session_options = global_sessions
     except Exception:
-        pass
-
+        session_options = global_sessions
+        
+    # Calculate matching index dynamically so it snaps to your Settings dashboard choice
+    default_index = session_options.index(active_session) if active_session in session_options else 0
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
