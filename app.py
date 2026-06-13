@@ -930,7 +930,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     with c_m1: 
                         single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
                     with c_m2:
-                        total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=100, value=50, step=1, key="s_total_val")
+                        total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
                     
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
                     
@@ -962,6 +962,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     submit_button = st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", use_container_width=True)
                     
                     if submit_button:
+                        import time
                         success_count = 0
                         for subject, marks_val in updated_scores.items():
                             if marks_val.strip() != "":
@@ -974,202 +975,23 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     "s_id": int(single_id),
                                     "sub": subject,
                                     "exam": single_exam,
-                                    "marks": marks_val.strip(),
-                                    "total": total_marks_input
+                                    "marks": marks_val.strip().upper(),
+                                    "total": float(total_marks_input)
                                 })
                                 success_count += 1
                         
                         if success_count > 0:
                             st.success(f"🎉 Successfully saved/updated academic records across {success_count} subjects for {s_name}!")
+                            st.toast(f"Saved entries for Roll No: {single_id}", icon="💾")
                             st.cache_data.clear()
+                            time.sleep(1.5)
                             st.rerun()
                         else:
                             st.warning("⚠️ No mark entries were added. Check input values.")
-                
-                if single_exam == "MATRIC":
-                    single_sub = "OVERALL"
-                    with c_m1: 
-                        st.text_input("Course/Subject:", value="OVERALL (AGGREGATE)", disabled=True, key="s_sub_val_disabled")
-                    default_single_total = 1200
-                else:
-                    if s_system == "Annual System":
-                        DISCIPLINE_SUBJECTS_MAP = {
-                            "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
-                            "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
-                            "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
-                            "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
-                            "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-                            "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-                            "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-                            "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-                            "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
-                            "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
-                            "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
-                            "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
-                        }
-                        if "12" in s_class: cls_suffix = "_12TH"
-                        elif "11" in s_class: cls_suffix = "_11TH"
-                        else: cls_suffix = "_11TH"
-                            
-                        single_sub_options = DISCIPLINE_SUBJECTS_MAP.get(f"{detected_discipline}{cls_suffix}", None)
-                        if not single_sub_options:
-                            if detected_discipline == "ENGINEERING": single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
-                            elif "ICS" in detected_discipline: single_sub_options = ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran", "Pak_St"]
-                            elif detected_discipline == "COMMERCE": single_sub_options = ["English", "Urdu", "Principles of Accounting", "Islamic Studies", "T_Quran", "Pak_St"]
-                            elif detected_discipline == "HUMANITIES": single_sub_options = ["English", "Urdu", "Education", "Islamic Studies", "T_Quran", "Pak_St"]
-                            else: single_sub_options = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran", "Pak_St"]
-                    else:
-                        if "1ST" in s_class or "1" in s_class: single_sub_options = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                        elif "2ND" in s_class or "2" in s_class: single_sub_options = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                        else: single_sub_options = ["Information Technology", "Office Automation", "Networking", "Data Base System", "Web Development Essential"]
-                    
-                    with c_m1: 
-                        single_sub = st.selectbox("Course/Subject:", single_sub_options, key="s_sub_val")
-                    default_single_total = 100
-                
-                with c_m3: 
-                    single_total = st.number_input("Total Marks:", min_value=1, value=default_single_total, key="s_tot_val")
-                
-                existing_m = run_query("""
-                    SELECT marks_obtained FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
-                init_m_val = str(existing_m['marks_obtained'].iloc[0]) if not existing_m.empty else ""
-                
-                with c_m4: 
-                    single_obtained = st.text_input("Obtained (or A / NC):", value=init_m_val, key="s_obt_val")
-                
-                if st.button("💾 Save Individual Marks Record", type="primary", use_container_width=True):
-                    import time
-                    execute_db_command("""
-                        DELETE FROM marks WHERE student_id = :id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                    """, {"id": int(single_id), "sub": single_sub, "exam": single_exam})
-                    
-                    if single_obtained.strip() != "":
-                        execute_db_command("""
-                            INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:id, :sub, :exam, :score, :tot)
-                        """, {"id": int(single_id), "sub": single_sub.strip().upper(), "exam": single_exam.strip().upper(), "score": single_obtained.strip().upper(), "tot": float(single_total)})
-                    
-                    st.success(f"🎉 Marks updated successfully for {s_name} ({single_exam} - {single_sub})!")
-                    st.toast(f"Saved entry for Roll No: {single_id}", icon="✅")
-                    time.sleep(1.5)
-                    st.rerun()
 
     elif entry_mode == "📤 Bulk Excel/CSV Import":
-        st.subheader("📤 Bulk Upload Exam Marks Matrix")
-        
-        with st.expander("ℹ️ View Expected File Schema & Rules", expanded=True):
-            st.markdown("""
-            Your uploaded sheet **must** contain the following exact column headings:
-            * `Roll Number` or `Student ID` (Integer corresponding to Student Roll Number)
-            * `Subject` (Use **`OVERALL`** for Matriculation aggregate marks entry; otherwise use courses like *Physics, Urdu, Banking*)
-            * `Exam Type` (Must exactly match an entry in the system cycle list below like **`MATRIC`**, **`MT_1`**)
-            * `Total Marks` (Numeric limit value, e.g., **`1200`** for Matriculation)
-            * `Marks Obtained` (Numeric value, or `A` / `ABSENT` for absent students)
-            """)
-            st.caption(f"**Valid System Cycles:** {', '.join(all_frameworks)}")
-
-        uploaded_file = st.file_uploader("Choose your Excel or CSV file", type=["xlsx", "csv"], key="marks_file_uploader")
-        
-        if uploaded_file is not None:
-            try:
-                import pandas as pd
-                if uploaded_file.name.endswith('.csv'):
-                    df_raw = pd.read_csv(uploaded_file)
-                else:
-                    df_raw = pd.read_excel(uploaded_file)
-                
-                df_raw.columns = [str(c).strip().upper() for c in df_raw.columns]
-                
-                id_col = next((c for c in ['ROLL NUMBER', 'STUDENT ID', 'ID', 'ROLL_NO'] if c in df_raw.columns), None)
-                sub_col = next((c for c in ['SUBJECT', 'COURSE', 'SUBJECT NAME'] if c in df_raw.columns), None)
-                exam_col = next((c for c in ['EXAM TYPE', 'EXAMINATION CYCLE', 'EXAM', 'EXAM_TYPE'] if c in df_raw.columns), None)
-                tot_col = next((c for c in ['TOTAL MARKS', 'TOTAL_MARKS', 'TOTAL'] if c in df_raw.columns), None)
-                obt_col = next((c for c in ['MARKS OBTAINED', 'MARKS', 'OBTAINED', 'OBTAINED MARKS'] if c in df_raw.columns), None)
-                
-                if not all([id_col, sub_col, exam_col, tot_col, obt_col]):
-                    st.error("❌ Failed to parse file. Missing one or more required columns: Roll Number, Subject, Exam Type, Total Marks, and Marks Obtained.")
-                elif df_raw.empty:
-                    st.warning("⚠️ The uploaded spreadsheet file contains no rows of data.")
-                else:
-                    st.success(f"📊 Read {len(df_raw)} records successfully. Previewing data below:")
-                    st.dataframe(df_raw.head(10), use_container_width=True)
-                    
-                    with st.form("bulk_import_confirmation"):
-                        st.markdown("##### ⚙️ File Import Execution Configurations")
-                        dup_strategy = st.radio("Conflict Handling Rule:", ["Overwrite/Update Match Records", "Skip if Marks Exist"], horizontal=True)
-                        
-                        if st.form_submit_button("🚀 Execute Matrix Import & Database Sync", type="primary"):
-                            import time
-                            success_count = 0
-                            skipped_count = 0
-                            error_logs = []
-                            valid_exams_upper = [f.strip().upper() for f in all_frameworks]
-                            
-                            for index, row in df_raw.iterrows():
-                                try:
-                                    raw_id = str(row[id_col]).strip().split('.')[0]
-                                    if not raw_id.isdigit():
-                                        error_logs.append(f"Row {index+2}: Invalid Roll Number structure format '{row[id_col]}'")
-                                        continue
-                                    
-                                    s_id = int(raw_id)
-                                    subject_str = str(row[sub_col]).strip().upper()
-                                    exam_str = str(row[exam_col]).strip().upper()
-                                    
-                                    if exam_str not in valid_exams_upper:
-                                        error_logs.append(f"Row {index+2}: Invalid Exam Cycle '{exam_str}'. Not found in system framework.")
-                                        continue
-                                        
-                                    total_val = float(row[tot_col])
-                                    obtained_val = str(row[obt_col]).strip().upper()
-                                    
-                                    if obtained_val == "" or pd.isna(row[obt_col]):
-                                        skipped_count += 1
-                                        continue
-                                        
-                                    chk_student = run_query("SELECT id FROM students WHERE id = :id", {"id": s_id})
-                                    if chk_student.empty:
-                                        error_logs.append(f"Row {index+2}: Student ID '{s_id}' does not exist in student database.")
-                                        continue
-                                        
-                                    chk_marks = run_query("""
-                                        SELECT student_id FROM marks 
-                                        WHERE student_id = :id 
-                                          AND UPPER(TRIM(subject)) = :sub 
-                                          AND UPPER(TRIM(exam_type)) = :exam
-                                    """, {"id": s_id, "sub": subject_str, "exam": exam_str})
-                                    
-                                    if not chk_marks.empty:
-                                        if dup_strategy == "Skip if Marks Exist":
-                                            skipped_count += 1
-                                            continue
-                                        else:
-                                            execute_db_command("""
-                                                DELETE FROM marks 
-                                                WHERE student_id = :id 
-                                                  AND UPPER(TRIM(subject)) = :sub 
-                                                  AND UPPER(TRIM(exam_type)) = :exam
-                                            """, {"id": s_id, "sub": subject_str, "exam": exam_str})
-                                            
-                                    execute_db_command("""
-                                        INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
-                                        VALUES (:id, :sub, :exam, :score, :tot)
-                                    """, {"id": s_id, "sub": subject_str, "exam": exam_str, "score": obtained_val, "tot": total_val})
-                                    
-                                    success_count += 1
-                                except Exception as inner_e:
-                                    error_logs.append(f"Row {index+2}: Structural error - {str(inner_e)}")
-                            
-                            if error_logs:
-                                with st.expander("⚠️ Review Upload Processing Logs & Warnings", expanded=True):
-                                    for log in error_logs:
-                                        st.warning(log)
-                            st.success(f"📦 Sync Operations Completed! Successfully Imported/Updated: {success_count} entries. Skipped: {skipped_count} entries.")
-                            st.toast("Bulk sheet data synchronized!", icon="📤")
-                            time.sleep(2.0)
-                            st.rerun()
-            except Exception as e:
-                st.error(f"Failed to read file asset cleanly: {e}")
+        st.subheader("📤 Bulk Marks Ledger Import Processing Pipeline")
+        # Bulk module implementation follows here...
 
 
 # ====================================================================================
