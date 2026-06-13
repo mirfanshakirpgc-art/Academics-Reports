@@ -901,9 +901,93 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
                 
-                c_m1, c_m2, c_m3, c_m4 = st.columns([1.5, 1.2, 1, 1.3])
-                with c_m2: 
-                    single_exam = st.selectbox("Exam Type:", all_frameworks, index=1, key="s_exam_val")
+                # --- START NEW MULTI-SUBJECT MARKS SHEET GRID ---
+                st.markdown("---")
+                
+                # 1. Fetch subjects assigned to this Class Level & Section from the allocations matrix
+                allocated_subjects_df = run_query("""
+                    SELECT DISTINCT subject_title 
+                    FROM academic_allocations 
+                    WHERE UPPER(TRIM(class_level)) = :cls AND UPPER(TRIM(section_name)) = :sec
+                    ORDER BY subject_title ASC
+                """, {"cls": s_class, "sec": s_section})
+
+                # Smart discipline fallback rules if no database entries are loaded yet
+                if allocated_subjects_df.empty:
+                    if "ENGINEERING" in detected_discipline:
+                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Physics", "Chemistry", "Mathematics"]
+                    elif "MEDICAL" in detected_discipline:
+                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Physics", "Chemistry", "Biology"]
+                    elif "ICS" in detected_discipline:
+                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Physics" if "PHYSICS" in detected_discipline else "Statistics", "Computer Science", "Mathematics"]
+                    elif "COMMERCE" in detected_discipline:
+                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Accounting", "Commerce", "Economics"]
+                    else:
+                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Elective 1", "Elective 2", "Elective 3"]
+                else:
+                    subjects_list = allocated_subjects_df['subject_title'].tolist()
+
+                # 2. Main Entry Form Interface Wrapper
+                with st.form(key=f"roll_number_entry_form_{single_id}"):
+                    c_m1, c_m2 = st.columns(2)
+                    with c_m1: 
+                        single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
+                    with c_m2:
+                        total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=100, value=50, step=1, key="s_total_val")
+                    
+                    st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
+                    
+                    # Store variables mapped to input hooks
+                    updated_scores = {}
+                    
+                    # Draw form fields dynamically
+                    for subject in subjects_list:
+                        col_sub, col_marks = st.columns([3, 2])
+                        with col_sub:
+                            st.markdown(f"<div style='padding-top: 25px; font-weight: bold;'>{subject}</div>", unsafe_allow_html=True)
+                        with col_marks:
+                            # Pull active database rows to show current entries if modifying records
+                            existing_mark_df = run_query("""
+                                SELECT marks_obtained FROM marks 
+                                WHERE student_id = :s_id AND subject = :sub AND exam_type = :exam
+                            """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                            
+                            default_val = str(existing_mark_df.iloc[0]['marks_obtained']) if not existing_mark_df.empty else ""
+                            
+                            updated_scores[subject] = st.text_input(
+                                f"Marks for {subject}", 
+                                value=default_val, 
+                                placeholder="e.g. 38 or A", 
+                                label_visibility="collapsed",
+                                key=f"roll_mark_in_{single_id}_{subject.replace(' ', '_')}"
+                            )
+
+                    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+                    submit_button = st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", use_container_width=True)
+                    
+                    if submit_button:
+                        success_count = 0
+                        for subject, marks_val in updated_scores.items():
+                            if marks_val.strip() != "":
+                                execute_db_command("""
+                                    INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
+                                    VALUES (:s_id, :sub, :exam, :marks, :total)
+                                    ON CONFLICT (student_id, subject, exam_type)
+                                    DO UPDATE SET marks_obtained = EXCLUDED.marks_obtained, total_marks = EXCLUDED.total_marks
+                                """, {
+                                    "s_id": int(single_id),
+                                    "sub": subject,
+                                    "exam": single_exam,
+                                    "marks": marks_val.strip(),
+                                    "total": total_marks_input
+                                })
+                                success_count += 1
+                        
+                        if success_count > 0:
+                            st.success(f"🎉 Successfully saved/updated academic records across {success_count} subjects for {s_name}!")
+                            st.cache_data.clear()
+                        else:
+                            st.warning("⚠️ No mark entries were added. Check input values.")
                 
                 if single_exam == "MATRIC":
                     single_sub = "OVERALL"
