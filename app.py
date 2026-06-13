@@ -3581,7 +3581,8 @@ elif menu_choice == "👥 Student Operations Management":
             params = {"sess": sess_prefix, "cls": source_class, "sec": str(selected_section)}
         elif promo_scope == "👤 Single Student" and target_student_id:
             should_show_preview = True
-            preview_query = "SELECT id, name, section, class, session FROM students WHERE id = :s_id"
+            # 🌟 Added system_type to the query fields
+            preview_query = "SELECT id, name, section, class, session, system_type FROM students WHERE id = :s_id"
             params = {"s_id": target_student_id}
 
         if should_show_preview:
