@@ -1503,9 +1503,7 @@ elif menu_choice == "📋 Section Summary Report":
         
     with col_a: 
         if academic_system == "Annual System":
-            # Options perfectly match your map keys
             disc_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-            # FIXED: Changed key from 'summary_disc' to a unique summary-report-specific key
             raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_report_discipline_key")
             sel_disc = str(raw_disc).strip().upper()
         else:
@@ -1513,10 +1511,10 @@ elif menu_choice == "📋 Section Summary Report":
             st.info("⚡ DIT System Active")
         
     with col_b: 
-        # 1. Pull the fallback static sections directly from your mapping dictionary
+        # Pull static sections directly from your mapping dictionary using structural lookup keys
         map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(selected_class, [])
         
-        # 2. Query what sections exist in the database for safety
+        # Query active profile records existing in your DB environment
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -1530,51 +1528,20 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 3. Intersection: Only display sections that exist in the database AND belong to the selected discipline map
+        # Intersection: Display sections that exist in the database AND belong to the configuration dictionary map
         if db_sections:
             sec_options = [s for s in db_sections if s in map_sections]
-            
-            # If database synchronization isn't complete yet, fall back directly to the map options
             if not sec_options:
                 sec_options = map_sections
         else:
             sec_options = map_sections
 
-        # Safe default fallback in case everything returns empty to prevent runtime errors
+        # Safe default fallback boundary checks
         if not sec_options:
             sec_options = ["FK"] if sel_disc == "HUMANITIES" else ["MG_BLUE"]
 
-        # 4. FIXED: Using a distinct permanent key specifically assigned to this report module
+        # Track widget state seamlessly without unexpected duplication errors
         fixed_key = "summary_report_section_key"
-        default_index = 0
-        if fixed_key in st.session_state:
-            current_value = st.session_state[fixed_key]
-            if current_value in sec_options:
-                default_index = sec_options.index(current_value)
-
-        sel_sec = st.selectbox(
-            "Select Section:", 
-            sec_options, 
-            index=default_index, 
-            key=fixed_key
-        )
-
-        # 3. Intersection: Only display sections that exist in the database AND belong to the selected discipline map
-        if db_sections:
-            sec_options = [s for s in db_sections if s in map_sections]
-            
-            # If database synchronization isn't complete yet, fall back directly to the map options
-            if not sec_options:
-                sec_options = map_sections
-        else:
-            sec_options = map_sections
-
-        # Safe default fallback in case everything returns empty to prevent runtime errors
-        if not sec_options:
-            sec_options = ["FK"] if sel_disc == "HUMANITIES" else ["MG_BLUE"]
-
-        # 4. Use a stable widget key and safe index pointer so other dropdown layouts do not get reset
-        fixed_key = "summary_section_fixed_key"
         default_index = 0
         if fixed_key in st.session_state:
             current_value = st.session_state[fixed_key]
@@ -1589,7 +1556,7 @@ elif menu_choice == "📋 Section Summary Report":
         )
         
     with col_c: 
-        # --- DYNAMIC FETCH BASED ON SYSTEM TRACK ---
+        # --- DYNAMIC EVALUATION CYCLE TRACK FETCH ---
         try:
             exam_data = run_query("""
                 SELECT exam_code 
@@ -1599,7 +1566,10 @@ elif menu_choice == "📋 Section Summary Report":
             """, {"sys_type": academic_system})
             
             exam_options = exam_data["exam_code"].tolist() if not exam_data.empty else []
-        except Exception as e:
+        except Exception:
+            exam_options = []
+
+        if not exam_options:
             if academic_system == "Semester System":
                 exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"]
             else:
@@ -1629,6 +1599,7 @@ elif menu_choice == "📋 Section Summary Report":
     }
     
     # --- 4. DYNAMIC SUBJECT LIST ROUTING ---
+    # FIXED: Realigned structural keys with upper dropdown formats to stop breaking test lists
     DISCIPLINE_MAP = {
         "MEDICAL": {
             "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"],
@@ -1638,11 +1609,11 @@ elif menu_choice == "📋 Section Summary Report":
             "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"],
             "12th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
-        "ICS_PHYSICS": {
+        "ICS (PHYSICS)": {
             "11th": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"],
             "12th": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
-        "ICS_STATS": {
+        "ICS (STATS)": {
             "11th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"],
             "12th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
@@ -1657,7 +1628,7 @@ elif menu_choice == "📋 Section Summary Report":
     }
 
     if academic_system == "Annual System":
-        disc_key = sel_disc.upper()
+        disc_key = sel_disc.upper().strip()
         subjects = DISCIPLINE_MAP.get(disc_key, {}).get(selected_class, ["ENGLISH", "URDU"])
     else:
         if "Semester 1" in selected_class:
