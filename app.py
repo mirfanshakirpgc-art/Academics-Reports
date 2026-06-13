@@ -893,7 +893,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 }
 
                 roster_df = run_query("""
-                    SELECT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                    SELECT DISTINCT 
+                        s.id AS "ID", 
+                        s.name AS "Student Name", 
+                        m.marks_obtained AS "Marks"
                     FROM students s
                     LEFT JOIN marks m ON s.id = m.student_id 
                         AND UPPER(TRIM(m.subject)) = :subject
