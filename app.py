@@ -900,11 +900,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         elif any(k in s_section for k in ["HUM", "ARTS"]): detected_discipline = "HUMANITIES"
                 
                 st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
-                
-                # --- START NEW MULTI-SUBJECT MARKS SHEET GRID ---
                 st.markdown("---")
                 
-                # 1. Fetch subjects assigned to this Class Level & Section from the allocations matrix
+                # 1. Fetch assigned subjects or provide safe defaults
                 allocated_subjects_df = run_query("""
                     SELECT DISTINCT subject_title 
                     FROM academic_allocations 
@@ -912,22 +910,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     ORDER BY subject_title ASC
                 """, {"cls": s_class, "sec": s_section})
 
-                # Smart discipline fallback rules if no database entries are loaded yet
                 if allocated_subjects_df.empty:
                     if "ENGINEERING" in detected_discipline:
-                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Physics", "Chemistry", "Mathematics"]
+                        subjects_list = ["English", "Urdu", "Physics", "Chemistry", "Mathematics"]
                     elif "MEDICAL" in detected_discipline:
-                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Physics", "Chemistry", "Biology"]
+                        subjects_list = ["English", "Urdu", "Physics", "Chemistry", "Biology"]
                     elif "ICS" in detected_discipline:
-                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Physics" if "PHYSICS" in detected_discipline else "Statistics", "Computer Science", "Mathematics"]
+                        subjects_list = ["English", "Urdu", "Physics" if "PHYSICS" in detected_discipline else "Statistics", "Computer Science", "Mathematics"]
                     elif "COMMERCE" in detected_discipline:
-                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Accounting", "Commerce", "Economics"]
+                        subjects_list = ["English", "Urdu", "Accounting", "Commerce", "Economics"]
                     else:
-                        subjects_list = ["English", "Urdu", "Islamic Studies/Pak Studies", "Elective 1", "Elective 2", "Elective 3"]
+                        subjects_list = ["English", "Urdu", "Elective 1", "Elective 2", "Elective 3"]
                 else:
                     subjects_list = allocated_subjects_df['subject_title'].tolist()
 
-                # 2. Main Entry Form Interface Wrapper
+                # 2. Render Single Form with Input Fields for All Subjects
                 with st.form(key=f"roll_number_entry_form_{single_id}"):
                     c_m1, c_m2 = st.columns(2)
                     with c_m1: 
@@ -937,10 +934,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
                     
-                    # Store variables mapped to input hooks
                     updated_scores = {}
                     
-                    # Draw form fields dynamically
+                    # Loop out layout fields for EVERY subject found dynamically
                     for subject in subjects_list:
                         col_sub, col_marks = st.columns([3, 2])
                         with col_sub:
@@ -986,6 +982,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         if success_count > 0:
                             st.success(f"🎉 Successfully saved/updated academic records across {success_count} subjects for {s_name}!")
                             st.cache_data.clear()
+                            st.rerun()
                         else:
                             st.warning("⚠️ No mark entries were added. Check input values.")
                 
