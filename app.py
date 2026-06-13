@@ -932,12 +932,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     with st.form(f"bulk_marks_form_{sel_exam}_{sel_subject}"):
                         updated_section_scores = {}
                         
-                        h_col_roll, h_col_name, h_col_field, h_col_abs, h_col_nc = st.columns([1.5, 2.5, 2.5, 1, 1])
+                        # Rearranged headers: Absent and NC columns moved to the left
+                        h_col_abs, h_col_nc, h_col_roll, h_col_name, h_col_field = st.columns([1, 1, 1.5, 2.5, 2.5])
+                        h_col_abs.caption("❌ **Absent**")
+                        h_col_nc.caption("➖ **NC**")
                         h_col_roll.caption("🆔 **Roll No**")
                         h_col_name.caption("👤 **Student Name**")
                         h_col_field.caption("🔢 **Obtained Marks Input**")
-                        h_col_abs.caption("❌ **Absent**")
-                        h_col_nc.caption("➖ **NC**")
                         st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
                         
                         for idx, row in roster_df.iterrows():
@@ -958,16 +959,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
                             
                             st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                            col_roll, col_name, col_field, col_abs, col_nc = st.columns([1.5, 2.5, 2.5, 1, 1])
                             
-                            col_roll.markdown(f"<div class='vertical-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
-                            col_name.markdown(f"<div class='vertical-center' style='font-size: 0.95rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
+                            # Rearranged content columns matching header schema
+                            col_abs, col_nc, col_roll, col_name, col_field = st.columns([1, 1, 1.5, 2.5, 2.5])
                             
                             with col_abs: st.checkbox("", key=state_abs_key, label_visibility="collapsed")
                             with col_nc: st.checkbox("", key=state_nc_key, label_visibility="collapsed")
                             
+                            col_roll.markdown(f"<div class='vertical-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
+                            col_name.markdown(f"<div class='vertical-center' style='font-size: 0.95rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
+                            
                             with col_field:
-                                # HTML element ID injection trick via label parameter injection hack
                                 score_input = st.text_input(
                                     f"sec_m_{student_id}_{idx}", 
                                     value=display_score, 
@@ -1113,11 +1115,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
                     updated_scores = {}
                     
-                    h_col_name, h_col_field, h_col_abs, h_col_nc = st.columns([4, 2.5, 1, 1])
-                    h_col_name.caption("📖 **Course Subject**")
-                    h_col_field.caption("🔢 **Obtained Marks**")
+                    # Rearranged headers for Single profile layout: Absent and NC to the left
+                    h_col_abs, h_col_nc, h_col_name, h_col_field = st.columns([1, 1, 4, 2.5])
                     h_col_abs.caption("❌ **Absent**")
                     h_col_nc.caption("➖ **NC**")
+                    h_col_name.caption("📖 **Course Subject**")
+                    h_col_field.caption("🔢 **Obtained Marks**")
                     st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
                     for idx, subject_name in enumerate(subjects_list):
@@ -1143,14 +1146,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         display_val = "A" if chk_abs else ("NC" if chk_nc else ("" if db_score in ['A', 'ABSENT', 'NC'] else db_score))
                         
                         st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                        c_lbl, c_in, c_a, c_n = st.columns([4, 2.5, 1, 1])
                         
-                        c_lbl.markdown(f"<div class='vertical-center'><b>📖 {subject_name}</b></div>", unsafe_allow_html=True)
+                        # Rearranged columns matching header layout
+                        c_a, c_n, c_lbl, c_in = st.columns([1, 1, 4, 2.5])
+                        
                         with c_a: st.checkbox("", key=s_abs_key, label_visibility="collapsed")
                         with c_n: st.checkbox("", key=s_nc_key, label_visibility="collapsed")
                         
+                        c_lbl.markdown(f"<div class='vertical-center'><b>📖 {subject_name}</b></div>", unsafe_allow_html=True)
                         with c_in:
-                            # Dynamic ID signature injected natively into target component structure
                             score_input = st.text_input(
                                 f"single_m_{single_id}_{idx}", 
                                 value=display_val, 
