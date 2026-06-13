@@ -1204,10 +1204,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # ==============================================================================
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
-elif menu_choice == "🗓️ Attendance Entry Management":
+if "Attendance Entry Management" in menu_choice:
+    st.title("🚨 TEST: CODE REACHED SUCCESSFULLY!")
+    st.write(f"Current menu selection is: {menu_choice}")
+    st.stop() # 🛑 This will now catch your click instantly!
+    
     import datetime  
     import pandas as pd
-    from sqlalchemy import text 
+    # ... the rest of your code stays below this ...
+    from sqlalchemy import text
     
     # 🕵️‍♂️ DIAGNOSTIC CHECK: This will print to your terminal window
     print("👉 SUCCESSFULLY ENTERED ATTENDANCE MODULE!") 
