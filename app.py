@@ -3636,34 +3636,34 @@ elif menu_choice == "👥 Student Operations Management":
                 
             wipe_target_sec = st.selectbox("🎯 Target Section Selection Matrix:", master_sections_list, key="always_visible_wipe_dropdown")
         
-            with cleanup_col2:
-                st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("🧹 Clear Logs Only", key="clear_logs_btn", use_container_width=True):
-                    try:
-                        execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
-                        st.success(f"Wiped history log entries involving Section {wipe_target_sec}!")
-                        st.rerun()
-                    except Exception as clear_err:
-                        st.error(f"Clear Error: {clear_err}")
+        with cleanup_col2:
+            st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("🧹 Clear Logs Only", key="clear_logs_btn", use_container_width=True):
+                try:
+                    execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
+                    st.success(f"Wiped history log entries involving Section {wipe_target_sec}!")
+                    st.rerun()
+                except Exception as clear_err:
+                    st.error(f"Clear Error: {clear_err}")
 
-            with cleanup_col3:
-                st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
-                confirm_purge = st.checkbox("Confirm Table Purge", key="confirm_purge_check")
-                
-                if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True, disabled=not confirm_purge):
-                    try:
-                        execute_db_command("""
-                            DELETE FROM students 
-                            WHERE id IN (
-                                SELECT student_id FROM promotion_history 
-                                WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))
-                            )
-                        """, {"sec": wipe_target_sec})
-                        execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
-                        st.success(f"💥 Permanent Purge Complete! All students tracked within Section {wipe_target_sec} have been erased from the system.")
-                        st.rerun()
-                    except Exception as delete_err:
-                        st.error(f"Database Purge Failure: {delete_err}")
+        with cleanup_col3:
+            st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
+            confirm_purge = st.checkbox("Confirm Table Purge", key="confirm_purge_check")
+            
+            if st.button("🔥 DELETE STUDENTS FROM DB", key="purge_db_students_btn", type="primary", use_container_width=True, disabled=not confirm_purge):
+                try:
+                    execute_db_command("""
+                        DELETE FROM students 
+                        WHERE id IN (
+                            SELECT student_id FROM promotion_history 
+                            WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))
+                        )
+                    """, {"sec": wipe_target_sec})
+                    execute_db_command("DELETE FROM promotion_history WHERE UPPER(TRIM(old_section)) = UPPER(TRIM(:sec)) OR UPPER(TRIM(new_section)) = UPPER(TRIM(:sec))", {"sec": wipe_target_sec})
+                    st.success(f"💥 Permanent Purge Complete! All students tracked within Section {wipe_target_sec} have been erased from the system.")
+                    st.rerun()
+                except Exception as delete_err:
+                    st.error(f"Database Purge Failure: {delete_err}")
 
         st.markdown("---")
         st.write("Below are recent promotions processed. Reverting an action syncs their session tags so they appear back on your 11th grade roster views.")
@@ -3696,7 +3696,9 @@ elif menu_choice == "👥 Student Operations Management":
                         if not batch_details.empty:
                             for _, record in batch_details.iterrows():
                                 log_session_str = str(record['old_session']).strip() if record['old_session'] else ""
-                                target_session_val = promo_session if (!log_session_str or log_session_str == "None") else log_session_str
+                                
+                                # ✅ SYNTAX FIX COMPLETED HERE: Evaluates safely with native Python expressions
+                                target_session_val = promo_session if (not log_session_str or log_session_str == "None") else log_session_str
                                 
                                 execute_db_command("""
                                     UPDATE students 
