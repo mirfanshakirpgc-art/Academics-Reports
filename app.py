@@ -3517,10 +3517,11 @@ elif menu_choice == "👥 Student Operations Management":
     elif workspace_mode == "🗂️ Whole Section Batch Operations":
         st.markdown("### 📦 Bulk Section Operations Matrix")
         
+        # UPDATED: Applying the same flexible match for batch actions
         sections_data = run_query("""
             SELECT DISTINCT section FROM students 
             WHERE session = :sess 
-              AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys)) 
+              AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%' 
               AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
               AND status = 'ACTIVE' 
             ORDER BY section
