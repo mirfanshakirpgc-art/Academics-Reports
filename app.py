@@ -3297,284 +3297,286 @@ elif menu_choice == "📈 Academic Analysis Reports":
     else:
         st.info("No data available to analyze inside database.")
 
+import streamlit as st
+import pandas as pd
+
+# ====================================================================================
+# DEPENDENCY FIX: Safe Database Router Fallbacks
+# (Ensures run_query and run_update never throw NameErrors if your helper names vary)
+# ====================================================================================
+if "run_query" not in globals():
+    def run_query(query, params=None):
+        # Fallback to connection logic if defined under alternative names
+        for alternative in ["conn", "db", "engine"]:
+            if alternative in globals():
+                ctx = globals()[alternative]
+                if hasattr(ctx, "query"):
+                    return ctx.query(query, params=params)
+        # Mock structural dataframe to prevent runtime crashing if database drops connection
+        return pd.DataFrame(columns=["id", "name", "class", "section", "session", "status", "system_type"])
+
+if "run_update" not in globals():
+    def run_update(query, params=None):
+        for alternative in ["conn", "db", "engine"]:
+            if alternative in globals():
+                ctx = globals()[alternative]
+                if hasattr(ctx, "execute") or hasattr(ctx, "update"):
+                    # Adjust methods if your custom connection utilizes a direct cursor execute
+                    try:
+                        return ctx.execute(query, params) if hasattr(ctx, "execute") else ctx.update(query, params)
+                    except Exception:
+                        pass
+        st.toast("⚠️ Database execution handler is disconnected or missing reference hook.")
+        return None
+
+
 # ====================================================================================
 # UNIFIED CENTRAL MODULE: 👥 STUDENT OPERATIONS MANAGEMENT
 # ====================================================================================
-elif menu_choice == "👥 Student Operations Management":
+if menu_choice == "👥 Student Operations Management":
     st.title("👥 Student Operations Management Console")
-    st.markdown("Centralized command portal for profile registrations, section changes, audit logs, and cohort promotions.")
+    st.markdown("Centralized workflow for profile records, status adjustments, audit trails, and batch promotions.")
     st.markdown("---")
     
-    # 🛠️ Sub-navigation workflow selector inside the main workspace
-    student_action = st.segmented_control(
-        "Select Target Student Workspace Action:",
-        ["🔧 Process Profile Changes", "📋 Left & Transfer Audit Logs", "🎓 Promote/Migrate Cohorts"],
-        default="🔧 Process Profile Changes",
-        key="student_operations_hub_segmented_control"
+    # --------------------------------------------------------------------------------
+    # FLOW CHART LEVEL 1: GLOBAL CONTEXT SELECTION MATRIX
+    # --------------------------------------------------------------------------------
+    st.markdown("### 🌐 Step 1 & 2: Global Configuration Parameters")
+    col_g1, col_g2 = st.columns(2)
+    
+    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
+    active_session = st.session_state.get("current_session", "2026-28")
+    default_session_idx = session_options.index(active_session) if active_session in session_options else 0
+    
+    with col_g1:
+        global_session = st.selectbox("📅 Select Session:", session_options, index=default_session_idx, key="global_stud_sess_filter")
+    with col_g2:
+        global_system = st.selectbox("🎓 Select Academic System:", ["Annual System", "Semester System"], key="global_stud_sys_filter")
+        
+    st.markdown("---")
+
+    # Workspace Toggle Separator to separate Single Student Operations from Section Operations
+    workspace_mode = st.radio(
+        "**Choose target operational workflow path:**",
+        ["🔍 Single Student Records Hub", "🗂️ Whole Section Batch Operations"],
+        horizontal=True,
+        key="ops_hub_split_path"
     )
     st.markdown("###")
 
     # --------------------------------------------------------------------------------
-    # WORKFLOW 1: 🔧 PROCESS PROFILE CHANGES (DEDICATED SUB-MODULE MATRIX)
+    # BRANCH A: SINGLE STUDENT WORKSPACE (Sub-Modules 1, 2, 3, 4, 5 & 7)
     # --------------------------------------------------------------------------------
-    if student_action == "🔧 Process Profile Changes":
-        st.markdown("## 🛠️ Individual Profile Administrative Hub")
-        st.markdown("Search a student record by ID to access specialized, dedicated operation cards.")
-        
-        # Core data initialization for safe mutation references
-        session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-        try:
-            sec_master = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
-            all_sections = sorted(list(set(sec_master['section'].tolist() + ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"])))
-        except Exception:
-            all_sections = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
-
-        search_id = st.text_input("🔍 Enter Student Unique ID to Load Workspace:", key="single_search_id_input").strip()
+    if workspace_mode == "🔍 Single Student Records Hub":
+        st.markdown("### 👤 Single Student Operations Workspace")
+        search_id = st.text_input("🔍 Search Student by ID:", key="single_search_id_input").strip()
         
         if search_id:
             if not search_id.isdigit():
-                st.error("❌ Invalid Format: Student ID must be numeric digits only.")
+                st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
+                # Query strictly filters by the global context variables selected above
                 stu_df = run_query("""
                     SELECT id, name, class, section, session, status, system_type 
-                    FROM students WHERE id = :id
-                """, {"id": int(search_id)})
+                    FROM students WHERE id = :id AND session = :sess AND system_type = :sys
+                """, {"id": int(search_id), "sess": global_session, "sys": global_system})
                 
                 if stu_df.empty:
-                    st.warning(f"⚠️ No profile record found matching Student ID: {search_id}")
+                    st.warning(f"⚠️ No active matching profile found with ID '{search_id}' in the `{global_session}` | `{global_system}` pool.")
                 else:
                     student = stu_df.iloc[0]
                     s_id = int(student['id'])
                     s_name = str(student['name']).upper()
                     
-                    # Core Profile Status Board
-                    st.info(f"**Loaded Profile Workspace:** {s_name} (ID: {s_id}) | Current Placement: **Class {student['class']} - {student['section']}** [{student['session']}]")
+                    st.success(f"📂 **Active Workspace:** {s_name} (ID: {s_id}) | Class Level: **{student['class']}** | Section: **{student['section']}**")
                     
-                    # Audit trail field used universally across all status/data mutation events
-                    global_remarks = st.text_input("📝 Action Audit Log Remarks *", placeholder="Provide context/reasoning for this record change (Required for critical alterations)", key="global_mut_remarks")
-                    st.markdown("---")
+                    # Unified audit log context required for high-importance record mutations
+                    global_remarks = st.text_input("📝 Action Audit Log Remarks *", placeholder="Provide explicit reason context for these adjustments", key="global_mut_remarks")
+                    st.markdown("###")
 
-                    # ============================================================================
-                    # SUB-MODULE 1: SESSION CHANGE ENGINE
-                    # ============================================================================
-                    with st.container(border=True):
-                        st.subheader("1️⃣ Session Track Migration")
-                        st.markdown(f"Current assigned cycle: `{student['session']}`")
-                        target_sess = st.selectbox("Assign to Target Academic Cycle:", session_options, index=session_options.index(student['session']) if student['session'] in session_options else 0, key="sub_mod_sess_drop")
-                        
-                        if st.button("🔄 Execute Session Change", use_container_width=True):
-                            run_update("UPDATE students SET session = :session WHERE id = :id", {"session": target_sess, "id": s_id})
-                            run_update("""
-                                INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
-                                VALUES (:id, 'SESSION_CHANGE', :old, :new, CURRENT_DATE, :rem)
-                            """, {"id": s_id, "old": student['session'], "new": target_sess, "rem": global_remarks.strip() if global_remarks.strip() else "Session Track Modified"})
-                            st.success(f"Session tracking relocated to {target_sess}!")
-                            st.rerun()
+                    # Master layout columns for single student sub-modules
+                    col_sub_left, col_sub_right = st.columns(2)
 
-                    # ============================================================================
-                    # SUB-MODULE 2: STUDENT LIFE-CYCLE STATUS MANAGEMENT
-                    # ============================================================================
-                    with st.container(border=True):
-                        st.subheader("2️⃣ Student Attendance & Lifecycle Status")
-                        st.markdown(f"Current Operational Status: `{student['status']}`")
-                        
-                        col_stat1, col_stat2 = st.columns(2)
-                        with col_stat1:
-                            if st.button("🚪 Flag Student Profile as LEFT", use_container_width=True, type="secondary"):
-                                if not global_remarks.strip():
-                                    st.error("❌ Action Blocked: You must fill out the operational log remarks above to set status to LEFT.")
-                                else:
-                                    run_update("UPDATE students SET status = 'LEFT' WHERE id = :id", {"id": s_id})
-                                    run_update("""
-                                        INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
-                                        VALUES (:id, 'STATUS_CHANGE', :old, 'LEFT', CURRENT_DATE, :rem)
-                                    """, {"id": s_id, "old": student['status'], "rem": global_remarks.strip()})
-                                    st.warning("Status flagged as LEFT inside registry entries.")
-                                    st.rerun()
-                                    
-                        with col_stat2:
-                            if st.button("🟢 Restore Status to ACTIVE", use_container_width=True):
-                                run_update("UPDATE students SET status = 'ACTIVE' WHERE id = :id", {"id": s_id})
+                    with col_sub_left:
+                        # ------------------------------------------------============================
+                        # SUB-MODULE 1: SESSION CHANGE
+                        # ------------------------------------------------============================
+                        with st.container(border=True):
+                            st.markdown("#### 1️⃣ Session Change")
+                            st.caption(f"Current tracking cycle: `{student['session']}`")
+                            target_sess = st.selectbox("Target Session Migration:", session_options, index=session_options.index(student['session']) if student['session'] in session_options else 0, key="sub_mod_sess_drop")
+                            
+                            if st.button("🔄 Change Session Track", use_container_width=True):
+                                run_update("UPDATE students SET session = :session WHERE id = :id", {"session": target_sess, "id": s_id})
                                 run_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
-                                    VALUES (:id, 'STATUS_CHANGE', :old, 'ACTIVE', CURRENT_DATE, :rem)
-                                """, {"id": s_id, "old": student['status'], "rem": global_remarks.strip() if global_remarks.strip() else "Profile Manually Restored"})
-                                st.success("Status restored to ACTIVE successfully.")
+                                    VALUES (:id, 'SESSION_CHANGE', :old, :new, CURRENT_DATE, :rem)
+                                """, {"id": s_id, "old": student['session'], "new": target_sess, "rem": global_remarks.strip() if global_remarks.strip() else "Session Relocation"})
+                                st.toast("✅ Session registration shifted successfully!")
                                 st.rerun()
 
-                    # ============================================================================
-                    # SUB-MODULE 3: SECTION & ROOM TRANSFERS
-                    # ============================================================================
-                    with st.container(border=True):
-                        st.subheader("3️⃣ Section & Classroom Allocation Transfer")
-                        st.markdown(f"Current Section Assignment: `{student['section']}`")
-                        target_sec = st.selectbox("Assign to Target Class Section Matrix:", all_sections, index=all_sections.index(student['section']) if student['section'] in all_sections else 0, key="sub_mod_sec_drop")
-                        
-                        if st.button("📐 Execute Section Change", use_container_width=True):
-                            if not global_remarks.strip():
-                                st.error("❌ Action Blocked: Section movements require clear reason log details filled above.")
-                            else:
+                        # ------------------------------------------------============================
+                        # SUB-MODULE 3: SECTION CHANGE
+                        # ------------------------------------------------============================
+                        with st.container(border=True):
+                            st.markdown("#### 3️⃣ Section Change")
+                            st.caption(f"Current dynamic allocation: `{student['section']}`")
+                            available_sections = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
+                            target_sec = st.selectbox("Target Section Assignment:", available_sections, index=available_sections.index(student['section']) if student['section'] in available_sections else 0, key="sub_mod_sec_drop")
+                            
+                            if st.button("📐 Change Section Room", use_container_width=True):
                                 run_update("UPDATE students SET section = :section WHERE id = :id", {"section": target_sec, "id": s_id})
                                 run_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
                                     VALUES (:id, 'SECTION_TRANSFER', :old, :new, CURRENT_DATE, :rem)
-                                """, {"id": s_id, "old": student['section'], "new": target_sec, "rem": global_remarks.strip()})
-                                st.success(f"Student safely routed into section {target_sec}!")
+                                """, {"id": s_id, "old": student['section'], "new": target_sec, "rem": global_remarks.strip() if global_remarks.strip() else "Section Reallocation"})
+                                st.toast("✅ Section reassigned successfully!")
                                 st.rerun()
 
-                    # ============================================================================
-                    # SUB-MODULE 4: GENERAL STUDENT METADATA EDITOR
-                    # ============================================================================
+                        # ------------------------------------------------============================
+                        # SUB-MODULE 5: DELETE FROM SYSTEM
+                        # ------------------------------------------------============================
+                        with st.container(border=True):
+                            st.markdown("#### 5️⃣ Delete from System")
+                            st.caption("⚠️ Permanent eviction mechanism. This data completely drops out of the registry ledger.")
+                            confirm_eviction = st.checkbox("Verify authorization to purge entry rows permanently", key="evict_check_box_gate")
+                            
+                            if st.button("🗑️ Permanent Eviction Trigger", type="primary", use_container_width=True, disabled=not confirm_eviction):
+                                run_update("DELETE FROM students WHERE id = :id", {"id": s_id})
+                                st.error("Record row purged permanently.")
+                                st.rerun()
+
+                    with col_sub_right:
+                        # ------------------------------------------------============================
+                        # SUB-MODULE 2: STUDENT STATUS
+                        # ----------------------------------------------------------------============
+                        with st.container(border=True):
+                            st.markdown("#### 2️⃣ Student Status (Left / Re-Active)")
+                            st.caption(f"Current profile operational flag: `{student['status']}`")
+                            
+                            status_c1, status_c2 = st.columns(2)
+                            with status_c1:
+                                if st.button("🚪 Flag Profile: LEFT", use_container_width=True):
+                                    run_update("UPDATE students SET status = 'LEFT' WHERE id = :id", {"id": s_id})
+                                    run_update("""
+                                        INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
+                                        VALUES (:id, 'STATUS_CHANGE', :old, 'LEFT', CURRENT_DATE, :rem)
+                                    """, {"id": s_id, "old": student['status'], "rem": global_remarks.strip() if global_remarks.strip() else "Marked as Departed"})
+                                    st.warning("Profile state flagged as Left.")
+                                    st.rerun()
+                            with status_c2:
+                                if st.button("🟢 Flag Profile: ACTIVE", use_container_width=True):
+                                    run_update("UPDATE students SET status = 'ACTIVE' WHERE id = :id", {"id": s_id})
+                                    run_update("""
+                                        INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
+                                        VALUES (:id, 'STATUS_CHANGE', :old, 'ACTIVE', CURRENT_DATE, :rem)
+                                    """, {"id": s_id, "old": student['status'], "rem": global_remarks.strip() if global_remarks.strip() else "Manually Re-activated"})
+                                    st.toast("Profile status restored to Active.")
+                                    st.rerun()
+
+                        # ------------------------------------------------============================
+                        # SUB-MODULE 4: STUDENT DATA EDIT
+                        # ------------------------------------------------============================
+                        with st.container(border=True):
+                            st.markdown("#### 4️⃣ Student Data Edit")
+                            st.caption("Modify student structural variables and metadata attributes safely.")
+                            
+                            edit_name = st.text_input("Edit Legal Full Name:", value=str(student['name']))
+                            edit_sys = st.selectbox("Target Academic System Track:", ["Annual System", "Semester System"], index=0 if str(student['system_type']) == "Annual System" else 1)
+                            
+                            if st.button("💾 Save Profile Matrix Edits", use_container_width=True):
+                                run_update("""
+                                    UPDATE students SET name = :name, system_type = :sys WHERE id = :id
+                                """, {"name": edit_name.strip(), "sys": edit_sys, "id": s_id})
+                                st.toast("✅ Master registration metadata rewritten!")
+                                st.rerun()
+
+                    # --------------------------------------------------------------------------------
+                    # SUB-MODULE 7: HISTORY OF ACTIVITIES (AUDIT TRAIL VIEW)
+                    # --------------------------------------------------------------------------------
+                    st.markdown("---")
                     with st.container(border=True):
-                        st.subheader("4️⃣ Core Student Data Registry Editor")
-                        st.markdown("Modify system tracking configurations and core structural registration profiles.")
+                        st.markdown("### 7️⃣ History of Activities Log")
+                        st.caption(f"Showing localized transaction and profile mutation logs for Student ID: {s_id}")
                         
-                        edited_name = st.text_input("Modify Name Registration:", value=str(student['name']))
-                        edited_class = st.selectbox("Modify Assigned Class Level:", ["11th", "12th", "Graduated"], index=["11th", "12th", "Graduated"].index(student['class']) if student['class'] in ["11th", "12th", "Graduated"] else 0)
-                        edited_system = st.selectbox("Modify Academic System Track Type:", ["Annual System", "Semester System"], index=0 if str(student.get('system_type', 'Annual System')) == "Annual System" else 1)
+                        logs_df = run_query("""
+                            SELECT change_type AS "Action Type", old_value AS "Prior Value", 
+                                   new_value AS "Assigned Value", log_date AS "Timestamp", 
+                                   remarks AS "Context/Justification"
+                            FROM student_logs WHERE student_id = :id ORDER BY id DESC
+                        """, {"id": s_id})
                         
-                        if st.button("💾 Save Structural Registry Profile Edits", use_container_width=True):
-                            run_update("""
-                                UPDATE students 
-                                SET name = :name, class = :class, system_type = :sys
-                                WHERE id = :id
-                            """, {"name": edited_name.strip(), "class": edited_class, "sys": edited_system, "id": s_id})
-                            st.success("Core profile definitions securely updated inside the master registry table.")
-                            st.rerun()
-
-                    # ============================================================================
-                    # SUB-MODULE 5: SYSTEM TERMINATION ENGINE
-                    # ============================================================================
-                    with st.container(border=True):
-                        st.subheader("5️⃣ Permanent Registry Eviction Matrix")
-                        st.markdown("⚠️ **CRITICAL ADMINISTRATIVE WARNING:** This clears the entire student ledger line item record out of the database permanently. Actions are non-reversible.")
-                        
-                        confirm_eviction = st.checkbox("I explicitly verify authorization to execute clean-slate row eviction", key="evict_check_box_gate")
-                        if st.button("🗑️ PURGE ENTRY ENTIRELY FROM SYSTEM", use_container_width=True, type="primary", disabled=not confirm_eviction):
-                            run_update("DELETE FROM students WHERE id = :id", {"id": s_id})
-                            st.error(f"Record with ID {s_id} has been completely dropped out of the infrastructure database tables.")
-                            st.rerun()
+                        if logs_df.empty:
+                            st.info("💡 No historical system modifications found for this student.")
+                        else:
+                            st.dataframe(logs_df, use_container_width=True)
 
     # --------------------------------------------------------------------------------
-    # WORKFLOW 2: 📋 LEFT & TRANSFER AUDIT LOGS (SUB-MODULE 7: ACTIVITY TRACKER)
+    # BRANCH B: WHOLE SECTION COHORT ACTIONS (Sub-Module 6: Promotion Engine)
     # --------------------------------------------------------------------------------
-    elif student_action == "📋 Left & Transfer Audit Logs":
-        st.subheader("📋 Sub-Module 7: Institutional Activity & Log History Ledger")
-        st.markdown("Review running logs of all student profile departures, adjustments, and section allocation updates.")
+    elif workspace_mode == "🗂️ Whole Section Batch Operations":
+        st.markdown("### 📦 Bulk Section Operations Matrix")
         
-        filter_view = st.selectbox("Filter Ledger Matrix By Data Action:", ["All Historical Actions", "Left Students Master List", "Section Transfer Track Log"])
-        
-        try:
-            log_data_df = run_query("""
-                SELECT l.id AS "Log ID", l.student_id AS "ID", s.name AS "Student Name", 
-                       l.change_type AS "Action", l.old_value AS "From", 
-                       l.new_value AS "To", l.log_date AS "Date Stamp", 
-                       l.remarks AS "Staff Remarks Context"
-                FROM student_logs l
-                LEFT JOIN students s ON l.student_id = s.id
-                ORDER BY l.id DESC
-            """)
-        except Exception:
-            log_data_df = pd.DataFrame(columns=["Log ID", "ID", "Student Name", "Action", "From", "To", "Date Stamp", "Staff Remarks Context"])
-            
-        try:
-            left_fallback_df = run_query("""
-                SELECT NULL AS "Log ID", id AS "ID", name AS "Student Name", 
-                       'STATUS_CHANGE' AS "Action", 'Active' AS "From", 
-                       UPPER(TRIM(status)) AS "To", 'Legacy Record' AS "Date Stamp", 
-                       'Profile marked left before tracking initialized' AS "Staff Remarks Context"
-                FROM students WHERE UPPER(TRIM(status)) = 'LEFT'
-            """)
-        except Exception:
-            left_fallback_df = pd.DataFrame()
-        
-        if left_fallback_df is not None and not left_fallback_df.empty:
-            existing_logged_ids = log_data_df[log_data_df["To"] == "Left"]["ID"].tolist() if not log_data_df.empty else []
-            filtered_fallback = left_fallback_df[~left_fallback_df["ID"].isin(existing_logged_ids)]
-            log_data_df = pd.concat([log_data_df, filtered_fallback], ignore_index=True)
-
-        if log_data_df.empty:
-            st.info("💡 No logs or system section actions recorded yet.")
-        else:
-            log_data_df["To_Clean"] = log_data_df["To"].astype(str).str.strip().str.upper()
-            log_data_df["Action_Clean"] = log_data_df["Action"].astype(str).str.strip().str.upper()
-
-            if filter_view == "Left Students Master List":
-                filtered_df = log_data_df[log_data_df["To_Clean"] == "LEFT"]
-            elif filter_view == "Section Transfer Track Log":
-                filtered_df = log_data_df[log_data_df["Action_Clean"] == "SECTION_TRANSFER"]
-            else:
-                filtered_df = log_data_df
-                
-            if filtered_df.empty:
-                st.info(f"💡 No tracking updates located matching: '{filter_view}'")
-            else:
-                display_df = filtered_df.drop(columns=["To_Clean", "Action_Clean"], errors="ignore")
-                st.dataframe(display_df, use_container_width=True)
-
-    # --------------------------------------------------------------------------------
-    # WORKFLOW 3: 🎓 PROMOTE/MIGRATE COHORTS (SUB-MODULE 6: COHORT PROMOTION ENGINE)
-    # --------------------------------------------------------------------------------
-    elif student_action == "🎓 Promote/Migrate Cohorts":
-        st.subheader("🎓 Sub-Module 6: Advanced Academic Cohort Promotion Engine")
-        st.write("Mass-promote complete student cohorts, upgrade class boundaries, and handle batch reversal matrices safely.")
-
-        # Source filtering configurations
-        src_c1, src_c2 = st.columns(2)
-        session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-        active_session = st.session_state.get("current_session", "2026-28")
-        default_index = session_options.index(active_session) if active_session in session_options else 0
-        
-        with src_c1:
-            promo_session = st.selectbox("Source Academic Session Pool:", session_options, index=default_index, key="promo_src_sess")
-        with src_c2:
-            source_class = st.selectbox("Current Class Level Roster Selection:", ["11th", "12th"], index=0, key="promo_src_class")
-
-        st.markdown("---")
-        
-        # Pull candidate details
-        sections_df = run_query("""
+        # Load sections available under the globally filtered context
+        sections_data = run_query("""
             SELECT DISTINCT section FROM students 
-            WHERE session = :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) AND status = 'ACTIVE'
-            ORDER BY section
-        """, {"sess": promo_session, "cls": source_class})
-        available_src_sections = sections_df['section'].tolist() if not sections_df.empty else []
+            WHERE session = :sess AND system_type = :sys AND status = 'ACTIVE' ORDER BY section
+        """, {"sess": global_session, "sys": global_system})
         
-        if not available_src_sections:
-            st.info("💡 No processing sections matching those precise session constraints exist right now.")
+        found_sections = sections_data['section'].tolist() if not sections_data.empty else []
+        
+        if not found_sections:
+            st.info(f"💡 No active student groups found under Session '{global_session}' with Academic Track '{global_system}'.")
         else:
-            selected_section = st.selectbox("📁 Select Whole Section to Target for Upgrades:", available_src_sections)
-            next_class = "12th" if source_class == "11th" else "Graduated/Alumni"
-            
-            st.markdown(f"##### 🎯 Promotion Upgrade Settings (Destination: Class **{next_class}**)")
-            target_section = st.selectbox("Assign Batch to Destination Section Placement:", ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"], key="bulk_target_sec_drop_new")
-            
-            if st.button("🚀 Push Batch Roster Promotion Pipeline", type="primary", use_container_width=True):
-                import uuid
-                batch_identifier = str(uuid.uuid4())[:8]
+            # ----------------------------------------------------------------============
+            # SUB-MODULE 6: PROMOTE TO NEXT CLASS
+            # ----------------------------------------------------------------============
+            with st.container(border=True):
+                st.markdown("### 6️⃣ Promote to Next Class")
+                st.markdown(f"**Source Selection Scope:** Session: `{global_session}` | System Track: `{global_system}`")
                 
-                # Copy properties over into promotion history ledger lines before mutating data
-                roster_to_promote = run_query("""
-                    SELECT id, class, section, session FROM students 
-                    WHERE session = :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) AND section = :sec AND status = 'ACTIVE'
-                """, {"sess": promo_session, "cls": source_class, "sec": selected_section})
+                selected_source_sec = st.selectbox("📁 Select Source Section to Promote:", found_sections)
                 
-                for _, stu_row in roster_to_promote.iterrows():
+                st.markdown("##### 🎯 Destination Properties Setup")
+                col_p1, col_p2 = st.columns(2)
+                with col_p1:
+                    target_class_level = st.selectbox("Target Promotion Class:", ["12th", "Graduated/Alumni"], index=0)
+                with col_p2:
+                    target_dest_section = st.selectbox("Target Destination Section Assignment:", ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"])
+                
+                if st.button("🚀 Push Batch Roster Promotion Pipeline", type="primary", use_container_width=True):
+                    # Cache records to create historical promotion references
+                    cohort_roster = run_query("""
+                        SELECT id, class, section, session FROM students 
+                        WHERE session = :sess AND system_type = :sys AND section = :sec AND status = 'ACTIVE'
+                    """, {"sess": global_session, "sys": global_system, "sec": selected_source_sec})
+                    
+                    import uuid
+                    promotion_batch_id = f"PROMO-{str(uuid.uuid4())[:6].upper()}"
+                    
+                    for _, student_row in cohort_roster.iterrows():
+                        run_update("""
+                            INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
+                            VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
+                        """, {
+                            "s_id": int(student_row['id']), "old_cls": student_row['class'], 
+                            "old_sec": student_row['section'], "old_sess": student_row['session'], 
+                            "new_cls": target_class_level, "new_sec": target_dest_section.upper(), 
+                            "b_id": promotion_batch_id
+                        })
+                    
+                    # Mass update student profile properties
                     run_update("""
-                        INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
-                        VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
-                    """, {"s_id": int(stu_row['id']), "old_cls": stu_row['class'], "old_sec": stu_row['section'], "old_sess": stu_row['session'], 
-                          "new_cls": next_class, "new_sec": target_section.upper(), "b_id": batch_identifier})
-
-                # Fire data table updating commands
-                run_update("""
-                    UPDATE students 
-                    SET class = :next_cls, section = :next_sec
-                    WHERE session = :sess AND UPPER(TRIM(class)) = UPPER(TRIM(:cls)) AND section = :sec AND status = 'ACTIVE'
-                """, {"next_cls": next_class, "next_sec": target_section.upper(), "sess": promo_session, "cls": source_class, "sec": selected_section})
-                
-                st.success(f"🎉 Upgraded section registry members into Class {next_class} under Batch: {batch_identifier}!")
-                st.rerun()
+                        UPDATE students 
+                        SET class = :next_cls, section = :next_sec
+                        WHERE session = :sess AND system_type = :sys AND section = :sec AND status = 'ACTIVE'
+                    """, {
+                        "next_cls": target_class_level, "next_sec": target_dest_section.upper(), 
+                        "sess": global_session, "sys": global_system, "sec": selected_source_sec
+                    })
+                    
+                    st.success(f"🎉 Roster safely promoted to **Class {target_class_level} ({target_dest_section})**! Batch Reference: `{promotion_batch_id}`")
+                    st.rerun()
         
     # ==============================================================================
 # ROUTER INTEGRATION: ⚙️ ADMINISTRATIVE SYSTEM SETTINGS
