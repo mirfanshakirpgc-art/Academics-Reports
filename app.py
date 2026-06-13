@@ -994,7 +994,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
 
-    elif entry_mode == "👤 By Single Student Roll Number":
+    # Line 997
+elif entry_mode == "👤 By Single Student Roll Number":
     # ====================================================================
     # 🎨 MODULE & SUB-MODULE STYLE WRAPPER (Custom Borders and Cards)
     # ====================================================================
@@ -1021,7 +1022,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 padding-top: 10px;
                 padding-bottom: 10px;
             }
-            /* Clean up vertical alignment inside row items */
             .row-item-border div {
                 display: flex;
                 align-items: center;
@@ -1033,6 +1033,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
 
     st.subheader("👤 Single Student Marks Record Manager")
+    
+    # ... Rest of the single student code remains exactly as provided previously,
+    # ... just make sure it maintains this unified level of indentation!
     
     sc1, sc2, sc3 = st.columns(3)
     with sc1:
