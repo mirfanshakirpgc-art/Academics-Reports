@@ -1085,17 +1085,52 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # --- SECTION 1: MARKS ENTRY LEDGER ---
-                    st.markdown("### 🔢 1. Marks Entry Ledger")
-                    st.caption("Press **Tab** to slide straight down to the next subject score cell.")
-                    st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    # --- GRID MATRIX HEADER ---
+                    h_m1, h_m2, h_m3, h_m4 = st.columns([4, 2, 1, 1])
+                    h_m1.caption("📖 **Subject Title**")
+                    h_m2.caption("🔢 **Obtained Marks**")
+                    h_m3.caption("❌ **Absent**")
+                    h_m4.caption("➖ **NC**")
+                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
+                    # ====================================================================
+                    # 🚀 FAST-ENTRY KEYBOARD SHORTCUT SCRIPT (JUMP STRAIGHT DOWN)
+                    # ====================================================================
+                    # This script intercepts the Spacebar key inside your marks inputs.
+                    # It stops the browser from typing a space and pushes focus to the next cell.
+                    st.components.v1.html("""
+                        <script>
+                            const doc = window.parent.document;
+                            doc.addEventListener('keydown', function(e) {
+                                // You can change ' ' (Spacebar) to 'Enter' if you prefer!
+                                if (e.key === ' ') { 
+                                    const activeEl = doc.activeElement;
+                                    if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.includes('s_marks_')) {
+                                        e.preventDefault(); // Stop spacebar character from typing
+                                        
+                                        const allInputs = Array.from(doc.querySelectorAll('input[id*="s_marks_"]'));
+                                        const currentIndex = allInputs.indexOf(activeEl);
+                                        
+                                        if (currentIndex > -1 && currentIndex < allInputs.length - 1) {
+                                            allInputs[currentIndex + 1].focus();
+                                            allInputs[currentIndex + 1].select(); // Highlight next text automatically
+                                        }
+                                    }
+                                }
+                            });
+                        </script>
+                    """, height=0)
+                    # ====================================================================
 
                     updated_scores = {}
                     
-                    # --- TRACK 1: SEQUENTIAL TEXT INPUT FIELDS ---
-                    # Because this loop ONLY outputs text inputs back-to-back,
-                    # your browser is physically forced to Tab straight down this list!
+                    # --- ORIGINAL ROW-BY-ROW MATRIX ---
                     for subject in subjects_list:
+                        col_sub, col_marks, col_abs, col_nc = st.columns([4, 2, 1, 1])
+                        
+                        with col_sub:
+                            st.markdown(f"<div style='padding-top: 5px; font-weight: bold;'>{subject}</div>", unsafe_allow_html=True)
+                        
                         existing_mark_df = run_query("""
                             SELECT marks_obtained FROM marks 
                             WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -1110,51 +1145,26 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         if state_abs_key not in st.session_state:
                             st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
                         if state_nc_key not in st.session_state:
-                            st.session_state[state_nc_state] = (db_val == 'NC')
-                        
-                        chk_absent = st.session_state[state_abs_key]
-                        chk_nc = st.session_state[state_nc_key]
-                        
+                            st.session_state[state_nc_key] = (db_val == 'NC')
+                            
+                        with col_abs:
+                            chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                        with col_nc:
+                            chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                            
                         initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
                         is_disabled = chk_absent or chk_nc
                         display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-
-                        # Draw simple horizontal input tracks
-                        col_label, col_field = st.columns([4, 2])
-                        col_label.markdown(f"<div style='padding-top: 10px; font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
                         
-                        score_input = col_field.text_input(
-                            f"Marks for {subject}",
-                            value=display_score if is_disabled else initial_score,
-                            key=state_marks_key,
-                            label_visibility="collapsed",
-                            disabled=is_disabled
-                        )
+                        with col_marks:
+                            score_input = st.text_input(
+                                "Obtained",
+                                value=display_score if is_disabled else initial_score,
+                                key=state_marks_key,
+                                label_visibility="collapsed",
+                                disabled=is_disabled
+                            )
                         updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
-
-                    # --- SECTION 2: ATTENDANCE & STATUS MODIFIERS ---
-                    # Moving the checkboxes completely below the input cluster
-                    st.markdown("<br><br>", unsafe_allow_html=True)
-                    st.markdown("### ❌ 2. Attendance & Exceptions Registry")
-                    st.caption("Toggle these boxes if a student was Absent or received an NC status.")
-                    
-                    h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
-                    h_ex1.caption("📖 **Subject Title**")
-                    h_ex2.caption("❌ **Absent**")
-                    h_ex3.caption("➖ **NC**")
-                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
-                    
-                    for subject in subjects_list:
-                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        
-                        col_ex_sub, col_ex_abs, col_ex_nc = st.columns([4, 1, 1])
-                        col_ex_sub.markdown(f"<div style='padding-top: 5px; color: #555;'>{subject}</div>", unsafe_allow_html=True)
-                        
-                        with col_ex_abs:
-                            st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                        with col_ex_nc:
-                            st.checkbox("", key=state_nc_key, label_visibility="collapsed")
                     # --- TRACK 4: NC CHECKBOXES ---
                     with m_col_nc:
                         for subject in subjects_list:
