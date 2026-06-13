@@ -335,19 +335,19 @@ if menu_choice == "📊 Home Dashboard":
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
-    try:
-        session_options = AVAILABLE_SESSIONS
-        # Ensures 2026-28 is explicitly visible and doesn't get dropped by legacy filter checks
-        if "2026-28" not in session_options:
-            session_options.append("2026-28")
-    except NameError:
-        session_options = ["2025-27", "2026-28", "2027-29"]
+    # 🚀 SYSTEM STATE INTEGRATION: Dynamically fetch active configuration
+    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
+    active_session = st.session_state.get("current_session", "2026-28")
+    
+    # Automatically calculate matching index so it snaps to the choice set in Settings
+    default_index = session_options.index(active_session) if active_session in session_options else 0
         
     discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
     c1, c2 = st.columns(2)
     with c1: 
-        selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=0, key="add_stu_sess")
+        # Widget now follows global settings selection state flawlessly
+        selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=default_index, key="add_stu_sess")
     with c2: 
         academic_system = st.radio("🏫 Select Academic System Structure:", ["🗓️ Annual System", "🎓 Semester System"], horizontal=True, key="add_stu_system_type")
 
