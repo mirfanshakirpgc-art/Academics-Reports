@@ -1154,33 +1154,40 @@ elif entry_mode == "👤 By Single Student Roll Number":
                 updated_scores = {}
                 
                 # Header columns layout structure mapping matching table indices
-                h_col_label, h_col_field, h_col_abs, h_col_nc = st.columns([3.5, 2.5, 1, 1])
-                h_col_label.caption("📖 **Subject Title**")
+                # Setup unified headers for Section Entry Sheet
+                h_col_roll, h_col_name, h_col_field, h_col_abs, h_col_nc = st.columns([1.5, 2.5, 2.5, 1, 1])
+                h_col_roll.caption("🆔 **Roll No**")
+                h_col_name.caption("👤 **Student Name**")
                 h_col_field.caption("🔢 **Obtained Marks Input**")
                 h_col_abs.caption("❌ **Absent**")
                 h_col_nc.caption("➖ **NC**")
                 st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
-                # Unified operational mapping loop
-                for idx, subject in enumerate(subjects_list):
-                    sub_slug = subject.replace(' ', '_')
+                updated_section_scores = {}
+
+                # Loop through all students in the selected section
+                for idx, row in student_list_df.iterrows():
+                    student_id = int(row['id'])
+                    student_name = str(row['name']).upper()
                     
+                    # Safe unique keys for session states
+                    state_abs_key = f"sec_abs_{student_id}_{target_subject_slug}_{target_exam}"
+                    state_nc_key = f"sec_nc_{student_id}_{target_subject_slug}_{target_exam}"
+                    state_marks_key = f"sec_mark_in_{student_id}_{target_subject_slug}_{target_exam}"
+                    
+                    # Fetch database values if they exist
                     existing_mark_df = run_query("""
                         SELECT marks_obtained FROM marks 
                         WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                    """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                    """, {"s_id": student_id, "sub": target_subject, "exam": target_exam})
                     
                     db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-                    
-                    state_abs_key = f"s_abs_{single_id}_{sub_slug}_{single_exam}"
-                    state_nc_key = f"s_nc_{single_id}_{sub_slug}_{single_exam}"
-                    state_marks_key = f"roll_mark_in_{single_id}_{sub_slug}_{single_exam}"
                     
                     if state_abs_key not in st.session_state:
                         st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
                     if state_nc_key not in st.session_state:
                         st.session_state[state_nc_key] = (db_val == 'NC')
-                    
+                        
                     chk_absent = st.session_state[state_abs_key]
                     chk_nc = st.session_state[state_nc_key]
                     
@@ -1190,46 +1197,65 @@ elif entry_mode == "👤 By Single Student Roll Number":
 
                     # --- SUB-ROW BORDER BOUNDARY START ---
                     st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                    col_label, col_field, col_abs, col_nc = st.columns([3.5, 2.5, 1, 1])
+                    col_roll, col_name, col_field, col_abs, col_nc = st.columns([1.5, 2.5, 2.5, 1, 1])
                     
-                    col_label.markdown(f"<div class='vertical-center' style='font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
+                    col_roll.markdown(f"<div class='vertical-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
+                    col_name.markdown(f"<div class='vertical-center' style='font-size: 0.95rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
                     
                     with col_abs:
+                        st.markdown(f"<div id='sec_abs_anchor_{idx}'></div>", unsafe_allow_html=True)
                         chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
                     with col_nc:
+                        st.markdown(f"<div id='sec_nc_anchor_{idx}'></div>", unsafe_allow_html=True)
                         chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
                     
                     with col_field:
-                        # Anchored pointer context injection
-                        st.markdown(f"<div id='m_anchor_{idx}'></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div id='sec_m_anchor_{idx}'></div>", unsafe_allow_html=True)
                         score_input = st.text_input(
-                            f"Marks for {subject}",
+                            f"Marks for {student_id}",
                             value=display_score if is_disabled else initial_score,
-                            placeholder="e.g. 38 or A",
+                            placeholder="Score",
                             key=state_marks_key,
                             label_visibility="collapsed",
                             disabled=is_disabled
                         )
                         
-                        # Sequential dynamic tab-index custom tracking injection script
+                        # JavaScript Injector: Locks focus chain onto marks fields, ignores checkboxes
                         st.components.v1.html(f"""
                             <script>
                                 setTimeout(() => {{
-                                    const anchor = window.parent.document.getElementById('m_anchor_{idx}');
-                                    if (anchor) {{
-                                        const container = anchor.parentElement;
-                                        const inputField = container.querySelector('input');
+                                    const doc = window.parent.document;
+                                    
+                                    // 1. Force explicit sequential order to this student's input
+                                    const inputAnchor = doc.getElementById('sec_m_anchor_{idx}');
+                                    if (inputAnchor) {{
+                                        const inputField = inputAnchor.parentElement.querySelector('input');
                                         if (inputField) {{
-                                            inputField.id = 'm_{idx}';
+                                            inputField.id = 'sec_m_{idx}';
+                                            inputField.setAttribute('tabindex', '{idx + 1}');
                                         }}
                                     }}
-                                }}, 60);
+                                    
+                                    // 2. Remove the Absent checkbox from tab sequence
+                                    const absAnchor = doc.getElementById('sec_abs_anchor_{idx}');
+                                    if (absAnchor) {{
+                                        const absCheck = absAnchor.parentElement.querySelector('input[type="checkbox"]');
+                                        if (absCheck) {{ absCheck.setAttribute('tabindex', '-1'); }}
+                                    }}
+                                    
+                                    // 3. Remove the NC checkbox from tab sequence
+                                    const ncAnchor = doc.getElementById('sec_nc_anchor_{idx}');
+                                    if (ncAnchor) {{
+                                        const ncCheck = ncAnchor.parentElement.querySelector('input[type="checkbox"]');
+                                        if (ncCheck) {{ ncCheck.setAttribute('tabindex', '-1'); }}
+                                    }}
+                                }}, 80);
                             </script>
                         """, height=0)
                         
                     st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER BOUNDARY END ---
                     
-                    updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                    updated_section_scores[student_id] = "A" if chk_absent else ("NC" if chk_nc else score_input)
                 
                 st.markdown('</div>', unsafe_allow_html=True) # --- SUB-MODULE CONTAINER END ---
 
