@@ -1195,18 +1195,18 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         st.success(f"🎉 Performance matrix for Roll Number {single_id} saved successfully!")
                         time.sleep(1.2)
                         st.rerun()
+        # This belongs inside the 'Single Entry' block (indented 8 spaces)
         st.markdown('</div>', unsafe_allow_html=True)
 
-elif entry_mode == "📊 Bulk Excel/CSV Import": # Line 1199
+    elif entry_mode == "📊 Bulk Excel/CSV Import":
         st.subheader("📊 Bulk Marks Import Portal")
         # Your bulk import code continues here...
-    # --- SUB-MENU NAVIGATION END ---
 
 
 # ==============================================================================
-# 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Back to Main Margin)
+# 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
-elif menu_choice == "🗓️ Attendance Entry Management": # Line 1206
+elif menu_choice == "🗓️ Attendance Entry Management":
     import datetime  
     import pandas as pd
     
