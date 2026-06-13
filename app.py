@@ -909,20 +909,22 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
+                    # --- ACTION BAR (OUTSIDE THE FORM TO PREVENT FREEZING) ---
                     col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
                     with col_b2:
-                        if st.button("🏁 Mark All Absent", use_container_width=True, key=f"bulk_absent_btn_{sel_exam}"):
+                        if st.button("🏁 Mark All Absent", use_container_width=True, key=f"bulk_absent_btn_{sel_exam}_{sel_subject}"):
                             for r_idx, r_row in roster_df.iterrows():
-                                st.session_state[f"abs_{r_row['ID']}_{sel_exam}"] = True
-                                st.session_state[f"nc_{r_row['ID']}_{sel_exam}"] = False
+                                st.session_state[f"abs_{r_row['ID']}_{sel_exam}_{sel_subject}"] = True
+                                st.session_state[f"nc_{r_row['ID']}_{sel_exam}_{sel_subject}"] = False
                             st.rerun()
                     with col_b3:
-                        if st.button("🚫 Mark All NC", use_container_width=True, key=f"bulk_nc_btn_{sel_exam}"):
+                        if st.button("🚫 Mark All NC", use_container_width=True, key=f"bulk_nc_btn_{sel_exam}_{sel_subject}"):
                             for r_idx, r_row in roster_df.iterrows():
-                                st.session_state[f"abs_{r_row['ID']}_{sel_exam}"] = False
-                                st.session_state[f"nc_{r_row['ID']}_{sel_exam}"] = True
+                                st.session_state[f"abs_{r_row['ID']}_{sel_exam}_{sel_subject}"] = False
+                                st.session_state[f"nc_{r_row['ID']}_{sel_exam}_{sel_subject}"] = True
                             st.rerun()
                     
+                    # --- NOW START THE CLEAN BULK FORM ---
                     with st.form(f"bulk_marks_form_{sel_exam}_{sel_subject}"):
                         updated_marks = {}
                         
@@ -938,9 +940,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             
                             db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
                             
-                            # CRITICAL FIX: Append the selected exam code into the keys to reset state on change
-                            state_abs_key = f"abs_{row['ID']}_{sel_exam}"
-                            state_nc_key = f"nc_{row['ID']}_{sel_exam}"
+                            # FIXED UNIQUE KEYS: Appended subject name alongside exam type to stop collisions
+                            state_abs_key = f"abs_{row['ID']}_{sel_exam}_{sel_subject}"
+                            state_nc_key = f"nc_{row['ID']}_{sel_exam}_{sel_subject}"
 
                             if state_abs_key not in st.session_state:
                                 st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
@@ -965,6 +967,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             updated_marks[row['ID']] = "A" if chk_absent else ("NC" if chk_nc else score_input)
                         
                         st.markdown("<br>", unsafe_allow_html=True)
+                        
+                        # True form submit button (Will now load perfectly since structural buttons were extracted)
                         if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
                             import time
                             for s_id, score in updated_marks.items():
@@ -974,10 +978,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
                                                       {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip().upper(), "score": score_clean, "total": float(total_marks)})
                             
-                            # CRITICAL FIX: Explicitly purge temporary component states from memory
+                            # Clean the session state cache so changes show completely blank cells on next cycles
                             for s_id in updated_marks.keys():
-                                st.session_state.pop(f"abs_{s_id}_{sel_exam}", None)
-                                st.session_state.pop(f"nc_{s_id}_{sel_exam}", None)
+                                st.session_state.pop(f"abs_{s_id}_{sel_exam}_{sel_subject}", None)
+                                st.session_state.pop(f"nc_{s_id}_{sel_exam}_{sel_subject}", None)
                                 st.session_state.pop(f"marks_{s_id}_{sel_exam}_{sel_subject}", None)
                                 
                             st.success(f"🎉 Marks ledger for Section {sel_section} ({sel_subject}) recorded successfully!")
