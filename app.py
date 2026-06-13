@@ -1035,6 +1035,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # ====================================================================================
 if menu_choice == "📅 Attendance Entry Management":
     import datetime  # Explicit scoped import to guarantee operations work flawlessly
+    import pandas as pd
     
     st.title("📅 Attendance Entry Management Panel")
     
@@ -1175,9 +1176,11 @@ if menu_choice == "📅 Attendance Entry Management":
                                             "att_date": str(target_date), 
                                             "status": status_code
                                         })
-                                
-                            st.toast(f"✅ Attendance updated for {sel_section}!", icon="🎉")
-                            st.success(f"🎉 Roster saved successfully for section {sel_section}!")
+                                    
+                            st.success(f"🎉 Attendance roster saved successfully for Section {sel_section}!")
+                            st.toast(f"Saved roster for {target_date.strftime('%d-%b-%Y')}", icon="💾")
+                            import time
+                            time.sleep(1.2)
                             st.rerun()
 
                         except Exception as e:
@@ -1265,7 +1268,9 @@ if menu_choice == "📅 Attendance Entry Management":
                                     DO UPDATE SET status = EXCLUDED.status
                                 """), {"id": int(single_id), "dt": str(att_date), "st": final_status_code})
                                 
-                            st.success(f"🎉 Roster update completed successfully for {s_name}!")
+                            st.success(f"🎉 Attendance log saved successfully for {s_name}!")
+                            import time
+                            time.sleep(1.2)
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error encountered updating record profile: {e}")
@@ -1280,8 +1285,6 @@ if menu_choice == "📅 Attendance Entry Management":
                 if raw_logs.empty:
                     st.caption("ℹ️ No active daily logs found to compute monthly values yet.")
                 else:
-                    import pandas as pd
-                    
                     # Safe Python processing pipeline to guarantee no database-level crashes
                     raw_logs['attendance_date'] = pd.to_datetime(raw_logs['attendance_date'], errors='coerce')
                     raw_logs = raw_logs.dropna(subset=['attendance_date'])
@@ -1303,7 +1306,6 @@ if menu_choice == "📅 Attendance Entry Management":
                     })
                     
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
-
 # ====================================================================================
 # MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE ROSTER ENGINE)
 # ====================================================================================
