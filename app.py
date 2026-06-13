@@ -1344,11 +1344,21 @@ elif menu_choice == "📋 Daily Attendance Report":
 
     st.title("📋 Daily Attendance Report")
 
-    # 1. SETUP
+    # 1. SETUP (Dynamically linked to Settings)
     try:
-        session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
-    except NameError:
-        session_choices = ["2025-27", "2026-28", "2027-29"]
+        # Queries active sessions directly from your settings configuration table
+        session_data = run_query("SELECT session_name FROM sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
+        session_choices = session_data["session_name"].tolist() if not session_data.empty else []
+    except Exception:
+        # Emergency fallback if database connection drops or table name varies
+        try:
+            session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
+        except NameError:
+            session_choices = ["2025-27", "2026-28", "2027-29"]
+            
+    # Quick sanity filter: eliminate 2024-26 if it bypassed settings
+    if "2024-26" in session_choices:
+        session_choices.remove("2024-26")
         
     c1, c2 = st.columns(2)
     with c1:
