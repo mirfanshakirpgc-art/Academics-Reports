@@ -1085,37 +1085,45 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    // Handle cell-focused navigation
-doc.addEventListener('keydown', function(e) {
-    const activeEl = doc.activeElement;
-    
-    if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.startsWith('m_')) {
-        const currentIdx = parseInt(activeEl.id.split('_')[1], 10);
+                    # ====================================================================
+# 🚀 LIGHTNING KEYBOARD FOCUS CONTROLLER
+# ====================================================================
+st.components.v1.html(f"""
+    <script>
+        const doc = window.parent.document;
         
-        // Navigation Logic
-        let nextIdx = -1;
-        
-        // Tab (or Enter/Down) moves down
-        if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'Tab') {
-            e.preventDefault(); // Stop default tab jump
-            nextIdx = currentIdx + 1;
-        } 
-        // ArrowUp or Shift+Tab moves up
-        else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
-            e.preventDefault();
-            nextIdx = currentIdx - 1;
-        }
+        // Handle cell-focused navigation (Arrow Keys, Enter, and Tab)
+        doc.addEventListener('keydown', function(e) {{
+            const activeEl = doc.activeElement;
+            
+            if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.startsWith('m_')) {{
+                const currentIdx = parseInt(activeEl.id.split('_')[1], 10);
+                
+                let nextIdx = -1;
+                
+                // Tab, Enter, or Down Arrow moves down
+                if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'Tab') {{
+                    e.preventDefault();
+                    nextIdx = currentIdx + 1;
+                }} 
+                // ArrowUp or Shift+Tab moves up
+                else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {{
+                    e.preventDefault();
+                    nextIdx = currentIdx - 1;
+                }}
 
-        // Apply focus if index is valid
-        if (nextIdx !== -1) {
-            const targetInput = doc.getElementById('m_' + nextIdx);
-            if (targetInput) {
-                targetInput.focus();
-                targetInput.select();
-            }
-        }
-    }
-});
+                if (nextIdx !== -1) {{
+                    const targetInput = doc.getElementById('m_' + nextIdx);
+                    if (targetInput) {{
+                        targetInput.focus();
+                        targetInput.select();
+                    }}
+                }}
+            }}
+        }});
+    </script>
+""", height=0)
+# ====================================================================
                     # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
                     # We drop down and run a completely separate loop for checkboxes.
                     st.markdown("<br><br>", unsafe_allow_html=True)
