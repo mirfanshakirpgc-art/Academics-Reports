@@ -2512,7 +2512,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
             # =========================================================================
-            # --- ATTENDANCE REPORT MATRIX (COMPREHENSIVE MATCH ENGINE) ---
+            # --- ATTENDANCE REPORT MATRIX (UNIVERSAL DEEP NORMALIZATION ENGINE) ---
             # =========================================================================
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
@@ -2525,42 +2525,31 @@ if menu_choice == "📈 Multi-Test Progress Report":
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
-                # 1. Standardize lookups for alternative formats (string vs numeric)
-                try:
-                    if isinstance(s_id, (int, np.integer)):
-                        target_id_int = int(s_id)
-                    else:
-                        target_id_int = int(float(str(s_id).strip()))
-                except (ValueError, TypeError):
-                    target_id_int = None
-                
-                target_id_str = str(s_id).strip().split('.')[0]
+                # 1. Heavily normalize the loop's student ID into a clean integer and clean string
+                def normalize_id_val(raw_val):
+                    if pd.isna(raw_val):
+                        return None
+                    # Convert to string, drop trailing decimals, strip whitespace
+                    clean_str = str(raw_val).split('.')[0].strip().lstrip('0')
+                    return clean_str if clean_str != "" else "0"
 
-                # Create an isolated copy to prevent altering the global database frame
+                target_key = normalize_id_val(s_id)
+
+                # 2. Add normalization columns directly to a local copy of the dataframe
                 att_df_copy = attendance_df.copy()
-                s_att = pd.DataFrame()
+                
+                # Turn every entry in the dataframe column into a standardized string key
+                att_df_copy["_normalized_match_id"] = att_df_copy["student_id"].apply(normalize_id_val)
 
-                # Path A: Match against explicit numeric castings
-                if target_id_int is not None:
-                    try:
-                        att_df_copy["student_id_num"] = pd.to_numeric(att_df_copy["student_id"], errors='coerce')
-                        s_att = att_df_copy[att_df_copy["student_id_num"] == target_id_int]
-                    except Exception:
-                        pass
+                # 3. Filter using the matching normalized string keys
+                s_att = att_df_copy[att_df_copy["_normalized_match_id"] == target_key]
 
-                # Path B: Fallback string match track if Path A recovers no rows
-                if s_att.empty:
-                    try:
-                        att_df_copy["student_id_str"] = att_df_copy["student_id"].astype(str).str.strip().str.split('.').str[0]
-                        s_att = att_df_copy[att_df_copy["student_id_str"] == target_id_str]
-                    except Exception:
-                        pass
-
-                # Extract monthly metrics if student cross-reference records were found
+                # 4. Extract monthly metrics if rows match successfully
                 if not s_att.empty:
                     for _, row in s_att.iterrows():
                         db_month = str(row.get("month_name", "")).strip()
                         
+                        # Soft matching variant logic (e.g. "Sept" vs "Sept.")
                         matched_month = None
                         for m_name in month_map.keys():
                             if db_month.lower().startswith(m_name.lower()[:3]):
