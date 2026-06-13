@@ -1535,24 +1535,31 @@ elif menu_choice == "📋 Section Summary Report":
                 sec_options = [s for s in db_sections if "ENG" in s.upper() or "E" in s.upper()]
             elif "COMMERCE" in sel_disc:
                 sec_options = [s for s in db_sections if "COM" in s.upper() or "I" in s.upper()]
+            elif "HUMANITIES" in sel_disc:
+                # Dynamically filter out only sections containing Humanities signatures (e.g., IK, FK, FQ, EQ, IQ, MK, MQ)
+                sec_options = [s for s in db_sections if any(k in s.upper() for k in ["IK", "FK", "FQ", "EQ", "IQ", "MK", "MQ"])]
             else:
                 sec_options = db_sections
                 
+            # If the filter leaves options completely blank, default back to the absolute database dump array
             if not sec_options:
                 sec_options = db_sections
         else:
             if academic_system == "Semester System":
                 sec_options = ["DIT_G", "DIT_B"]
             else:
-                sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
+                if "HUMANITIES" in sel_disc:
+                    sec_options = ["IK", "IQ"] if "11" in selected_class else ["FK", "FQ"]
+                else:
+                    sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
 
+        # FIXED: Changed key="dynamic_widget_key" string literal to key=dynamic_widget_key variable
         dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
-        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key="dynamic_widget_key")
+        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key=dynamic_widget_key)
         
     with col_c: 
         # --- DYNAMIC FETCH BASED ON SYSTEM TRACK ---
         try:
-            # Queries database dynamically matching the system track (Annual vs Semester)
             exam_data = run_query("""
                 SELECT exam_code 
                 FROM exam_cycles 
@@ -1562,7 +1569,6 @@ elif menu_choice == "📋 Section Summary Report":
             
             exam_options = exam_data["exam_code"].tolist() if not exam_data.empty else []
         except Exception as e:
-            # Bulletproof Fallback lists if the database connection ever drops
             if academic_system == "Semester System":
                 exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"]
             else:
@@ -1572,12 +1578,12 @@ elif menu_choice == "📋 Section Summary Report":
                     "HALF_BOOK01", "HALF_BOOK02", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"
                 ]
 
-        # Render the drop-down selector securely
         if exam_options:
             sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
         else:
             st.warning("⚠️ No active evaluation frameworks registered for this academic track.")
             sel_exam = None
+
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
@@ -1592,7 +1598,6 @@ elif menu_choice == "📋 Section Summary Report":
     }
     
     # --- 4. DYNAMIC SUBJECT LIST ROUTING ---
-    # Define the mapping explicitly for 11th and 12th
     DISCIPLINE_MAP = {
         "MEDICAL": {
             "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"],
@@ -1621,15 +1626,13 @@ elif menu_choice == "📋 Section Summary Report":
     }
 
     if academic_system == "Annual System":
-        # Normalize discipline key
-        disc_key = sel_disc.upper().replace("ICS_PHYSICS", "ICS_PHYSICS").replace("ICS_STATS", "ICS_STATS")
-        # Ensure we match the exact key in our map
+        disc_key = sel_disc.upper()
         subjects = DISCIPLINE_MAP.get(disc_key, {}).get(selected_class, ["ENGLISH", "URDU"])
     else:
-        # Keep your existing Semester logic here
         if "Semester 1" in selected_class:
             subjects = ["ICT", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT"]
-        # ... rest of your semester logic
+        else:
+            subjects = ["ICT", "OFFICE AUTOMATION"]
 
     # --- 5. DATABASE INTEGRATION ENGINE ---
     students_df = run_query("""
@@ -1745,11 +1748,9 @@ elif menu_choice == "📋 Section Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # --- NEW Feature: EXCEL PAYLOAD COMPILER HUB ---
-        # Formulate a decoupled data structure optimized for spreadsheet workflows
+        # --- Excel Payload Compiler Hub ---
         excel_export_df = final_report_df.copy()
         
-        # Strip floating configurations safely from cell variables before rendering payload sheets
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
         for col_lbl in short_subject_labels:
             if col_lbl in excel_export_df.columns:
@@ -1757,13 +1758,11 @@ elif menu_choice == "📋 Section Summary Report":
                     lambda cell: int(cell) if isinstance(cell, (int, float)) else cell
                 )
         
-        # Package bytes structures array matrix seamlessly using standard buffer utilities
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
             excel_export_df.to_excel(writer, index=False, sheet_name='Performance_Summary')
         excel_data_payload = excel_buffer.getvalue()
 
-        # Render explicit Excel download action button cleanly into Streamlit header context
         col_download_hook, _ = st.columns([2, 4])
         with col_download_hook:
             st.download_button(
@@ -1788,7 +1787,7 @@ elif menu_choice == "📋 Section Summary Report":
                 status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
             
             old_marks_badges = []
-            hidden_marks_df = marks_df[marks_df["student_key"] == s_id] if not marks_df.empty else pd.DataFrame()
+            hidden_marks_df = marks_df[marks_df["student_key"] == st_id] if not marks_df.empty else pd.DataFrame()
             for _, h_row in hidden_marks_df.iterrows():
                 h_sub = h_row["subject_name"]
                 if h_sub not in [sub.upper().strip() for sub in subjects]:
