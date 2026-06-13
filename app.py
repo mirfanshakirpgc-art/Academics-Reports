@@ -1103,7 +1103,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
                     # --- TRACK 2: OBTAINED MARKS INPUT FIELDS ---
                     with m_col_marks:
-                        for subject in subjects_list:
+                        # We use loop enumeration to assign a sequential tab order (e.g., 101, 102, 103...)
+                        for idx, subject in enumerate(subjects_list):
                             existing_mark_df = run_query("""
                                 SELECT marks_obtained FROM marks 
                                 WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -1122,6 +1123,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             is_disabled = chk_absent or chk_nc
                             display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
                             
+                            # Custom HTML injection to inject focus-controlling tab indexes right into the input box
+                            # Every text input field gets sequential index paths: 101 -> 102 -> 103
+                            st.markdown(f"""
+                                <style>
+                                    div[data-testid="stTextInput"]:has(input[id*="{state_marks_key}"]) input {{
+                                        tabindex: {100 + idx} !important;
+                                    }}
+                                </style>
+                            """, unsafe_allow_html=True)
+
                             score_input = st.text_input(
                                 "Obtained",
                                 value=display_score if is_disabled else initial_score,
@@ -1133,7 +1144,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
                     # --- TRACK 3: ABSENT CHECKBOXES ---
                     with m_col_abs:
-                        for subject in subjects_list:
+                        for idx, subject in enumerate(subjects_list):
                             existing_mark_df = run_query("""
                                 SELECT marks_obtained FROM marks 
                                 WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -1145,12 +1156,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             if state_abs_key not in st.session_state:
                                 st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
                                 
-                            st.markdown("<div style='height: 9px;'></div>", unsafe_allow_html=True)
+                            # Pushing the checkboxes way back to the end of the tab list (index 500+) so Tab completely skips them
+                            st.markdown(f"""
+                                <style>
+                                    div[data-testid="stCheckbox"]:has(input[id*="{state_abs_key}"]) input {{
+                                        tabindex: {500 + idx} !important;
+                                    }}
+                                </style>
+                                <div style='height: 9px;'></div>
+                            """, unsafe_allow_html=True)
+                            
                             st.checkbox("", key=state_abs_key, label_visibility="collapsed")
 
                     # --- TRACK 4: NC CHECKBOXES ---
                     with m_col_nc:
-                        for subject in subjects_list:
+                        for idx, subject in enumerate(subjects_list):
                             existing_mark_df = run_query("""
                                 SELECT marks_obtained FROM marks 
                                 WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -1162,7 +1182,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             if state_nc_key not in st.session_state:
                                 st.session_state[state_nc_key] = (db_val == 'NC')
                                 
-                            st.markdown("<div style='height: 9px;'></div>", unsafe_allow_html=True)
+                            # Pushing NC checkboxes out of focus range (index 600+)
+                            st.markdown(f"""
+                                <style>
+                                    div[data-testid="stCheckbox"]:has(input[id*="{state_nc_key}"]) input {{
+                                        tabindex: {600 + idx} !important;
+                                    }}
+                                </style>
+                                <div style='height: 9px;'></div>
+                            """, unsafe_allow_html=True)
+                            
                             st.checkbox("", key=state_nc_key, label_visibility="collapsed")
                             
                         with col_marks:
