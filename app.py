@@ -997,34 +997,36 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # Line 997
 elif entry_mode == "👤 By Single Student Roll Number":
     # ====================================================================
-    # 🎨 MODULE & SUB-MODULE STYLE WRAPPER (Custom Borders and Cards)
+    # 🎨 MODULE & SUB-MODULE STYLE WRAPPER (Custom Borders and Grid Cards)
     # ====================================================================
     st.markdown("""
         <style>
             .main-module-card {
                 background-color: #ffffff;
-                border: 2px solid #d1d5db;
+                border: 2px solid #cbd5e1;
                 border-radius: 12px;
                 padding: 24px;
                 margin-bottom: 25px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
             }
             .sub-ledger-box {
-                background-color: #f8fafc;
-                border: 1px solid #cbd5e1;
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
                 border-radius: 8px;
-                padding: 20px;
-                margin-top: 20px;
-                margin-bottom: 20px;
+                padding: 16px;
+                margin-top: 15px;
+                margin-bottom: 15px;
             }
             .row-item-border {
-                border-bottom: 1px solid #e2e8f0;
-                padding-top: 10px;
-                padding-bottom: 10px;
+                border-bottom: 1px solid #f1f5f9;
+                padding-top: 12px;
+                padding-bottom: 12px;
             }
-            .row-item-border div {
+            /* Visual feedback when row items align */
+            .vertical-center {
                 display: flex;
                 align-items: center;
+                height: 100%;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -1033,9 +1035,6 @@ elif entry_mode == "👤 By Single Student Roll Number":
     st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
 
     st.subheader("👤 Single Student Marks Record Manager")
-    
-    # ... Rest of the single student code remains exactly as provided previously,
-    # ... just make sure it maintains this unified level of indentation!
     
     sc1, sc2, sc3 = st.columns(3)
     with sc1:
@@ -1121,25 +1120,49 @@ elif entry_mode == "👤 By Single Student Roll Number":
             single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
             total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
 
-            # Render Form View for Single Student Matrix Input Sheets
+            # Global Event Listener Injection Script for keyboard navigation (Enter / Up / Down Arrows)
+            st.components.v1.html("""
+                <script>
+                    const doc = window.parent.document;
+                    doc.addEventListener('keydown', function(e) {
+                        const activeEl = doc.activeElement;
+                        if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.startsWith('m_')) {
+                            const currentIdx = parseInt(activeEl.id.split('_')[1], 10);
+                            if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const nextInput = doc.getElementById('m_' + (currentIdx + 1));
+                                if (nextInput) { nextInput.focus(); nextInput.select(); }
+                            } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const prevInput = doc.getElementById('m_' + (currentIdx - 1));
+                                if (prevInput) { prevInput.focus(); prevInput.select(); }
+                            }
+                        }
+                    });
+                </script>
+            """, height=0)
+
+            # Render Form View for Single Student Unified Tabular Sheet
             with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                 st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
                 
-                # --- SUB-MODULE CONTAINER START: SECTION 1 (MARKS OBTAINED) ---
+                # --- SUB-MODULE CONTAINER START: TABULAR MATRIX SHEET ---
                 st.markdown('<div class="sub-ledger-box">', unsafe_allow_html=True)
-                st.markdown("### 🔢 1. Marks Obtained Ledger")
-                st.caption("Press **Tab** to slide straight down to the next subject score field.")
-                st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
+                st.markdown("### 🔢 Marks Evaluation Ledger")
+                st.caption("⚡ **Lightning Entry Active**: Type marks, then hit **Enter** or **Arrow Keys** to glide vertically down the page.")
+                st.markdown("<hr style='margin:10px 0px; padding:0px;'>", unsafe_allow_html=True)
 
                 updated_scores = {}
                 
-                # Setup unified headers for Section 1
-                h_col1, h_col2 = st.columns([4, 2])
-                h_col1.caption("📖 **Subject Title**")
-                h_col2.caption("🔢 **Obtained Marks Input**")
-                st.markdown("<hr style='margin:5px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                # Header columns layout structure mapping matching table indices
+                h_col_label, h_col_field, h_col_abs, h_col_nc = st.columns([3.5, 2.5, 1, 1])
+                h_col_label.caption("📖 **Subject Title**")
+                h_col_field.caption("🔢 **Obtained Marks Input**")
+                h_col_abs.caption("❌ **Absent**")
+                h_col_nc.caption("➖ **NC**")
+                st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
-                # Loop 1: Text Input Fields (Strict layout flow)
+                # Unified operational mapping loop
                 for idx, subject in enumerate(subjects_list):
                     sub_slug = subject.replace(' ', '_')
                     
@@ -1166,24 +1189,30 @@ elif entry_mode == "👤 By Single Student Roll Number":
                     is_disabled = chk_absent or chk_nc
                     display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
 
-                    # --- SUB-ROW BORDER START ---
+                    # --- SUB-ROW BORDER BOUNDARY START ---
                     st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                    col_label, col_field = st.columns([4, 2])
+                    col_label, col_field, col_abs, col_nc = st.columns([3.5, 2.5, 1, 1])
                     
-                    col_label.markdown(f"<div style='font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
+                    col_label.markdown(f"<div class='vertical-center' style='font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
+                    
+                    with col_abs:
+                        chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                    with col_nc:
+                        chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
                     
                     with col_field:
+                        # Anchored pointer context injection
                         st.markdown(f"<div id='m_anchor_{idx}'></div>", unsafe_allow_html=True)
                         score_input = st.text_input(
                             f"Marks for {subject}",
                             value=display_score if is_disabled else initial_score,
-                            key=state_marks_key,
                             placeholder="e.g. 38 or A",
+                            key=state_marks_key,
                             label_visibility="collapsed",
                             disabled=is_disabled
                         )
                         
-                        # Dynamic ID Injector for smooth keyboard controls
+                        # Sequential dynamic tab-index custom tracking injection script
                         st.components.v1.html(f"""
                             <script>
                                 setTimeout(() => {{
@@ -1195,83 +1224,37 @@ elif entry_mode == "👤 By Single Student Roll Number":
                                             inputField.id = 'm_{idx}';
                                         }}
                                     }}
-                                }}, 100);
+                                }}, 60);
                             </script>
                         """, height=0)
-                    st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER END ---
+                        
+                    st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER BOUNDARY END ---
                     
                     updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
                 
-                st.markdown('</div>', unsafe_allow_html=True) # --- SUB-MODULE CONTAINER END: SECTION 1 ---
-                
+                st.markdown('</div>', unsafe_allow_html=True) # --- SUB-MODULE CONTAINER END ---
 
-                # --- SUB-MODULE CONTAINER START: SECTION 2 (EXCEPTIONS) ---
-                st.markdown('<div class="sub-ledger-box">', unsafe_allow_html=True)
-                st.markdown("### ❌ 2. Attendance & Exceptions Registry")
-                st.caption("Toggle these boxes if a student was Absent or needs an NC flag.")
-                st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
-                
-                h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
-                h_ex1.caption("📖 **Subject Title**")
-                h_ex2.caption("❌ **Absent**")
-                h_ex3.caption("➖ **NC**")
-                st.markdown("<hr style='margin:5px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
-                
-                # Loop 2: Exception Checkboxes
-                for subject in subjects_list:
-                    sub_slug = subject.replace(' ', '_')
-                    state_abs_key = f"s_abs_{single_id}_{sub_slug}_{single_exam}"
-                    state_nc_key = f"s_nc_{single_id}_{sub_slug}_{single_exam}"
-                    
-                    # --- SUB-ROW BORDER START ---
-                    st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                    col_ex_sub, col_ex_abs, col_ex_nc = st.columns([4, 1, 1])
-                    
-                    col_ex_sub.markdown(f"<div style='color: #4b5563; font-weight: 500;'>{subject}</div>", unsafe_allow_html=True)
-                    
-                    with col_ex_abs:
-                        st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                    with col_ex_nc:
-                        st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-                    st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER END ---
-                
-                st.markdown('</div>', unsafe_allow_html=True) # --- SUB-MODULE CONTAINER END: SECTION 2 ---
-
-
-                # Form Operations Submission Block
+                # Operations Processing Save Execution Button
                 st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
                 submit_button = st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", type="primary", use_container_width=True)
                 
                 if submit_button:
                     import time
                     success_count = 0
-                    
-                    # Read fresh evaluations post form submission updates
-                    for subject in subjects_list:
-                        sub_slug = subject.replace(' ', '_')
-                        chk_absent = st.session_state.get(f"s_abs_{single_id}_{sub_slug}_{single_exam}", False)
-                        chk_nc = st.session_state.get(f"s_nc_{single_id}_{sub_slug}_{single_exam}", False)
-                        raw_marks = st.session_state.get(f"roll_mark_in_{single_id}_{sub_slug}_{single_exam}", "")
-                        
-                        final_value = "A" if chk_absent else ("NC" if chk_nc else raw_marks)
-                        
-                        if final_value.strip() != "":
+                    for subject, marks_val in updated_scores.items():
+                        if marks_val.strip() != "":
                             execute_db_command("""
                                 INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
                                 VALUES (:s_id, :sub, :exam, :marks, :total)
                                 ON CONFLICT (student_id, subject, exam_type)
                                 DO UPDATE SET marks_obtained = EXCLUDED.marks_obtained, total_marks = EXCLUDED.total_marks
                             """, {
-                                "s_id": int(single_id),
-                                "sub": subject,
-                                "exam": single_exam,
-                                "marks": final_value.strip().upper(),
-                                "total": float(total_marks_input)
+                                "s_id": int(single_id), "sub": subject, "exam": single_exam,
+                                "marks": marks_val.strip().upper(), "total": float(total_marks_input)
                             })
                             success_count += 1
                     
                     if success_count > 0:
-                        # Flush garbage configurations cleanly out of memory cache maps
                         for subject in subjects_list:
                             sub_slug = subject.replace(' ', '_')
                             st.session_state.pop(f"s_abs_{single_id}_{sub_slug}_{single_exam}", None)
@@ -1284,7 +1267,9 @@ elif entry_mode == "👤 By Single Student Roll Number":
                         time.sleep(1.2)
                         st.rerun()
                     else:
-                            st.warning("⚠️ No mark entries were added. Check input values.")
+                        st.warning("⚠️ No mark entries were added. Check input values.")
+
+    st.markdown('</div>', unsafe_allow_html=True) # --- END OF MAIN PARENT MODULE CONTAINER ---
 
         # THIS IS CRITICAL: Make sure the HTML div tag for the main module is closed
         # and aligned perfectly inside the "By Single Student Roll Number" block!
