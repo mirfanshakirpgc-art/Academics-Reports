@@ -3305,6 +3305,62 @@ elif menu_choice == "👥 Student Operations Management":
     st.markdown("Centralized workflow for profile records, status adjustments, audit trails, and batch promotions.")
     st.markdown("---")
     
+    # --------------------------------------------------------------------------------
+    # NATIVE DATABASE EXECUTOR ENGINE (Bypasses external function reliance)
+    # --------------------------------------------------------------------------------
+    def local_engine_query(sql_str, param_dict=None):
+        """Safely executes data reads using raw connection contexts directly."""
+        import pandas as pd
+        if param_dict is None: param_dict = {}
+        try:
+            # Attempts initialization using standard streamlit connections if defined globally
+            if hasattr(st, "connection"):
+                conn = st.connection("supabase", type=None)
+                if hasattr(conn, "query"):
+                    return conn.query(sql_str, params=param_dict)
+            
+            # Direct SQLAlchemy Engine Fallback mapping
+            if 'engine' in globals():
+                with engine.connect() as ctx:
+                    return pd.read_sql_query(text(sql_str), ctx, params=param_dict)
+            elif 'db_engine' in globals():
+                with db_engine.connect() as ctx:
+                    return pd.read_sql_query(text(sql_str), ctx, params=param_dict)
+            else:
+                # Direct invocation fallback if custom functions exist under other names
+                for func_name in ['run_query', 'execute_query', 'db_query']:
+                    if func_name in globals():
+                        return globals()[func_name](sql_str, param_dict)
+                st.error("🚨 Database engine instance could not be found.")
+                return pd.DataFrame()
+        except Exception as err:
+            st.error(f"Execution Error: {str(err)}")
+            return pd.DataFrame()
+
+    def local_engine_update(sql_str, param_dict=None):
+        """Safely executes transactional record mutations directly."""
+        if param_dict is None: param_dict = {}
+        try:
+            if 'engine' in globals():
+                with engine.begin() as ctx:
+                    ctx.execute(text(sql_str), param_dict)
+                return True
+            elif 'db_engine' in globals():
+                with db_engine.begin() as ctx:
+                    ctx.execute(text(sql_str), param_dict)
+                return True
+            else:
+                # Automatically map to any custom write utility in your workspace
+                for func_name in ['run_action', 'execute_update', 'execute_action', 'db_update', 'run_query']:
+                    if func_name in globals():
+                        globals()[func_name](sql_str, param_dict)
+                        return True
+                st.error("🚨 Transaction Engine instance could not be found.")
+                return False
+        except Exception as err:
+            st.error(f"Mutation Error: {str(err)}")
+            return False
+
     # ====================================================================================
     # FLOW CHART LEVEL 1 & 2: GLOBAL CONTEXT SELECTION MATRIX (Dynamic Track Routing)
     # ====================================================================================
@@ -3324,18 +3380,17 @@ elif menu_choice == "👥 Student Operations Management":
         global_system = "annual" if global_system_display == "Annual System" else "semester"
 
     with col_g3:
-        # ADVANCED LOGIC: Fetch real options present in database to prevent missing mixed classifications
-        db_classes_df = run_query("""
+        # ADVANCED LOGIC: Fetch dynamic class representations from active records
+        db_classes_df = local_engine_query("""
             SELECT DISTINCT class FROM students 
             WHERE session = :sess AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%'
         """, {"sess": global_session, "sys": global_system})
         
         db_classes = [str(c).strip() for c in db_classes_df['class'].tolist() if c] if not db_classes_df.empty else []
         
-        # Merge database entries with default presets so options are never completely blank
         if global_system == "annual":
             global_term_label = "🏫 Current Grade Level Focus:"
-            global_term_options = sorted(list(set(db_classes + ["11th", "12th", "Semester 1"]))) # Added Semester 1 fallback for cross-entries
+            global_term_options = sorted(list(set(db_classes + ["11th", "12th", "Semester 1"])))
         else:
             global_term_label = "⏱️ Current Semester Focus:"
             global_term_options = sorted(list(set(db_classes + ["Semester 1", "Semester 2", "Semester 3", "Semester 4"])))
@@ -3363,20 +3418,17 @@ elif menu_choice == "👥 Student Operations Management":
             if not search_id.isdigit():
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
-                # OPTIMIZED SINGLE SEARCH: First look up by ID and Session to catch mismatch edge cases safely
-                stu_df = run_query("""
+                # OPTIMIZED SINGLE LOOKUP: Matches strictly on unique ID + Session key boundary
+                stu_df = local_engine_query("""
                     SELECT id, name, class, section, session, status, system_type 
                     FROM students 
                     WHERE id = :id AND session = :sess
                 """, {"id": int(search_id), "sess": global_session})
                 
-                # Check for strict matching constraints
                 is_mismatched = False
                 if not stu_df.empty:
                     actual_sys = str(stu_df.iloc[0]['system_type']).lower()
                     actual_class = str(stu_df.iloc[0]['class']).lower()
-                    
-                    # Verify if it diverges from current header parameters
                     if (global_system not in actual_sys) or (global_term.lower() != actual_class):
                         is_mismatched = True
 
@@ -3387,7 +3439,6 @@ elif menu_choice == "👥 Student Operations Management":
                     s_id = int(student['id'])
                     s_name = str(student['name']).upper()
                     
-                    # Notify the operator if structural discrepancies are uncovered in the record row
                     if is_mismatched:
                         st.warning(f"⚠️ **Data Classification Conflict Discovered:** Student is registered as **{student['system_type']} ({student['class']})**, but your global search headers are set to **{global_system_display} ({global_term})**.")
                     
@@ -3408,8 +3459,8 @@ elif menu_choice == "👥 Student Operations Management":
                             target_sess = st.selectbox("Migrate to Different Multi-Year Session:", session_options, index=session_options.index(student['session']) if student['session'] in session_options else 0, key="sub_mod_sess_drop")
                             
                             if st.button("🔄 Change Session Track", use_container_width=True):
-                                run_update("UPDATE students SET session = :session WHERE id = :id", {"session": target_sess, "id": s_id})
-                                run_update("""
+                                local_engine_update("UPDATE students SET session = :session WHERE id = :id", {"session": target_sess, "id": s_id})
+                                local_engine_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
                                     VALUES (:id, 'SESSION_CHANGE', :old, :new, CURRENT_DATE, :rem)
                                 """, {"id": s_id, "old": student['session'], "new": target_sess, "rem": global_remarks.strip() if global_remarks.strip() else "Session Relocation"})
@@ -3423,7 +3474,7 @@ elif menu_choice == "👥 Student Operations Management":
                             st.markdown("#### 3️⃣ Section Re-allocation")
                             st.caption(f"Current Assigned Section: `{student['section']}`")
                             
-                            section_pool_df = run_query("""
+                            section_pool_df = local_engine_query("""
                                 SELECT DISTINCT section FROM students 
                                 WHERE LOWER(TRIM(class)) = LOWER(TRIM(:cls)) AND session = :sess
                             """, {"cls": student['class'], "sess": global_session})
@@ -3434,8 +3485,8 @@ elif menu_choice == "👥 Student Operations Management":
                             target_sec = st.selectbox("Select Target Section:", available_sections, index=available_sections.index(student['section']) if student['section'] in available_sections else 0, key="sub_mod_sec_drop")
                             
                             if st.button("📐 Update Section Allocation", use_container_width=True):
-                                run_update("UPDATE students SET section = :section WHERE id = :id", {"section": target_sec, "id": s_id})
-                                run_update("""
+                                local_engine_update("UPDATE students SET section = :section WHERE id = :id", {"section": target_sec, "id": s_id})
+                                local_engine_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
                                     VALUES (:id, 'SECTION_TRANSFER', :old, :new, CURRENT_DATE, :rem)
                                 """, {"id": s_id, "old": student['section'], "new": target_sec, "rem": global_remarks.strip() if global_remarks.strip() else "Section Reallocation"})
@@ -3451,7 +3502,7 @@ elif menu_choice == "👥 Student Operations Management":
                             confirm_eviction = st.checkbox("Verify authorization to purge entry rows permanently", key="evict_check_box_gate")
                             
                             if st.button("🗑️ Permanent Eviction Trigger", type="primary", use_container_width=True, disabled=not confirm_eviction):
-                                run_update("DELETE FROM students WHERE id = :id", {"id": s_id})
+                                local_engine_update("DELETE FROM students WHERE id = :id", {"id": s_id})
                                 st.error("Record row purged permanently from database.")
                                 st.rerun()
 
@@ -3466,8 +3517,8 @@ elif menu_choice == "👥 Student Operations Management":
                             status_c1, status_c2 = st.columns(2)
                             with status_c1:
                                 if st.button("🚪 Flag Profile: LEFT", use_container_width=True):
-                                    run_update("UPDATE students SET status = 'LEFT' WHERE id = :id", {"id": s_id})
-                                    run_update("""
+                                    local_engine_update("UPDATE students SET status = 'LEFT' WHERE id = :id", {"id": s_id})
+                                    local_engine_update("""
                                         INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
                                         VALUES (:id, 'STATUS_CHANGE', :old, 'LEFT', CURRENT_DATE, :rem)
                                     """, {"id": s_id, "old": student['status'], "rem": global_remarks.strip() if global_remarks.strip() else "Marked as Departed"})
@@ -3475,8 +3526,8 @@ elif menu_choice == "👥 Student Operations Management":
                                     st.rerun()
                             with status_c2:
                                 if st.button("🟢 Flag Profile: ACTIVE", use_container_width=True):
-                                    run_update("UPDATE students SET status = 'ACTIVE' WHERE id = :id", {"id": s_id})
-                                    run_update("""
+                                    local_engine_update("UPDATE students SET status = 'ACTIVE' WHERE id = :id", {"id": s_id})
+                                    local_engine_update("""
                                         INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
                                         VALUES (:id, 'STATUS_CHANGE', :old, 'ACTIVE', CURRENT_DATE, :rem)
                                     """, {"id": s_id, "old": student['status'], "rem": global_remarks.strip() if global_remarks.strip() else "Manually Re-activated"})
@@ -3501,7 +3552,7 @@ elif menu_choice == "👥 Student Operations Management":
                             edit_term = st.selectbox("Update Level/Term Assignment:", edit_term_options, index=default_cls_idx)
                             
                             if st.button("💾 Save Profile Matrix Edits", use_container_width=True):
-                                run_update("""
+                                local_engine_update("""
                                     UPDATE students SET name = :name, system_type = :sys, class = :cls WHERE id = :id
                                 """, {"name": edit_name.strip(), "sys": edit_sys_value, "cls": edit_term, "id": s_id})
                                 st.toast("✅ Master registration parameters corrected successfully!")
@@ -3515,7 +3566,7 @@ elif menu_choice == "👥 Student Operations Management":
                         st.markdown("### 7️⃣ History of Activities Log")
                         st.caption(f"Showing localized transaction and profile mutation logs for Student ID: {s_id}")
                         
-                        logs_df = run_query("""
+                        logs_df = local_engine_query("""
                             SELECT change_type AS "Action Type", old_value AS "Prior Value", 
                                    new_value AS "Assigned Value", log_date AS "Timestamp", 
                                    remarks AS "Context/Justification"
@@ -3533,7 +3584,7 @@ elif menu_choice == "👥 Student Operations Management":
     elif workspace_mode == "🗂️ Whole Section Batch Operations":
         st.markdown("### 📦 Bulk Section Operations Matrix")
         
-        sections_data = run_query("""
+        sections_data = local_engine_query("""
             SELECT DISTINCT section FROM students 
             WHERE session = :sess 
               AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
@@ -3567,7 +3618,7 @@ elif menu_choice == "👥 Student Operations Management":
                 
                 st.markdown(f"##### 🎯 Destination Section Setup (Advancing to: **{inferred_next_term}**)")
                 
-                dest_sections_df = run_query("""
+                dest_sections_df = local_engine_query("""
                     SELECT DISTINCT section FROM students 
                     WHERE session = :sess AND LOWER(TRIM(class)) = LOWER(TRIM(:next_term))
                 """, {"sess": global_session, "next_term": inferred_next_term})
@@ -3578,7 +3629,7 @@ elif menu_choice == "👥 Student Operations Management":
                 target_dest_section = st.selectbox("Select Target Destination Section Assignment:", final_dest_options)
                 
                 if st.button("🚀 Execute Mass Class Cohort Promotion", type="primary", use_container_width=True):
-                    cohort_roster = run_query("""
+                    cohort_roster = local_engine_query("""
                         SELECT id, class, section, session FROM students 
                         WHERE session = :sess 
                           AND section = :sec 
@@ -3590,7 +3641,7 @@ elif menu_choice == "👥 Student Operations Management":
                     promotion_batch_id = f"PROMO-{str(uuid.uuid4())[:6].upper()}"
                     
                     for _, student_row in cohort_roster.iterrows():
-                        run_update("""
+                        local_engine_update("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
                             VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
                         """, {
@@ -3600,7 +3651,7 @@ elif menu_choice == "👥 Student Operations Management":
                             "b_id": promotion_batch_id
                         })
                     
-                    run_update("""
+                    local_engine_update("""
                         UPDATE students 
                         SET class = :next_term, section = :next_sec
                         WHERE session = :sess 
