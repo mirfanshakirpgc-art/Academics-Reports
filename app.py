@@ -995,277 +995,295 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.error(f"Database sync issue: {e}")
 
     elif entry_mode == "👤 By Single Student Roll Number":
-        st.subheader("👤 Single Student Marks Record Manager")
-        
-        sc1, sc2, sc3 = st.columns(3)
-        with sc1:
-            s_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_type")
-        with sc2:
-            s_session_sel = st.selectbox("Session Context:", session_options, key="single_sess_type")
-        with sc3:
-            if s_system == "Annual System":
-                s_class_sel = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="single_class_type")
-            else:
-                s_class_sel = st.selectbox("Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_class_type")
-
-        single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
-        
-        if single_id and single_id.isdigit():
-            query_conds = {
-                "id": int(single_id), 
-                "sess": str(s_session_sel).strip()
+    # ====================================================================
+    # 🎨 MODULE & SUB-MODULE STYLE WRAPPER (Custom Borders and Cards)
+    # ====================================================================
+    st.markdown("""
+        <style>
+            .main-module-card {
+                background-color: #ffffff;
+                border: 2px solid #d1d5db;
+                border-radius: 12px;
+                padding: 24px;
+                margin-bottom: 25px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.02);
             }
+            .sub-ledger-box {
+                background-color: #f8fafc;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 20px;
+                margin-top: 20px;
+                margin-bottom: 20px;
+            }
+            .row-item-border {
+                border-bottom: 1px solid #e2e8f0;
+                padding-top: 10px;
+                padding-bottom: 10px;
+            }
+            /* Clean up vertical alignment inside row items */
+            .row-item-border div {
+                display: flex;
+                align-items: center;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # --- START OF MAIN PARENT MODULE CONTAINER ---
+    st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
+
+    st.subheader("👤 Single Student Marks Record Manager")
+    
+    sc1, sc2, sc3 = st.columns(3)
+    with sc1:
+        s_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_type")
+    with sc2:
+        s_session_sel = st.selectbox("Session Context:", session_options, key="single_sess_type")
+    with sc3:
+        if s_system == "Annual System":
+            s_class_sel = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="single_class_type")
+        else:
+            s_class_sel = st.selectbox("Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_class_type")
+
+    single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
+    
+    if single_id and single_id.isdigit():
+        query_conds = {
+            "id": int(single_id), 
+            "sess": str(s_session_sel).strip()
+        }
+        
+        base_sql = """
+            SELECT name, section, session, class FROM students 
+            WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = :sess
+        """
+        if s_class_sel != "ALL":
+            base_sql += " AND UPPER(TRIM(class)) = :cls"
+            query_conds["cls"] = str(s_class_sel).strip().upper()
             
-            base_sql = """
-                SELECT name, section, session, class FROM students 
-                WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = :sess
-            """
-            if s_class_sel != "ALL":
-                base_sql += " AND UPPER(TRIM(class)) = :cls"
-                query_conds["cls"] = str(s_class_sel).strip().upper()
-                
-            student_info = run_query(base_sql, query_conds)
+        student_info = run_query(base_sql, query_conds)
+        
+        if student_info.empty:
+            st.error(f"❌ Roll number '{single_id}' not found matching Session ({s_session_sel}) and Class ({s_class_sel}).")
+        else:
+            s_name = student_info['name'].iloc[0].upper()
+            s_section = student_info['section'].iloc[0].upper().strip()
+            s_session = student_info['session'].iloc[0]
+            s_class = str(student_info['class'].iloc[0]).upper().strip()
             
-            if student_info.empty:
-                st.error(f"❌ Roll number '{single_id}' not found matching Session ({s_session_sel}) and Class ({s_class_sel}).")
-            else:
-                s_name = student_info['name'].iloc[0].upper()
-                s_section = student_info['section'].iloc[0].upper().strip()
-                s_session = student_info['session'].iloc[0]
-                s_class = str(student_info['class'].iloc[0]).upper().strip()
-                
-                detected_discipline = "MEDICAL"  
+            detected_discipline = "MEDICAL"  
+            if s_system == "Annual System":
+                try:
+                    for disc_key, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                        for cls_level, sections in class_map.items():
+                            cleaned_sections = [str(sec).upper().strip() for sec in sections]
+                            if s_section in cleaned_sections:
+                                detected_discipline = str(disc_key).upper().replace(" ", "_").replace("(", "").replace(")", "")
+                                if "PHYSIC" in detected_discipline: detected_discipline = "ICS_PHYSICS"
+                                elif "STAT" in detected_discipline: detected_discipline = "ICS_STATISTICS"
+                                break
+                except NameError:
+                    if any(k in s_section for k in ["EG", "ENG", "ENGINEERING"]): detected_discipline = "ENGINEERING"
+                    elif "ICS" in s_section: detected_discipline = "ICS_PHYSICS"
+                    elif any(k in s_section for k in ["CG", "COM", "COMMERCE"]): detected_discipline = "COMMERCE"
+                    elif any(k in s_section for k in ["HUM", "ARTS"]): detected_discipline = "HUMANITIES"
+            
+            st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
+            st.markdown("---")
+            
+            # Query explicit allocation layouts 
+            allocated_subjects_df = run_query("""
+                SELECT DISTINCT subject_title 
+                FROM academic_allocations 
+                WHERE UPPER(TRIM(class_level)) = :cls AND UPPER(TRIM(section_name)) = :sec
+                ORDER BY subject_title ASC
+            """, {"cls": s_class, "sec": s_section})
+
+            # If allocations are broken/incomplete, dynamically compute structural fallbacks cleanly
+            if allocated_subjects_df.empty or len(allocated_subjects_df) < 6:
                 if s_system == "Annual System":
-                    try:
-                        for disc_key, class_map in DISCIPLINE_SECTIONS_MAP.items():
-                            for cls_level, sections in class_map.items():
-                                cleaned_sections = [str(sec).upper().strip() for sec in sections]
-                                if s_section in cleaned_sections:
-                                    detected_discipline = str(disc_key).upper().replace(" ", "_").replace("(", "").replace(")", "")
-                                    if "PHYSIC" in detected_discipline: detected_discipline = "ICS_PHYSICS"
-                                    elif "STAT" in detected_discipline: detected_discipline = "ICS_STATISTICS"
-                                    break
-                    except NameError:
-                        if any(k in s_section for k in ["EG", "ENG", "ENGINEERING"]): detected_discipline = "ENGINEERING"
-                        elif "ICS" in s_section: detected_discipline = "ICS_PHYSICS"
-                        elif any(k in s_section for k in ["CG", "COM", "COMMERCE"]): detected_discipline = "COMMERCE"
-                        elif any(k in s_section for k in ["HUM", "ARTS"]): detected_discipline = "HUMANITIES"
-                
-                st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
-                st.markdown("---")
-                
-                # Query explicit allocation layouts 
-                allocated_subjects_df = run_query("""
-                    SELECT DISTINCT subject_title 
-                    FROM academic_allocations 
-                    WHERE UPPER(TRIM(class_level)) = :cls AND UPPER(TRIM(section_name)) = :sec
-                    ORDER BY subject_title ASC
-                """, {"cls": s_class, "sec": s_section})
-
-                # If allocations are broken/incomplete, dynamically compute structural fallbacks cleanly
-                if allocated_subjects_df.empty or len(allocated_subjects_df) < 6:
-                    if s_system == "Annual System":
-                        year_suffix = "12TH" if "12" in str(s_class) else "11TH"
-                        lookup_key = f"{detected_discipline.strip().upper()}_{year_suffix}"
-                        subjects_list = DISCIPLINE_SUBJECTS_MAP.get(lookup_key, ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"])
-                    else:
-                        if "1ST" in s_class:
-                            subjects_list = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                        elif "2ND" in s_class:
-                            subjects_list = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                        else: 
-                            subjects_list = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+                    year_suffix = "12TH" if "12" in str(s_class) else "11TH"
+                    lookup_key = f"{detected_discipline.strip().upper()}_{year_suffix}"
+                    subjects_list = DISCIPLINE_SUBJECTS_MAP.get(lookup_key, ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"])
                 else:
-                    subjects_list = allocated_subjects_df['subject_title'].tolist()
+                    if "1ST" in s_class:
+                        subjects_list = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+                    elif "2ND" in s_class:
+                        subjects_list = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+                    else: 
+                        subjects_list = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+            else:
+                subjects_list = allocated_subjects_df['subject_title'].tolist()
 
-                # CRITICAL SELECTION COMPONENT: Placed right above the container layout
-                single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
-                total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
+            single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
+            total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
 
-                # Render Form View for Single Student Matrix Input Sheets
-                with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
-                    st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-# --- SECTION 1: MARKS ENTRY LEDGER ---
-                    st.markdown("### 🔢 1. Marks Obtained Ledger")
-                    st.caption("Press **Tab** to slide straight down to the next subject score field.")
-                    st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
+            # Render Form View for Single Student Matrix Input Sheets
+            with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
+                st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
+                
+                # --- SUB-MODULE CONTAINER START: SECTION 1 (MARKS OBTAINED) ---
+                st.markdown('<div class="sub-ledger-box">', unsafe_allow_html=True)
+                st.markdown("### 🔢 1. Marks Obtained Ledger")
+                st.caption("Press **Tab** to slide straight down to the next subject score field.")
+                st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
-                    updated_scores = {}
+                updated_scores = {}
+                
+                # Setup unified headers for Section 1
+                h_col1, h_col2 = st.columns([4, 2])
+                h_col1.caption("📖 **Subject Title**")
+                h_col2.caption("🔢 **Obtained Marks Input**")
+                st.markdown("<hr style='margin:5px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+
+                # Loop 1: Text Input Fields (Strict layout flow)
+                for idx, subject in enumerate(subjects_list):
+                    sub_slug = subject.replace(' ', '_')
                     
-                    # --- LOOP 1: GENERATE ALL TEXT INPUT FIELDS FIRST ---
-                    # Because this loop executes sequentially without any checkboxes inside,
-                    # the browser is forced to link these inputs back-to-back in the tab tree!
-                    for subject in subjects_list:
-                        existing_mark_df = run_query("""
-                            SELECT marks_obtained FROM marks 
-                            WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                        """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
-                        
-                        db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-                        
-                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        
-                        if state_abs_key not in st.session_state:
-                            st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                        if state_nc_key not in st.session_state:
-                            st.session_state[state_nc_key] = (db_val == 'NC')
-                        
-                        chk_absent = st.session_state[state_abs_key]
-                        chk_nc = st.session_state[state_nc_key]
-                        
-                        initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                        is_disabled = chk_absent or chk_nc
-                        display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
+                    existing_mark_df = run_query("""
+                        SELECT marks_obtained FROM marks 
+                        WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                    """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                    
+                    db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
+                    
+                    state_abs_key = f"s_abs_{single_id}_{sub_slug}_{single_exam}"
+                    state_nc_key = f"s_nc_{single_id}_{sub_slug}_{single_exam}"
+                    state_marks_key = f"roll_mark_in_{single_id}_{sub_slug}_{single_exam}"
+                    
+                    if state_abs_key not in st.session_state:
+                        st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                    if state_nc_key not in st.session_state:
+                        st.session_state[state_nc_key] = (db_val == 'NC')
+                    
+                    chk_absent = st.session_state[state_abs_key]
+                    chk_nc = st.session_state[state_nc_key]
+                    
+                    initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
+                    is_disabled = chk_absent or chk_nc
+                    display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
 
-                        # Clean, clear row format for text box inputs
-                        col_label, col_field = st.columns([4, 2])
-                        col_label.markdown(f"<div style='padding-top: 10px; font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
-                        
-                        score_input = col_field.text_input(
+                    # --- SUB-ROW BORDER START ---
+                    st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
+                    col_label, col_field = st.columns([4, 2])
+                    
+                    col_label.markdown(f"<div style='font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
+                    
+                    with col_field:
+                        st.markdown(f"<div id='m_anchor_{idx}'></div>", unsafe_allow_html=True)
+                        score_input = st.text_input(
                             f"Marks for {subject}",
                             value=display_score if is_disabled else initial_score,
                             key=state_marks_key,
+                            placeholder="e.g. 38 or A",
                             label_visibility="collapsed",
                             disabled=is_disabled
                         )
-                        updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                        
+                        # Dynamic ID Injector for smooth keyboard controls
+                        st.components.v1.html(f"""
+                            <script>
+                                setTimeout(() => {{
+                                    const anchor = window.parent.document.getElementById('m_anchor_{idx}');
+                                    if (anchor) {{
+                                        const container = anchor.parentElement;
+                                        const inputField = container.querySelector('input');
+                                        if (inputField) {{
+                                            inputField.id = 'm_{idx}';
+                                        }}
+                                    }}
+                                }}, 100);
+                            </script>
+                        """, height=0)
+                    st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER END ---
+                    
+                    updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                
+                st.markdown('</div>', unsafe_allow_html=True) # --- SUB-MODULE CONTAINER END: SECTION 1 ---
+                
 
-                    # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
-                    # We drop down and run a completely separate loop for checkboxes.
-                    st.markdown("<br><br>", unsafe_allow_html=True)
-                    st.markdown("### ❌ 2. Attendance & Exceptions Registry")
-                    st.caption("Toggle these boxes if a student was Absent or needs an NC flag.")
+                # --- SUB-MODULE CONTAINER START: SECTION 2 (EXCEPTIONS) ---
+                st.markdown('<div class="sub-ledger-box">', unsafe_allow_html=True)
+                st.markdown("### ❌ 2. Attendance & Exceptions Registry")
+                st.caption("Toggle these boxes if a student was Absent or needs an NC flag.")
+                st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
+                
+                h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
+                h_ex1.caption("📖 **Subject Title**")
+                h_ex2.caption("❌ **Absent**")
+                h_ex3.caption("➖ **NC**")
+                st.markdown("<hr style='margin:5px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                
+                # Loop 2: Exception Checkboxes
+                for subject in subjects_list:
+                    sub_slug = subject.replace(' ', '_')
+                    state_abs_key = f"s_abs_{single_id}_{sub_slug}_{single_exam}"
+                    state_nc_key = f"s_nc_{single_id}_{sub_slug}_{single_exam}"
                     
-                    h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
-                    h_ex1.caption("📖 **Subject Title**")
-                    h_ex2.caption("❌ **Absent**")
-                    h_ex3.caption("➖ **NC**")
-                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    # --- SUB-ROW BORDER START ---
+                    st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
+                    col_ex_sub, col_ex_abs, col_ex_nc = st.columns([4, 1, 1])
                     
+                    col_ex_sub.markdown(f"<div style='color: #4b5563; font-weight: 500;'>{subject}</div>", unsafe_allow_html=True)
+                    
+                    with col_ex_abs:
+                        st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                    with col_ex_nc:
+                        st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                    st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER END ---
+                
+                st.markdown('</div>', unsafe_allow_html=True) # --- SUB-MODULE CONTAINER END: SECTION 2 ---
+
+
+                # Form Operations Submission Block
+                st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+                submit_button = st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", type="primary", use_container_width=True)
+                
+                if submit_button:
+                    import time
+                    success_count = 0
+                    
+                    # Read fresh evaluations post form submission updates
                     for subject in subjects_list:
-                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        sub_slug = subject.replace(' ', '_')
+                        chk_absent = st.session_state.get(f"s_abs_{single_id}_{sub_slug}_{single_exam}", False)
+                        chk_nc = st.session_state.get(f"s_nc_{single_id}_{sub_slug}_{single_exam}", False)
+                        raw_marks = st.session_state.get(f"roll_mark_in_{single_id}_{sub_slug}_{single_exam}", "")
                         
-                        col_ex_sub, col_ex_abs, col_ex_nc = st.columns([4, 1, 1])
-                        col_ex_sub.markdown(f"<div style='padding-top: 5px; color: #555;'>{subject}</div>", unsafe_allow_html=True)
+                        final_value = "A" if chk_absent else ("NC" if chk_nc else raw_marks)
                         
-                        with col_ex_abs:
-                            st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                        with col_ex_nc:
-                            st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-        
-    initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-    is_disabled = chk_absent or chk_nc
-    display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-    
-    with col_marks:
-        st.markdown(f"<div id='m_anchor_{idx}'></div>", unsafe_allow_html=True)
-        score_input = st.text_input(
-            f"Obtained Marks for {subject}",
-            value=display_score if is_disabled else initial_score,
-            key=state_marks_key,
-            label_visibility="collapsed",
-            disabled=is_disabled
-        )
-        
-        # ID Injector for Keyboard Controller
-        st.components.v1.html(f"""
-            <script>
-                setTimeout(() => {{
-                    const anchor = window.parent.document.getElementById('m_anchor_{idx}');
-                    if (anchor) {{
-                        const container = anchor.parentElement;
-                        const inputField = container.querySelector('input');
-                        if (inputField) {{
-                            inputField.id = 'm_{idx}';
-                        }}
-                    }}
-                }}, 100);
-            </script>
-        """, height=0)
-
-# Optional spacing line
-st.markdown("<br><br>", unsafe_allow_html=True)
-                    # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
-                    # We drop down and run a completely separate loop for checkboxes.
-                    st.markdown("<br><br>", unsafe_allow_html=True)
-                    st.markdown("### ❌ 2. Attendance & Exceptions Registry")
-                    st.caption("Toggle these boxes if a student was Absent or needs an NC flag.")
+                        if final_value.strip() != "":
+                            execute_db_command("""
+                                INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
+                                VALUES (:s_id, :sub, :exam, :marks, :total)
+                                ON CONFLICT (student_id, subject, exam_type)
+                                DO UPDATE SET marks_obtained = EXCLUDED.marks_obtained, total_marks = EXCLUDED.total_marks
+                            """, {
+                                "s_id": int(single_id),
+                                "sub": subject,
+                                "exam": single_exam,
+                                "marks": final_value.strip().upper(),
+                                "total": float(total_marks_input)
+                            })
+                            success_count += 1
                     
-                    h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
-                    h_ex1.caption("📖 **Subject Title**")
-                    h_ex2.caption("❌ **Absent**")
-                    h_ex3.caption("➖ **NC**")
-                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
-                    
-                    for subject in subjects_list:
-                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        
-                        col_ex_sub, col_ex_abs, col_ex_nc = st.columns([4, 1, 1])
-                        col_ex_sub.markdown(f"<div style='padding-top: 5px; color: #555;'>{subject}</div>", unsafe_allow_html=True)
-                        
-                        with col_ex_abs:
-                            st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                        with col_ex_nc:
-                            st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                    if success_count > 0:
+                        # Flush garbage configurations cleanly out of memory cache maps
+                        for subject in subjects_list:
+                            sub_slug = subject.replace(' ', '_')
+                            st.session_state.pop(f"s_abs_{single_id}_{sub_slug}_{single_exam}", None)
+                            st.session_state.pop(f"s_nc_{single_id}_{sub_slug}_{single_exam}", None)
+                            st.session_state.pop(f"roll_mark_in_{single_id}_{sub_slug}_{single_exam}", None)
                             
-                        with col_marks:
-                            initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                            is_disabled = chk_absent or chk_nc
-                            display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-                            
-                            # CRITICAL FIX: Added single_exam directly inside the text input widget key structure
-                            score_input = st.text_input(
-                                f"Marks for {subject}", 
-                                value=display_score if is_disabled else initial_score, 
-                                placeholder="e.g. 38 or A", 
-                                label_visibility="collapsed",
-                                key=f"roll_mark_in_{single_id}_{subject.replace(' ', '_')}_{single_exam}",
-                                disabled=is_disabled
-                            )
-                        
-                        updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                        st.success(f"🎉 Successfully saved/updated academic records across {success_count} subjects for {s_name}!")
+                        st.toast(f"Saved entries for Roll No: {single_id}", icon="💾")
+                        st.cache_data.clear()
+                        time.sleep(1.2)
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ No mark entries were added. Check input values.")
 
-                    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-                    submit_button = st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", type="primary", use_container_width=True)
-                    
-                    if submit_button:
-                        import time
-                        success_count = 0
-                        for subject, marks_val in updated_scores.items():
-                            if marks_val.strip() != "":
-                                execute_db_command("""
-                                    INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks)
-                                    VALUES (:s_id, :sub, :exam, :marks, :total)
-                                    ON CONFLICT (student_id, subject, exam_type)
-                                    DO UPDATE SET marks_obtained = EXCLUDED.marks_obtained, total_marks = EXCLUDED.total_marks
-                                """, {
-                                    "s_id": int(single_id),
-                                    "sub": subject,
-                                    "exam": single_exam,
-                                    "marks": marks_val.strip().upper(),
-                                    "total": float(total_marks_input)
-                                })
-                                success_count += 1
-                        
-                        if success_count > 0:
-                            # CRITICAL FIX: Clear explicit widget and checkbox variables completely out of state memory
-                            for subject in subjects_list:
-                                sub_slug = subject.replace(' ', '_')
-                                st.session_state.pop(f"s_abs_{single_id}_{sub_slug}_{single_exam}", None)
-                                st.session_state.pop(f"s_nc_{single_id}_{sub_slug}_{single_exam}", None)
-                                st.session_state.pop(f"roll_mark_in_{single_id}_{sub_slug}_{single_exam}", None)
-                                
-                            st.success(f"🎉 Successfully saved/updated academic records across {success_count} subjects for {s_name}!")
-                            st.toast(f"Saved entries for Roll No: {single_id}", icon="💾")
-                            st.cache_data.clear()
-                            time.sleep(1.2)
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ No mark entries were added. Check input values.")
+    st.markdown('</div>', unsafe_allow_html=True) # --- END OF MAIN PARENT MODULE CONTAINER ---
 
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Marks Ledger Import Processing Pipeline")
