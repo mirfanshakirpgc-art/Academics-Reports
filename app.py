@@ -1085,9 +1085,55 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # --- PREPARE DATA EXTRACTION FOR RAW PORTAL MATRIX ---
-                    matrix_rows = []
-                    for subject in subjects_list:
+                    # --- SECTION 1: MARKS ENTRY LEDGER ---
+                    st.markdown("### 🔢 1. Marks Obtained Ledger")
+                    st.caption("Press **Tab**, **Enter**, or the **Down Arrow** to drop straight down. Checkboxes are automatically skipped!")
+                    st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
+
+                    # ====================================================================
+                    # 🚀 LIGHTNING KEYBOARD FOCUS CONTROLLER
+                    # ====================================================================
+                    st.components.v1.html("""
+                        <script>
+                            const doc = window.parent.document;
+                            
+                            // Handle cell-focused navigation (Arrow Keys & Enter)
+                            doc.addEventListener('keydown', function(e) {
+                                const activeEl = doc.activeElement;
+                                
+                                if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.startsWith('m_')) {
+                                    const currentIdx = parseInt(activeEl.id.split('_')[1], 10);
+                                    
+                                    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        const nextInput = doc.getElementById('m_' + (currentIdx + 1));
+                                        if (nextInput) {
+                                            nextInput.focus();
+                                            nextInput.select();
+                                        }
+                                    } else if (e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        const prevInput = doc.getElementById('m_' + (currentIdx - 1));
+                                        if (prevInput) {
+                                            prevInput.focus();
+                                            prevInput.select();
+                                        }
+                                    }
+                                }
+                            });
+                        </script>
+                    """, height=0)
+                    # ====================================================================
+
+                    updated_scores = {}
+                    
+                    # We track the index variable to assign sequential element IDs matching the React logic
+                    for idx, subject in enumerate(subjects_list):
+                        col_sub, col_marks, col_abs, col_nc = st.columns([4, 2, 1, 1])
+                        
+                        with col_sub:
+                            st.markdown(f"<div style='padding-top: 5px; font-weight: bold;'>📖 {subject}</div>", unsafe_allow_html=True)
+                        
                         existing_mark_df = run_query("""
                             SELECT marks_obtained FROM marks 
                             WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
@@ -1095,113 +1141,56 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         
                         db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
                         
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        
+                        if state_abs_key not in st.session_state:
+                            st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                        if state_nc_key not in st.session_state:
+                            st.session_state[state_nc_key] = (db_val == 'NC')
+                            
+                        with col_abs:
+                            chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                        with col_nc:
+                            chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                            
                         initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                        is_abs = "true" if db_val in ['A', 'ABSENT'] else "false"
-                        is_nc = "true" if db_val == 'NC' else "false"
+                        is_disabled = chk_absent or chk_nc
+                        display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
                         
-                        matrix_rows.append({
-                            "subject": subject,
-                            "initial_score": initial_score,
-                            "is_abs": is_abs,
-                            "is_nc": is_nc
-                        })
-
-                    import json
-                    json_payload = json.dumps(matrix_rows)
-
-                    st.markdown("### 🔢 Marks Entry Sheet")
-                    st.caption("Press **Tab** to skip the checkboxes and move straight down to the next row field.")
-
-                    # --- SINGLE CONTEXT DOM TREE SHEET ---
-                    calc_height = 60 + (len(subjects_list) * 48)
-                    
-                    raw_html_code = f"""
-                    <div style="font-family: system-ui, sans-serif; color: #31333F;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <thead>
-                                <tr style="text-align: left; font-size: 0.85rem; color: #555; border-bottom: 2px solid #e0e2e6;">
-                                    <th style="padding: 10px; width: 45%;">📖 Subject Title</th>
-                                    <th style="padding: 10px; width: 25%;">🔢 Obtained Marks</th>
-                                    <th style="padding: 10px; width: 15%; text-align: center;">❌ Absent</th>
-                                    <th style="padding: 10px; width: 15%; text-align: center;">➖ NC</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-body"></tbody>
-                        </table>
-                    </div>
-
-                    <script>
-                        const dataRows = {json_payload};
-                        const tbody = document.getElementById('table-body');
-                        
-                        dataRows.forEach((row, idx) => {{
-                            const tr = document.createElement('tr');
-                            tr.style.borderBottom = '1px solid #e0e2e6';
+                        with col_marks:
+                            # We override the element configuration using an unsafely applied label attribute
+                            # This attaches an explicit ID string ('m_0', 'm_1', etc.) for the navigation script to bind onto
+                            st.markdown(f"<div id='m_anchor_{idx}'></div>", unsafe_allow_html=True)
                             
-                            const val = row.is_abs === "true" ? "A" : (row.is_nc === "true" ? "NC" : row.initial_score);
-                            const disabledAttr = (row.is_abs === "true" || row.is_nc === "true") ? "disabled" : "";
+                            score_input = st.text_input(
+                                f"Obtained Marks for {subject}",
+                                value=display_score if is_disabled else initial_score,
+                                key=state_marks_key,
+                                label_visibility="collapsed",
+                                disabled=is_disabled
+                            )
                             
-                            tr.innerHTML = `
-                                <td style="padding: 12px 10px; font-weight: bold; font-size: 0.95rem;">${{row.subject}}</td>
-                                <td style="padding: 6px 10px;">
-                                    <input type="text" class="mark-input" id="m_${{idx}}" data-sub="${{row.subject}}" value="${{val}}" ${{disabledAttr}}
-                                        style="width: 90%; padding: 6px 10px; border: 1px solid #bfc2c7; border-radius: 4px;" tabindex="${{idx + 1}}">
-                                </td>
-                                <td style="padding: 6px 10px; text-align: center;">
-                                    <input type="checkbox" class="abs-cb" id="a_${{idx}}" ${{row.is_abs === "true" ? "checked" : ""}} tabindex="${{100 + idx}}">
-                                </td>
-                                <td style="padding: 6px 10px; text-align: center;">
-                                    <input type="checkbox" class="nc-cb" id="n_${{idx}}" ${{row.is_nc === "true" ? "checked" : ""}} tabindex="${{200 + idx}}">
-                                </td>
-                            `;
-                            tbody.appendChild(tr);
-                        }});
-
-                        // Track input adjustments dynamically
-                        tbody.addEventListener('change', function(e) {{
-                            if (e.target.type === 'checkbox') {{
-                                const tr = e.target.closest('tr');
-                                const txt = tr.querySelector('.mark-input');
-                                const abs = tr.querySelector('.abs-cb');
-                                const nc = tr.querySelector('.nc-cb');
-                                
-                                if (e.target.classList.contains('abs-cb') && abs.checked) nc.checked = false;
-                                if (e.target.classList.contains('nc-cb') && nc.checked) abs.checked = false;
-                                
-                                if (abs.checked) {{ txt.value = "A"; txt.disabled = true; }}
-                                else if (nc.checked) {{ txt.value = "NC"; txt.disabled = true; }}
-                                else {{ txt.value = ""; txt.disabled = false; }}
-                            }}
-                            pushData();
-                        }});
-
-                        tbody.addEventListener('input', pushData);
-
-                        function pushData() {{
-                            const res = {{}};
-                            document.querySelectorAll('.mark-input').forEach(i => {{
-                                res[i.dataset.sub] = i.value;
-                            }});
-                            window.parent.postMessage({{type: 'streamlit:setComponentValue', value: JSON.stringify(res)}}, '*');
-                        }}
-                        setTimeout(pushData, 200);
-                    </script>
-                    """
-                    
-                    from streamlit.components.v1 import html
-                    raw_response = html(raw_html_code, height=calc_height, scrolling=False)
-                    
-                    # --- PARSE INCOMING DATA BACK TO DATABASE WRITE STREAM ---
-                    updated_scores = {}
-                    if raw_response:
-                        try:
-                            updated_scores = json.loads(raw_response)
-                        except:
-                            pass
+                            # Injects a fast inline script block that hooks into the text element container,
+                            # forcing it to assume the exact matching IDs and tab indexes seen in the React design.
+                            st.components.v1.html(f"""
+                                <script>
+                                    setTimeout(() => {{
+                                        const anchor = window.parent.document.getElementById('m_anchor_{idx}');
+                                        if (anchor) {{
+                                            const container = anchor.parentElement;
+                                            const inputField = container.querySelector('input');
+                                            if (inputField) {{
+                                                inputField.id = 'm_{idx}';
+                                                inputField.tabIndex = {idx + 1};
+                                            }}
+                                        }}
+                                    }}, 100);
+                                </script>
+                            """, height=0)
                             
-                    if not updated_scores:
-                        for row in matrix_rows:
-                            updated_scores[row['subject']] = row['initial_score']
+                        updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
                     # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
                     # We drop down and run a completely separate loop for checkboxes.
                     st.markdown("<br><br>", unsafe_allow_html=True)
