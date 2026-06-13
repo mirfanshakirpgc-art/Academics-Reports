@@ -911,19 +911,19 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
                     with col_b2:
-                        if st.button("🏁 Mark All Absent", use_container_width=True, key="bulk_absent_btn"):
+                        if st.button("🏁 Mark All Absent", use_container_width=True, key=f"bulk_absent_btn_{sel_exam}"):
                             for r_idx, r_row in roster_df.iterrows():
-                                st.session_state[f"abs_{r_row['ID']}"] = True
-                                st.session_state[f"nc_{r_row['ID']}"] = False
+                                st.session_state[f"abs_{r_row['ID']}_{sel_exam}"] = True
+                                st.session_state[f"nc_{r_row['ID']}_{sel_exam}"] = False
                             st.rerun()
                     with col_b3:
-                        if st.button("🚫 Mark All NC", use_container_width=True, key="bulk_nc_btn"):
+                        if st.button("🚫 Mark All NC", use_container_width=True, key=f"bulk_nc_btn_{sel_exam}"):
                             for r_idx, r_row in roster_df.iterrows():
-                                st.session_state[f"abs_{r_row['ID']}"] = False
-                                st.session_state[f"nc_{r_row['ID']}"] = True
+                                st.session_state[f"abs_{r_row['ID']}_{sel_exam}"] = False
+                                st.session_state[f"nc_{r_row['ID']}_{sel_exam}"] = True
                             st.rerun()
                     
-                    with st.form("bulk_marks_form"):
+                    with st.form(f"bulk_marks_form_{sel_exam}_{sel_subject}"):
                         updated_marks = {}
                         
                         h_c1, h_c2, h_c3, h_c4 = st.columns([3, 1, 0.6, 0.6])
@@ -938,13 +938,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             
                             db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
                             
-                            if f"abs_{row['ID']}" not in st.session_state:
-                                st.session_state[f"abs_{row['ID']}"] = (db_val in ['A', 'ABSENT'])
-                            if f"nc_{row['ID']}" not in st.session_state:
-                                st.session_state[f"nc_{row['ID']}"] = (db_val == 'NC')
+                            # CRITICAL FIX: Append the selected exam code into the keys to reset state on change
+                            state_abs_key = f"abs_{row['ID']}_{sel_exam}"
+                            state_nc_key = f"nc_{row['ID']}_{sel_exam}"
 
-                            chk_absent = col_s3.checkbox("", key=f"abs_{row['ID']}", label_visibility="collapsed")
-                            chk_nc = col_s4.checkbox("", key=f"nc_{row['ID']}", label_visibility="collapsed")
+                            if state_abs_key not in st.session_state:
+                                st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                            if state_nc_key not in st.session_state:
+                                st.session_state[state_nc_key] = (db_val == 'NC')
+
+                            chk_absent = col_s3.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                            chk_nc = col_s4.checkbox("", key=state_nc_key, label_visibility="collapsed")
                             
                             initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
                             is_disabled = chk_absent or chk_nc
@@ -953,7 +957,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             score_input = col_s2.text_input(
                                 "Obtained", 
                                 value=display_score if is_disabled else initial_score, 
-                                key=f"marks_{row['ID']}", 
+                                key=f"marks_{row['ID']}_{sel_exam}_{sel_subject}", 
                                 label_visibility="collapsed",
                                 disabled=is_disabled
                             )
@@ -970,13 +974,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
                                                       {"s_id": int(s_id), "subject": sel_subject.strip().upper(), "exam": sel_exam.strip().upper(), "score": score_clean, "total": float(total_marks)})
                             
+                            # CRITICAL FIX: Explicitly purge temporary component states from memory
                             for s_id in updated_marks.keys():
-                                st.session_state.pop(f"abs_{s_id}", None)
-                                st.session_state.pop(f"nc_{s_id}", None)
+                                st.session_state.pop(f"abs_{s_id}_{sel_exam}", None)
+                                st.session_state.pop(f"nc_{s_id}_{sel_exam}", None)
+                                st.session_state.pop(f"marks_{s_id}_{sel_exam}_{sel_subject}", None)
                                 
                             st.success(f"🎉 Marks ledger for Section {sel_section} ({sel_subject}) recorded successfully!")
                             st.toast("Database sync complete!", icon="💾")
-                            time.sleep(1.5)
+                            time.sleep(1.2)
                             st.rerun()
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
@@ -1065,14 +1071,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     subjects_list = allocated_subjects_df['subject_title'].tolist()
 
+                # CRITICAL SELECTION COMPONENT: Placed right above the container layout
+                single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
+                total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
+
                 # Render Form View for Single Student Matrix Input Sheets
-                with st.form(key=f"roll_number_entry_form_{single_id}"):
-                    c_m1, c_m2 = st.columns(2)
-                    with c_m1: 
-                        single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
-                    with c_m2:
-                        total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
-                    
+                with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
                     
                     # --- GRID MATRIX HEADER ---
@@ -1098,8 +1102,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         
                         db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
                         
-                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}"
-                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}"
+                        # CRITICAL FIX: Bind single_exam directly into the session state configuration keys
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
                         
                         if state_abs_key not in st.session_state:
                             st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
@@ -1116,12 +1121,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             is_disabled = chk_absent or chk_nc
                             display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
                             
+                            # CRITICAL FIX: Added single_exam directly inside the text input widget key structure
                             score_input = st.text_input(
                                 f"Marks for {subject}", 
                                 value=display_score if is_disabled else initial_score, 
                                 placeholder="e.g. 38 or A", 
                                 label_visibility="collapsed",
-                                key=f"roll_mark_in_{single_id}_{subject.replace(' ', '_')}",
+                                key=f"roll_mark_in_{single_id}_{subject.replace(' ', '_')}_{single_exam}",
                                 disabled=is_disabled
                             )
                         
@@ -1150,14 +1156,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 success_count += 1
                         
                         if success_count > 0:
+                            # CRITICAL FIX: Clear explicit widget and checkbox variables completely out of state memory
                             for subject in subjects_list:
-                                st.session_state.pop(f"s_abs_{single_id}_{subject.replace(' ', '_')}", None)
-                                st.session_state.pop(f"s_nc_{single_id}_{subject.replace(' ', '_')}", None)
+                                sub_slug = subject.replace(' ', '_')
+                                st.session_state.pop(f"s_abs_{single_id}_{sub_slug}_{single_exam}", None)
+                                st.session_state.pop(f"s_nc_{single_id}_{sub_slug}_{single_exam}", None)
+                                st.session_state.pop(f"roll_mark_in_{single_id}_{sub_slug}_{single_exam}", None)
                                 
                             st.success(f"🎉 Successfully saved/updated academic records across {success_count} subjects for {s_name}!")
                             st.toast(f"Saved entries for Roll No: {single_id}", icon="💾")
                             st.cache_data.clear()
-                            time.sleep(1.5)
+                            time.sleep(1.2)
                             st.rerun()
                         else:
                             st.warning("⚠️ No mark entries were added. Check input values.")
@@ -1165,7 +1174,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     elif entry_mode == "📤 Bulk Excel/CSV Import":
         st.subheader("📤 Bulk Marks Ledger Import Processing Pipeline")
         # Bulk module implementation follows here...
-
 
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC DAILY LOGGING & ON-THE-FLY AGGREGATES)
