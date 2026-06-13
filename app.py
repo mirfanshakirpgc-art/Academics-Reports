@@ -1163,122 +1163,13 @@ elif entry_mode == "👤 By Single Student Roll Number":
                 h_col_nc.caption("➖ **NC**")
                 st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
-                updated_section_scores = {}
-
-                # Loop through all students in the selected section
-                for idx, row in student_list_df.iterrows():
-                    student_id = int(row['id'])
-                    student_name = str(row['name']).upper()
-                    
-                    # Safe unique keys for session states
-                    state_abs_key = f"sec_abs_{student_id}_{target_subject_slug}_{target_exam}"
-                    state_nc_key = f"sec_nc_{student_id}_{target_subject_slug}_{target_exam}"
-                    state_marks_key = f"sec_mark_in_{student_id}_{target_subject_slug}_{target_exam}"
-                    
-                    # Fetch database values if they exist
-                    existing_mark_df = run_query("""
-                        SELECT marks_obtained FROM marks 
-                        WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                    """, {"s_id": student_id, "sub": target_subject, "exam": target_exam})
-                    
-                    db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-                    
-                    if state_abs_key not in st.session_state:
-                        st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                    if state_nc_key not in st.session_state:
-                        st.session_state[state_nc_key] = (db_val == 'NC')
-                        
-                    chk_absent = st.session_state[state_abs_key]
-                    chk_nc = st.session_state[state_nc_key]
-                    
-                    initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                    is_disabled = chk_absent or chk_nc
-                    display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-
-                    # --- SUB-ROW BORDER BOUNDARY START ---
-                    st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                    col_roll, col_name, col_field, col_abs, col_nc = st.columns([1.5, 2.5, 2.5, 1, 1])
-                    
-                    col_roll.markdown(f"<div class='vertical-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
-                    col_name.markdown(f"<div class='vertical-center' style='font-size: 0.95rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
-                    
-                    with col_abs:
-                        st.markdown(f"<div id='sec_abs_anchor_{idx}'></div>", unsafe_allow_html=True)
-                        chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                    with col_nc:
-                        st.markdown(f"<div id='sec_nc_anchor_{idx}'></div>", unsafe_allow_html=True)
-                        chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-                    
-                    with col_field:
-                        st.markdown(f"<div id='sec_m_anchor_{idx}'></div>", unsafe_allow_html=True)
-                        score_input = st.text_input(
-                            f"Marks for {student_id}",
-                            value=display_score if is_disabled else initial_score,
-                            placeholder="Score",
-                            key=state_marks_key,
-                            label_visibility="collapsed",
-                            disabled=is_disabled
-                        )
-                        
-                        # JavaScript Injector: Locks focus chain onto marks fields, ignores checkboxes
-                        # ====================================================================
-# 🗂️ COMPLETE SECTION ENTRY WORKSHEET
+               # ====================================================================
+# 🗂️ ABSOLUTE VERTICAL FOCUS SECTION ENTRY LOOP
 # ====================================================================
-
-# 1. Layout Headers
-h_col_roll, h_col_name, h_col_field, h_col_abs, h_col_nc = st.columns([1.5, 2.5, 2.5, 1, 1])
-h_col_roll.caption("🆔 **Roll No**")
-h_col_name.caption("👤 **Student Name**")
-h_col_field.caption("🔢 **Obtained Marks Input**")
-h_col_abs.caption("❌ **Absent**")
-h_col_nc.caption("➖ **NC**")
-st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
-
-# 2. Global Keyboard Interceptor (Runs ONCE, skips checkboxes on Tab)
-st.components.v1.html("""
-<script>
-setTimeout(() => {
-    const doc = window.parent.document;
-
-    function getMarksInputs() {
-        return Array.from(
-            doc.querySelectorAll('input[id^="sec_field_"]')
-        ).filter(el => !el.disabled && el.offsetParent !== null);
-    }
-
-    if (!window.parent.__sectionTabInstalled) {
-        window.parent.__sectionTabInstalled = true;
-
-        doc.addEventListener('keydown', function(e) {
-            if (e.key !== 'Tab') return;
-
-            const active = doc.activeElement;
-            if (!active || active.tagName !== 'INPUT' || !active.id.startsWith('sec_field_')) 
-                return;
-
-            const inputs = getMarksInputs();
-            const current = inputs.indexOf(active);
-            if (current === -1) return;
-
-            // Stop the horizontal tabbing dead in its tracks
-            e.preventDefault();
-
-            // Jump cleanly DOWN (Tab) or UP (Shift+Tab)
-            let target = e.shiftKey ? current - 1 : current + 1;
-
-            if (target >= 0 && target < inputs.length) {
-                inputs[target].focus();
-                inputs[target].select();
-            }
-        }, true);
-    }
-}, 500);
-</script>
-""", height=0)
 
 updated_section_scores = {}
 
-# 3. Dynamic Student Iteration Loop
+# Loop through all students in the selected section
 for idx, row in student_list_df.iterrows():
     student_id = int(row['id'])
     student_name = str(row['name']).upper()
@@ -1319,7 +1210,27 @@ for idx, row in student_list_df.iterrows():
         chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
     
     with col_field:
-        st.markdown(f'<div id="sec_box_wrap_{idx}">', unsafe_allow_html=True)
+        # We attach an immediate capturing inline keydown trap to the parent div container
+        st.markdown(f"""
+            <div id="sec_box_wrap_{idx}" onkeydown="
+                if (event.key === 'Tab' && !event.shiftKey) {{
+                    event.preventDefault();
+                    const nextWrap = window.parent.document.getElementById('sec_box_wrap_{idx + 1}');
+                    if (nextWrap) {{
+                        const nextInput = nextWrap.querySelector('input');
+                        if (nextInput) {{ nextInput.focus(); nextInput.select(); }}
+                    }}
+                }} else if (event.key === 'Tab' && event.shiftKey) {{
+                    event.preventDefault();
+                    const prevWrap = window.parent.document.getElementById('sec_box_wrap_{idx - 1}');
+                    if (prevWrap) {{
+                        const prevInput = prevWrap.querySelector('input');
+                        if (prevInput) {{ prevInput.focus(); prevInput.select(); }}
+                    }}
+                }}
+            ">
+        """, unsafe_allow_html=True)
+        
         score_input = st.text_input(
             f"Marks for {student_id}",
             value=display_score if is_disabled else initial_score,
@@ -1329,20 +1240,6 @@ for idx, row in student_list_df.iterrows():
             disabled=is_disabled
         )
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Immediate target linker
-        st.components.v1.html(f"""
-            <script>
-                (function() {{
-                    const doc = window.parent.document;
-                    const wrap = doc.getElementById('sec_box_wrap_{idx}');
-                    if (wrap) {{
-                        const input = wrap.querySelector('input');
-                        if (input) {{ input.id = 'sec_field_{idx}'; }}
-                    }}
-                }})();
-            </script>
-        """, height=0)
         
     st.markdown('</div>', unsafe_allow_html=True) # --- SUB-ROW BORDER BOUNDARY END ---
     
