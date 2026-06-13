@@ -2512,7 +2512,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
             # =========================================================================
-            # --- ATTENDANCE REPORT MATRIX (STRING-MATCHED ALIGNMENT) ---
+            # --- ATTENDANCE REPORT MATRIX (MULTI-PATH FALLBACK ENGINE) ---
             # =========================================================================
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
@@ -2525,19 +2525,43 @@ if menu_choice == "📈 Multi-Test Progress Report":
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
-                # Standardize current student ID to a clean string format (e.g., "20136")
-                # Converts "20136.0" -> "20136"
-                target_s_id_str = str(s_id).strip().split('.')[0]
+                # 1. Clean up our current loop targets
+                raw_target_id = str(s_id).strip().split('.')[0].lstrip('0')
+                clean_target_name = str(s_name).strip().lower()
 
-                # Convert the entire column copy to clean string formats to dodge pandas float matching bugs
+                # 2. Create standardized matching tracks inside a copy of your attendance data
                 att_df_copy = attendance_df.copy()
-                att_df_copy['match_id'] = att_df_copy['student_id'].astype(str).str.strip().str.split('.').str[0]
                 
-                # Filter using uniform string matching
-                s_att = att_df_copy[att_df_copy["match_id"] == target_s_id_str]
+                # Convert student_id column to clean strings (removes .0 and leading zeroes)
+                att_df_copy['match_id_str'] = att_df_copy['student_id'].astype(str).str.strip().str.split('.').str[0].str.lstrip('0')
                 
+                # If your table has student names anywhere, we can use it as an automatic backup track
+                name_col = next((col for col in att_df_copy.columns if 'name' in col.lower()), None)
+                if name_col:
+                    att_df_copy['match_name_str'] = att_df_copy[name_col].astype(str).str.strip().str.lower()
+                else:
+                    att_df_copy['match_name_str'] = ""
+
+                # --- TRACK A: PRIMARY ID STR MATCH ---
+                s_att = att_df_copy[att_df_copy["match_id_str"] == raw_target_id]
+
+                # --- TRACK B: INT MATCH FALLBACK (If Pandas structural types are acting up) ---
+                if s_att.empty:
+                    try:
+                        target_id_int = int(float(raw_target_id))
+                        # Direct check against the raw column in case casting it failed earlier
+                        s_att = att_df_copy[att_df_copy["student_id"] == target_id_int]
+                    except:
+                        pass
+
+                # --- TRACK C: NAME FRACTION FALLBACK (Emergency safety if IDs are structurally different) ---
+                if s_att.empty and name_col and len(clean_target_name) > 2:
+                    # Match if the student's name is found in the attendance row name
+                    s_att = att_df_copy[att_df_copy['match_name_str'].str.contains(clean_target_name, na=False) | 
+                                        att_df_copy['match_id_str'].str.contains(raw_target_id, na=False)]
+
+                # If any of the tracking systems found our records, update the matrix!
                 if not s_att.empty:
-                    # Extract metrics using your exact Supabase columns
                     for _, row in s_att.iterrows():
                         db_month = str(row.get("month_name", "")).strip()
                         
