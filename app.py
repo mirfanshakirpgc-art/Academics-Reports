@@ -1085,163 +1085,75 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # --- GRID MATRIX HEADER & MAIN SPLIT COLUMNS ---
-                    # We split the screen into two large, independent sections
-                    left_marks_section, right_exceptions_section = st.columns([6, 3])
+                    # --- SECTION 1: MARKS ENTRY LEDGER ---
+                    st.markdown("### 🔢 1. Marks Obtained Ledger")
+                    st.caption("Press **Tab** to slide straight down to the next subject score field.")
+                    st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
                     updated_scores = {}
-
-                    # ====================================================================
-                    # 🔢 LEFT SIDE: SUBJECTS & MARKS INPUTS ONLY
-                    # ====================================================================
-                    with left_marks_section:
-                        st.markdown("##### 🔢 Obtained Marks Ledger")
-                        st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
+                    # --- LOOP 1: GENERATE ALL TEXT INPUT FIELDS FIRST ---
+                    # Because this loop executes sequentially without any checkboxes inside,
+                    # the browser is forced to link these inputs back-to-back in the tab tree!
+                    for subject in subjects_list:
+                        existing_mark_df = run_query("""
+                            SELECT marks_obtained FROM marks 
+                            WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                        """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
                         
-                        for subject in subjects_list:
-                            existing_mark_df = run_query("""
-                                SELECT marks_obtained FROM marks 
-                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                            """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
-                            
-                            db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-                            
-                            state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            
-                            if state_abs_key not in st.session_state:
-                                st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                            if state_nc_key not in st.session_state:
-                                st.session_state[state_nc_key] = (db_val == 'NC')
-                                
-                            chk_absent = st.session_state[state_abs_key]
-                            chk_nc = st.session_state[state_nc_key]
-                            
-                            initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                            is_disabled = chk_absent or chk_nc
-                            display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
-                            
-                            # Row layout inside the left track: Title on left, input box on right
-                            row_sub, row_input = st.columns([3, 2])
-                            row_sub.markdown(f"<div style='padding-top: 10px; font-weight: bold;'>📖 {subject}</div>", unsafe_allow_html=True)
-                            
-                            score_input = row_input.text_input(
-                                "Obtained",
-                                value=display_score if is_disabled else initial_score,
-                                key=state_marks_key,
-                                label_visibility="collapsed",
-                                disabled=is_disabled
-                            )
-                            updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
-
-                    # ====================================================================
-                    # ❌ RIGHT SIDE: ABSENT & NC CHECKBOXES ONLY
-                    # ====================================================================
-                    with right_exceptions_section:
-                        st.markdown("##### ❌ Status Flags")
+                        db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
                         
-                        # Create headers for the checkbox grid tracking column
-                        hdr_abs, hdr_nc = st.columns([1, 1])
-                        hdr_abs.caption("❌ **Absent**")
-                        hdr_nc.caption("➖ **NC**")
-                        st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
                         
-                        for subject in subjects_list:
-                            state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            
-                            cb_abs, cb_nc = st.columns([1, 1])
-                            
-                            # Custom padding to align the checkboxes perfectly with the text boxes on the left
-                            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-                            with cb_abs:
-                                st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                            with cb_nc:
-                                st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-                    # --- TRACK 4: NC CHECKBOXES ---
-                    with m_col_nc:
-                        for subject in subjects_list:
-                            existing_mark_df = run_query("""
-                                SELECT marks_obtained FROM marks 
-                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                            """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
-                            
-                            db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-                            state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            
-                            if state_nc_key not in st.session_state:
-                                st.session_state[state_nc_key] = (db_val == 'NC')
-                                
-                            st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-                            st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-                        with col_nc:
-                            chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-                            
+                        if state_abs_key not in st.session_state:
+                            st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                        if state_nc_key not in st.session_state:
+                            st.session_state[state_nc_key] = (db_val == 'NC')
+                        
+                        chk_absent = st.session_state[state_abs_key]
+                        chk_nc = st.session_state[state_nc_key]
+                        
                         initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
                         is_disabled = chk_absent or chk_nc
                         display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
+
+                        # Clean, clear row format for text box inputs
+                        col_label, col_field = st.columns([4, 2])
+                        col_label.markdown(f"<div style='padding-top: 10px; font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
                         
-                        with col_marks:
-                            score_input = st.text_input(
-                                "Obtained",
-                                value=display_score if is_disabled else initial_score,
-                                key=state_marks_key,
-                                label_visibility="collapsed",
-                                disabled=is_disabled
-                            )
+                        score_input = col_field.text_input(
+                            f"Marks for {subject}",
+                            value=display_score if is_disabled else initial_score,
+                            key=state_marks_key,
+                            label_visibility="collapsed",
+                            disabled=is_disabled
+                        )
                         updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
 
-                    # --- TRACK 3: ABSENT CHECKBOXES ---
-                    with m_col_abs:
-                        for idx, subject in enumerate(subjects_list):
-                            existing_mark_df = run_query("""
-                                SELECT marks_obtained FROM marks 
-                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                            """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
-                            
-                            db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-                            state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            
-                            if state_abs_key not in st.session_state:
-                                st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                                
-                            # Pushing the checkboxes way back to the end of the tab list (index 500+) so Tab completely skips them
-                            st.markdown(f"""
-                                <style>
-                                    div[data-testid="stCheckbox"]:has(input[id*="{state_abs_key}"]) input {{
-                                        tabindex: {500 + idx} !important;
-                                    }}
-                                </style>
-                                <div style='height: 9px;'></div>
-                            """, unsafe_allow_html=True)
-                            
+                    # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
+                    # We drop down and run a completely separate loop for checkboxes.
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    st.markdown("### ❌ 2. Attendance & Exceptions Registry")
+                    st.caption("Toggle these boxes if a student was Absent or needs an NC flag.")
+                    
+                    h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
+                    h_ex1.caption("📖 **Subject Title**")
+                    h_ex2.caption("❌ **Absent**")
+                    h_ex3.caption("➖ **NC**")
+                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
+                    for subject in subjects_list:
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        
+                        col_ex_sub, col_ex_abs, col_ex_nc = st.columns([4, 1, 1])
+                        col_ex_sub.markdown(f"<div style='padding-top: 5px; color: #555;'>{subject}</div>", unsafe_allow_html=True)
+                        
+                        with col_ex_abs:
                             st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-
-                    # --- TRACK 4: NC CHECKBOXES ---
-                    with m_col_nc:
-                        for idx, subject in enumerate(subjects_list):
-                            existing_mark_df = run_query("""
-                                SELECT marks_obtained FROM marks 
-                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-                            """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
-                            
-                            db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-                            state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                            
-                            if state_nc_key not in st.session_state:
-                                st.session_state[state_nc_key] = (db_val == 'NC')
-                                
-                            # Pushing NC checkboxes out of focus range (index 600+)
-                            st.markdown(f"""
-                                <style>
-                                    div[data-testid="stCheckbox"]:has(input[id*="{state_nc_key}"]) input {{
-                                        tabindex: {600 + idx} !important;
-                                    }}
-                                </style>
-                                <div style='height: 9px;'></div>
-                            """, unsafe_allow_html=True)
-                            
+                        with col_ex_nc:
                             st.checkbox("", key=state_nc_key, label_visibility="collapsed")
                             
                         with col_marks:
