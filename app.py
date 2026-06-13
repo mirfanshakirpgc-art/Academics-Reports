@@ -1226,7 +1226,6 @@ elif entry_mode == "👤 By Single Student Roll Number":
 setTimeout(() => {{
     const doc = window.parent.document;
 
-    // Marks field
     const inputAnchor = doc.getElementById('sec_m_anchor_{idx}');
     if (inputAnchor) {{
         const inputField = inputAnchor.parentElement.querySelector('input');
@@ -1234,32 +1233,37 @@ setTimeout(() => {{
         if (inputField) {{
             inputField.id = 'sec_m_{idx}';
 
-            // Force tab order to follow student rows
-            inputField.tabIndex = {idx + 1};
+            if (!inputField.dataset.customTab) {{
+                inputField.dataset.customTab = "1";
+
+                inputField.addEventListener('keydown', function(e) {{
+                    if (e.key === 'Tab' && !e.shiftKey) {{
+                        e.preventDefault();
+
+                        const nextField = doc.getElementById('sec_m_{idx + 1}');
+                        if (nextField) {{
+                            nextField.focus();
+                            nextField.select();
+                        }}
+                    }}
+                }});
+            }}
         }}
     }}
 
-    // Remove Absent checkbox from tab sequence
     const absAnchor = doc.getElementById('sec_abs_anchor_{idx}');
     if (absAnchor) {{
         const absCheck = absAnchor.parentElement.querySelector('input[type="checkbox"]');
-
-        if (absCheck) {{
-            absCheck.tabIndex = -1;
-        }}
+        if (absCheck) absCheck.tabIndex = -1;
     }}
 
-    // Remove NC checkbox from tab sequence
     const ncAnchor = doc.getElementById('sec_nc_anchor_{idx}');
     if (ncAnchor) {{
         const ncCheck = ncAnchor.parentElement.querySelector('input[type="checkbox"]');
-
-        if (ncCheck) {{
-            ncCheck.tabIndex = -1;
-        }}
+        if (ncCheck) ncCheck.tabIndex = -1;
     }}
 
-}}, 300);
+}}, 200);
 </script>
 """, height=0)
                         
