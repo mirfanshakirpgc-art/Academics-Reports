@@ -2437,21 +2437,17 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     # ------------------------------------------------------------------
                     # ⚡ DYNAMIC ELECTIVE TRANSLATION LAYER (Physics ➡️ Statistics)
                     # ------------------------------------------------------------------
-                    # Identify if the student is currently placed in a Statistics track section
                     is_stats_section = s_section in ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
                     
-                    # Create columns for reporting mutations
                     s_marks['display_subject'] = s_marks['subject_name']
                     s_marks['label_suffix'] = ""
                     
                     if is_stats_section:
                         for m_idx, m_row in s_marks.iterrows():
-                            # Remap Physics marks to display under Statistics with custom tracking tag
                             if m_row['subject_name'] == "Physics":
                                 s_marks.at[m_idx, 'display_subject'] = "Statistics"
                                 s_marks.at[m_idx, 'label_suffix'] = " (Phy)"
                     
-                    # Sort uniquely on display target column name strings to prevent breakdown splitting
                     distinct_subjects = sorted(s_marks["display_subject"].unique())
                     
                     exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -2475,7 +2471,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     tot = float(match_row.iloc[0]["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    # Append structural suffix code label context dynamically
                                     suffix_tag = match_row.iloc[0]['label_suffix']
                                     row_tds += f"<td>{pct}%{suffix_tag}</td>"
                                     
@@ -2492,7 +2487,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                         row_tds += f"<td><strong>{sub_avg}%</strong></td>"
                         table_rows_html += f"<tr>{row_tds}</tr>"
                     
-                    # Footer Summary Row Configuration
                     total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
                     total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
                     total_pct_accum = 0
@@ -2517,165 +2511,165 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not table_rows_html:
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
-            # --- ATTENDANCE REPORT MATRIX ---
-        tot_days_row, att_days_row, pct_days_row = "", "", ""
-        overall_tot_days, overall_att_days = 0, 0
+            # =========================================================================
+            # --- ATTENDANCE REPORT MATRIX (Correctly Indented Inside Loop) ---
+            # =========================================================================
+            tot_days_row, att_days_row, pct_days_row = "", "", ""
+            overall_tot_days, overall_att_days = 0, 0
 
-        month_map = {
-            "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
-            "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
-        }
-        attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
+            month_map = {
+                "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
+                "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
+            }
+            attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
-        if not attendance_df.empty:
-            # Normalize target ID search keys to prevent look-up misses
-            clean_s_id = str(s_id).strip().lstrip('0')
-            s_att = attendance_df[attendance_df["student_id"] == clean_s_id].copy()
-            
-            # Double fallback check: try matching raw numerical casting values
-            if s_att.empty and clean_s_id.isdigit():
-                s_att = attendance_df[attendance_df["student_id"].astype(float).astype(int) == int(clean_s_id)].copy()
+            if not attendance_df.empty:
+                clean_s_id = str(s_id).strip().lstrip('0')
+                s_att = attendance_df[attendance_df["student_id"] == clean_s_id].copy()
+                
+                if s_att.empty and clean_s_id.isdigit():
+                    s_att = attendance_df[attendance_df["student_id"].astype(float).astype(int) == int(clean_s_id)].copy()
 
-            if not s_att.empty:
-                s_att['attendance_date'] = s_att['attendance_date'].astype(str).str.strip()
-                if 'parsed_date' not in s_att.columns:
-                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
+                if not s_att.empty:
+                    s_att['attendance_date'] = s_att['attendance_date'].astype(str).str.strip()
+                    if 'parsed_date' not in s_att.columns:
+                        s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
 
-                for m_name, m_num in month_map.items():
-                    # Engine Strategy A: Native Datetime Fields
-                    if 'parsed_date' in s_att.columns and not s_att['parsed_date'].isna().all():
-                        month_records = s_att[s_att['parsed_date'].dt.month == m_num]
-                        t_days = len(month_records)
-                        p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
-                    # Engine Strategy B: Descriptive Text Backups (Summary Table Data)
-                    else:
-                        matched_col = 'month_name' if 'month_name' in s_att.columns else ('month' if 'month' in s_att.columns else '')
-                        if matched_col:
-                            month_records = s_att[s_att[matched_col].astype(str).str.strip().str.lower().str.startswith(m_name.lower()[:3])]
-                            t_days = int(month_records['total_days'].sum()) if 'total_days' in month_records.columns and not month_records.empty else len(month_records)
-                            p_days = int(month_records['present_days'].sum()) if 'present_days' in month_records.columns and not month_records.empty else len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
+                    for m_name, m_num in month_map.items():
+                        if 'parsed_date' in s_att.columns and not s_att['parsed_date'].isna().all():
+                            month_records = s_att[s_att['parsed_date'].dt.month == m_num]
+                            t_days = len(month_records)
+                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
                         else:
-                            t_days, p_days = 0, 0
+                            matched_col = 'month_name' if 'month_name' in s_att.columns else ('month' if 'month' in s_att.columns else '')
+                            if matched_col:
+                                month_records = s_att[s_att[matched_col].astype(str).str.strip().str.lower().str.startswith(m_name.lower()[:3])]
+                                t_days = int(month_records['total_days'].sum()) if 'total_days' in month_records.columns and not month_records.empty else len(month_records)
+                                p_days = int(month_records['present_days'].sum()) if 'present_days' in month_records.columns and not month_records.empty else len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
+                            else:
+                                t_days, p_days = 0, 0
 
-                    if t_days > 0:
-                        attendance_matrix[m_name] = {"total": t_days, "present": p_days}
+                        if t_days > 0:
+                            attendance_matrix[m_name] = {"total": t_days, "present": p_days}
 
-        # --- GENERATE CELLS (Indented correctly inside student card loop) ---
-        for m_name in month_map.keys():
-            t_d = attendance_matrix[m_name].get("total", 0)
-            a_d = attendance_matrix[m_name].get("present", 0)
-            overall_tot_days += t_d
-            overall_att_days += a_d
+            # --- GENERATE CELL STRINGS FOR THIS CARD ---
+            for m_name in month_map.keys():
+                t_d = attendance_matrix[m_name].get("total", 0)
+                a_d = attendance_matrix[m_name].get("present", 0)
+                overall_tot_days += t_d
+                overall_att_days += a_d
 
-            tot_days_row += f"<td>{f'{t_d:02d}' if t_d > 0 else '-'}</td>"
-            att_days_row += f"<td>{f'{a_d:02d}' if t_d > 0 else '-'}</td>"
-            pct_days_row += f"<td>{f'{int((a_d/t_d)*100)}%' if t_d > 0 else '-'}</td>"
+                tot_days_row += f"<td>{f'{t_d:02d}' if t_d > 0 else '-'}</td>"
+                att_days_row += f"<td>{f'{a_d:02d}' if t_d > 0 else '-'}</td>"
+                pct_days_row += f"<td>{f'{int((a_d/t_d)*100)}%' if t_d > 0 else '-'}</td>"
 
-        if overall_tot_days > 0:
-            tot_days_row += f"<td>{overall_tot_days:02d}</td>"
-            att_days_row += f"<td>{overall_att_days:02d}</td>"
-            pct_days_row += f"<td><strong>{int((overall_att_days / overall_tot_days) * 100)}%</strong></td>"
-        else:
-            tot_days_row += "<td>-</td>"
-            att_days_row += "<td>-</td>"
-            pct_days_row += "<td><strong>0%</strong></td>"
+            if overall_tot_days > 0:
+                tot_days_row += f"<td>{overall_tot_days:02d}</td>"
+                att_days_row += f"<td>{overall_att_days:02d}</td>"
+                pct_days_row += f"<td><strong>{int((overall_att_days / overall_tot_days) * 100)}%</strong></td>"
+            else:
+                tot_days_row += "<td>-</td>"
+                att_days_row += "<td>-</td>"
+                pct_days_row += "<td><strong>0%</strong></td>"
 
-        remarks_text = "Satisfactory academic progress observed."
-        if grand_total_percentages and grand_total_percentages[-1] >= 85:
-            remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
+            remarks_text = "Satisfactory academic progress observed."
+            if grand_total_percentages and grand_total_percentages[-1] >= 85:
+                remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
 
-        column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
-        thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
-        thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
+            column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
+            thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
+            thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
 
-        l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
-        logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
+            l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
+            logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
 
-        composite_html_payload += f"""
-        <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
-            <div class="cck-header-wrapper">
-                <div class="cck-logo-image-container">{logo_markup}</div>
-                <div class="cck-title-block"><div class="cck-main-title">CONCORDIA COLLEGE KASUR</div></div>
+            composite_html_payload += f"""
+            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
+                <div class="cck-header-wrapper">
+                    <div class="cck-logo-image-container">{logo_markup}</div>
+                    <div class="cck-title-block"><div class="cck-main-title">CONCORDIA COLLEGE KASUR</div></div>
+                </div>
+                <div class="cck-badge-wrapper"><div class="cck-doc-badge">Result Card</div></div>
+                <div class="cck-meta-row">
+                    <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
+                    <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
+                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
+                    <div class="cck-meta-field">Class / Term: <span class="cck-line-fill">{s_class}</span></div>
+                </div>
+                <table class="cck-report-table">
+                    <thead>
+                        <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
+                        <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">{column_header_title}</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
+                    </thead>
+                    <tbody>{table_rows_html}{total_row_html}</tbody>
+                </table>
+                <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;"><div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div></div>
+                <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
+                    <thead>
+                        <tr><th style="width: 14%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th style="font-weight: bold;">Overall</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Open Total Days</td>{tot_days_row}</tr>
+                        <tr><td>Att. Days</td>{att_days_row}</tr>
+                        <tr><td>Age%</td>{pct_days_row}</tr>
+                    </tbody>
+                </table>
+                <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
+                <div class="cck-footer-sign"><strong>Principal Sign</strong></div>
             </div>
-            <div class="cck-badge-wrapper"><div class="cck-doc-badge">Result Card</div></div>
-            <div class="cck-meta-row">
-                <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
-                <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
-                <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
-                <div class="cck-meta-field">Class / Term: <span class="cck-line-fill">{s_class}</span></div>
-            </div>
-            <table class="cck-report-table">
-                <thead>
-                    <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
-                    <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">{column_header_title}</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
-                </thead>
-                <tbody>{table_rows_html}{total_row_html}</tbody>
-            </table>
-            <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;"><div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div></div>
-            <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
-                <thead>
-                    <tr><th style="width: 14%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th style="font-weight: bold;">Overall</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>Open Total Days</td>{tot_days_row}</tr>
-                    <tr><td>Att. Days</td>{att_days_row}</tr>
-                    <tr><td>Age%</td>{pct_days_row}</tr>
-                </tbody>
-            </table>
-            <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
-            <div class="cck-footer-sign"><strong>Principal Sign</strong></div>
-        </div>
+            """
+
+        # =========================================================================
+        # --- OUTSIDE THE FOR LOOP: FINAL RENDERING ---
+        # =========================================================================
+        composite_html_payload += """
+            </div> <script>
+            function executeTargetPrint(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) return;
+                cards.forEach(function(card, idx) {
+                    if (isSingleTarget) {
+                        if (idx === 0) { card.classList.add('cck-single-print-isolation'); card.classList.remove('cck-single-print-hide'); }
+                        else { card.classList.add('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                    } else { card.classList.remove('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                });
+                setTimeout(function() { window.print(); }, 200);
+            }
+
+            function exportDossierToImage(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) { alert('No student cards available.'); return; }
+                var targetList = [];
+                if (isSingleTarget) { targetList.push(cards[0]); } 
+                else { cards.forEach(function(c) { targetList.push(c); }); }
+                
+                var currentBatchIdx = 0;
+                function processNextImageDownload() {
+                    if (currentBatchIdx >= targetList.length) return;
+                    var card = targetList[currentBatchIdx];
+                    var sName = card.getAttribute('data-name') || 'student';
+                    var sId = card.getAttribute('data-id') || 'id';
+                    
+                    html2canvas(card, { scale: 2, useCORS: true }).then(function(canvas) {
+                        var link = document.createElement('a');
+                        link.download = 'Report_' + sId + '_' + sName + '.png';
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                        currentBatchIdx++;
+                        setTimeout(processNextImageDownload, 500);
+                    }).catch(function(err) {
+                        console.error('Image processing exception occurred:', err);
+                    });
+                }
+                processNextImageDownload();
+            }
+            </script>
+        </body>
+        </html>
         """
 
-    # --- OUTSIDE THE FOR LOOP: FINAL RENDERING ---
-    composite_html_payload += """
-        <script>
-        function executeTargetPrint(isSingleTarget) {
-            var cards = document.querySelectorAll('.student-card-record');
-            if (cards.length === 0) return;
-            cards.forEach(function(card, idx) {
-                if (isSingleTarget) {
-                    if (idx === 0) { card.classList.add('cck-single-print-isolation'); card.classList.remove('cck-single-print-hide'); }
-                    else { card.classList.add('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
-                } else { card.classList.remove('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
-            });
-            setTimeout(function() { window.print(); }, 200);
-        }
-
-        function exportDossierToImage(isSingleTarget) {
-            var cards = document.querySelectorAll('.student-card-record');
-            if (cards.length === 0) { alert('No student cards available.'); return; }
-            var targetList = [];
-            if (isSingleTarget) { targetList.push(cards[0]); } 
-            else { cards.forEach(function(c) { targetList.push(c); }); }
-            
-            var currentBatchIdx = 0;
-            function processNextImageDownload() {
-                if (currentBatchIdx >= targetList.length) return;
-                var card = targetList[currentBatchIdx];
-                var sName = card.getAttribute('data-name') || 'student';
-                var sId = card.getAttribute('data-id') || 'id';
-                
-                html2canvas(card, { scale: 2, useCORS: true }).then(function(canvas) {
-                    var link = document.createElement('a');
-                    link.download = 'Report_' + sId + '_' + sName + '.png';
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
-                    currentBatchIdx++;
-                    setTimeout(processNextImageDownload, 500);
-                }).catch(function(err) {
-                    console.error('Image processing exception occurred:', err);
-                });
-            }
-            processNextImageDownload();
-        }
-        </script>
-    </body>
-    </html>
-    """
-
-    import streamlit.components.v1 as components
-    components.html(composite_html_payload, height=900, scrolling=True)
+        import streamlit.components.v1 as components
+        components.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
