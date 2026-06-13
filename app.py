@@ -3324,13 +3324,21 @@ elif menu_choice == "👥 Student Operations Management":
         global_system = "annual" if global_system_display == "Annual System" else "semester"
 
     with col_g3:
-        # DYNAMIC LAYOUT: Swaps parameters seamlessly based on selected system track
+        # ADVANCED LOGIC: Fetch real options present in database to prevent missing mixed classifications
+        db_classes_df = run_query("""
+            SELECT DISTINCT class FROM students 
+            WHERE session = :sess AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%'
+        """, {"sess": global_session, "sys": global_system})
+        
+        db_classes = [str(c).strip() for c in db_classes_df['class'].tolist() if c] if not db_classes_df.empty else []
+        
+        # Merge database entries with default presets so options are never completely blank
         if global_system == "annual":
             global_term_label = "🏫 Current Grade Level Focus:"
-            global_term_options = ["11th", "12th"]
+            global_term_options = sorted(list(set(db_classes + ["11th", "12th", "Semester 1"]))) # Added Semester 1 fallback for cross-entries
         else:
             global_term_label = "⏱️ Current Semester Focus:"
-            global_term_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
+            global_term_options = sorted(list(set(db_classes + ["Semester 1", "Semester 2", "Semester 3", "Semester 4"])))
             
         global_term = st.selectbox(global_term_label, global_term_options, key="global_stud_term_filter")
         
@@ -3355,38 +3363,33 @@ elif menu_choice == "👥 Student Operations Management":
             if not search_id.isdigit():
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
-                # SAFE MAPPING: Maps user-friendly dropdown options to short numbers just in case the database uses integers
-                term_variants = [global_term, global_term.lower(), global_term.upper()]
-                if "Semester 1" in global_term: term_variants.extend(["1", "1st", "sem 1", "semester-1"])
-                elif "Semester 2" in global_term: term_variants.extend(["2", "2nd", "sem 2", "semester-2"])
-                elif "Semester 3" in global_term: term_variants.extend(["3", "3rd", "sem 3", "semester-3"])
-                elif "Semester 4" in global_term: term_variants.extend(["4", "4th", "sem 4", "semester-4"])
-
-                # FIX: Uses LIKE for system string variants, and checking variant arrays for terms/classes
+                # OPTIMIZED SINGLE SEARCH: First look up by ID and Session to catch mismatch edge cases safely
                 stu_df = run_query("""
                     SELECT id, name, class, section, session, status, system_type 
                     FROM students 
-                    WHERE id = :id 
-                      AND session = :sess 
-                      AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%'
-                      AND LOWER(TRIM(class)) IN (:v1, :v2, :v3, :v4, :v5)
-                """, {
-                    "id": int(search_id), 
-                    "sess": global_session, 
-                    "sys": global_system,
-                    "v1": term_variants[0].lower().strip(),
-                    "v2": term_variants[1].lower().strip(),
-                    "v3": term_variants[2].lower().strip(),
-                    "v4": term_variants[3].lower().strip() if len(term_variants) > 3 else term_variants[0].lower().strip(),
-                    "v5": term_variants[4].lower().strip() if len(term_variants) > 4 else term_variants[0].lower().strip()
-                })
+                    WHERE id = :id AND session = :sess
+                """, {"id": int(search_id), "sess": global_session})
                 
+                # Check for strict matching constraints
+                is_mismatched = False
+                if not stu_df.empty:
+                    actual_sys = str(stu_df.iloc[0]['system_type']).lower()
+                    actual_class = str(stu_df.iloc[0]['class']).lower()
+                    
+                    # Verify if it diverges from current header parameters
+                    if (global_system not in actual_sys) or (global_term.lower() != actual_class):
+                        is_mismatched = True
+
                 if stu_df.empty:
-                    st.warning(f"⚠️ No matching active profile found with ID '{search_id}' within {global_term} of Session {global_session} ({global_system_display}).")
+                    st.warning(f"⚠️ No matching student profile found with ID '{search_id}' within Session {global_session}.")
                 else:
                     student = stu_df.iloc[0]
                     s_id = int(student['id'])
                     s_name = str(student['name']).upper()
+                    
+                    # Notify the operator if structural discrepancies are uncovered in the record row
+                    if is_mismatched:
+                        st.warning(f"⚠️ **Data Classification Conflict Discovered:** Student is registered as **{student['system_type']} ({student['class']})**, but your global search headers are set to **{global_system_display} ({global_term})**.")
                     
                     st.info(f"📂 **Active Workspace:** {s_name} (ID: {s_id}) | Current Setup: **{student['class']} - Section {student['section']}**")
                     
@@ -3422,8 +3425,8 @@ elif menu_choice == "👥 Student Operations Management":
                             
                             section_pool_df = run_query("""
                                 SELECT DISTINCT section FROM students 
-                                WHERE LOWER(TRIM(class)) IN (:v1, :v2, :v3) AND session = :sess
-                            """, {"v1": term_variants[0].lower().strip(), "v2": term_variants[1].lower().strip(), "v3": term_variants[2].lower().strip(), "sess": global_session})
+                                WHERE LOWER(TRIM(class)) = LOWER(TRIM(:cls)) AND session = :sess
+                            """, {"cls": student['class'], "sess": global_session})
                             
                             fallback_sections = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
                             available_sections = sorted(list(set([str(s) for s in section_pool_df['section'].tolist() if s] + fallback_sections)))
@@ -3485,24 +3488,23 @@ elif menu_choice == "👥 Student Operations Management":
                         # ----------------------------------------------------------------------------
                         with st.container(border=True):
                             st.markdown("#### 4️⃣ Data Registry & Academic System Editor")
-                            st.caption("Modify student structural variables and system formats safely.")
+                            st.caption("🔄 Use this module to repair classification mistakes directly.")
                             
                             edit_name = st.text_input("Edit Legal Full Name:", value=str(student['name']))
-                            edit_sys_display = st.selectbox("Target Academic System Track:", ["Annual System", "Semester System"], index=0 if str(student['system_type']).lower() == "annual" else 1)
-                            edit_sys_value = "annual" if edit_sys_display == "Annual System" else "semester"
+                            edit_sys_display = st.selectbox("Target Academic System Track:", ["Annual System", "Semester System"], index=0 if "annual" in str(student['system_type']).lower() else 1)
+                            edit_sys_value = "Annual System" if edit_sys_display == "Annual System" else "Semester System"
                             
-                            if edit_sys_value == "annual":
-                                edit_term_options = ["11th", "12th"]
-                            else:
-                                edit_term_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
-                                
-                            edit_term = st.selectbox("Update Level/Term Assignment:", edit_term_options, index=edit_term_options.index(student['class']) if student['class'] in edit_term_options else 0)
+                            edit_term_options = ["11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
+                            current_class_string = str(student['class'])
+                            default_cls_idx = edit_term_options.index(current_class_string) if current_class_string in edit_term_options else 0
+                            
+                            edit_term = st.selectbox("Update Level/Term Assignment:", edit_term_options, index=default_cls_idx)
                             
                             if st.button("💾 Save Profile Matrix Edits", use_container_width=True):
                                 run_update("""
                                     UPDATE students SET name = :name, system_type = :sys, class = :cls WHERE id = :id
                                 """, {"name": edit_name.strip(), "sys": edit_sys_value, "cls": edit_term, "id": s_id})
-                                st.toast("✅ Master registration metadata rewritten!")
+                                st.toast("✅ Master registration parameters corrected successfully!")
                                 st.rerun()
 
                     # --------------------------------------------------------------------------------
@@ -3531,47 +3533,29 @@ elif menu_choice == "👥 Student Operations Management":
     elif workspace_mode == "🗂️ Whole Section Batch Operations":
         st.markdown("### 📦 Bulk Section Operations Matrix")
         
-        # Safe initialization variant tracking arrays for bulk section matching
-        term_variants = [global_term, global_term.lower(), global_term.upper()]
-        if "Semester 1" in global_term: term_variants.extend(["1", "1st", "sem 1"])
-        elif "Semester 2" in global_term: term_variants.extend(["2", "2nd", "sem 2"])
-        elif "Semester 3" in global_term: term_variants.extend(["3", "3rd", "sem 3"])
-        elif "Semester 4" in global_term: term_variants.extend(["4", "4th", "sem 4"])
-        
         sections_data = run_query("""
             SELECT DISTINCT section FROM students 
             WHERE session = :sess 
-              AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%' 
-              AND LOWER(TRIM(class)) IN (:v1, :v2, :v3, :v4, :v5)
+              AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
               AND status = 'ACTIVE' 
             ORDER BY section
-        """, {
-            "sess": global_session, 
-            "sys": global_system, 
-            "v1": term_variants[0].lower().strip(),
-            "v2": term_variants[1].lower().strip(),
-            "v3": term_variants[2].lower().strip(),
-            "v4": term_variants[3].lower().strip() if len(term_variants) > 3 else term_variants[0].lower().strip(),
-            "v5": term_variants[4].lower().strip() if len(term_variants) > 4 else term_variants[0].lower().strip()
-        })
+        """, {"sess": global_session, "term": global_term})
         
         found_sections = [str(sec) for sec in sections_data['section'].tolist() if sec] if not sections_data.empty else []
         
         if not found_sections:
-            st.info(f"💡 No active student groups found inside {global_term} for the `{global_session}` session pool.")
+            st.info(f"💡 No active student groups found inside data focus group '{global_term}' for the `{global_session}` session pool.")
         else:
-            # ----------------------------------------------------------------============
-            # SUB-MODULE 6: PROMOTE TO NEXT CLASS (Maintains Session Cohort Constancy)
-            # ----------------------------------------------------------------============
             with st.container(border=True):
                 st.markdown("### 6️⃣ Cohort Class/Term Promotion Engine")
-                st.info(f"🔄 **Lifecycle Rule:** Promoting students will shift their active lifecycle step but preserve their permanent **{global_session}** session footprint.")
+                st.info(f"🔄 Promoting students will shift their active lifecycle step but preserve their permanent **{global_session}** session footprint.")
                 
                 selected_source_sec = st.selectbox("📁 Select Source Section to Update:", found_sections)
                 
-                if global_system == "annual":
-                    inferred_next_term = "12th" if global_term == "11th" else "Graduated/Alumni"
-                    dest_label = f"##### 🎯 Destination Section Setup (Moving to Class: **{inferred_next_term}**)"
+                if "11" in global_term:
+                    inferred_next_term = "12th"
+                elif "12" in global_term:
+                    inferred_next_term = "Graduated/Alumni"
                 else:
                     semester_progression_map = {
                         "Semester 1": "Semester 2",
@@ -3580,9 +3564,8 @@ elif menu_choice == "👥 Student Operations Management":
                         "Semester 4": "Graduated/Alumni"
                     }
                     inferred_next_term = semester_progression_map.get(global_term, "Graduated/Alumni")
-                    dest_label = f"##### 🎯 Destination Section Setup (Advancing to: **{inferred_next_term}**)"
                 
-                st.markdown(dest_label)
+                st.markdown(f"##### 🎯 Destination Section Setup (Advancing to: **{inferred_next_term}**)")
                 
                 dest_sections_df = run_query("""
                     SELECT DISTINCT section FROM students 
@@ -3598,20 +3581,10 @@ elif menu_choice == "👥 Student Operations Management":
                     cohort_roster = run_query("""
                         SELECT id, class, section, session FROM students 
                         WHERE session = :sess 
-                          AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%' 
                           AND section = :sec 
-                          AND LOWER(TRIM(class)) IN (:v1, :v2, :v3, :v4, :v5)
+                          AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
                           AND status = 'ACTIVE'
-                    """, {
-                        "sess": global_session, 
-                        "sys": global_system, 
-                        "sec": selected_source_sec,
-                        "v1": term_variants[0].lower().strip(),
-                        "v2": term_variants[1].lower().strip(),
-                        "v3": term_variants[2].lower().strip(),
-                        "v4": term_variants[3].lower().strip() if len(term_variants) > 3 else term_variants[0].lower().strip(),
-                        "v5": term_variants[4].lower().strip() if len(term_variants) > 4 else term_variants[0].lower().strip()
-                    })
+                    """, {"sess": global_session, "sec": selected_source_sec, "term": global_term})
                     
                     import uuid
                     promotion_batch_id = f"PROMO-{str(uuid.uuid4())[:6].upper()}"
@@ -3631,21 +3604,15 @@ elif menu_choice == "👥 Student Operations Management":
                         UPDATE students 
                         SET class = :next_term, section = :next_sec
                         WHERE session = :sess 
-                          AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%' 
                           AND section = :sec 
-                          AND LOWER(TRIM(class)) IN (:v1, :v2, :v3, :v4, :v5)
+                          AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
                           AND status = 'ACTIVE'
                     """, {
                         "next_term": inferred_next_term, "next_sec": target_dest_section.upper(), 
-                        "sess": global_session, "sys": global_system, "sec": selected_source_sec,
-                        "v1": term_variants[0].lower().strip(),
-                        "v2": term_variants[1].lower().strip(),
-                        "v3": term_variants[2].lower().strip(),
-                        "v4": term_variants[3].lower().strip() if len(term_variants) > 3 else term_variants[0].lower().strip(),
-                        "v5": term_variants[4].lower().strip() if len(term_variants) > 4 else term_variants[0].lower().strip()
+                        "sess": global_session, "sec": selected_source_sec, "term": global_term
                     })
                     
-                    st.success(f"🎉 Success! Whole section advanced to **{inferred_next_term} ({target_dest_section})**. Permanent session assignment ({global_session}) maintained.")
+                    st.success(f"🎉 Success! Whole section advanced to **{inferred_next_term} ({target_dest_section})**.")
                     st.rerun()
         
     # ==============================================================================
