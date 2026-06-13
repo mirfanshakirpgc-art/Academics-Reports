@@ -1085,16 +1085,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # --- GRID MATRIX HEADER ---
-                    st.markdown("### 🔢 Marks Entry Ledger")
-                    st.caption("Press **Tab** to seamlessly glide straight down to the next subject score cell.")
+                    # --- SECTION 1: MARKS ENTRY LEDGER ---
+                    st.markdown("### 🔢 1. Marks Entry Ledger")
+                    st.caption("Press **Tab** to slide straight down to the next subject score cell.")
                     st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
                     updated_scores = {}
                     
-                    # --- TRACK 1: THE INPUT SHEET ---
-                    # Because this loop ONLY renders the text fields back-to-back,
-                    # your browser is physically forced to Tab straight down the page!
+                    # --- TRACK 1: SEQUENTIAL TEXT INPUT FIELDS ---
+                    # Because this loop ONLY outputs text inputs back-to-back,
+                    # your browser is physically forced to Tab straight down this list!
                     for subject in subjects_list:
                         existing_mark_df = run_query("""
                             SELECT marks_obtained FROM marks 
@@ -1110,7 +1110,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         if state_abs_key not in st.session_state:
                             st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
                         if state_nc_key not in st.session_state:
-                            st.session_state[state_nc_key] = (db_val == 'NC')
+                            st.session_state[state_nc_state] = (db_val == 'NC')
                         
                         chk_absent = st.session_state[state_abs_key]
                         chk_nc = st.session_state[state_nc_key]
@@ -1119,7 +1119,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         is_disabled = chk_absent or chk_nc
                         display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
 
-                        # Create a simple two-column layout for text entry
+                        # Draw simple horizontal input tracks
                         col_label, col_field = st.columns([4, 2])
                         col_label.markdown(f"<div style='padding-top: 10px; font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
                         
@@ -1132,11 +1132,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         )
                         updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
 
-                    # --- TRACK 2: EXCEPTIONS CHECKLIST (ABSENT / NC) ---
-                    # The attendance modifiers are placed in a secondary panel right below the fields
+                    # --- SECTION 2: ATTENDANCE & STATUS MODIFIERS ---
+                    # Moving the checkboxes completely below the input cluster
                     st.markdown("<br><br>", unsafe_allow_html=True)
-                    st.markdown("### ❌ Attendance & Status Exceptions")
-                    st.caption("Toggle these boxes if a student was Absent or needs an NC flag.")
+                    st.markdown("### ❌ 2. Attendance & Exceptions Registry")
+                    st.caption("Toggle these boxes if a student was Absent or received an NC status.")
                     
                     h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
                     h_ex1.caption("📖 **Subject Title**")
