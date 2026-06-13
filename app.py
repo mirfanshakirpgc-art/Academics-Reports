@@ -1489,7 +1489,15 @@ elif menu_choice == "📋 Section Summary Report":
 
     st.title("📋 Section Summary Report Ledger")
 
+    # 🚀 CONNECT DROPDOWN ENGINE TO SYSTEM SESSION STATE Memory Tracking
+    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
+    active_session = st.session_state.get("current_session", "2026-28")
+    
+    # Calculate matching index dynamically so it syncs with the Settings choice
+    default_index = session_options.index(active_session) if active_session in session_options else 0
+
     # --- 1. PARAMETERS CONFIGURATION ---
+    # (Update your session selectbox below this to use: options=session_options, index=default_index)
     try:
         session_options = list(AVAILABLE_SESSIONS)
         if "2024-26" in session_options:
