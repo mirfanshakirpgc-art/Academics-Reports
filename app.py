@@ -1196,18 +1196,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         time.sleep(1.2)
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-elif entry_mode == "📤 Bulk Excel/CSV Import":
-    st.subheader("📤 Bulk Marks Import Portal")
+# Line 1199: Existing condition block
+elif entry_mode == "📊 Bulk Excel/CSV Import":
+    st.subheader("📊 Bulk Marks Import Portal")
     # Your bulk import code continues here...
 
-# ====================================================================================
-# MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC DAILY LOGGING & ON-THE-FLY AGGREGATES)
-# ====================================================================================
-if menu_choice == "📅 Attendance Entry Management":
-    import datetime  # Explicit scoped import to guarantee operations work flawlessly
+# ==============================================================================
+# 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT 
+# ==============================================================================
+# CHANGE THIS FROM 'if' TO 'elif' TO SECURE THE CONTEXT HOOK
+elif menu_choice == "🗓️ Attendance Entry Management":
+    import datetime  # Scoped import
     import pandas as pd
     
-    st.title("📅 Attendance Entry Management Panel")
+    st.title("🗓️ Attendance Entry Management Panel")
+    # Your attendance logging code goes here...
     
     att_sub_type = st.segmented_control(
         "Select Attendance Interval Mode:",
