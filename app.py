@@ -2512,61 +2512,55 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
             # =========================================================================
-            # --- ATTENDANCE REPORT MATRIX (UNIVERSAL DEEP NORMALIZATION ENGINE) ---
+            # --- ATTENDANCE REPORT MATRIX (DIRECT DAILY_ATTENDANCE TRACKER) ---
             # =========================================================================
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
-            # Months tracking dictionary mapped precisely to your month_name records
+            # Months tracking dictionary mapped precisely to your formatting outputs
             month_map = {
                 "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
                 "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
             }
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
-            if not attendance_df.empty:
-                # 1. Heavily normalize the loop's student ID into a clean integer and clean string
-                def normalize_id_val(raw_val):
-                    if pd.isna(raw_val):
-                        return None
-                    # Convert to string, drop trailing decimals, strip whitespace
-                    clean_str = str(raw_val).split('.')[0].strip().lstrip('0')
-                    return clean_str if clean_str != "" else "0"
+            # 1. Fetch raw calendar logs directly matching your working summary ledger logic
+            try:
+                raw_logs_df = run_query("""
+                    SELECT attendance_date, UPPER(TRIM(status)) as att_status
+                    FROM daily_attendance
+                    WHERE CAST(student_id AS TEXT) = TRIM(:st_id)
+                """, {"st_id": str(s_id).strip()})
+            except Exception:
+                raw_logs_df = pd.DataFrame()
 
-                target_key = normalize_id_val(s_id)
+            # 2. Process logs on the fly into months dynamically if rows are fetched
+            if not raw_logs_df.empty:
+                try:
+                    # Coerce dates safely to datetime entries
+                    raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"])
+                    
+                    for _, log_row in raw_logs_df.iterrows():
+                        log_date = log_row["attendance_date"]
+                        if pd.isna(log_date):
+                            continue
+                            
+                        log_month_int = log_date.month
+                        log_status = str(log_row["att_status"]).strip()
 
-                # 2. Add normalization columns directly to a local copy of the dataframe
-                att_df_copy = attendance_df.copy()
-                
-                # Turn every entry in the dataframe column into a standardized string key
-                att_df_copy["_normalized_match_id"] = att_df_copy["student_id"].apply(normalize_id_val)
-
-                # 3. Filter using the matching normalized string keys
-                s_att = att_df_copy[att_df_copy["_normalized_match_id"] == target_key]
-
-                # 4. Extract monthly metrics if rows match successfully
-                if not s_att.empty:
-                    for _, row in s_att.iterrows():
-                        db_month = str(row.get("month_name", "")).strip()
-                        
-                        # Soft matching variant logic (e.g. "Sept" vs "Sept.")
-                        matched_month = None
-                        for m_name in month_map.keys():
-                            if db_month.lower().startswith(m_name.lower()[:3]):
-                                matched_month = m_name
+                        # Reverse match month integer back to your map keys ("Aug.", "Sept.", etc.)
+                        matched_month_key = None
+                        for m_name, m_int in month_map.items():
+                            if m_int == log_month_int:
+                                matched_month_key = m_name
                                 break
-                        
-                        if matched_month:
-                            try:
-                                t_days = int(float(str(row.get("total_days", 0))))
-                                p_days = int(float(str(row.get("present_days", 0))))
-                                
-                                attendance_matrix[matched_month] = {
-                                    "total": t_days, 
-                                    "present": p_days
-                                }
-                            except (ValueError, TypeError):
-                                pass
+
+                        if matched_month_key:
+                            attendance_matrix[matched_month_key]["total"] += 1
+                            if log_status in ["P", "PRESENT"]:
+                                attendance_matrix[matched_month_key]["present"] += 1
+                except Exception:
+                    pass
 
             # --- GENERATE CELL HTML CODES FOR THIS CARD ---
             for m_name in month_map.keys():
@@ -2684,6 +2678,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
 
+        import streamlit.components.v1 as components
         components.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
