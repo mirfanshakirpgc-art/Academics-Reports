@@ -3356,12 +3356,13 @@ elif menu_choice == "👥 Student Operations Management":
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
                 # Query strictly uses 'global_term' to capture either class grades or semesters cleanly
+                # UPDATED: Using a flexible LIKE match to catch both "annual" and "Annual System" variations safely
                 stu_df = run_query("""
                     SELECT id, name, class, section, session, status, system_type 
                     FROM students 
                     WHERE id = :id 
                       AND session = :sess 
-                      AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys))
+                      AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%'
                       AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
                 """, {"id": int(search_id), "sess": global_session, "sys": global_system, "term": global_term})
                 
