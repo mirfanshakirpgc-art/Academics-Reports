@@ -1221,49 +1221,46 @@ elif entry_mode == "👤 By Single Student Roll Number":
                         )
                         
                         # JavaScript Injector: Locks focus chain onto marks fields, ignores checkboxes
-                        st.components.v1.html(f"""
+                        st.components.v1.html("""
 <script>
-setTimeout(() => {{
+setTimeout(() => {
+
     const doc = window.parent.document;
 
-    const inputAnchor = doc.getElementById('sec_m_anchor_{idx}');
-    if (inputAnchor) {{
-        const inputField = inputAnchor.parentElement.querySelector('input');
+    doc.addEventListener('keydown', function(e) {
 
-        if (inputField) {{
-            inputField.id = 'sec_m_{idx}';
+        const active = doc.activeElement;
 
-            if (!inputField.dataset.customTab) {{
-                inputField.dataset.customTab = "1";
+        if (
+            e.key === 'Tab' &&
+            active &&
+            active.tagName === 'INPUT'
+        ) {
 
-                inputField.addEventListener('keydown', function(e) {{
-                    if (e.key === 'Tab' && !e.shiftKey) {{
-                        e.preventDefault();
+            const allInputs = Array.from(
+                doc.querySelectorAll('input[type="text"]')
+            ).filter(el =>
+                !el.disabled &&
+                el.offsetParent !== null
+            );
 
-                        const nextField = doc.getElementById('sec_m_{idx + 1}');
-                        if (nextField) {{
-                            nextField.focus();
-                            nextField.select();
-                        }}
-                    }}
-                }});
-            }}
-        }}
-    }}
+            const currentIndex = allInputs.indexOf(active);
 
-    const absAnchor = doc.getElementById('sec_abs_anchor_{idx}');
-    if (absAnchor) {{
-        const absCheck = absAnchor.parentElement.querySelector('input[type="checkbox"]');
-        if (absCheck) absCheck.tabIndex = -1;
-    }}
+            if (currentIndex >= 0) {
+                e.preventDefault();
 
-    const ncAnchor = doc.getElementById('sec_nc_anchor_{idx}');
-    if (ncAnchor) {{
-        const ncCheck = ncAnchor.parentElement.querySelector('input[type="checkbox"]');
-        if (ncCheck) ncCheck.tabIndex = -1;
-    }}
+                const nextIndex = currentIndex + 1;
 
-}}, 200);
+                if (allInputs[nextIndex]) {
+                    allInputs[nextIndex].focus();
+                    allInputs[nextIndex].select();
+                }
+            }
+        }
+
+    }, true);
+
+}, 500);
 </script>
 """, height=0)
                         
