@@ -1207,7 +1207,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 elif menu_choice == "🗓️ Attendance Entry Management":
     import datetime  
     import pandas as pd
-    from sqlalchemy import text # Ensure text is imported for your database engine
     
     st.title("🗓️ Attendance Entry Management Panel")
     
