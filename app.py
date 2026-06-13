@@ -1503,25 +1503,17 @@ elif menu_choice == "📋 Section Summary Report":
         
     with col_a: 
         if academic_system == "Annual System":
-            disc_options = ["MEDICAL", "ENGINEERING", "ICS_PHYSICS", "ICS_STATS", "COMMERCE", "HUMANITIES"]
-            raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
-            sel_disc = str(raw_disc).strip().upper()
-        else:
-            sel_disc = "DIPLOMA_IN_IT_DIT"
-            st.info("⚡ DIT System Active")
-        
-    with col_a: 
-        if academic_system == "Annual System":
-            # Modified options to perfectly match your map keys
+            # Options perfectly match your map keys
             disc_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-            raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
+            # FIXED: Changed key from 'summary_disc' to a unique summary-report-specific key
+            raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_report_discipline_key")
             sel_disc = str(raw_disc).strip().upper()
         else:
             sel_disc = "INFORMATION_TECHNOLOGY"
             st.info("⚡ DIT System Active")
         
     with col_b: 
-        # 1. First, pull the fallback static sections directly from your mapping dictionary
+        # 1. Pull the fallback static sections directly from your mapping dictionary
         map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(selected_class, [])
         
         # 2. Query what sections exist in the database for safety
@@ -1537,6 +1529,35 @@ elif menu_choice == "📋 Section Summary Report":
             db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
         except Exception:
             db_sections = []
+
+        # 3. Intersection: Only display sections that exist in the database AND belong to the selected discipline map
+        if db_sections:
+            sec_options = [s for s in db_sections if s in map_sections]
+            
+            # If database synchronization isn't complete yet, fall back directly to the map options
+            if not sec_options:
+                sec_options = map_sections
+        else:
+            sec_options = map_sections
+
+        # Safe default fallback in case everything returns empty to prevent runtime errors
+        if not sec_options:
+            sec_options = ["FK"] if sel_disc == "HUMANITIES" else ["MG_BLUE"]
+
+        # 4. FIXED: Using a distinct permanent key specifically assigned to this report module
+        fixed_key = "summary_report_section_key"
+        default_index = 0
+        if fixed_key in st.session_state:
+            current_value = st.session_state[fixed_key]
+            if current_value in sec_options:
+                default_index = sec_options.index(current_value)
+
+        sel_sec = st.selectbox(
+            "Select Section:", 
+            sec_options, 
+            index=default_index, 
+            key=fixed_key
+        )
 
         # 3. Intersection: Only display sections that exist in the database AND belong to the selected discipline map
         if db_sections:
