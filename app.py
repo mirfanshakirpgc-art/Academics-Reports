@@ -1510,7 +1510,21 @@ elif menu_choice == "📋 Section Summary Report":
             sel_disc = "DIPLOMA_IN_IT_DIT"
             st.info("⚡ DIT System Active")
         
+    with col_a: 
+        if academic_system == "Annual System":
+            # Modified options to perfectly match your map keys
+            disc_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+            raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_disc")
+            sel_disc = str(raw_disc).strip().upper()
+        else:
+            sel_disc = "INFORMATION_TECHNOLOGY"
+            st.info("⚡ DIT System Active")
+        
     with col_b: 
+        # 1. First, pull the fallback static sections directly from your mapping dictionary
+        map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(selected_class, [])
+        
+        # 2. Query what sections exist in the database for safety
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -1524,41 +1538,34 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # --- SMART DISCIPLINE FILTERING HUB ---
+        # 3. Intersection: Only display sections that exist in the database AND belong to the selected discipline map
         if db_sections:
-            if "STATS" in sel_disc:
-                sec_options = [s for s in db_sections if "STATS" in s.upper() or "WHITE" in s.upper() or "3" in s]
-            elif "PHYSICS" in sel_disc or "ICS" in sel_disc:
-                sec_options = [s for s in db_sections if "PHYS" in s.upper() or "GREEN" in s.upper() or "1" in s or "2" in s]
-            elif "MEDICAL" in sel_disc:
-                sec_options = [s for s in db_sections if "MED" in s.upper() or "M" in s.upper() or "BLUE" in s.upper()]
-            elif "ENGINEERING" in sel_disc:
-                sec_options = [s for s in db_sections if "ENG" in s.upper() or "E" in s.upper()]
-            elif "COMMERCE" in sel_disc:
-                sec_options = [s for s in db_sections if "COM" in s.upper() or "I" in s.upper() or "C" in s.upper()]
-            elif "HUMANITIES" in sel_disc:
-                # ONLY allow sections that match classic Humanities tags (IK, IQ, FK, FQ, etc.)
-                # This explicitly blocks Pre-Med/Pre-Eng prefixes from appearing here
-                sec_options = [s for s in db_sections if any(k in s.upper() for k in ["IK", "FK", "FQ", "IQ", "ARTS", "HUM"])]
-            else:
-                sec_options = db_sections
-                
-            # Fallback if our smart filter turns up empty for a newly added section name format
+            sec_options = [s for s in db_sections if s in map_sections]
+            
+            # If database synchronization isn't complete yet, fall back directly to the map options
             if not sec_options:
-                sec_options = db_sections
+                sec_options = map_sections
         else:
-            # Fallback configuration if the database doesn't return anything
-            if academic_system == "Semester System":
-                sec_options = ["DIT_G", "DIT_B"]
-            else:
-                if "HUMANITIES" in sel_disc:
-                    sec_options = ["IK", "IQ"] if "11" in selected_class else ["FK", "FQ"]
-                else:
-                    sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
+            sec_options = map_sections
 
-        # Formulate widget key dynamically to force Streamlit to refresh options when discipline changes
-        dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
-        sel_sec = st.selectbox("Select Section:", sec_options, index=0, key=dynamic_widget_key)
+        # Safe default fallback in case everything returns empty to prevent runtime errors
+        if not sec_options:
+            sec_options = ["FK"] if sel_disc == "HUMANITIES" else ["MG_BLUE"]
+
+        # 4. Use a stable widget key and safe index pointer so other dropdown layouts do not get reset
+        fixed_key = "summary_section_fixed_key"
+        default_index = 0
+        if fixed_key in st.session_state:
+            current_value = st.session_state[fixed_key]
+            if current_value in sec_options:
+                default_index = sec_options.index(current_value)
+
+        sel_sec = st.selectbox(
+            "Select Section:", 
+            sec_options, 
+            index=default_index, 
+            key=fixed_key
+        )
         
     with col_c: 
         # --- DYNAMIC FETCH BASED ON SYSTEM TRACK ---
