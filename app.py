@@ -1205,17 +1205,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
 if "Attendance Entry Management" in menu_choice:
-    st.title("🚨 TEST: CODE REACHED SUCCESSFULLY!")
-    st.write(f"Current menu selection is: {menu_choice}")
-    st.stop() # 🛑 This will now force the page to render!
-    
     import datetime  
     import pandas as pd
-    # ... the rest of your code stays below this ...
     from sqlalchemy import text
-    
-    # 🕵️‍♂️ DIAGNOSTIC CHECK: This will print to your terminal window
-    print("👉 SUCCESSFULLY ENTERED ATTENDANCE MODULE!") 
     
     st.title("🗓️ Attendance Entry Management Panel")
     
