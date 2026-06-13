@@ -1998,29 +1998,57 @@ if menu_choice == "📈 Multi-Test Progress Report":
         ]
 
     # --- DYNAMIC SESSION SYNCHRONIZATION ---
-    # Fallback default configuration matching your working sessions
-    synchronized_sessions = ["2025-27", "2026-28", "2027-29"] 
+    synchronized_sessions = []
+    
+    # 1. Primary Sync: Read directly from your Settings table so newly added sessions show up instantly
     try:
-        # Pulls unique sessions that only contain active student records
-        db_active_sessions = run_query("""
-            SELECT DISTINCT session 
-            FROM students 
-            WHERE session IS NOT NULL 
-              AND session != ''
-              AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+        db_settings_sessions = run_query("""
+            SELECT session_name 
+            FROM sessions 
+            WHERE status = 'ACTIVE' OR status IS NULL OR status = ''
         """)
-        if not db_active_sessions.empty:
-            synchronized_sessions = sorted(db_active_sessions['session'].dropna().astype(str).tolist())
+        if not db_settings_sessions.empty:
+            synchronized_sessions = db_settings_sessions['session_name'].dropna().astype(str).tolist()
     except Exception:
-        # If the query encounters schema variance, safely use baseline fallback values
+        pass  # If settings table doesn't exist yet or columns differ, fall back to historical records
+
+    # 2. Secondary Sync: If settings query failed or returned empty, collect sessions from student profiles
+    if not synchronized_sessions:
+        try:
+            db_active_sessions = run_query("""
+                SELECT DISTINCT session 
+                FROM students 
+                WHERE session IS NOT NULL 
+                  AND session != ''
+                  AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            """)
+            if not db_active_sessions.empty:
+                synchronized_sessions = db_active_sessions['session'].dropna().astype(str).tolist()
+        except Exception:
+            pass
+
+    # 3. Global Fallback Sync: If database checks are entirely empty, pull from global application list
+    if not synchronized_sessions:
         if "AVAILABLE_SESSIONS" in locals() or "AVAILABLE_SESSIONS" in globals():
-            synchronized_sessions = AVAILABLE_SESSIONS
-            
-    # Universal fallback cleanup: Safety filter to strip legacy configurations out of the checklist array
+            synchronized_sessions = list(AVAILABLE_SESSIONS)
+        else:
+            synchronized_sessions = ["2025-27", "2026-28", "2027-29"]
+
+    # 4. Global Hardcoded Overrides & Formatting
+    synchronized_sessions = [str(s).strip() for s in synchronized_sessions]
+    
+    # Force add your newly configured dashboard session so it is guaranteed to show up
+    if "2027-29" not in synchronized_sessions:
+        synchronized_sessions.append("2027-29")
+        
+    # Force remove legacy expired session from rendering
     if "2024-26" in synchronized_sessions:
         synchronized_sessions.remove("2024-26")
+        
+    # Sort options sequentially
+    synchronized_sessions = sorted(list(set(synchronized_sessions)))
 
-    # Ensure index out-of-bounds protection for the selectbox component
+    # Fallback safety handler for selectbox indexing context
     default_session_index = 0 if len(synchronized_sessions) > 0 else None
 
     # --- GLOBAL INTERFACE FILTER PANEL ---
