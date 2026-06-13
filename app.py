@@ -540,8 +540,9 @@ elif menu_choice == "➕ Add Students":
         st.subheader(f"🛠️ Update or Remove Records — {selected_class} | Section: {selected_section}")
         
         try:
+            # 🌟 Added system_type to the SELECT query
             query = text("""
-                SELECT id, name, status FROM students 
+                SELECT id, name, status, system_type FROM students 
                 WHERE class = :class AND section = :section AND session = :session
                 ORDER BY id ASC
             """)
@@ -575,6 +576,13 @@ elif menu_choice == "➕ Add Students":
                     
                     edit_status = st.selectbox("📌 Change Registration Status Enrollment:", status_options, index=init_status_idx)
                     
+                    # 🌟 Added System Type modifier field
+                    system_options = ["Annual System", "Semester System"]
+                    current_system = str(target_student_row.get('system_type', 'Annual System')).strip()
+                    init_system_idx = system_options.index(current_system) if current_system in system_options else 0
+                    
+                    edit_system = st.selectbox("🎓 Change Academic System Structure:", system_options, index=init_system_idx)
+                    
                     st.markdown("---")
                     col_update, col_delete = st.columns(2)
                     
@@ -589,14 +597,16 @@ elif menu_choice == "➕ Add Students":
                         st.error("❌ Action Rejected: Name field cannot be saved blank.")
                     else:
                         try:
+                            # 🌟 Updated SQL UPDATE statement to modify system_type column field
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE students 
-                                    SET name = :name, status = :status 
+                                    SET name = :name, status = :status, system_type = :system_type 
                                     WHERE id = :id
                                 """), {
                                     "name": edit_name.strip().upper(),
                                     "status": edit_status,
+                                    "system_type": edit_system,
                                     "id": selected_student_id
                                 })
                             st.success(f"🎉 Changes saved successfully for ID {selected_student_id}!")
