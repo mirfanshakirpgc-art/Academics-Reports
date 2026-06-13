@@ -109,6 +109,7 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
+        # 1. Create students table with system_type tracking columns
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
@@ -116,10 +117,21 @@ def initialize_database():
                 section VARCHAR(100),
                 class VARCHAR(100),
                 session VARCHAR(50),
-                status VARCHAR(50) DEFAULT 'ACTIVE'
+                status VARCHAR(50) DEFAULT 'ACTIVE',
+                system_type VARCHAR(50) DEFAULT 'Annual System'
             );
         """))
         
+        # 2. Safe Patch: Force-inject system_type column into existing Supabase tables
+        try:
+            conn.execute(text("""
+                ALTER TABLE students 
+                ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';
+            """))
+        except Exception:
+            pass # Skips quietly if the column already exists
+        
+        # 3. Create teachers table (Duplicate paste removed cleanly)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_teachers (
                 teacher_id SERIAL PRIMARY KEY,
@@ -130,6 +142,7 @@ def initialize_database():
             );
         """))
 
+        # 4. Create allocations table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS academic_allocations (
                 allocation_id SERIAL PRIMARY KEY,
@@ -143,6 +156,7 @@ def initialize_database():
             );
         """))
         
+        # 5. Create marks table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS marks (
                 id SERIAL PRIMARY KEY,
@@ -155,6 +169,7 @@ def initialize_database():
             );
         """))
         
+        # 6. Create attendance table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS attendance (
                 id SERIAL PRIMARY KEY,
@@ -170,7 +185,6 @@ try:
     initialize_database()
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
-
 # ==============================================================================
 # --- DATABASE COMMAND UTILITIES ---
 # ==============================================================================
@@ -435,24 +449,27 @@ elif menu_choice == "➕ Add Students":
                         clean_id = int(input_roll_number.strip())
                         clean_name = input_student_name.strip().upper()
                         
+                        # Clean up system type value by removing emojis before saving to database
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO students (id, name, class, section, session, status)
-                                VALUES (:id, :name, :class, :section, :session, :status)
+                                INSERT INTO students (id, name, class, section, session, status, system_type)
+                                VALUES (:id, :name, :class, :section, :session, :status, :system_type)
                             """), {
                                 "id": clean_id,
                                 "name": clean_name,
                                 "class": selected_class,
                                 "section": selected_section,
                                 "session": selected_session,
-                                "status": input_status
+                                "status": input_status,
+                                "system_type": clean_system_type # 🌟 Map clean variable to target column field
                             })
                         
-                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered under {clean_system_type}.")
                         st.balloons()
                     except Exception as db_err:
                         st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned. Details: {db_err}")
-
     # ====================================================================================
     # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
     # ====================================================================================
