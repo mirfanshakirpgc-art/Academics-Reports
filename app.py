@@ -763,8 +763,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
     }
 
+    # Custom styling to ensure matching line-heights across frames
+    st.markdown("""
+        <style>
+            .frame-header { font-weight: bold; padding-bottom: 10px; margin-bottom: 15px; border-bottom: 2px solid #cbd5e1; height: 40px;}
+            .cell-height { height: 52px; display: flex; align-items: center; }
+            .main-module-card { background-color: #ffffff; border: 2px solid #cbd5e1; border-radius: 12px; padding: 24px; margin-bottom: 25px; }
+        </style>
+    """, unsafe_allow_html=True)
+
     # ====================================================================================
-    # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY
+    # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY (SIDE-BY-SIDE FRAMES)
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -889,32 +898,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
-                    # --- GLOBAL STRATEGIC INLINE TAB CAPTURE FRAMEWORK ---
-                    st.components.v1.html("""
-                        <script>
-                            const rootDoc = window.parent.document;
-                            rootDoc.addEventListener('keydown', function(event) {
-                                const el = rootDoc.activeElement;
-                                if (el && el.tagName === 'INPUT' && el.id.startsWith('sec_m_')) {
-                                    if (event.key === 'Tab') {
-                                        event.preventDefault();
-                                        const parts = el.id.split('_');
-                                        const currentIdx = parseInt(parts[parts.length - 1], 10);
-                                        const nextIdx = event.shiftKey ? currentIdx - 1 : currentIdx + 1;
-                                        
-                                        // Match targets by locating trailing sequential array layout position marks
-                                        const allInputs = Array.from(rootDoc.querySelectorAll("input[id^='sec_m_']"));
-                                        const targetInput = allInputs.find(input => input.id.endsWith('_' + nextIdx));
-                                        if (targetInput) {
-                                            targetInput.focus();
-                                            targetInput.select();
-                                        }
-                                    }
-                                }
-                            }, true);
-                        </script>
-                    """, height=0)
-
                     col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
                     with col_b2:
                         if st.button("🏁 Mark All Absent", use_container_width=True, key=f"bulk_absent_btn_{sel_exam}_{sel_subject}"):
@@ -932,54 +915,75 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     with st.form(f"bulk_marks_form_{sel_exam}_{sel_subject}"):
                         updated_section_scores = {}
                         
-                        # Rearranged headers: Absent and NC columns moved to the left
-                        h_col_abs, h_col_nc, h_col_roll, h_col_name, h_col_field = st.columns([1, 1, 1.5, 2.5, 2.5])
-                        h_col_abs.caption("❌ **Absent**")
-                        h_col_nc.caption("➖ **NC**")
-                        h_col_roll.caption("🆔 **Roll No**")
-                        h_col_name.caption("👤 **Student Name**")
-                        h_col_field.caption("🔢 **Obtained Marks Input**")
-                        st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
+                        # CREATING TWO SIDE-BY-SIDE MACRO FRAMES
+                        left_frame, right_frame = st.columns([2.5, 5.5])
                         
-                        for idx, row in roster_df.iterrows():
-                            student_id = int(row['ID'])
-                            student_name = str(row['Student Name']).upper()
-                            db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
+                        # --- LEFT FRAME: STATUS CHECKBOXES ---
+                        with left_frame:
+                            st.markdown('<div class="frame-header">❌ Status Flags</div>', unsafe_allow_html=True)
                             
-                            state_abs_key = f"sec_abs_{student_id}_{target_sub_slug}_{target_exam}"
-                            state_nc_key = f"sec_nc_{student_id}_{target_sub_slug}_{target_exam}"
-                            state_marks_key = f"sec_mark_in_{student_id}_{target_sub_slug}_{target_exam}"
+                            # Sub headers
+                            sh1, sh2 = st.columns(2)
+                            sh1.caption("**Absent**")
+                            sh2.caption("**NC**")
                             
-                            if state_abs_key not in st.session_state: st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                            if state_nc_key not in st.session_state: st.session_state[state_nc_key] = (db_val == 'NC')
+                            for idx, row in roster_df.iterrows():
+                                student_id = int(row['ID'])
+                                db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
+                                
+                                state_abs_key = f"sec_abs_{student_id}_{target_sub_slug}_{target_exam}"
+                                state_nc_key = f"sec_nc_{student_id}_{target_sub_slug}_{target_exam}"
+                                
+                                if state_abs_key not in st.session_state: st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                                if state_nc_key not in st.session_state: st.session_state[state_nc_key] = (db_val == 'NC')
+                                
+                                st.markdown('<div class="cell-height">', unsafe_allow_html=True)
+                                c_abs, c_nc = st.columns(2)
+                                with c_abs: st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                                with c_nc: st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                                st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # --- RIGHT FRAME: STUDENT IDENTIFIERS AND TEXT FIELD MARKS INPUTS ---
+                        with right_frame:
+                            st.markdown('<div class="frame-header">🆔 Student & Evaluation Ledger (Press Tab to go Down)</div>', unsafe_allow_html=True)
                             
-                            chk_absent = st.session_state[state_abs_key]
-                            chk_nc = st.session_state[state_nc_key]
-                            is_disabled = chk_absent or chk_nc
-                            display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
+                            # Sub headers
+                            sh3, sh4, sh5 = st.columns([1.5, 3.5, 3])
+                            sh3.caption("**Roll No**")
+                            sh4.caption("**Student Name**")
+                            sh5.caption("**Obtained Marks**")
                             
-                            st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                            
-                            # Rearranged content columns matching header schema
-                            col_abs, col_nc, col_roll, col_name, col_field = st.columns([1, 1, 1.5, 2.5, 2.5])
-                            
-                            with col_abs: st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-                            with col_nc: st.checkbox("", key=state_nc_key, label_visibility="collapsed")
-                            
-                            col_roll.markdown(f"<div class='vertical-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
-                            col_name.markdown(f"<div class='vertical-center' style='font-size: 0.95rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
-                            
-                            with col_field:
-                                score_input = st.text_input(
-                                    f"sec_m_{student_id}_{idx}", 
-                                    value=display_score, 
-                                    placeholder="Score", 
-                                    key=state_marks_key, 
-                                    label_visibility="collapsed", 
-                                    disabled=is_disabled
-                                )
-                            st.markdown('</div>', unsafe_allow_html=True)
-                            updated_section_scores[student_id] = {"marks": score_input, "abs_key": state_abs_key, "nc_key": state_nc_key}
+                            for idx, row in roster_df.iterrows():
+                                student_id = int(row['ID'])
+                                student_name = str(row['Student Name']).upper()
+                                db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
+                                
+                                state_abs_key = f"sec_abs_{student_id}_{target_sub_slug}_{target_exam}"
+                                state_nc_key = f"sec_nc_{student_id}_{target_sub_slug}_{target_exam}"
+                                state_marks_key = f"sec_mark_in_{student_id}_{target_sub_slug}_{target_exam}"
+                                
+                                chk_absent = st.session_state[state_abs_key]
+                                chk_nc = st.session_state[state_nc_key]
+                                is_disabled = chk_absent or chk_nc
+                                display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
+                                
+                                st.markdown('<div class="cell-height">', unsafe_allow_html=True)
+                                col_roll, col_name, col_field = st.columns([1.5, 3.5, 3])
+                                
+                                col_roll.markdown(f"<span style='font-family: monospace; font-weight: bold;'>{student_id}</span>", unsafe_allow_html=True)
+                                col_name.markdown(f"<span style='font-size: 0.9rem; font-weight: 500;'>{student_name}</span>", unsafe_allow_html=True)
+                                
+                                with col_field:
+                                    score_input = st.text_input(
+                                        f"Marks Input {student_id}", 
+                                        value=display_score, 
+                                        placeholder="Enter Score", 
+                                        key=state_marks_key, 
+                                        label_visibility="collapsed", 
+                                        disabled=is_disabled
+                                    )
+                                st.markdown('</div>', unsafe_allow_html=True)
+                                updated_section_scores[student_id] = {"marks": score_input, "abs_key": state_abs_key, "nc_key": state_nc_key}
                         
                         st.markdown("<br>", unsafe_allow_html=True)
                         if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
@@ -1001,18 +1005,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.error(f"Database sync issue: {e}")
 
     # ====================================================================================
-    # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY 
+    # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY (SIDE-BY-SIDE FRAMES)
     # ====================================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
-        st.markdown("""
-            <style>
-                .main-module-card { background-color: #ffffff; border: 2px solid #cbd5e1; border-radius: 12px; padding: 24px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-                .sub-ledger-box { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 15px; margin-bottom: 15px; }
-                .row-item-border { border-bottom: 1px solid #f1f5f9; padding-top: 12px; padding-bottom: 12px; }
-                .vertical-center { display: flex; align-items: center; height: 100%; }
-            </style>
-        """, unsafe_allow_html=True)
-
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
         st.subheader("👤 Single Student Marks Record Manager")
         
@@ -1082,93 +1077,86 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 target_exam_slug = str(single_exam).strip().upper()
 
-                # --- SINGLE WORKFLOW VERTICAL TAB CAPTURE HOOK ---
-                st.components.v1.html("""
-                    <script>
-                        const parentDoc = window.parent.document;
-                        parentDoc.addEventListener('keydown', function(e) {
-                            const activeNode = parentDoc.activeElement;
-                            if (activeNode && activeNode.tagName === 'INPUT' && activeNode.id.startsWith('single_m_')) {
-                                if (e.key === 'Tab' || e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const segments = activeNode.id.split('_');
-                                    const currentPos = parseInt(segments[segments.length - 1], 10);
-                                    const nextPos = e.shiftKey ? currentPos - 1 : currentPos + 1;
-                                    
-                                    const inputCollection = Array.from(parentDoc.querySelectorAll("input[id^='single_m_']"));
-                                    const destinationNode = inputCollection.find(i => i.id.endsWith('_' + nextPos));
-                                    if (destinationNode) {
-                                        destinationNode.focus();
-                                        destinationNode.select();
-                                    }
-                                }
-                            }
-                        }, true);
-                    </script>
-                """, height=0)
-
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
-                    st.markdown('<div class="sub-ledger-box">', unsafe_allow_html=True)
                     st.markdown("### 🔢 Marks Evaluation Ledger")
-                    st.caption("⚡ **Spreadsheet Mode Active**: Tab or Enter keys drop focus directly down to the next row input field.")
-                    st.markdown("<hr style='margin:10px 0px; padding:0px;'>", unsafe_allow_html=True)
-
+                    
                     updated_scores = {}
                     
-                    # Rearranged headers for Single profile layout: Absent and NC to the left
-                    h_col_abs, h_col_nc, h_col_name, h_col_field = st.columns([1, 1, 4, 2.5])
-                    h_col_abs.caption("❌ **Absent**")
-                    h_col_nc.caption("➖ **NC**")
-                    h_col_name.caption("📖 **Course Subject**")
-                    h_col_field.caption("🔢 **Obtained Marks**")
-                    st.markdown("<hr style='margin:5px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    # CREATING TWO SIDE-BY-SIDE MACRO FRAMES FOR SINGLE ENTRY
+                    left_s_frame, right_s_frame = st.columns([2.5, 5.5])
+                    
+                    # --- LEFT FRAME: SINGLE STATUS TOGGLES ---
+                    with left_s_frame:
+                        st.markdown('<div class="frame-header">❌ Status Flags</div>', unsafe_allow_html=True)
+                        s_sh1, s_sh2 = st.columns(2)
+                        s_sh1.caption("**Absent**")
+                        s_sh2.caption("**NC**")
+                        
+                        for idx, subject_name in enumerate(subjects_list):
+                            sub_slug = str(subject_name).strip().upper().replace(" ", "_")
+                            
+                            existing_df = run_query("""
+                                SELECT marks_obtained FROM marks 
+                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam
+                            """, {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug})
+                            
+                            db_score = str(existing_df.iloc[0]['marks_obtained']).strip().upper() if not existing_df.empty else ""
+                            
+                            s_abs_key = f"s_abs_{single_id}_{sub_slug}_{target_exam_slug}"
+                            s_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
+                            
+                            if s_abs_key not in st.session_state: st.session_state[s_abs_key] = (db_score in ['A', 'ABSENT'])
+                            if s_nc_key not in st.session_state: st.session_state[s_nc_key] = (db_score == 'NC')
+                            
+                            st.markdown('<div class="cell-height">', unsafe_allow_html=True)
+                            c_a, c_n = st.columns(2)
+                            with c_a: st.checkbox("", key=s_abs_key, label_visibility="collapsed")
+                            with c_n: st.checkbox("", key=s_nc_key, label_visibility="collapsed")
+                            st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # --- RIGHT FRAME: SINGLE COURSE CHANNELS AND NUMERIC FIELD MARK INPUTS ---
+                    with right_s_frame:
+                        st.markdown('<div class="frame-header">📖 Subjects & Scores (Press Tab to go Down)</div>', unsafe_allow_html=True)
+                        s_sh3, s_sh4 = st.columns([5, 3])
+                        s_sh3.caption("**Course Subject**")
+                        s_sh4.caption("**Obtained Marks**")
+                        
+                        for idx, subject_name in enumerate(subjects_list):
+                            sub_slug = str(subject_name).strip().upper().replace(" ", "_")
+                            
+                            existing_df = run_query("""
+                                SELECT marks_obtained FROM marks 
+                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam
+                            """, {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug})
+                            
+                            db_score = str(existing_df.iloc[0]['marks_obtained']).strip().upper() if not existing_df.empty else ""
+                            
+                            s_abs_key = f"s_abs_{single_id}_{sub_slug}_{target_exam_slug}"
+                            s_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
+                            s_mark_key = f"s_mark_in_{single_id}_{sub_slug}_{target_exam_slug}"
+                            
+                            chk_abs = st.session_state[s_abs_key]
+                            chk_nc = st.session_state[s_nc_key]
+                            is_dis = chk_abs or chk_nc
+                            display_val = "A" if chk_abs else ("NC" if chk_nc else ("" if db_score in ['A', 'ABSENT', 'NC'] else db_score))
+                            
+                            st.markdown('<div class="cell-height">', unsafe_allow_html=True)
+                            c_lbl, c_in = st.columns([5, 3])
+                            
+                            c_lbl.markdown(f"<b>📖 {subject_name}</b>", unsafe_allow_html=True)
+                            with c_in:
+                                score_input = st.text_input(
+                                    f"Single Subject Marks {sub_slug}", 
+                                    value=display_val, 
+                                    placeholder="Score", 
+                                    key=s_mark_key, 
+                                    label_visibility="collapsed", 
+                                    disabled=is_dis
+                                )
+                            st.markdown('</div>', unsafe_allow_html=True)
+                            updated_scores[sub_slug] = {"marks": score_input, "abs_key": s_abs_key, "nc_key": s_nc_key}
 
-                    for idx, subject_name in enumerate(subjects_list):
-                        sub_slug = str(subject_name).strip().upper().replace(" ", "_")
-                        
-                        existing_df = run_query("""
-                            SELECT marks_obtained FROM marks 
-                            WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam
-                        """, {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug})
-                        
-                        db_score = str(existing_df.iloc[0]['marks_obtained']).strip().upper() if not existing_df.empty else ""
-                        
-                        s_abs_key = f"s_abs_{single_id}_{sub_slug}_{target_exam_slug}"
-                        s_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
-                        s_mark_key = f"s_mark_in_{single_id}_{sub_slug}_{target_exam_slug}"
-                        
-                        if s_abs_key not in st.session_state: st.session_state[s_abs_key] = (db_score in ['A', 'ABSENT'])
-                        if s_nc_key not in st.session_state: st.session_state[s_nc_key] = (db_score == 'NC')
-                        
-                        chk_abs = st.session_state[s_abs_key]
-                        chk_nc = st.session_state[s_nc_key]
-                        is_dis = chk_abs or chk_nc
-                        display_val = "A" if chk_abs else ("NC" if chk_nc else ("" if db_score in ['A', 'ABSENT', 'NC'] else db_score))
-                        
-                        st.markdown('<div class="row-item-border">', unsafe_allow_html=True)
-                        
-                        # Rearranged columns matching header layout
-                        c_a, c_n, c_lbl, c_in = st.columns([1, 1, 4, 2.5])
-                        
-                        with c_a: st.checkbox("", key=s_abs_key, label_visibility="collapsed")
-                        with c_n: st.checkbox("", key=s_nc_key, label_visibility="collapsed")
-                        
-                        c_lbl.markdown(f"<div class='vertical-center'><b>📖 {subject_name}</b></div>", unsafe_allow_html=True)
-                        with c_in:
-                            score_input = st.text_input(
-                                f"single_m_{single_id}_{idx}", 
-                                value=display_val, 
-                                placeholder="Score", 
-                                key=s_mark_key, 
-                                label_visibility="collapsed", 
-                                disabled=is_dis
-                            )
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        
-                        updated_scores[sub_slug] = {"marks": score_input, "abs_key": s_abs_key, "nc_key": s_nc_key}
-
-                    st.markdown('</div>', unsafe_allow_html=True)
-
+                    st.markdown("<br>", unsafe_allow_html=True)
                     if st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", type="primary", use_container_width=True):
                         import time
                         for sub_slug, record in updated_scores.items():
