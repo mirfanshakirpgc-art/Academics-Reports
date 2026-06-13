@@ -3708,7 +3708,7 @@ elif menu_choice == "📈 Academic Analysis Reports":
                     st.info("Select two exams to see data comparison.")
     else:
         st.info("No data available to analyze inside database.")
-        # ==============================================================================
+    # ==============================================================================
 # ROUTER INTEGRATION: ⚙️ ADMINISTRATIVE SYSTEM SETTINGS
 # ==============================================================================
 elif menu_choice == "⚙️ Settings":
@@ -3736,6 +3736,44 @@ elif menu_choice == "⚙️ Settings":
         ]
         
     sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
+
+    # ==============================================================================
+    # SUB-TAB HANDLING ENGINE
+    # ==============================================================================
+    if sub_menu == "📅 Sessions & Terms":
+        st.subheader("🗓️ Global Academic Session Management")
+        st.info("Changing the active session here will instantly update the default values across all registration forms and reporting ledgers.")
+
+        # Read keys directly from the st.session_state initialized in Step 1
+        available_options = st.session_state["available_sessions"]
+        current_active = st.session_state["current_session"]
+        
+        # Calculate matching index so the dropdown displays your active selection
+        default_index = available_options.index(current_active) if current_active in available_options else 0
+
+        # Master configuration selectbox
+        chosen_session = st.selectbox(
+            "Set Global Active Session Track:",
+            options=available_options,
+            index=default_index,
+            key="global_settings_session_selector"
+        )
+        
+        # Immediate save controller execution
+        if st.button("💾 Apply Configuration Changes", type="primary"):
+            st.session_state["current_session"] = chosen_session
+            st.success(f"🚀 System configuration updated! Active session is now set to **{chosen_session}**.")
+            st.rerun()
+
+    # --- BELOW: LEAVE YOUR EXISTING CODE BLOCKS FOR OTHER SUB-MENUS AS THEY ARE ---
+    elif sub_menu == "📝 Faculty Registration":
+        pass  # your existing faculty registration UI code continues here...
+        
+    elif sub_menu == "🗂️ Section Master":
+        pass  # your existing section master UI code continues here...
+        
+    elif sub_menu == "📑 Test & Exam Frameworks":
+        pass  # your existing test frameworks UI code continues here...
 
     # --- SUB-ROUTER: FACULTY REGISTRATION TRACK ---
     if sub_menu == "📝 Faculty Registration":
