@@ -3305,9 +3305,9 @@ elif menu_choice == "👥 Student Operations Management":
     st.markdown("Centralized workflow for profile records, status adjustments, audit trails, and batch promotions.")
     st.markdown("---")
     
-    # --------------------------------------------------------------------------------
+    # ====================================================================================
     # FLOW CHART LEVEL 1 & 2: GLOBAL CONTEXT SELECTION MATRIX (Dynamic Track Routing)
-    # --------------------------------------------------------------------------------
+    # ====================================================================================
     st.markdown("### 🌐 Step 1 & 2: Global Configuration Parameters")
 
     col_g1, col_g2, col_g3 = st.columns(3)
@@ -3324,12 +3324,12 @@ elif menu_choice == "👥 Student Operations Management":
         global_system = "annual" if global_system_display == "Annual System" else "semester"
 
     with col_g3:
-        # DYNAMIC REPLACEMENT LAYER: Changes dropdown labels and item parameters instantly
+        # DYNAMIC LAYOUT: Swaps parameters seamlessly based on selected system track
         if global_system == "annual":
             global_term_label = "🏫 Current Grade Level Focus:"
             global_term_options = ["11th", "12th"]
         else:
-            global_term_label = "⏱️ Current Semester Focus:"
+            global_term_label = "⏱️ No. Semester:"
             global_term_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
             
         global_term = st.selectbox(global_term_label, global_term_options, key="global_stud_term_filter")
@@ -3355,7 +3355,7 @@ elif menu_choice == "👥 Student Operations Management":
             if not search_id.isdigit():
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
-                # Core Fix: Matches global_term variable dynamically (whether 11th/12th or Semester 1-4)
+                # FIXED: Changed :cls parameter mapping to use global_term explicitly
                 stu_df = run_query("""
                     SELECT id, name, class, section, session, status, system_type 
                     FROM students 
@@ -3366,7 +3366,7 @@ elif menu_choice == "👥 Student Operations Management":
                 """, {"id": int(search_id), "sess": global_session, "sys": global_system, "term": global_term})
                 
                 if stu_df.empty:
-                    st.warning(f"⚠️ No matching profile found with ID '{search_id}' within {global_term} of Session {global_session} ({global_system_display}).")
+                    st.warning(f"⚠️ No matching active profile found with ID '{search_id}' within {global_term} of Session {global_session} ({global_system_display}).")
                 else:
                     student = stu_df.iloc[0]
                     s_id = int(student['id'])
@@ -3475,7 +3475,6 @@ elif menu_choice == "👥 Student Operations Management":
                             edit_sys_display = st.selectbox("Target Academic System Track:", ["Annual System", "Semester System"], index=0 if str(student['system_type']).lower() == "annual" else 1)
                             edit_sys_value = "annual" if edit_sys_display == "Annual System" else "semester"
                             
-                            # Generates valid inline options depending on the chosen context track
                             if edit_sys_value == "annual":
                                 edit_term_options = ["11th", "12th"]
                             else:
@@ -3516,7 +3515,7 @@ elif menu_choice == "👥 Student Operations Management":
     elif workspace_mode == "🗂️ Whole Section Batch Operations":
         st.markdown("### 📦 Bulk Section Operations Matrix")
         
-        # Pulls section choices constrained by active session context and dynamic term mapping
+        # FIXED: Updated lookup criteria constraint from :cls to :term matching global_term variable
         sections_data = run_query("""
             SELECT DISTINCT section FROM students 
             WHERE session = :sess 
@@ -3536,13 +3535,14 @@ elif menu_choice == "👥 Student Operations Management":
             # ----------------------------------------------------------------============
             with st.container(border=True):
                 st.markdown("### 6️⃣ Cohort Class/Term Promotion Engine")
-                st.info(f"🔄 **Lifecycle Rule:** Promoting students updates their Term position but preserves their permanent **{global_session}** session cohort footprint.")
+                st.info(f"🔄 **Lifecycle Rule:** Promoting students will shift their active lifecycle step but preserve their permanent **{global_session}** session footprint.")
                 
                 selected_source_sec = st.selectbox("📁 Select Source Section to Update:", found_sections)
                 
-                # Dynamic next-term calculations based on architecture branch paths
+                # FIXED: Computes destination based on current system architecture path chosen
                 if global_system == "annual":
                     inferred_next_term = "12th" if global_term == "11th" else "Graduated/Alumni"
+                    dest_label = f"##### 🎯 Destination Section Setup (Moving to Class: **{inferred_next_term}**)"
                 else:
                     semester_progression_map = {
                         "Semester 1": "Semester 2",
@@ -3551,10 +3551,10 @@ elif menu_choice == "👥 Student Operations Management":
                         "Semester 4": "Graduated/Alumni"
                     }
                     inferred_next_term = semester_progression_map.get(global_term, "Graduated/Alumni")
+                    dest_label = f"##### 🎯 Destination Section Setup (Advancing to: **{inferred_next_term}**)"
                 
-                st.markdown(f"##### 🎯 Destination Section Setup (Moving to Step: **{inferred_next_term}**)")
+                st.markdown(dest_label)
                 
-                # Pulls target setup destinations
                 dest_sections_df = run_query("""
                     SELECT DISTINCT section FROM students 
                     WHERE session = :sess AND LOWER(TRIM(class)) = LOWER(TRIM(:next_term))
@@ -3578,7 +3578,6 @@ elif menu_choice == "👥 Student Operations Management":
                     import uuid
                     promotion_batch_id = f"PROMO-{str(uuid.uuid4())[:6].upper()}"
                     
-                    # Log change sets to tracking tables
                     for _, student_row in cohort_roster.iterrows():
                         run_update("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
@@ -3590,7 +3589,6 @@ elif menu_choice == "👥 Student Operations Management":
                             "b_id": promotion_batch_id
                         })
                     
-                    # Update statement keeping the global session unchanged
                     run_update("""
                         UPDATE students 
                         SET class = :next_term, section = :next_sec
@@ -3604,7 +3602,7 @@ elif menu_choice == "👥 Student Operations Management":
                         "sess": global_session, "sys": global_system, "sec": selected_source_sec, "term": global_term
                     })
                     
-                    st.success(f"🎉 Success! Promoted section to **{inferred_next_term} ({target_dest_section})**. The original session allocation ({global_session}) remains unchanged.")
+                    st.success(f"🎉 Success! Whole section advanced to **{inferred_next_term} ({target_dest_section})**. Permanent session assignment ({global_session}) maintained.")
                     st.rerun()
         
     # ==============================================================================
