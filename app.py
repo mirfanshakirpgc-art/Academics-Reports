@@ -2125,9 +2125,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
         ]
 
-    # =========================================================================
-    # ⏬ THIS IS THE REPLACED WORKHORSE COMPONENT FOR YOUR SESSIONS DROPDOWN ⏬
-    # =========================================================================
     # --- DYNAMIC SESSION SYNCHRONIZATION ---
     synchronized_sessions = []
     
@@ -2342,7 +2339,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 marks_df.columns = [c.lower() for c in marks_df.columns]
                 marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
                 marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
-                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
+                
+                # --- CASE-INSENSITIVE / STRING NORMALIZATION ENGINE ---
+                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.title()
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
@@ -2397,8 +2396,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
         css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
         css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
         css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
-        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; } .btn-img-single { background-color: #e65100; }"
-        css_rules += " .btn-img-single:hover { background-color: #b33900; } .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
+        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; }"
+        css_rules += " .btn-img-single { background-color: #e65100; } .btn-img-single:hover { background-color: #b33900; }"
+        css_rules += " .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
         css_rules += " .cck-container { background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }"
         css_rules += " .cck-header-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }"
         css_rules += " .cck-logo-image-container { width: 75px; height: 75px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }"
@@ -2442,7 +2442,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             s_name = " ".join(raw_name.replace("\n", " ").split())
             
             raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
-            s_section = " ".join(raw_section.replace("\n", " ").split())
+            s_section = " ".join(raw_section.replace("\n", " ").split()).upper().strip()
             
             raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
             s_class = " ".join(raw_class.replace("\n", " ").split())
@@ -2456,19 +2456,38 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 s_marks = marks_df[marks_df["student_id"] == s_id].copy()
                 
                 if not s_marks.empty:
-                    distinct_subjects = sorted(s_marks["subject_name"].unique())
+                    # ------------------------------------------------------------------
+                    # ⚡ DYNAMIC ELECTIVE TRANSLATION LAYER (Physics ➡️ Statistics)
+                    # ------------------------------------------------------------------
+                    # Identify if the student is currently placed in a Statistics track section
+                    is_stats_section = s_section in ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
+                    
+                    # Create columns for reporting mutations
+                    s_marks['display_subject'] = s_marks['subject_name']
+                    s_marks['label_suffix'] = ""
+                    
+                    if is_stats_section:
+                        for m_idx, m_row in s_marks.iterrows():
+                            # Remap Physics marks to display under Statistics with custom tracking tag
+                            if m_row['subject_name'] == "Physics":
+                                s_marks.at[m_idx, 'display_subject'] = "Statistics"
+                                s_marks.at[m_idx, 'label_suffix'] = " (Phy)"
+                    
+                    # Sort uniquely on display target column name strings to prevent breakdown splitting
+                    distinct_subjects = sorted(s_marks["display_subject"].unique())
+                    
                     exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
                     exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
                     
                     for sub in distinct_subjects:
-                        sub_marks = s_marks[s_marks["subject_name"] == sub]
+                        sub_marks = s_marks[s_marks["display_subject"] == sub]
                         row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
                         subject_pct_accum = 0
                         valid_exams_count = 0
                         
                         for exam in selected_exams_list:
                             if academic_system == "Semester System":
-                                match_row = sub_marks[sub_marks["subject_name"].str.upper() == str(exam).strip().upper()]
+                                match_row = sub_marks[sub_marks["display_subject"].str.upper() == str(exam).strip().upper()]
                             else:
                                 match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
                                 
@@ -2478,7 +2497,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     tot = float(match_row.iloc[0]["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    row_tds += f"<td>{pct}%</td>"
+                                    # Append structural suffix code label context dynamically
+                                    suffix_tag = match_row.iloc[0]['label_suffix']
+                                    row_tds += f"<td>{pct}%{suffix_tag}</td>"
+                                    
                                     exam_totals_obtained[exam] += obt
                                     exam_totals_possible[exam] += tot
                                     subject_pct_accum += pct
@@ -2632,30 +2654,34 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 var targetList = [];
                 if (isSingleTarget) { targetList.push(cards[0]); } 
                 else { cards.forEach(function(c) { targetList.push(c); }); }
-                triggerImageCaptureSequence(targetList, 0);
-            }
-
-            function triggerImageCaptureSequence(targetList, currentIndex) {
-                if (currentIndex >= targetList.length) return;
-                var element = targetList[currentIndex];
-                var studName = element.getAttribute('data-name') || 'student';
-                var studId = element.getAttribute('data-id') || 'id';
                 
-                html2canvas(element, { scale: 2, useCORS: true }).then(function(canvas) {
-                    var link = document.createElement('a');
-                    link.download = studId + '_' + studName + '_ProgressCard.png';
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
-                    setTimeout(function() { triggerImageCaptureSequence(targetList, currentIndex + 1); }, 500);
-                });
+                var currentBatchIdx = 0;
+                function processNextImageDownload() {
+                    if (currentBatchIdx >= targetList.length) return;
+                    var card = targetList[currentBatchIdx];
+                    var sName = card.getAttribute('data-name') || 'student';
+                    var sId = card.getAttribute('data-id') || 'id';
+                    
+                    html2canvas(card, { scale: 2, useCORS: true }).then(function(canvas) {
+                        var link = document.createElement('a');
+                        link.download = 'Report_' + sId + '_' + sName + '.png';
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                        currentBatchIdx++;
+                        setTimeout(processNextImageDownload, 500);
+                    }).catch(function(err) {
+                        console.error('Image processing exception occurred:', err);
+                    });
+                }
+                processNextImageDownload();
             }
             </script>
         </body>
         </html>
         """
         
-        composite_html_payload = composite_html_payload.replace('\xa0', ' ')
-        st.components.v1.html(composite_html_payload, height=900, scrolling=True)
+        # Display the custom print dashboard inside your Streamlit portal interface context
+        st.components.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
