@@ -1207,6 +1207,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 elif menu_choice == "🗓️ Attendance Entry Management":
     import datetime  
     import pandas as pd
+    from sqlalchemy import text 
+    
+    # 🕵️‍♂️ DIAGNOSTIC CHECK: This will print to your terminal window
+    print("👉 SUCCESSFULLY ENTERED ATTENDANCE MODULE!") 
     
     st.title("🗓️ Attendance Entry Management Panel")
     
