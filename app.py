@@ -1085,16 +1085,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # --- SECTION 1: MARKS ENTRY LEDGER ---
-                    st.markdown("### 🔢 1. Marks Obtained Ledger")
-                    st.caption("Press **Tab** to slide straight down to the next subject score field.")
-                    st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
-
-                    updated_scores = {}
-                    
-                    # --- LOOP 1: GENERATE ALL TEXT INPUT FIELDS FIRST ---
-                    # Because this loop executes sequentially without any checkboxes inside,
-                    # the browser is forced to link these inputs back-to-back in the tab tree!
+                    # --- PREPARE DATASET FOR SPREADSHEET MATRIX ---
+                    rows_list = []
                     for subject in subjects_list:
                         existing_mark_df = run_query("""
                             SELECT marks_obtained FROM marks 
@@ -1103,35 +1095,48 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         
                         db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
                         
-                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-                        
-                        if state_abs_key not in st.session_state:
-                            st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                        if state_nc_key not in st.session_state:
-                            st.session_state[state_nc_key] = (db_val == 'NC')
-                        
-                        chk_absent = st.session_state[state_abs_key]
-                        chk_nc = st.session_state[state_nc_key]
-                        
-                        initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
-                        is_disabled = chk_absent or chk_nc
-                        display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
+                        rows_list.append({
+                            "Subject Title": subject,
+                            "Obtained Marks": "" if db_val in ['A', 'ABSENT', 'NC'] else db_val,
+                            "Absent": (db_val in ['A', 'ABSENT']),
+                            "No Class (NC)": (db_val == 'NC')
+                        })
 
-                        # Clean, clear row format for text box inputs
-                        col_label, col_field = st.columns([4, 2])
-                        col_label.markdown(f"<div style='padding-top: 10px; font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
-                        
-                        score_input = col_field.text_input(
-                            f"Marks for {subject}",
-                            value=display_score if is_disabled else initial_score,
-                            key=state_marks_key,
-                            label_visibility="collapsed",
-                            disabled=is_disabled
-                        )
-                        updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
+                    import pandas as pd
+                    editor_df = pd.DataFrame(rows_list)
 
+                    st.markdown("### 📊 Marks Entry Sheet")
+                    st.caption("Double-click a cell to edit. Use **Tab**, **Enter**, or **Arrow Keys** to navigate downward instantly.")
+
+                    # --- THE SPREADSHEET COMPONENT ---
+                    edited_df = st.data_editor(
+                        editor_df,
+                        column_config={
+                            "Subject Title": st.column_config.TextColumn("📖 Subject Title", disabled=True),
+                            "Obtained Marks": st.column_config.TextColumn("🔢 Obtained Marks"),
+                            "Absent": st.column_config.CheckboxColumn("❌ Absent"),
+                            "No Class (NC)": st.column_config.CheckboxColumn("➖ NC")
+                        },
+                        disabled=["Subject Title"],
+                        hide_index=True,
+                        use_container_width=True,
+                        key=f"grid_editor_{single_id}_{single_exam}"
+                    )
+
+                    # --- PARSE DATA BACK TO YOUR SAVE PIPELINE ---
+                    updated_scores = {}
+                    for _, row in edited_df.iterrows():
+                        sub = row["Subject Title"]
+                        marks_val = str(row["Obtained Marks"]).strip()
+                        is_abs = row["Absent"]
+                        is_nc = row["No Class (NC)"]
+
+                        if is_abs:
+                            updated_scores[sub] = "A"
+                        elif is_nc:
+                            updated_scores[sub] = "NC"
+                        else:
+                            updated_scores[sub] = marks_val
                     # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
                     # We drop down and run a completely separate loop for checkboxes.
                     st.markdown("<br><br>", unsafe_allow_html=True)
