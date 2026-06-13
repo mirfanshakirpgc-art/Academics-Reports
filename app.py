@@ -1059,24 +1059,29 @@ if menu_choice == "📅 Attendance Entry Management":
     )
     st.markdown("###")
 
-    # 🚀 DYNAMIC STATE INTEGRATION: Merge settings state tracking with database values
-    global_sessions = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
+    # 🚀 CLEAN STATE INTEGRATION: Read strictly from settings to prevent duplicates
+    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     active_session = st.session_state.get("current_session", "2026-28")
     
-    # Check database records to see if extra historic/future tracks exist
-    try:
-        db_sessions = run_query("SELECT DISTINCT session FROM students WHERE session IS NOT NULL AND session != ''")
-        if not db_sessions.empty:
-            extracted_list = db_sessions['session'].dropna().astype(str).tolist()
-            # Combine both lists cleanly without duplicate records
-            session_options = sorted(list(set(global_sessions + extracted_list)))
-        else:
-            session_options = global_sessions
-    except Exception:
-        session_options = global_sessions
-        
-    # Calculate matching index dynamically so it snaps to your Settings dashboard choice
+    # Force the selector index to point right to your active session choice
     default_index = session_options.index(active_session) if active_session in session_options else 0
+
+    st.markdown("## 📅 Daily Attendance Roster Sheet")
+    st.markdown("---")
+
+    # --- ⚠️ CRITICAL: CHECK BELOW THIS LINE IN YOUR CODE ⚠️ ---
+    # Look for the existing row of columns in your file. 
+    # Make sure you DO NOT let a duplicate columns row run below this.
+    
+    col_sess, col_sys, col_level, col_sec = st.columns(4)
+    
+    with col_sess:
+        selected_session = st.selectbox(
+            "Select Session:", 
+            options=session_options, 
+            index=default_index, 
+            key="attendance_entry_session_select"
+        )
 
     st.markdown("## 📅 Daily Attendance Roster Sheet")
     st.markdown("---")
