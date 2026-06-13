@@ -2512,7 +2512,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
             # =========================================================================
-            # --- ATTENDANCE REPORT MATRIX (NATIVE SYSTEM TYPE FIXED CODES) ---
+            # --- ATTENDANCE REPORT MATRIX (COMPREHENSIVE MATCH ENGINE) ---
             # =========================================================================
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
@@ -2525,50 +2525,59 @@ if menu_choice == "📈 Multi-Test Progress Report":
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
-                # Direct Integer Casting matching PostgreSQL SERIAL field mapping structures
+                # 1. Standardize lookups for alternative formats (string vs numeric)
                 try:
                     if isinstance(s_id, (int, np.integer)):
-                        target_student_id = int(s_id)
+                        target_id_int = int(s_id)
                     else:
-                        target_student_id = int(float(str(s_id).strip()))
+                        target_id_int = int(float(str(s_id).strip()))
                 except (ValueError, TypeError):
-                    target_student_id = None
+                    target_id_int = None
+                
+                target_id_str = str(s_id).strip().split('.')[0]
 
-                if target_student_id is not None:
-                    # Enforce standardized integer data types across the lookup dataframe column boundaries
-                    att_df_copy = attendance_df.copy()
+                # Create an isolated copy to prevent altering the global database frame
+                att_df_copy = attendance_df.copy()
+                s_att = pd.DataFrame()
+
+                # Path A: Match against explicit numeric castings
+                if target_id_int is not None:
                     try:
-                        att_df_copy["student_id"] = pd.to_numeric(att_df_copy["student_id"], errors='coerce').astype('Int64')
-                        s_att = att_df_copy[att_df_copy["student_id"] == target_student_id]
+                        att_df_copy["student_id_num"] = pd.to_numeric(att_df_copy["student_id"], errors='coerce')
+                        s_att = att_df_copy[att_df_copy["student_id_num"] == target_id_int]
                     except Exception:
-                        # Resilient Fallback to clean normalized string matches if column frames hold null fragments
-                        target_s_str = str(target_student_id)
+                        pass
+
+                # Path B: Fallback string match track if Path A recovers no rows
+                if s_att.empty:
+                    try:
                         att_df_copy["student_id_str"] = att_df_copy["student_id"].astype(str).str.strip().str.split('.').str[0]
-                        s_att = att_df_copy[att_df_copy["student_id_str"] == target_s_str]
-                    
-                    if not s_att.empty:
-                        # Extract monthly matrices directly out of pre-aggregated rows
-                        for _, row in s_att.iterrows():
-                            db_month = str(row.get("month_name", "")).strip()
-                            
-                            # Match variants safely (e.g., "May" or "June")
-                            matched_month = None
-                            for m_name in month_map.keys():
-                                if db_month.lower().startswith(m_name.lower()[:3]):
-                                    matched_month = m_name
-                                    break
-                            
-                            if matched_month:
-                                try:
-                                    t_days = int(float(str(row.get("total_days", 0))))
-                                    p_days = int(float(str(row.get("present_days", 0))))
-                                    
-                                    attendance_matrix[matched_month] = {
-                                        "total": t_days, 
-                                        "present": p_days
-                                    }
-                                except (ValueError, TypeError):
-                                    pass
+                        s_att = att_df_copy[att_df_copy["student_id_str"] == target_id_str]
+                    except Exception:
+                        pass
+
+                # Extract monthly metrics if student cross-reference records were found
+                if not s_att.empty:
+                    for _, row in s_att.iterrows():
+                        db_month = str(row.get("month_name", "")).strip()
+                        
+                        matched_month = None
+                        for m_name in month_map.keys():
+                            if db_month.lower().startswith(m_name.lower()[:3]):
+                                matched_month = m_name
+                                break
+                        
+                        if matched_month:
+                            try:
+                                t_days = int(float(str(row.get("total_days", 0))))
+                                p_days = int(float(str(row.get("present_days", 0))))
+                                
+                                attendance_matrix[matched_month] = {
+                                    "total": t_days, 
+                                    "present": p_days
+                                }
+                            except (ValueError, TypeError):
+                                pass
 
             # --- GENERATE CELL HTML CODES FOR THIS CARD ---
             for m_name in month_map.keys():
@@ -2629,7 +2638,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     <tbody>
                         <tr><td>Open Total Days</td>{tot_days_row}</tr>
                         <tr><td>Att. Days</td>{att_days_row}</tr>
-                        <tr><td>Age%</td>{pct_days_row}</tr>
+                        <tr><td>Att.%</td>{pct_days_row}</tr>
                     </tbody>
                 </table>
                 <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
@@ -2686,7 +2695,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
 
-        import streamlit.components.v1 as components
         components.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
