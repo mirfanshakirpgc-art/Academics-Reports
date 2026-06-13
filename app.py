@@ -1361,7 +1361,6 @@ elif menu_choice == "📋 Daily Attendance Report":
         st.stop()
 
     # 2. DATA FETCHING (Robust)
-    # Ensure sessions is a tuple for the SQL IN clause
     session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
     
     query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
@@ -1383,13 +1382,17 @@ elif menu_choice == "📋 Daily Attendance Report":
 
         def classify(row):
             cls, sec = str(row['Class']), str(row['Section'])
-            if "11" in cls: return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
-            if "12" in cls: return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
+            if "11" in cls: 
+                return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
+            if "12" in cls: 
+                return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
             return "Other Tiers (DIT)"
+            
         df['Group_Category'] = df.apply(classify, axis=1)
 
         summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
-            Total=('id', 'count'), Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
+            Total=('id', 'count'), 
+            Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
             Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
         ).reset_index()
 
@@ -1399,7 +1402,8 @@ elif menu_choice == "📋 Daily Attendance Report":
         
         for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
             cat_data = summary[summary['Group_Category'] == cat]
-            if cat_data.empty: continue
+            if cat_data.empty: 
+                continue
             
             sub_total = cat_data.agg({'Total': 'sum', 'Present': 'sum', 'Absent': 'sum'})
             grand_total['Total'] += sub_total['Total']
@@ -1410,26 +1414,27 @@ elif menu_choice == "📋 Daily Attendance Report":
             for i, (_, row) in enumerate(cat_data.iterrows()):
                 pct = f"{int((row['Present']/row['Total'])*100)}%" if row['Total'] > 0 else "0%"
                 table_rows += f"<tr>"
-                if i == 0: table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold;">{cat}</td>'
+                if i == 0: 
+                    table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold; background:#fff;">{cat}</td>'
                 table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
             
+            sub_total_pct = f"{int((sub_total['Present']/sub_total['Total'])*100)}%" if sub_total['Total'] > 0 else "0%"
             table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
                           f'<td colspan="3" style="text-align:left; padding-left:10px;">Sub-Total ({cat})</td>' \
                           f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
-                          f'<td>{int((sub_total["Present"]/sub_total["Total"])*100) if sub_total["Total"] > 0 else 0}%</td></tr>'
+                          f'<td>{sub_total_pct}</td></tr>'
 
-        grand_pct = int((grand_total['Present']/grand_total['Total'])*100) if grand_total['Total'] > 0 else 0
+        grand_pct = f"{int((grand_total['Present']/grand_total['Total'])*100)}%" if grand_total['Total'] > 0 else "0%"
         table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
                       f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
-                      f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}%</td></tr>'
+                      f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}</td></tr>'
 
-        # Update the HTML block inside the template:
+        # Render complete layout
         html_template = f"""
         <html>
         <head>
             <style>
                 body {{ font-family: "Times New Roman", serif; padding: 10px; }}
-                /* Header Container: Flexbox aligns logo left, text center */
                 .header-container {{ display: flex; align-items: center; margin-bottom: 20px; }}
                 .logo {{ width: 80px; }}
                 .title-group {{ flex-grow: 1; text-align: center; }}
@@ -1470,9 +1475,13 @@ elif menu_choice == "📋 Daily Attendance Report":
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             summary.to_excel(writer, index=False, sheet_name='Attendance')
             ws = writer.sheets['Attendance']
-            ws.set_column('A:A', 15); ws.set_column('B:B', 12); ws.set_column('C:C', 30)
-            ws.set_column('D:G', 10); ws.set_default_row(25)
-        st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx")
+            ws.set_column('A:A', 15)
+            ws.set_column('B:B', 12)
+            ws.set_column('C:C', 30)
+            ws.set_column('D:G', 10)
+            ws.set_default_row(25)
+            
+        st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
                     
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
