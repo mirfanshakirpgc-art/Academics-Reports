@@ -4032,102 +4032,157 @@ elif menu_choice == "⚙️ Settings":
     elif sub_menu == "📑 Test & Exam Frameworks":
         st.subheader("📑 Evaluation Type & Test Profile Settings")
         
-        if current_role == 'controller':
-            with st.form("test_reg_form", clear_on_submit=True):
-                col_t1, col_t2 = st.columns(2)
-                with col_t1:
-                    new_test_name = st.text_input("Test / Exam Display Title:", placeholder="e.g. Mid-Term Examination")
-                    new_test_code = st.text_input("System Reference Key (No Spaces):", placeholder="e.g. MID_TERM").upper().strip()
-                with col_t2:
-                    system_routing = st.selectbox("Academic Stream Association:", options=["Annual System", "Semester System"])
-                    new_test_status = st.selectbox("Configuration Status:", options=["ACTIVE", "INACTIVE"])
-                    
-                submit_test = st.form_submit_button("💾 Save Test Framework Type")
+        # --- ⚙️ STEP 1: INITIALIZE STRUCTURAL CONFIGURATION GUARD ---
+        if "settings_initialized" not in st.session_state:
+            st.session_state.settings_initialized = False
+        if "configured_system_type" not in st.session_state:
+            st.session_state.configured_system_type = "Annual System"
+        if "configured_class_level" not in st.session_state:
+            st.session_state.configured_class_level = "11th"
+
+        # --- ⚙️ STEP 2: RENDER REQUIRED CONFIGURATION PROMPT WIZARD ---
+        if not st.session_state.settings_initialized:
+            st.info("⚙️ **Platform Settings Required**: Please declare the current Academic Track and Class level before defining or managing test frameworks.")
+            
+            with st.container(border=True):
+                st.markdown("#### 🛠️ Core Environment Settings")
+                col_cfg_sys, col_cfg_cls = st.columns(2)
                 
-                if submit_test:
-                    if new_test_name.strip() == "" or new_test_code == "":
-                        st.error("Both Test Name and Reference Key are mandatory entries.")
+                with col_cfg_sys:
+                    sys_selection = st.selectbox(
+                        "Define System Type:", 
+                        ["Annual System", "Semester System"], 
+                        key="wizard_system_type"
+                    )
+                
+                with col_cfg_cls:
+                    if sys_selection == "Annual System":
+                        class_options = ["11th", "12th"]
                     else:
-                        check_existing = run_query("SELECT exam_code FROM exam_cycles WHERE UPPER(TRIM(exam_code)) = :code", {"code": new_test_code})
+                        class_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
                         
-                        # --- Perfectly Nested 24-Space Indentation Block ---
-                        if check_existing.empty:
+                    class_selection = st.selectbox(
+                        "Define Target Class / Semester Scope:", 
+                        class_options, 
+                        key="wizard_class_level"
+                    )
+                
+                if st.button("💾 Apply Configuration Parameters", use_container_width=True):
+                    st.session_state.configured_system_type = sys_selection
+                    st.session_state.configured_class_level = class_selection
+                    st.session_state.settings_initialized = True
+                    st.success("🎯 Settings applied successfully! Initializing layout modules...")
+                    st.rerun()
+
+        # --- ⚙️ STEP 3: RUN EVALUATION APP MODULE IF SETTINGS CONFIGURED ---
+        else:
+            # Active Environment Control Strip
+            with st.expander(f"⚙️ Active Track Profile: {st.session_state.configured_system_type} — {st.session_state.configured_class_level}", expanded=False):
+                if st.button("🔄 Reset / Alter Active Tracking Environment Settings", use_container_width=True):
+                    st.session_state.settings_initialized = False
+                    st.rerun()
+            
+            if current_role == 'controller':
+                with st.form("test_reg_form", clear_on_submit=True):
+                    col_t1, col_t2 = st.columns(2)
+                    with col_t1:
+                        new_test_name = st.text_input("Test / Exam Display Title:", placeholder="e.g. Mid-Term Examination")
+                        new_test_code = st.text_input("System Reference Key (No Spaces):", placeholder="e.g. MID_TERM").upper().strip()
+                    with col_t2:
+                        # Automatically passes pre-selected system parameters as structural fallbacks
+                        system_routing = st.selectbox(
+                            "Academic Stream Association:", 
+                            options=["Annual System", "Semester System"],
+                            index=0 if st.session_state.configured_system_type == "Annual System" else 1
+                        )
+                        new_test_status = st.selectbox("Configuration Status:", options=["ACTIVE", "INACTIVE"])
+                        
+                    submit_test = st.form_submit_button("💾 Save Test Framework Type")
+                    
+                    if submit_test:
+                        if new_test_name.strip() == "" or new_test_code == "":
+                            st.error("Both Test Name and Reference Key are mandatory entries.")
+                        else:
+                            check_existing = run_query("SELECT exam_code FROM exam_cycles WHERE UPPER(TRIM(exam_code)) = :code", {"code": new_test_code})
+                            
+                            # --- Perfectly Nested 24-Space Indentation Block ---
+                            if check_existing.empty:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
+                                            VALUES (:code, :name, :sys, :status)
+                                        """), {
+                                            "code": new_test_code,
+                                            "name": new_test_name.strip(),
+                                            "sys": system_routing,
+                                            "status": new_test_status
+                                        })
+                                    st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
+                                    st.rerun()
+                                catch Exception as err:
+                                    st.error(f"❌ Failed to insert framework record: {err}")
+                            else:
+                                st.warning("An evaluation pattern with this code identifier already exists.")
+                                        
+            st.markdown("---")
+            st.write("#### Registered Evaluation Profiles")
+            
+            current_tests = pd.DataFrame()
+            try:
+                current_tests = run_query('SELECT exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
+            except Exception as e:
+                st.error(f"⚠️ Failed to read evaluation configurations: {e}")
+                
+            if not current_tests.empty:
+                st.dataframe(current_tests, use_container_width=True, hide_index=True)
+                
+                # --- 🛠️ INTERACTIVE EDIT / DELETE EXAM PORTAL ---
+                st.markdown("### 🛠️ Manage Existing Evaluation Profiles")
+                test_list = [f"{row['Evaluation Name']} ({row['System Code']})" for _, row in current_tests.iterrows()]
+                selected_test_str = st.selectbox("Select a Profile to Modify or Remove:", test_list, key="manage_test_select")
+                
+                if selected_test_str:
+                    selected_test_code = selected_test_str.split("(")[-1].replace(")", "").strip()
+                    target_test_row = current_tests[current_tests['System Code'] == selected_test_code].iloc[0]
+                    
+                    with st.form("edit_exam_form"):
+                        updated_test_name = st.text_input("Change Display Title:", value=str(target_test_row['Evaluation Name'])).strip()
+                        updated_test_status = st.selectbox("Change Evaluation Status:", ["ACTIVE", "INACTIVE"], index=0 if target_test_row['Status'] == 'ACTIVE' else 1)
+                        
+                        col_fu, col_fd = st.columns(2)
+                        with col_fu:
+                            save_test_mod = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                        with col_fd:
+                            confirm_test_del = st.checkbox("⚠️ Confirm complete deletion", key="del_test_chk")
+                            delete_test_mod = st.form_submit_button("🗑️ Delete Evaluation Profile", type="secondary", use_container_width=True)
+                            
+                    if save_test_mod:
+                        if not updated_test_name:
+                            st.error("Evaluation title cannot be left blank.")
+                        else:
                             try:
                                 with engine.begin() as conn:
                                     conn.execute(text("""
-                                        INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
-                                        VALUES (:code, :name, :sys, :status)
-                                    """), {
-                                        "code": new_test_code,
-                                        "name": new_test_name.strip(),
-                                        "sys": system_routing,
-                                        "status": new_test_status
-                                    })
-                                st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
+                                        UPDATE exam_cycles 
+                                        SET exam_display_name = :name, status = :status 
+                                        WHERE exam_code = :code
+                                    """), {"name": updated_test_name, "status": updated_test_status, "code": selected_test_code})
+                                st.success("Evaluation profile configuration updated successfully!")
                                 st.rerun()
                             except Exception as err:
-                                st.error(f"❌ Failed to insert framework record: {err}")
+                                st.error(f"❌ Failed to update evaluation item: {err}")
+                            
+                    if delete_test_mod:
+                        if not confirm_test_del:
+                            st.error("Please check the confirmation box to authorize permanent deletion.")
                         else:
-                            st.warning("An evaluation pattern with this code identifier already exists.")
-                                    
-        st.markdown("---")
-        st.write("#### Registered Evaluation Profiles")
-        
-        current_tests = pd.DataFrame()
-        try:
-            current_tests = run_query('SELECT exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
-        except Exception as e:
-            st.error(f"⚠️ Failed to read evaluation configurations: {e}")
-            
-        if not current_tests.empty:
-            st.dataframe(current_tests, use_container_width=True, hide_index=True)
-            
-            # --- 🛠️ INTERACTIVE EDIT / DELETE EXAM PORTAL ---
-            st.markdown("### 🛠️ Manage Existing Evaluation Profiles")
-            test_list = [f"{row['Evaluation Name']} ({row['System Code']})" for _, row in current_tests.iterrows()]
-            selected_test_str = st.selectbox("Select a Profile to Modify or Remove:", test_list, key="manage_test_select")
-            
-            if selected_test_str:
-                selected_test_code = selected_test_str.split("(")[-1].replace(")", "").strip()
-                target_test_row = current_tests[current_tests['System Code'] == selected_test_code].iloc[0]
-                
-                with st.form("edit_exam_form"):
-                    updated_test_name = st.text_input("Change Display Title:", value=str(target_test_row['Evaluation Name'])).strip()
-                    updated_test_status = st.selectbox("Change Evaluation Status:", ["ACTIVE", "INACTIVE"], index=0 if target_test_row['Status'] == 'ACTIVE' else 1)
-                    
-                    col_fu, col_fd = st.columns(2)
-                    with col_fu:
-                        save_test_mod = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
-                    with col_fd:
-                        confirm_test_del = st.checkbox("⚠️ Confirm complete deletion", key="del_test_chk")
-                        delete_test_mod = st.form_submit_button("🗑️ Delete Evaluation Profile", type="secondary", use_container_width=True)
-                        
-                if save_test_mod:
-                    if not updated_test_name:
-                        st.error("Evaluation title cannot be left blank.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE exam_cycles 
-                                    SET exam_display_name = :name, status = :status 
-                                    WHERE exam_code = :code
-                                """), {"name": updated_test_name, "status": updated_test_status, "code": selected_test_code})
-                            st.success("Evaluation profile configuration updated successfully!")
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Failed to update evaluation item: {err}")
-                        
-                if delete_test_mod:
-                    if not confirm_test_del:
-                        st.error("Please check the confirmation box to authorize permanent deletion.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM exam_cycles WHERE exam_code = :code"), {"code": selected_test_code})
-                            st.success("Evaluation profile removed from system registers.")
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Complete removal failed: {err}")
-        else:
-            st.info("ℹ️ No evaluation profiles or exam cycles are currently configured.")
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("DELETE FROM exam_cycles WHERE exam_code = :code"), {"code": selected_test_code})
+                                st.success("Evaluation profile removed from system registers.")
+                                st.rerun()
+                            except Exception as err:
+                                st.error(f"❌ Complete removal failed: {err}")
+            else:
+                st.info("ℹ️ No evaluation profiles or exam cycles are currently configured.")
