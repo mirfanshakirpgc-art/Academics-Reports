@@ -1524,6 +1524,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
+        # --- SMART DISCIPLINE FILTERING HUB ---
         if db_sections:
             if "STATS" in sel_disc:
                 sec_options = [s for s in db_sections if "STATS" in s.upper() or "WHITE" in s.upper() or "3" in s]
@@ -1534,17 +1535,19 @@ elif menu_choice == "📋 Section Summary Report":
             elif "ENGINEERING" in sel_disc:
                 sec_options = [s for s in db_sections if "ENG" in s.upper() or "E" in s.upper()]
             elif "COMMERCE" in sel_disc:
-                sec_options = [s for s in db_sections if "COM" in s.upper() or "I" in s.upper()]
+                sec_options = [s for s in db_sections if "COM" in s.upper() or "I" in s.upper() or "C" in s.upper()]
             elif "HUMANITIES" in sel_disc:
-                # Dynamically filter out only sections containing Humanities signatures (e.g., IK, FK, FQ, EQ, IQ, MK, MQ)
-                sec_options = [s for s in db_sections if any(k in s.upper() for k in ["IK", "FK", "FQ", "EQ", "IQ", "MK", "MQ"])]
+                # ONLY allow sections that match classic Humanities tags (IK, IQ, FK, FQ, etc.)
+                # This explicitly blocks Pre-Med/Pre-Eng prefixes from appearing here
+                sec_options = [s for s in db_sections if any(k in s.upper() for k in ["IK", "FK", "FQ", "IQ", "ARTS", "HUM"])]
             else:
                 sec_options = db_sections
                 
-            # If the filter leaves options completely blank, default back to the absolute database dump array
+            # Fallback if our smart filter turns up empty for a newly added section name format
             if not sec_options:
                 sec_options = db_sections
         else:
+            # Fallback configuration if the database doesn't return anything
             if academic_system == "Semester System":
                 sec_options = ["DIT_G", "DIT_B"]
             else:
@@ -1553,7 +1556,7 @@ elif menu_choice == "📋 Section Summary Report":
                 else:
                     sec_options = ["MG_BLUE", "MG_WHITE"] if "11" in selected_class else ["MQ1", "MQ2"]
 
-        # FIXED: Changed key="dynamic_widget_key" string literal to key=dynamic_widget_key variable
+        # Formulate widget key dynamically to force Streamlit to refresh options when discipline changes
         dynamic_widget_key = f"summary_sec_adaptive_{selected_class}_{sel_disc}_{db_session_string}_{academic_system}"
         sel_sec = st.selectbox("Select Section:", sec_options, index=0, key=dynamic_widget_key)
         
