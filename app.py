@@ -498,6 +498,9 @@ elif menu_choice == "➕ Add Students":
                         success_count = 0
                         error_count = 0
                         
+                        # Clean up system type value by stripping UI emojis before database execution
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
                         for index, row in bulk_df.iterrows():
                             raw_id = str(row['ID']).strip().split('.')[0]
                             raw_name = str(row['NAME']).strip().upper()
@@ -506,14 +509,15 @@ elif menu_choice == "➕ Add Students":
                                 try:
                                     with engine.begin() as conn:
                                         conn.execute(text("""
-                                            INSERT INTO students (id, name, class, section, session, status)
-                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE')
+                                            INSERT INTO students (id, name, class, section, session, status, system_type)
+                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE', :system_type)
                                         """), {
                                             "id": int(raw_id),
                                             "name": raw_name,
                                             "class": selected_class,
                                             "section": selected_section,
-                                            "session": selected_session
+                                            "session": selected_session,
+                                            "system_type": clean_system_type
                                         })
                                     success_count += 1
                                 except Exception:
@@ -521,7 +525,7 @@ elif menu_choice == "➕ Add Students":
                             else:
                                 error_count += 1
                                 
-                        st.success(f"🎉 Import complete! Successfully processed and committed {success_count} student records to database.")
+                        st.success(f"🎉 Import complete! Successfully processed and committed {success_count} student records to database under {clean_system_type}.")
                         if error_count > 0:
                             st.warning(f"⚠️ Skipped {error_count} row records because of primary key ID duplication conflicts or empty cells.")
                         st.balloons()
