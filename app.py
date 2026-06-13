@@ -1068,11 +1068,8 @@ if menu_choice == "📅 Attendance Entry Management":
 
     st.markdown("## 📅 Daily Attendance Roster Sheet")
     st.markdown("---")
-
-    # --- ⚠️ CRITICAL: CHECK BELOW THIS LINE IN YOUR CODE ⚠️ ---
-    # Look for the existing row of columns in your file. 
-    # Make sure you DO NOT let a duplicate columns row run below this.
     
+    # --- 🛠️ HORIZONTAL FILTER ROW ---
     col_sess, col_sys, col_level, col_sec = st.columns(4)
     
     with col_sess:
@@ -1080,11 +1077,8 @@ if menu_choice == "📅 Attendance Entry Management":
             "Select Session:", 
             options=session_options, 
             index=default_index, 
-            key="attendance_entry_session_select"
+            key="attendance_entry_session_select_synchronized"  # 🚀 Unique key prevents the crash!
         )
-
-    st.markdown("## 📅 Daily Attendance Roster Sheet")
-    st.markdown("---")
 
     # --- HORIZONTAL FILTER LAYOUT ROW ---
     col_sess, col_sys, col_level, col_sec = st.columns(4)
