@@ -1088,7 +1088,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     # ====================================================================
 # 🚀 LIGHTNING KEYBOARD FOCUS CONTROLLER
 # ====================================================================
-st.components.v1.html("""
+                    st.components.v1.html("""
     <script>
         const doc = window.parent.document;
         
