@@ -789,7 +789,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     """, unsafe_allow_html=True)
 
     # ====================================================================================
-    # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY (PERFECTLY ALIGNED ROW INTERPOLATION)
+    # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -914,21 +914,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
-                    # --- NATIVE INLINE FOCUS SHIFT JS (DOWNWARDS NAVIGATION HOOK) ---
+                    # --- NATIVE INLINE FOCUS SHIFT JS via data-testid/aria-label hooks ---
                     st.components.v1.html("""
                         <script>
                             const rootDoc = window.parent.document;
                             rootDoc.addEventListener('keydown', function(event) {
                                 const el = rootDoc.activeElement;
-                                if (el && el.tagName === 'INPUT' && el.id.startsWith('sec_field_m_')) {
+                                if (el && el.tagName === 'INPUT' && el.getAttribute('aria-label') && el.getAttribute('aria-label').startsWith('sec_field_m_')) {
                                     if (event.key === 'Tab' || event.key === 'Enter') {
                                         event.preventDefault();
-                                        const parts = el.id.split('_');
+                                        const labelAttr = el.getAttribute('aria-label');
+                                        const parts = labelAttr.split('_');
                                         const currentIdx = parseInt(parts[parts.length - 1], 10);
                                         const nextIdx = event.shiftKey ? currentIdx - 1 : currentIdx + 1;
                                         
-                                        const allInputs = Array.from(rootDoc.querySelectorAll("input[id^='sec_field_m_']"));
-                                        const targetInput = allInputs.find(input => input.id.endsWith('_' + nextIdx));
+                                        const targetInput = rootDoc.querySelector(`input[aria-label$='_${nextIdx}']`);
                                         if (targetInput) {
                                             targetInput.focus();
                                             targetInput.select();
@@ -965,7 +965,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         h_cols[4].caption("➖ **NC**")
                         st.markdown("<hr style='margin:2px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
                         
-                        # ROW ITERATION INSIDE STRUCTURAL CONTAINERS FOR ALIGNMENT
+                        # ROW ITERATION
                         for idx, row in roster_df.iterrows():
                             student_id = int(row['ID'])
                             student_name = str(row['Student Name']).upper()
@@ -983,7 +983,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             is_disabled = chk_absent or chk_nc
                             display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
                             
-                            # Using a container guarantees the internal column layout shares the same vertical baseline context
                             with st.container():
                                 r_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
                                 
@@ -991,14 +990,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 r_cols[1].markdown(f"<div class='vertical-align-center' style='font-size: 0.9rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
                                 
                                 with r_cols[2]:
+                                    # Used label to assign unique identifiable aria-label signatures for JavaScript navigation
                                     score_input = st.text_input(
-                                        f"Obtained Marks Input", 
+                                        f"sec_field_m_{student_id}_{idx}", 
                                         value=display_score, 
                                         placeholder="Score", 
                                         key=state_marks_key, 
                                         label_visibility="collapsed", 
-                                        disabled=is_disabled,
-                                        id=f"sec_field_m_{student_id}_{idx}" # Unique static DOM signature for structural JS focus matching
+                                        disabled=is_disabled
                                     )
                                     
                                 with r_cols[3]:
@@ -1033,7 +1032,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.error(f"Database sync issue: {e}")
 
     # ====================================================================================
-    # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY (PERFECTLY ALIGNED SINGLE PROFILE)
+    # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY
     # ====================================================================================
     elif entry_mode == "👤 By Single Student Roll Number":
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
@@ -1111,15 +1110,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         const parentDoc = window.parent.document;
                         parentDoc.addEventListener('keydown', function(e) {
                             const activeNode = parentDoc.activeElement;
-                            if (activeNode && activeNode.tagName === 'INPUT' && activeNode.id.startsWith('single_field_m_')) {
+                            if (activeNode && activeNode.tagName === 'INPUT' && activeNode.getAttribute('aria-label') && activeNode.getAttribute('aria-label').startsWith('single_field_m_')) {
                                 if (e.key === 'Tab' || e.key === 'Enter') {
                                     e.preventDefault();
-                                    const segments = activeNode.id.split('_');
+                                    const labelAttr = activeNode.getAttribute('aria-label');
+                                    const segments = labelAttr.split('_');
                                     const currentPos = parseInt(segments[segments.length - 1], 10);
                                     const nextPos = e.shiftKey ? currentPos - 1 : currentPos + 1;
                                     
-                                    const inputCollection = Array.from(parentDoc.querySelectorAll("input[id^='single_field_m_']"));
-                                    const destinationNode = inputCollection.find(i => i.id.endsWith('_' + nextPos));
+                                    const destinationNode = parentDoc.querySelector(`input[aria-label$='_${nextPos}']`);
                                     if (destinationNode) {
                                         destinationNode.focus();
                                         destinationNode.select();
@@ -1171,13 +1170,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             
                             with s_cols[1]:
                                 score_input = st.text_input(
-                                    f"Single Subject Marks", 
+                                    f"single_field_m_{single_id}_{idx}", 
                                     value=display_val, 
                                     placeholder="Score", 
                                     key=s_mark_key, 
                                     label_visibility="collapsed", 
-                                    disabled=is_dis,
-                                    id=f"single_field_m_{single_id}_{idx}"
+                                    disabled=is_dis
                                 )
                                 
                             with s_cols[2]:
