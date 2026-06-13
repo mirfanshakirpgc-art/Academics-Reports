@@ -534,97 +534,192 @@ elif menu_choice == "➕ Add Students":
                 st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
 
     # ====================================================================================
-    # WORKFLOW C: MANAGE EXISTING STUDENTS (EDIT & DELETE HUB)
+    # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB (FLOWCHART SPECIFICATION)
     # ====================================================================================
     else:
-        st.subheader(f"🛠️ Update or Remove Records — {selected_class} | Section: {selected_section}")
+        st.markdown("### 🛠️ Student Records Administrative Hub")
         
-        try:
-            # 🌟 Added system_type to the SELECT query
-            query = text("""
-                SELECT id, name, status, system_type FROM students 
-                WHERE class = :class AND section = :section AND session = :session
-                ORDER BY id ASC
-            """)
-            with engine.connect() as connection:
-                students_query_df = pd.read_sql(query, connection, params={"class": selected_class, "section": selected_section, "session": selected_session})
-        except Exception as query_err:
-            st.error(f"Error fetching directory lookup: {query_err}")
-            students_query_df = pd.DataFrame()
+        # --- LEVEL 1 & 2: GLOBAL FILTER CONFIGURATION ---
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            # Safely falls back to basic string inputs if your session tracking lists aren't instantiated yet
+            global_session = st.selectbox("1️⃣ Select Operational Session:", ["2025-2026", "2026-2027"])
+        with col_g2:
+            global_system = st.selectbox("2️⃣ Select Academic System:", ["🗓️ Annual System", "🎓 Semester System"])
+            clean_global_system = global_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
 
-        if students_query_df.empty:
-            st.warning("⚠️ No active student profile records found registered under this specific Filter Option layout.")
-        else:
-            student_selector_list = [
-                f"{int(row['id'])} - {str(row['name']).upper()}" for _, row in students_query_df.iterrows()
-            ]
+        st.markdown("---")
+        
+        # Split user interface into dual engine layout columns
+        left_branch_col, right_branch_col = st.columns([1.1, 0.9])
+        
+        # ====================================================================================
+        # LEFT OPERATIONS BRANCH: SINGLE STUDENT CONTROLLER
+        # ====================================================================================
+        with left_branch_col:
+            st.markdown("#### 👤 Single Student Operations")
+            search_id = st.text_input("🔍 Search Student by Unique ID:", key="single_search_id_input").strip()
             
-            chosen_stu_string = st.selectbox("🔍 Select Student Profile to Modify:", student_selector_list)
+            if search_id:
+                if not search_id.isdigit():
+                    st.error("❌ Invalid Format: Student ID entries must be numbers only.")
+                else:
+                    try:
+                        with engine.connect() as connection:
+                            stu_query = text("""
+                                SELECT id, name, class, section, session, status, system_type 
+                                FROM students WHERE id = :id
+                            """)
+                            stu_df = pd.read_sql(stu_query, connection, params={"id": int(search_id)})
+                        
+                        if stu_df.empty:
+                            st.warning(f"⚠️ No active profile record found matching Student ID: {search_id}")
+                        else:
+                            student = stu_df.iloc[0]
+                            
+                            # Display core identification telemetry
+                            st.markdown(f"""
+                            > **Identity:** {str(student['name']).upper()}  
+                            > 🏫 **Placement:** Class {student['class']} | Section {student['section']}  
+                            > 📊 **Status:** `{student['status']}` | System: {student['system_type']}
+                            """)
+                            
+                            st.markdown("##### ⚙️ Apply Target Field Mutations")
+                            
+                            # Fetch mutation lookups dynamically from database configuration files
+                            try:
+                                with engine.connect() as conn:
+                                    all_sessions = [r[0] for r in conn.execute(text("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")).fetchall()]
+                                    all_sections = [r[0] for r in conn.execute(text("SELECT section_name FROM system_sections")).fetchall()]
+                            except Exception:
+                                all_sessions, all_sections = [student['session']], [student['section']]
+                            
+                            # Setup mutation selector elements
+                            col_m1, col_m2 = st.columns(2)
+                            with col_m1:
+                                mutation_session = st.selectbox("🎯 Target Session:", all_sessions if all_sessions else ["2025-2026", "2026-2027"])
+                            with col_m2:
+                                mutation_section = st.selectbox("🎯 Target Section:", all_sections if all_sections else ["A", "B", "C"])
+                                
+                            mutation_system = st.selectbox("🎯 Target Academic System:", ["Annual System", "Semester System"], 
+                                                           index=0 if student['system_type'] == "Annual System" else 1)
+                            
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            
+                            # --- Blueprint Multi-Option Grid Control matrix ---
+                            btn_col1, btn_col2, btn_col3 = st.columns(3)
+                            
+                            with btn_col1:
+                                if st.button("🔄 Session Change", use_container_width=True):
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE students SET session = :session WHERE id = :id"), {"session": mutation_session, "id": student['id']})
+                                    st.success("Session Updated Successfully!")
+                                    st.rerun()
+                                    
+                                if st.button("🚪 Left", use_container_width=True, type="secondary"):
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE students SET status = 'LEFT' WHERE id = :id"), {"id": student['id']})
+                                    st.warning("Profile flagged as 'LEFT'.")
+                                    st.rerun()
+                                    
+                            with btn_col2:
+                                if st.button("📐 Section Change", use_container_width=True):
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE students SET section = :section WHERE id = :id"), {"section": mutation_section, "id": student['id']})
+                                    st.success("Section Updated Successfully!")
+                                    st.rerun()
+                                    
+                                if st.button("🟢 Re-Active", use_container_width=True):
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE students SET status = 'ACTIVE' WHERE id = :id"), {"id": student['id']})
+                                    st.success("Enrollment status set back to ACTIVE.")
+                                    st.rerun()
+                                    
+                            with btn_col3:
+                                if st.button("🎓 System Change", use_container_width=True):
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE students SET system_type = :sys WHERE id = :id"), {"sys": mutation_system, "id": student['id']})
+                                    st.success("Academic track modified successfully!")
+                                    st.rerun()
+                                    
+                                if st.button("🗑️ Delete Entry", use_container_width=True, type="primary"):
+                                    with engine.begin() as conn:
+                                        conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student['id']})
+                                    st.error("Record permanently erased.")
+                                    st.rerun()
+                                    
+                    except Exception as err:
+                        st.error(f"Execution pipeline fault: {err}")
+
+        # ====================================================================================
+        # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
+        # ====================================================================================
+        with right_branch_col:
+            st.markdown("#### 🏢 Section-Based Batch Promotion")
             
-            if chosen_stu_string:
-                selected_student_id = int(chosen_stu_string.split(" - ")[0])
-                target_student_row = students_query_df[students_query_df['id'] == selected_student_id].iloc[0]
+            # Query sections conditionally based on the global top-tier controls
+            try:
+                with engine.connect() as connection:
+                    sec_query = text("""
+                        SELECT DISTINCT section FROM students 
+                        WHERE session = :sess AND system_type = :syst AND status = 'ACTIVE'
+                    """)
+                    available_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
+            except Exception:
+                available_sections = []
                 
-                st.markdown("### Modify Student Record Data")
+            if not available_sections:
+                st.info(f"ℹ️ No batch segments found matching: {global_session} | Track: {clean_global_system}")
+            else:
+                source_section = st.selectbox("📁 Select Source Section to Process:", available_sections)
                 
-                with st.form("student_profile_edit_form"):
-                    edit_name = st.text_input("👤 Change Student Full Name Identity:", value=str(target_student_row['name']).upper())
+                try:
+                    with engine.connect() as connection:
+                        count_res = connection.execute(text("""
+                            SELECT COUNT(*) FROM students 
+                            WHERE session = :sess AND system_type = :syst AND section = :sec AND status = 'ACTIVE'
+                        """), {"sess": global_session, "syst": clean_global_system, "sec": source_section}).fetchone()
+                        batch_count = count_res[0] if count_res else 0
+                except Exception:
+                    batch_count = 0
                     
-                    status_options = ["ACTIVE", "PENDING", "LEAVE"]
-                    current_status = str(target_student_row['status']).upper()
-                    init_status_idx = status_options.index(current_status) if current_status in status_options else 0
-                    
-                    edit_status = st.selectbox("📌 Change Registration Status Enrollment:", status_options, index=init_status_idx)
-                    
-                    # 🌟 Added System Type modifier field
-                    system_options = ["Annual System", "Semester System"]
-                    current_system = str(target_student_row.get('system_type', 'Annual System')).strip()
-                    init_system_idx = system_options.index(current_system) if current_system in system_options else 0
-                    
-                    edit_system = st.selectbox("🎓 Change Academic System Structure:", system_options, index=init_system_idx)
-                    
-                    st.markdown("---")
-                    col_update, col_delete = st.columns(2)
-                    
-                    with col_update:
-                        save_changes = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
-                    with col_delete:
-                        confirm_delete = st.checkbox("⚠️ Check this box to confirm complete removal.")
-                        erase_record = st.form_submit_button("🗑️ Delete Student From System", type="secondary", use_container_width=True)
+                st.metric(label="👥 Active Group Size Selected:", value=f"{batch_count} Students")
                 
-                if save_changes:
-                    if not edit_name.strip():
-                        st.error("❌ Action Rejected: Name field cannot be saved blank.")
-                    else:
+                if batch_count > 0:
+                    st.markdown("##### 🚀 Promoted Destination Targets")
+                    
+                    target_classes_list = [str(i) for i in range(1, 13)] + ["Graduated"]
+                    
+                    col_p1, col_p2 = st.columns(2)
+                    with col_p1:
+                        promo_target_class = st.selectbox("🎓 Promoted To Class:", target_classes_list, index=11)  # Default index points directly to class 12th
+                    with col_p2:
                         try:
-                            # 🌟 Updated SQL UPDATE statement to modify system_type column field
+                            with engine.connect() as conn:
+                                target_sections_list = [r[0] for r in conn.execute(text("SELECT section_name FROM system_sections")).fetchall()]
+                        except Exception:
+                            target_sections_list = ["A", "B", "C"]
+                        promo_target_section = st.selectbox("📐 Target Section Placement:", target_sections_list)
+                        
+                    if st.button("🚀 Process Batch Promotion Sequence", type="primary", use_container_width=True):
+                        try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE students 
-                                    SET name = :name, status = :status, system_type = :system_type 
-                                    WHERE id = :id
+                                    SET class = :target_class, section = :target_section
+                                    WHERE session = :sess AND system_type = :syst AND section = :src_sec AND status = 'ACTIVE'
                                 """), {
-                                    "name": edit_name.strip().upper(),
-                                    "status": edit_status,
-                                    "system_type": edit_system,
-                                    "id": selected_student_id
+                                    "target_class": promo_target_class,
+                                    "target_section": promo_target_section,
+                                    "sess": global_session,
+                                    "syst": clean_global_system,
+                                    "src_sec": source_section
                                 })
-                            st.success(f"🎉 Changes saved successfully for ID {selected_student_id}!")
+                            st.success(f"🎉 Success! Promoted {batch_count} students to Class {promo_target_class} - {promo_target_section}!")
+                            st.balloons()
                             st.rerun()
-                        except Exception as edit_err:
-                            st.error(f"❌ Failed to execute edit profile update: {edit_err}")
-                
-                if erase_record:
-                    if not confirm_delete:
-                        st.error("❌ Action Blocked: You must check the confirmation box before deleting a student record.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": selected_student_id})
-                            st.success(f"🗑️ Student ID {selected_student_id} has been completely removed from the registry.")
-                            st.rerun()
-                        except Exception as del_err:
-                            st.error(f"❌ Failed to delete student row completely: {del_err}")
+                        except Exception as promo_err:
+                            st.error(f"Batch execution exception: {promo_err}")
 
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
