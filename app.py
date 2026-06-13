@@ -534,7 +534,7 @@ elif menu_choice == "➕ Add Students":
                 st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
 
     # ====================================================================================
-    # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB (FLOWCHART SPECIFICATION)
+    # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB
     # ====================================================================================
     else:
         st.markdown("### 🛠️ Student Records Administrative Hub")
@@ -542,7 +542,6 @@ elif menu_choice == "➕ Add Students":
         # --- LEVEL 1 & 2: GLOBAL FILTER CONFIGURATION ---
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            # Safely falls back to basic string inputs if your session tracking lists aren't instantiated yet
             global_session = st.selectbox("1️⃣ Select Operational Session:", ["2025-2026", "2026-2027"])
         with col_g2:
             global_system = st.selectbox("2️⃣ Select Academic System:", ["🗓️ Annual System", "🎓 Semester System"])
@@ -577,7 +576,6 @@ elif menu_choice == "➕ Add Students":
                         else:
                             student = stu_df.iloc[0]
                             
-                            # Display core identification telemetry
                             st.markdown(f"""
                             > **Identity:** {str(student['name']).upper()}  
                             > 🏫 **Placement:** Class {student['class']} | Section {student['section']}  
@@ -586,7 +584,6 @@ elif menu_choice == "➕ Add Students":
                             
                             st.markdown("##### ⚙️ Apply Target Field Mutations")
                             
-                            # Fetch mutation lookups dynamically from database configuration files
                             try:
                                 with engine.connect() as conn:
                                     all_sessions = [r[0] for r in conn.execute(text("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")).fetchall()]
@@ -594,7 +591,6 @@ elif menu_choice == "➕ Add Students":
                             except Exception:
                                 all_sessions, all_sections = [student['session']], [student['section']]
                             
-                            # Setup mutation selector elements
                             col_m1, col_m2 = st.columns(2)
                             with col_m1:
                                 mutation_session = st.selectbox("🎯 Target Session:", all_sessions if all_sessions else ["2025-2026", "2026-2027"])
@@ -606,7 +602,6 @@ elif menu_choice == "➕ Add Students":
                             
                             st.markdown("<br>", unsafe_allow_html=True)
                             
-                            # --- Blueprint Multi-Option Grid Control matrix ---
                             btn_col1, btn_col2, btn_col3 = st.columns(3)
                             
                             with btn_col1:
@@ -639,90 +634,13 @@ elif menu_choice == "➕ Add Students":
                                 if st.button("🎓 System Change", use_container_width=True):
                                     with engine.begin() as conn:
                                         conn.execute(text("UPDATE students SET system_type = :sys WHERE id = :id"), {"sys": mutation_system, "id": student['id']})
-                                    st.success("Academic track modified successfully!")
+                                    st.success("System Type Adjusted Successfully!")
                                     st.rerun()
-                                    
-                                if st.button("🗑️ Delete Entry", use_container_width=True, type="primary"):
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student['id']})
-                                    st.error("Record permanently erased.")
-                                    st.rerun()
-                                    
-                    except Exception as err:
-                        st.error(f"Execution pipeline fault: {err}")
-
-        # ====================================================================================
-        # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
-        # ====================================================================================
-        with right_branch_col:
-            st.markdown("#### 🏢 Section-Based Batch Promotion")
-            
-            # Query sections conditionally based on the global top-tier controls
-            try:
-                with engine.connect() as connection:
-                    sec_query = text("""
-                        SELECT DISTINCT section FROM students 
-                        WHERE session = :sess AND system_type = :syst AND status = 'ACTIVE'
-                    """)
-                    available_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
-            except Exception:
-                available_sections = []
-                
-            if not available_sections:
-                st.info(f"ℹ️ No batch segments found matching: {global_session} | Track: {clean_global_system}")
-            else:
-                source_section = st.selectbox("📁 Select Source Section to Process:", available_sections)
-                
-                try:
-                    with engine.connect() as connection:
-                        count_res = connection.execute(text("""
-                            SELECT COUNT(*) FROM students 
-                            WHERE session = :sess AND system_type = :syst AND section = :sec AND status = 'ACTIVE'
-                        """), {"sess": global_session, "syst": clean_global_system, "sec": source_section}).fetchone()
-                        batch_count = count_res[0] if count_res else 0
-                except Exception:
-                    batch_count = 0
-                    
-                st.metric(label="👥 Active Group Size Selected:", value=f"{batch_count} Students")
-                
-                if batch_count > 0:
-                    st.markdown("##### 🚀 Promoted Destination Targets")
-                    
-                    target_classes_list = [str(i) for i in range(1, 13)] + ["Graduated"]
-                    
-                    col_p1, col_p2 = st.columns(2)
-                    with col_p1:
-                        promo_target_class = st.selectbox("🎓 Promoted To Class:", target_classes_list, index=11)  # Default index points directly to class 12th
-                    with col_p2:
-                        try:
-                            with engine.connect() as conn:
-                                target_sections_list = [r[0] for r in conn.execute(text("SELECT section_name FROM system_sections")).fetchall()]
-                        except Exception:
-                            target_sections_list = ["A", "B", "C"]
-                        promo_target_section = st.selectbox("📐 Target Section Placement:", target_sections_list)
-                        
-                    if st.button("🚀 Process Batch Promotion Sequence", type="primary", use_container_width=True):
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE students 
-                                    SET class = :target_class, section = :target_section
-                                    WHERE session = :sess AND system_type = :syst AND section = :src_sec AND status = 'ACTIVE'
-                                """), {
-                                    "target_class": promo_target_class,
-                                    "target_section": promo_target_section,
-                                    "sess": global_session,
-                                    "syst": clean_global_system,
-                                    "src_sec": source_section
-                                })
-                            st.success(f"🎉 Success! Promoted {batch_count} students to Class {promo_target_class} - {promo_target_section}!")
-                            st.balloons()
-                            st.rerun()
-                        except Exception as promo_err:
-                            st.error(f"Batch execution exception: {promo_err}")
+                    except Exception as single_err:
+                        st.error(f"Error handling admin tasks: {single_err}")
 
 # ====================================================================================
-# MODULE 1: ACADEMIC EXAM MARKS ENTRY
+# MODULE 3: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
@@ -1196,9 +1114,44 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         time.sleep(1.2)
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-elif entry_mode == "📤 Bulk Excel/CSV Import":
-    st.subheader("📤 Bulk Marks Import Portal")
-    # Your bulk import code continues here...
+
+    # ====================================================================================
+    # WORKFLOW MODE C: BULK EXCEL/CSV IMPORT
+    # ====================================================================================
+    elif entry_mode == "📤 Bulk Excel/CSV Import":
+        st.subheader("📤 Bulk Marks Ledger Processing")
+        st.info("💡 Upload an Excel or CSV file containing student marks to process in bulk.")
+        # Add your processing tool design logic here if needed
+
+# ==============================================================================
+# --- REMAINDER PLACEHOLDER CHANNELS FOR OTHER MODULE PATHS ---
+# ==============================================================================
+elif menu_choice == "📅 Attendance Entry Management":
+    st.title("📅 Attendance Entry Management Workspace")
+
+elif menu_choice == "📋 Daily Attendance Report":
+    st.title("📋 Daily Attendance Report Matrix")
+
+elif menu_choice == "📋 Section Summary Report":
+    st.title("📋 Section Summary Report Matrix")
+
+elif menu_choice == "📈 Multi-Test Progress Report":
+    st.title("📈 Multi-Test Progress Analysis Hub")
+
+elif menu_choice == "🪪 Student Result Cards":
+    st.title("🪪 Student Academic Transcripts Engine")
+
+elif menu_choice == "👨‍🏫 Teacher Management":
+    st.title("👨‍🏫 Faculty Allocations Management")
+
+elif menu_choice == "📈 Academic Analysis Reports":
+    st.title("📈 Core Institutional Performance Reports")
+
+elif menu_choice == "👥 Student Operations Management":
+    st.title("👥 Extended Student Actions Deck")
+
+elif menu_choice == "⚙️ Settings":
+    st.title("⚙️ Global Framework System Preferences")
 
 # ====================================================================================
 # MODULE 2: ATTENDANCE ENTRY MANAGEMENT (DYNAMIC DAILY LOGGING & ON-THE-FLY AGGREGATES)
