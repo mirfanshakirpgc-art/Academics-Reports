@@ -3306,33 +3306,29 @@ elif menu_choice == "👥 Student Operations Management":
     st.markdown("---")
     
     # --------------------------------------------------------------------------------
-    # NATIVE DATABASE EXECUTOR ENGINE (Bypasses external function reliance)
+    # NATIVE SQLALCHEMY EXECUTOR ENGINE (Bypasses st.connection requirements)
     # --------------------------------------------------------------------------------
     def local_engine_query(sql_str, param_dict=None):
         """Safely executes data reads using raw connection contexts directly."""
         import pandas as pd
         if param_dict is None: param_dict = {}
         try:
-            # Attempts initialization using standard streamlit connections if defined globally
-            if hasattr(st, "connection"):
-                conn = st.connection("supabase", type=None)
-                if hasattr(conn, "query"):
-                    return conn.query(sql_str, params=param_dict)
+            # 1. Try finding 'engine' or 'db_engine' globally from your app's main script core
+            for engine_var in ['engine', 'db_engine', 'conn']:
+                if engine_var in globals() and hasattr(globals()[engine_var], "connect"):
+                    with globals()[engine_var].connect() as ctx:
+                        return pd.read_sql_query(text(sql_str), ctx, params=param_dict)
             
-            # Direct SQLAlchemy Engine Fallback mapping
-            if 'engine' in globals():
-                with engine.connect() as ctx:
-                    return pd.read_sql_query(text(sql_str), ctx, params=param_dict)
-            elif 'db_engine' in globals():
-                with db_engine.connect() as ctx:
-                    return pd.read_sql_query(text(sql_str), ctx, params=param_dict)
-            else:
-                # Direct invocation fallback if custom functions exist under other names
-                for func_name in ['run_query', 'execute_query', 'db_query']:
-                    if func_name in globals():
+            # 2. Try looking for pre-existing utility functions
+            for func_name in ['run_query', 'execute_query', 'db_query']:
+                if func_name in globals() and func_name != 'local_engine_query':
+                    try:
                         return globals()[func_name](sql_str, param_dict)
-                st.error("🚨 Database engine instance could not be found.")
-                return pd.DataFrame()
+                    except Exception:
+                        pass
+                        
+            st.error("🚨 Active database connector instance ('engine' or 'db_engine') could not be discovered automatically.")
+            return pd.DataFrame()
         except Exception as err:
             st.error(f"Execution Error: {str(err)}")
             return pd.DataFrame()
@@ -3341,22 +3337,21 @@ elif menu_choice == "👥 Student Operations Management":
         """Safely executes transactional record mutations directly."""
         if param_dict is None: param_dict = {}
         try:
-            if 'engine' in globals():
-                with engine.begin() as ctx:
-                    ctx.execute(text(sql_str), param_dict)
-                return True
-            elif 'db_engine' in globals():
-                with db_engine.begin() as ctx:
-                    ctx.execute(text(sql_str), param_dict)
-                return True
-            else:
-                # Automatically map to any custom write utility in your workspace
-                for func_name in ['run_action', 'execute_update', 'execute_action', 'db_update', 'run_query']:
-                    if func_name in globals():
-                        globals()[func_name](sql_str, param_dict)
-                        return True
-                st.error("🚨 Transaction Engine instance could not be found.")
-                return False
+            # 1. Try updating via raw SQLAlchemy context managers
+            for engine_var in ['engine', 'db_engine', 'conn']:
+                if engine_var in globals() and hasattr(globals()[engine_var], "begin"):
+                    with globals()[engine_var].begin() as ctx:
+                        ctx.execute(text(sql_str), param_dict)
+                    return True
+            
+            # 2. Try mapping to custom mutation tools
+            for func_name in ['run_action', 'execute_update', 'execute_action', 'db_update']:
+                if func_name in globals():
+                    globals()[func_name](sql_str, param_dict)
+                    return True
+                    
+            st.error("🚨 Transaction Engine instance could not be found.")
+            return False
         except Exception as err:
             st.error(f"Mutation Error: {str(err)}")
             return False
@@ -3380,7 +3375,7 @@ elif menu_choice == "👥 Student Operations Management":
         global_system = "annual" if global_system_display == "Annual System" else "semester"
 
     with col_g3:
-        # ADVANCED LOGIC: Fetch dynamic class representations from active records
+        # ADVANCED LOGIC: Fetch real options present in database to prevent missing mixed classifications
         db_classes_df = local_engine_query("""
             SELECT DISTINCT class FROM students 
             WHERE session = :sess AND LOWER(TRIM(system_type)) LIKE LOWER(TRIM(:sys)) || '%'
@@ -3388,6 +3383,7 @@ elif menu_choice == "👥 Student Operations Management":
         
         db_classes = [str(c).strip() for c in db_classes_df['class'].tolist() if c] if not db_classes_df.empty else []
         
+        # Merge database entries with default presets so choices are never completely empty
         if global_system == "annual":
             global_term_label = "🏫 Current Grade Level Focus:"
             global_term_options = sorted(list(set(db_classes + ["11th", "12th", "Semester 1"])))
@@ -3418,7 +3414,7 @@ elif menu_choice == "👥 Student Operations Management":
             if not search_id.isdigit():
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
-                # OPTIMIZED SINGLE LOOKUP: Matches strictly on unique ID + Session key boundary
+                # UNIQUE ID LOOKUP: Matches strictly on unique ID + Session key boundary
                 stu_df = local_engine_query("""
                     SELECT id, name, class, section, session, status, system_type 
                     FROM students 
