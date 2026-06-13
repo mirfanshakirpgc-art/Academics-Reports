@@ -1196,25 +1196,35 @@ if menu_choice == "📅 Attendance Entry Management":
                         attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_checkbox_state, key=f"chk_student_{row['ID']}", label_visibility="collapsed")
 
                     st.markdown("###")
-                    if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
-                        try:
-                            with st.spinner("Writing records to database..."):
+                if st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True):
+                    try:
+                        with st.spinner("Writing records to database..."):
+                            # Open a secure database transaction context
+                            with engine.begin() as conn:
                                 for s_id, checked_present in attendance_checkbox_map.items():
                                     status_code = "P" if checked_present else "A"
-                                    param_pack = {"s_id": int(s_id), "att_date": str(target_date), "status": status_code}
                                     
-                                    execute_db_command("DELETE FROM daily_attendance WHERE student_id = :s_id AND attendance_date = :att_date", {"s_id": int(s_id), "att_date": str(target_date)})
-                                    execute_db_command("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :att_date, :status)", param_pack)
+                                    # Optimized Upsert: Insert or automatically update if record exists
+                                    conn.execute(text("""
+                                        INSERT INTO daily_attendance (student_id, attendance_date, status) 
+                                        VALUES (:s_id, :att_date, :status)
+                                        ON CONFLICT (student_id, attendance_date) 
+                                        DO UPDATE SET status = EXCLUDED.status
+                                    """), {
+                                        "s_id": int(s_id), 
+                                        "att_date": str(target_date), 
+                                        "status": status_code
+                                    })
                             
-                            # --- UPGRADED SUCCESS ALERTS ---
-                            st.toast(f"✅ Attendance updated for {sel_section}!", icon="🎉")
-                            st.success(f"🎉 Roster saved successfully for section {sel_section}!")
-                            
-                            # Give Streamlit a split second to render the success boxes cleanly
-                            st.rerun()
+                        # --- UPGRADED SUCCESS ALERTS ---
+                        st.toast(f"✅ Attendance updated for {sel_section}!", icon="🎉")
+                        st.success(f"🎉 Roster saved successfully for section {sel_section}!")
+                        
+                        # Give Streamlit a split second to render the success boxes cleanly
+                        st.rerun()
 
-                        except Exception as e:
-                            st.error(f"Error encountered during standard write cycle: {e}")
+                    except Exception as e:
+                        st.error(f"Error encountered during standard write cycle: {e}")
 
     # --------------------------------------------------------------------------------
     # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER (DYNAMIC LIVE AGGREGATES)
