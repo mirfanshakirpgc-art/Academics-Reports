@@ -1085,73 +1085,76 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Render Form View for Single Student Matrix Input Sheets
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
-                    # ====================================================================
-# 🚀 LIGHTNING KEYBOARD FOCUS CONTROLLER
-# ====================================================================
-                    st.components.v1.html("""
-    <script>
-        const doc = window.parent.document;
-        
-        doc.addEventListener('keydown', function(e) {
-            const activeEl = doc.activeElement;
-            
-            if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.startsWith('m_')) {
-                const currentIdx = parseInt(activeEl.id.split('_')[1], 10);
-                let nextIdx = -1;
-                
-                // Navigation Logic: Tab/Enter/Down moves down, Shift+Tab/Up moves up
-                if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'Tab') {
-                    e.preventDefault();
-                    nextIdx = currentIdx + 1;
-                } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
-                    e.preventDefault();
-                    nextIdx = currentIdx - 1;
-                }
+# --- SECTION 1: MARKS ENTRY LEDGER ---
+                    st.markdown("### 🔢 1. Marks Obtained Ledger")
+                    st.caption("Press **Tab** to slide straight down to the next subject score field.")
+                    st.markdown("<hr style='margin:0px 0px 15px 0px; padding:0px;'>", unsafe_allow_html=True)
 
-                if (nextIdx !== -1) {
-                    const targetInput = doc.getElementById('m_' + nextIdx);
-                    if (targetInput) {
-                        targetInput.focus();
-                        targetInput.select();
-                    }
-                }
-            }
-        });
-    </script>
-""", height=0)
+                    updated_scores = {}
+                    
+                    # --- LOOP 1: GENERATE ALL TEXT INPUT FIELDS FIRST ---
+                    # Because this loop executes sequentially without any checkboxes inside,
+                    # the browser is forced to link these inputs back-to-back in the tab tree!
+                    for subject in subjects_list:
+                        existing_mark_df = run_query("""
+                            SELECT marks_obtained FROM marks 
+                            WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                        """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                        
+                        db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
+                        
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        
+                        if state_abs_key not in st.session_state:
+                            st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                        if state_nc_key not in st.session_state:
+                            st.session_state[state_nc_key] = (db_val == 'NC')
+                        
+                        chk_absent = st.session_state[state_abs_key]
+                        chk_nc = st.session_state[state_nc_key]
+                        
+                        initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
+                        is_disabled = chk_absent or chk_nc
+                        display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
 
-# ====================================================================
-# 🔢 MARKS ENTRY LEDGER
-# ====================================================================
-updated_scores = {}
+                        # Clean, clear row format for text box inputs
+                        col_label, col_field = st.columns([4, 2])
+                        col_label.markdown(f"<div style='padding-top: 10px; font-weight: bold; font-size: 1.05rem;'>📖 {subject}</div>", unsafe_allow_html=True)
+                        
+                        score_input = col_field.text_input(
+                            f"Marks for {subject}",
+                            value=display_score if is_disabled else initial_score,
+                            key=state_marks_key,
+                            label_visibility="collapsed",
+                            disabled=is_disabled
+                        )
+                        updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
 
-for idx, subject in enumerate(subjects_list):
-    col_sub, col_marks, col_abs, col_nc = st.columns([4, 2, 1, 1])
-    
-    with col_sub:
-        st.markdown(f"<div style='padding-top: 5px; font-weight: bold;'>📖 {subject}</div>", unsafe_allow_html=True)
-    
-    # Database Fetching Logic
-    existing_mark_df = run_query("""
-        SELECT marks_obtained FROM marks 
-        WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-    """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
-    
-    db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
-    
-    state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-    state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-    state_marks_key = f"s_marks_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
-    
-    if state_abs_key not in st.session_state:
-        st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-    if state_nc_key not in st.session_state:
-        st.session_state[state_nc_key] = (db_val == 'NC')
-        
-    with col_abs:
-        chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
-    with col_nc:
-        chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                    # --- SECTION 2: ATTENDANCE & STATUS FLAGS ---
+                    # We drop down and run a completely separate loop for checkboxes.
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    st.markdown("### ❌ 2. Attendance & Exceptions Registry")
+                    st.caption("Toggle these boxes if a student was Absent or needs an NC flag.")
+                    
+                    h_ex1, h_ex2, h_ex3 = st.columns([4, 1, 1])
+                    h_ex1.caption("📖 **Subject Title**")
+                    h_ex2.caption("❌ **Absent**")
+                    h_ex3.caption("➖ **NC**")
+                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
+                    for subject in subjects_list:
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}_{single_exam}"
+                        
+                        col_ex_sub, col_ex_abs, col_ex_nc = st.columns([4, 1, 1])
+                        col_ex_sub.markdown(f"<div style='padding-top: 5px; color: #555;'>{subject}</div>", unsafe_allow_html=True)
+                        
+                        with col_ex_abs:
+                            st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                        with col_ex_nc:
+                            st.checkbox("", key=state_nc_key, label_visibility="collapsed")
         
     initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
     is_disabled = chk_absent or chk_nc
