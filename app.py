@@ -2345,42 +2345,64 @@ if menu_choice == "📈 Multi-Test Progress Report":
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
-        # 2. Attendance Scanner Segment (Hardened Data Type Fetch)
+        # 2. Attendance Scanner Segment (Fixed Column Mapping)
         try:
-            sample_att = run_query("SELECT * FROM attendance LIMIT 1", {})
-            cols_att = [c.lower() for c in sample_att.columns] if not sample_att.empty else []
+            # 1. Fetch an empty dataframe just to read the true column names
+            schema_df = run_query("SELECT * FROM attendance WHERE 1=0", {})
+            cols_att = [c.lower() for c in schema_df.columns]
             
-            date_col = "attendance_date" if "attendance_date" in cols_att else \
-                       ("date_marked" if "date_marked" in cols_att else \
-                       ("date" if "date" in cols_att else \
-                       ("att_date" if "att_date" in cols_att else cols_att[1])))
+            # 2. Dynamically resolve the Date column
+            if "attendance_date" in cols_att:
+                date_col = "attendance_date"
+            elif "date_marked" in cols_att:
+                date_col = "date_marked"
+            elif "date" in cols_att:
+                date_col = "date"
+            elif "att_date" in cols_att:
+                date_col = "att_date"
+            else:
+                # Fallback to the second column if none match
+                date_col = schema_df.columns[1] if len(cols_att) > 1 else schema_df.columns[0]
             
-            status_col = "status" if "status" in cols_att else ("attendance_status" if "attendance_status" in cols_att else "status")
+            # 3. Dynamically resolve the Status/Attendance value column
+            if "status" in cols_att:
+                status_col = "status"
+            elif "attendance_status" in cols_att:
+                status_col = "attendance_status"
+            elif "attendance" in cols_att:
+                status_col = "attendance"
+            elif "present_absent" in cols_att:
+                status_col = "present_absent"
+            elif "is_present" in cols_att:
+                status_col = "is_present"
+            else:
+                # Default fallback if no known key matches
+                status_col = schema_df.columns[2] if len(cols_att) > 2 else schema_df.columns[0]
 
-            # Primary Fetch: Exact key evaluation
+            # 4. Execute safe query with correct columns discovered above
             attendance_df = run_query(f"""
-                SELECT student_id, {date_col} as attendance_date, {status_col} as status
+                SELECT student_id, {date_col} AS attendance_date, {status_col} AS status
                 FROM attendance
                 WHERE CAST(student_id AS CHAR) IN ({placeholders_str})
-                   OR TRIM(student_id) IN ({placeholders_str})
+                   OR TRIM(CAST(student_id AS CHAR)) IN ({placeholders_str})
             """, params_dict)
             
-            # Fallback Fetch: If primary returns completely blank, try stripping values to plain integers
+            # Fallback Fetch: If primary returns blank, try stripping keys down to plain integers
             if attendance_df.empty:
                 try:
                     int_params = {k: int(v) for k, v in params_dict.items() if str(v).isdigit()}
                     if int_params:
+                        placeholders_int = ", ".join([f":{k}" for k in int_params.keys()])
                         attendance_df = run_query(f"""
-                            SELECT student_id, {date_col} as attendance_date, {status_col} as status
+                            SELECT student_id, {date_col} AS attendance_date, {status_col} AS status
                             FROM attendance
-                            WHERE student_id IN ({", ".join([f":{k}" for k in int_params.keys()])})
+                            WHERE student_id IN ({placeholders_int})
                         """, int_params)
                 except Exception:
                     pass
 
             if not attendance_df.empty:
                 attendance_df.columns = [c.lower() for c in attendance_df.columns]
-                # Force ID to stripped string format for matching loops
                 attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip().str.lstrip('0')
                 
         except Exception as e:
