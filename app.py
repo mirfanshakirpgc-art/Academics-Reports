@@ -235,10 +235,9 @@ menu_choice = st.sidebar.radio(
         "📋 Section Summary Report", 
         "📈 Multi-Test Progress Report", 
         "🪪 Student Result Cards", 
-        "Student Management", 
-        "👨‍🏫 Teacher Management", 
-        "🎓 Promote Students", 
+        "👨‍🏫 Teacher Management",  
         "📈 Academic Analysis Reports",
+        "👥 Student Operations Management",
         "⚙️ Settings"
     ]
 )
