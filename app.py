@@ -1201,8 +1201,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     elif entry_mode == "📊 Bulk Excel/CSV Import":
         st.subheader("📊 Bulk Marks Import Portal")
         # Your bulk import code continues here...
-
-
 # ==============================================================================
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
