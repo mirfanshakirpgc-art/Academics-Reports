@@ -4037,48 +4037,32 @@ elif menu_choice == "⚙️ Settings":
             st.session_state.settings_initialized = False
         if "configured_system_type" not in st.session_state:
             st.session_state.configured_system_type = "Annual System"
-        if "configured_class_level" not in st.session_state:
-            st.session_state.configured_class_level = "11th"
 
         # --- ⚙️ STEP 2: RENDER REQUIRED CONFIGURATION PROMPT WIZARD ---
         if not st.session_state.settings_initialized:
-            st.info("⚙️ **Platform Settings Required**: Please declare the current Academic Track and Class level before defining or managing test frameworks.")
+            st.info("⚙️ **Platform Settings Required**: Please select the active Academic System track before defining or managing test frameworks.")
             
             with st.container(border=True):
                 st.markdown("#### 🛠️ Core Environment Settings")
-                col_cfg_sys, col_cfg_cls = st.columns(2)
                 
-                with col_cfg_sys:
-                    sys_selection = st.selectbox(
-                        "Define System Type:", 
-                        ["Annual System", "Semester System"], 
-                        key="wizard_system_type"
-                    )
-                
-                with col_cfg_cls:
-                    if sys_selection == "Annual System":
-                        class_options = ["11th", "12th"]
-                    else:
-                        class_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
-                        
-                    class_selection = st.selectbox(
-                        "Define Target Class / Semester Scope:", 
-                        class_options, 
-                        key="wizard_class_level"
-                    )
+                # Single clean dropdown button for the academic track
+                sys_selection = st.selectbox(
+                    "Select Academic System:", 
+                    ["Annual System", "Semester System"], 
+                    key="wizard_system_type"
+                )
                 
                 if st.button("💾 Apply Configuration Parameters", use_container_width=True):
                     st.session_state.configured_system_type = sys_selection
-                    st.session_state.configured_class_level = class_selection
                     st.session_state.settings_initialized = True
-                    st.success("🎯 Settings applied successfully! Initializing layout modules...")
+                    st.success(f"🎯 Track set to {sys_selection}! Initializing layout modules...")
                     st.rerun()
 
         # --- ⚙️ STEP 3: RUN EVALUATION APP MODULE IF SETTINGS CONFIGURED ---
         else:
-            # Active Environment Control Strip
-            with st.expander(f"⚙️ Active Track Profile: {st.session_state.configured_system_type} — {st.session_state.configured_class_level}", expanded=False):
-                if st.button("🔄 Reset / Alter Active Tracking Environment Settings", use_container_width=True):
+            # Active Environment Control Strip showing the chosen system track
+            with st.expander(f"⚙️ Active Track Profile: {st.session_state.configured_system_type}", expanded=False):
+                if st.button("🔄 Change Active Academic System Track", use_container_width=True):
                     st.session_state.settings_initialized = False
                     st.rerun()
             
@@ -4089,7 +4073,7 @@ elif menu_choice == "⚙️ Settings":
                         new_test_name = st.text_input("Test / Exam Display Title:", placeholder="e.g. Mid-Term Examination")
                         new_test_code = st.text_input("System Reference Key (No Spaces):", placeholder="e.g. MID_TERM").upper().strip()
                     with col_t2:
-                        # Automatically passes pre-selected system parameters as structural fallbacks
+                        # Automatically mirrors your wizard choice in the registration form
                         system_routing = st.selectbox(
                             "Academic Stream Association:", 
                             options=["Annual System", "Semester System"],
@@ -4120,7 +4104,7 @@ elif menu_choice == "⚙️ Settings":
                                         })
                                     st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
                                     st.rerun()
-                                except Exception as err:
+                                catch Exception as err:
                                     st.error(f"❌ Failed to insert framework record: {err}")
                             else:
                                 st.warning("An evaluation pattern with this code identifier already exists.")
