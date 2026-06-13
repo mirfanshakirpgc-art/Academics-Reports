@@ -1207,9 +1207,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 elif menu_choice == "🗓️ Attendance Entry Management":
     import datetime  
     import pandas as pd
+    from sqlalchemy import text # Ensure text is imported for your database engine
     
     st.title("🗓️ Attendance Entry Management Panel")
-    # Your attendance logging code goes here...
     
     att_sub_type = st.segmented_control(
         "Select Attendance Interval Mode:",
@@ -1226,44 +1226,6 @@ elif menu_choice == "🗓️ Attendance Entry Management":
     # Force the selector index to point right to your active session choice
     default_index = session_options.index(active_session) if active_session in session_options else 0
 
-    st.markdown("## 📅 Daily Attendance Roster Sheet")
-    st.markdown("---")
-    
-    # --- 🛠️ HORIZONTAL FILTER ROW ---
-    col_sess, col_sys, col_level, col_sec = st.columns(4)
-    
-    with col_sess:
-        selected_session = st.selectbox(
-            "Select Session:", 
-            options=session_options, 
-            index=default_index, 
-            key="attendance_entry_session_select_synchronized"  # 🚀 Unique key prevents the crash!
-        )
-
-    # --- HORIZONTAL FILTER LAYOUT ROW ---
-    col_sess, col_sys, col_level, col_sec = st.columns(4)
-    
-    with col_sess:
-        # 🚀 FIXED: selectbox now uses the dynamically calculated default_index
-        selected_session = st.selectbox(
-            "Select Session:", 
-            options=session_options, 
-            index=default_index, 
-            key="attendance_entry_session_select"
-        )
-        
-    with col_sys:
-        # Keep your existing system layout selectbox code here...
-        # e.g., selected_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
-        pass
-        
-    with col_level:
-        # Keep your existing class level layout selectbox code here...
-        pass
-        
-    with col_sec:
-        # Keep your existing section selection layout selectbox code here...
-        pass
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
@@ -1273,7 +1235,7 @@ elif menu_choice == "🗓️ Attendance Entry Management":
         
         d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
         with d1:
-            sel_session = st.selectbox("Select Session:", session_options, key="daily_att_sess")
+            sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
             
         with d2:
             academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
@@ -1334,7 +1296,6 @@ elif menu_choice == "🗓️ Attendance Entry Management":
                 with info_box_col:
                     st.caption("💡 Uncheck rows manually to mark students Absent (A).")
 
-                # Form boundaries firmly opened and synchronized surrounding all contents
                 with st.form("interactive_daily_attendance_form", clear_on_submit=False):
                     attendance_checkbox_map = {}
                     h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
@@ -1373,7 +1334,6 @@ elif menu_choice == "🗓️ Attendance Entry Management":
                                     for s_id, checked_present in attendance_checkbox_map.items():
                                         status_code = "P" if checked_present else "A"
                                         
-                                        # Atomic Native Upsert Transaction Engine
                                         conn.execute(text("""
                                             INSERT INTO daily_attendance (student_id, attendance_date, status) 
                                             VALUES (:s_id, :att_date, :status)
@@ -1401,10 +1361,9 @@ elif menu_choice == "🗓️ Attendance Entry Management":
         st.subheader("👤 Single Student Attendance Record Manager")
         st.markdown("---")
         
-        # 🏢 Context Filters Top Row
         sc1, sc2, sc3 = st.columns(3)
         with sc1:
-            s_session_sel = st.selectbox("Select Session Context:", session_options, key="single_att_sess_filter")
+            s_session_sel = st.selectbox("Select Session Context:", session_options, index=default_index, key="single_att_sess_filter")
         with sc2:
             s_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="single_att_sys_filter")
         with sc3:
@@ -1413,7 +1372,6 @@ elif menu_choice == "🗓️ Attendance Entry Management":
             else:
                 s_class_sel = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_att_filter_sem")
 
-        # 🔍 Search Input Field
         col_search, _ = st.columns([2, 2])
         with col_search:
             single_id = st.text_input("🔍 Search Student Roll Number / ID:", key="single_att_id_input")
@@ -1468,7 +1426,6 @@ elif menu_choice == "🗓️ Attendance Entry Management":
                         
                         try:
                             with engine.begin() as conn:
-                                # Clean native upsert logic for single metrics logging
                                 conn.execute(text("""
                                     INSERT INTO daily_attendance (student_id, attendance_date, status) 
                                     VALUES (:id, :dt, :st)
@@ -1493,7 +1450,6 @@ elif menu_choice == "🗓️ Attendance Entry Management":
                 if raw_logs.empty:
                     st.caption("ℹ️ No active daily logs found to compute monthly values yet.")
                 else:
-                    # Safe Python processing pipeline to guarantee no database-level crashes
                     raw_logs['attendance_date'] = pd.to_datetime(raw_logs['attendance_date'], errors='coerce')
                     raw_logs = raw_logs.dropna(subset=['attendance_date'])
                     
