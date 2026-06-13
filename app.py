@@ -3306,28 +3306,36 @@ elif menu_choice == "👥 Student Operations Management":
     st.markdown("---")
     
     # --------------------------------------------------------------------------------
-    # FLOW CHART LEVEL 1 & 2: GLOBAL CONTEXT SELECTION MATRIX (2-Year Cohort Lifecycle)
+    # FLOW CHART LEVEL 1 & 2: GLOBAL CONTEXT SELECTION MATRIX (Dynamic Track Routing)
     # --------------------------------------------------------------------------------
     st.markdown("### 🌐 Step 1 & 2: Global Configuration Parameters")
-    
+
     col_g1, col_g2, col_g3 = st.columns(3)
-    
+
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     active_session = st.session_state.get("current_session", "2026-28")
     default_session_idx = session_options.index(active_session) if active_session in session_options else 0
-    
+
     with col_g1:
         global_session = st.selectbox("📅 Select Long-Term Cohort Session:", session_options, index=default_session_idx, key="global_stud_sess_filter")
+
     with col_g2:
         global_system_display = st.selectbox("🎓 Select Academic System:", ["Annual System", "Semester System"], key="global_stud_sys_filter")
         global_system = "annual" if global_system_display == "Annual System" else "semester"
+
     with col_g3:
-        # Crucial Filter: Isolates the current lifecycle step of the session cohort
-        global_grade = st.selectbox("🏫 Current Grade Level Focus:", ["11th", "12th"], key="global_stud_grade_filter")
+        # DYNAMIC REPLACEMENT LAYER: Changes dropdown labels and item parameters instantly
+        if global_system == "annual":
+            global_term_label = "🏫 Current Grade Level Focus:"
+            global_term_options = ["11th", "12th"]
+        else:
+            global_term_label = "⏱️ Current Semester Focus:"
+            global_term_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
+            
+        global_term = st.selectbox(global_term_label, global_term_options, key="global_stud_term_filter")
         
     st.markdown("---")
 
-    # Workspace Toggle Separator to separate Single Student Operations from Section Operations
     workspace_mode = st.radio(
         "**Choose target operational workflow path:**",
         ["🔍 Single Student Records Hub", "🗂️ Whole Section Batch Operations"],
@@ -3347,24 +3355,24 @@ elif menu_choice == "👥 Student Operations Management":
             if not search_id.isdigit():
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
-                # Queries student within their permanent session and active grade level context
+                # Core Fix: Matches global_term variable dynamically (whether 11th/12th or Semester 1-4)
                 stu_df = run_query("""
                     SELECT id, name, class, section, session, status, system_type 
                     FROM students 
                     WHERE id = :id 
                       AND session = :sess 
                       AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys))
-                      AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
-                """, {"id": int(search_id), "sess": global_session, "sys": global_system, "cls": global_grade})
+                      AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
+                """, {"id": int(search_id), "sess": global_session, "sys": global_system, "term": global_term})
                 
                 if stu_df.empty:
-                    st.warning(f"⚠️ No matching active profile found with ID '{search_id}' within Class {global_grade} of Session {global_session}.")
+                    st.warning(f"⚠️ No matching profile found with ID '{search_id}' within {global_term} of Session {global_session} ({global_system_display}).")
                 else:
                     student = stu_df.iloc[0]
                     s_id = int(student['id'])
                     s_name = str(student['name']).upper()
                     
-                    st.info(f"📂 **Active Workspace:** {s_name} (ID: {s_id}) | Current Setup: **Class {student['class']} - Section {student['section']}**")
+                    st.info(f"📂 **Active Workspace:** {s_name} (ID: {s_id}) | Current Setup: **{student['class']} - Section {student['section']}**")
                     
                     global_remarks = st.text_input("📝 Action Audit Log Remarks *", placeholder="Provide explicit reason context for these adjustments", key="global_mut_remarks")
                     st.markdown("###")
@@ -3372,9 +3380,9 @@ elif menu_choice == "👥 Student Operations Management":
                     col_sub_left, col_sub_right = st.columns(2)
 
                     with col_sub_left:
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         # SUB-MODULE 1: SESSION CHANGE (Cohort Re-assignment)
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         with st.container(border=True):
                             st.markdown("#### 1️⃣ Session Track Migration")
                             st.caption(f"Current Permanent Cohort Cycle: `{student['session']}`")
@@ -3389,18 +3397,17 @@ elif menu_choice == "👥 Student Operations Management":
                                 st.toast("✅ Student cohort group shifted successfully!")
                                 st.rerun()
 
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         # SUB-MODULE 3: SECTION CHANGE
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         with st.container(border=True):
                             st.markdown("#### 3️⃣ Section Re-allocation")
-                            st.caption(f"Current Class Section: `{student['section']}`")
+                            st.caption(f"Current Assigned Section: `{student['section']}`")
                             
-                            # Dynamic fetch of only sections configured for the student's active grade layout
                             section_pool_df = run_query("""
                                 SELECT DISTINCT section FROM students 
-                                WHERE LOWER(TRIM(class)) = LOWER(TRIM(:cls)) AND session = :sess
-                            """, {"cls": student['class'], "sess": student['session']})
+                                WHERE LOWER(TRIM(class)) = LOWER(TRIM(:term)) AND session = :sess
+                            """, {"term": global_term, "sess": global_session})
                             
                             fallback_sections = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
                             available_sections = sorted(list(set([str(s) for s in section_pool_df['section'].tolist() if s] + fallback_sections)))
@@ -3416,9 +3423,9 @@ elif menu_choice == "👥 Student Operations Management":
                                 st.toast("✅ Section reassigned successfully!")
                                 st.rerun()
 
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         # SUB-MODULE 5: DELETE FROM SYSTEM
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         with st.container(border=True):
                             st.markdown("#### 5️⃣ Delete from System")
                             st.caption("⚠️ Permanent eviction mechanism. This data completely drops out of the operational database.")
@@ -3430,9 +3437,9 @@ elif menu_choice == "👥 Student Operations Management":
                                 st.rerun()
 
                     with col_sub_right:
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         # SUB-MODULE 2: STUDENT STATUS
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         with st.container(border=True):
                             st.markdown("#### 2️⃣ Student Status (Left / Re-Active)")
                             st.caption(f"Current profile operational flag: `{student['status']}`")
@@ -3457,9 +3464,9 @@ elif menu_choice == "👥 Student Operations Management":
                                     st.toast("Profile status restored to Active.")
                                     st.rerun()
 
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         # SUB-MODULE 4: STUDENT DATA & SYSTEM EDIT
-                        # ------------------------------------------------============================
+                        # ----------------------------------------------------------------------------
                         with st.container(border=True):
                             st.markdown("#### 4️⃣ Data Registry & Academic System Editor")
                             st.caption("Modify student structural variables and system formats safely.")
@@ -3468,10 +3475,18 @@ elif menu_choice == "👥 Student Operations Management":
                             edit_sys_display = st.selectbox("Target Academic System Track:", ["Annual System", "Semester System"], index=0 if str(student['system_type']).lower() == "annual" else 1)
                             edit_sys_value = "annual" if edit_sys_display == "Annual System" else "semester"
                             
+                            # Generates valid inline options depending on the chosen context track
+                            if edit_sys_value == "annual":
+                                edit_term_options = ["11th", "12th"]
+                            else:
+                                edit_term_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
+                                
+                            edit_term = st.selectbox("Update Level/Term Assignment:", edit_term_options, index=edit_term_options.index(student['class']) if student['class'] in edit_term_options else 0)
+                            
                             if st.button("💾 Save Profile Matrix Edits", use_container_width=True):
                                 run_update("""
-                                    UPDATE students SET name = :name, system_type = :sys WHERE id = :id
-                                """, {"name": edit_name.strip(), "sys": edit_sys_value, "id": s_id})
+                                    UPDATE students SET name = :name, system_type = :sys, class = :cls WHERE id = :id
+                                """, {"name": edit_name.strip(), "sys": edit_sys_value, "cls": edit_term, "id": s_id})
                                 st.toast("✅ Master registration metadata rewritten!")
                                 st.rerun()
 
@@ -3501,40 +3516,49 @@ elif menu_choice == "👥 Student Operations Management":
     elif workspace_mode == "🗂️ Whole Section Batch Operations":
         st.markdown("### 📦 Bulk Section Operations Matrix")
         
-        # Pulls section options matching BOTH the cohort year AND their current grade level
+        # Pulls section choices constrained by active session context and dynamic term mapping
         sections_data = run_query("""
             SELECT DISTINCT section FROM students 
             WHERE session = :sess 
               AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys)) 
-              AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
+              AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
               AND status = 'ACTIVE' 
             ORDER BY section
-        """, {"sess": global_session, "sys": global_system, "cls": global_grade})
+        """, {"sess": global_session, "sys": global_system, "term": global_term})
         
         found_sections = [str(sec) for sec in sections_data['section'].tolist() if sec] if not sections_data.empty else []
         
         if not found_sections:
-            st.info(f"💡 No active student groups found inside Class {global_grade} for the `{global_session}` session pool.")
+            st.info(f"💡 No active student groups found inside {global_term} for the `{global_session}` session pool.")
         else:
             # ----------------------------------------------------------------============
             # SUB-MODULE 6: PROMOTE TO NEXT CLASS (Maintains Session Cohort Constancy)
-            # ------------------------------------------------============================
+            # ----------------------------------------------------------------============
             with st.container(border=True):
-                st.markdown("### 6️⃣ Cohort Class Promotion Engine")
-                st.info(f"🔄 **Lifecycle Rule:** Promoting students will change their Grade Level but preserve their permanent **{global_session}** session footprint.")
+                st.markdown("### 6️⃣ Cohort Class/Term Promotion Engine")
+                st.info(f"🔄 **Lifecycle Rule:** Promoting students updates their Term position but preserves their permanent **{global_session}** session cohort footprint.")
                 
                 selected_source_sec = st.selectbox("📁 Select Source Section to Update:", found_sections)
                 
-                # Automatically infers destination class target based on step
-                inferred_next_class = "12th" if global_grade == "11th" else "Graduated/Alumni"
+                # Dynamic next-term calculations based on architecture branch paths
+                if global_system == "annual":
+                    inferred_next_term = "12th" if global_term == "11th" else "Graduated/Alumni"
+                else:
+                    semester_progression_map = {
+                        "Semester 1": "Semester 2",
+                        "Semester 2": "Semester 3",
+                        "Semester 3": "Semester 4",
+                        "Semester 4": "Graduated/Alumni"
+                    }
+                    inferred_next_term = semester_progression_map.get(global_term, "Graduated/Alumni")
                 
-                st.markdown(f"##### 🎯 Destination Section Setup (Moving to Class: **{inferred_next_class}**)")
+                st.markdown(f"##### 🎯 Destination Section Setup (Moving to Step: **{inferred_next_term}**)")
                 
-                # Fetching known sections matching the upcoming 12th grade level block to avoid picking old layout names
+                # Pulls target setup destinations
                 dest_sections_df = run_query("""
                     SELECT DISTINCT section FROM students 
-                    WHERE session = :sess AND LOWER(TRIM(class)) = LOWER(TRIM(:next_cls))
-                """, {"sess": global_session, "next_cls": inferred_next_class})
+                    WHERE session = :sess AND LOWER(TRIM(class)) = LOWER(TRIM(:next_term))
+                """, {"sess": global_session, "next_term": inferred_next_term})
                 
                 base_options = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
                 final_dest_options = sorted(list(set([str(s) for s in dest_sections_df['section'].tolist() if s] + base_options)))
@@ -3542,46 +3566,45 @@ elif menu_choice == "👥 Student Operations Management":
                 target_dest_section = st.selectbox("Select Target Destination Section Assignment:", final_dest_options)
                 
                 if st.button("🚀 Execute Mass Class Cohort Promotion", type="primary", use_container_width=True):
-                    # Step 1: Capture matching student row details before mutating them
                     cohort_roster = run_query("""
                         SELECT id, class, section, session FROM students 
                         WHERE session = :sess 
                           AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys)) 
                           AND section = :sec 
-                          AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
+                          AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
                           AND status = 'ACTIVE'
-                    """, {"sess": global_session, "sys": global_system, "sec": selected_source_sec, "cls": global_grade})
+                    """, {"sess": global_session, "sys": global_system, "sec": selected_source_sec, "term": global_term})
                     
                     import uuid
                     promotion_batch_id = f"PROMO-{str(uuid.uuid4())[:6].upper()}"
                     
-                    # Step 2: Log state transitions into permanent audit histories
+                    # Log change sets to tracking tables
                     for _, student_row in cohort_roster.iterrows():
                         run_update("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
                             VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
                         """, {
                             "s_id": int(student_row['id']), "old_cls": student_row['class'], 
-                            "old_sec": student_row['section'], "old_sess": student_row['session'], # Stays constant
-                            "new_cls": inferred_next_class, "new_sec": target_dest_section.upper(), 
+                            "old_sec": student_row['section'], "old_sess": student_row['session'], 
+                            "new_cls": inferred_next_term, "new_sec": target_dest_section.upper(), 
                             "b_id": promotion_batch_id
                         })
                     
-                    # Step 3: Mutate only the grade and target section values, preserving session keys intact
+                    # Update statement keeping the global session unchanged
                     run_update("""
                         UPDATE students 
-                        SET class = :next_cls, section = :next_sec
+                        SET class = :next_term, section = :next_sec
                         WHERE session = :sess 
                           AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys)) 
                           AND section = :sec 
-                          AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
+                          AND LOWER(TRIM(class)) = LOWER(TRIM(:term))
                           AND status = 'ACTIVE'
                     """, {
-                        "next_cls": inferred_next_class, "next_sec": target_dest_section.upper(), 
-                        "sess": global_session, "sys": global_system, "sec": selected_source_sec, "cls": global_grade
+                        "next_term": inferred_next_term, "next_sec": target_dest_section.upper(), 
+                        "sess": global_session, "sys": global_system, "sec": selected_source_sec, "term": global_term
                     })
                     
-                    st.success(f"🎉 Success! Promoted section to **Class {inferred_next_class} ({target_dest_section})**. The original session allocation ({global_session}) remains unchanged.")
+                    st.success(f"🎉 Success! Promoted section to **{inferred_next_term} ({target_dest_section})**. The original session allocation ({global_session}) remains unchanged.")
                     st.rerun()
         
     # ==============================================================================
