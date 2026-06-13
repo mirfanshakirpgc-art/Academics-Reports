@@ -200,6 +200,20 @@ def run_query(query, params=None):
         except Exception:
             raise original_error
 
+# 🌟 ADDED SECURE WRITE FUNCTION TO PREVENT NAMEERROR ON LINE 948
+def execute_db_command(query, params=None):
+    """
+    Executes database modifications (INSERT, UPDATE, DELETE)
+    using the application's global database engine connection.
+    """
+    if params is None:
+        params = {}
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(query), params)
+    except Exception as e:
+        raise RuntimeError(f"Database write execution failed: {str(e)}")
+
 # ==============================================================================
 # SIDEBAR NAVIGATION MODULE 
 # ==============================================================================
