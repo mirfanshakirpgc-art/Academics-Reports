@@ -2010,9 +2010,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
         if not db_settings_sessions.empty:
             synchronized_sessions = db_settings_sessions['session_name'].dropna().astype(str).tolist()
     except Exception:
-        pass  # If settings table doesn't exist yet or columns differ, fall back to historical records
+        pass  # Fall back to active student records tracking if settings query fails
 
-    # 2. Secondary Sync: If settings query failed or returned empty, collect sessions from student profiles
+    # 2. Secondary Sync: Collect unique session codes from student profiles
     if not synchronized_sessions:
         try:
             db_active_sessions = run_query("""
@@ -2034,18 +2034,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
         else:
             synchronized_sessions = ["2025-27", "2026-28", "2027-29"]
 
-    # 4. Global Hardcoded Overrides & Formatting
+    # 4. Global Hardcoded Overrides & Formatting Safety Policies
     synchronized_sessions = [str(s).strip() for s in synchronized_sessions]
     
-    # Force add your newly configured dashboard session so it is guaranteed to show up
+    # Force inject your newly configured session so it is guaranteed to show up regardless of empty tables
     if "2027-29" not in synchronized_sessions:
         synchronized_sessions.append("2027-29")
         
-    # Force remove legacy expired session from rendering
+    # Force eliminate old structural legacy values from showing up in dropdown lists
     if "2024-26" in synchronized_sessions:
         synchronized_sessions.remove("2024-26")
         
-    # Sort options sequentially
+    # Re-sort clean options sequentially
     synchronized_sessions = sorted(list(set(synchronized_sessions)))
 
     # Fallback safety handler for selectbox indexing context
@@ -2093,17 +2093,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
     else:  # --- SEMESTER SYSTEM BRANCH ---
         with col_dyn1:
-            # 🎯 Expanded to support all 4 semesters
+            # Expanded to support all 4 semesters
             sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="global_sel_class")
             
         with col_dyn2:
-            # 🎯 Fixed: Always offer DIT_G and DIT_B for all semesters
+            # Fixed: Always offer DIT_G and DIT_B for all semesters
             semester_sections = ["DIT_G", "DIT_B"]
             sel_sec = st.selectbox("Select Target Section:", options=semester_sections, index=0, key="global_sel_sec")
             
         with col_dyn3:
             # Standard test framework names (MT_1, MT_2...) for semesters
             selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
+            
     st.markdown("---")
 
     # Scope Selector Strategy
