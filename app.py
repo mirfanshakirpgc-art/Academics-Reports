@@ -934,32 +934,64 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     st.markdown("##### 📚 Dynamic Subject Performance Evaluation Sheet")
                     
+                    # --- NEW ROW HEADER MATRIX ---
+                    h_m1, h_m2, h_m3, h_m4 = st.columns([4, 2, 1, 1])
+                    h_m1.caption("📖 **Subject Title**")
+                    h_m2.caption("🔢 **Obtained Marks**")
+                    h_m3.caption("❌ **Absent**")
+                    h_m4.caption("➖ **NC**")
+                    st.markdown("<hr style='margin:0px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
                     updated_scores = {}
                     
                     # Loop layout fields out for EVERY subject found dynamically
                     for subject in subjects_list:
-                        col_sub, col_marks = st.columns([3, 2])
+                        # Fixed alignment matching the row header
+                        col_sub, col_marks, col_abs, col_nc = st.columns([4, 2, 1, 1])
+                        
                         with col_sub:
-                            st.markdown(f"<div style='padding-top: 25px; font-weight: bold;'>{subject}</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='padding-top: 5px; font-weight: bold;'>{subject}</div>", unsafe_allow_html=True)
+                        
+                        # Pull active database rows to show current entries if modifying records
+                        existing_mark_df = run_query("""
+                            SELECT marks_obtained FROM marks 
+                            WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:sub)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                        """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                        
+                        db_val = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
+                        
+                        # Manage Interactive Checking States
+                        state_abs_key = f"s_abs_{single_id}_{subject.replace(' ', '_')}"
+                        state_nc_key = f"s_nc_{single_id}_{subject.replace(' ', '_')}"
+                        
+                        if state_abs_key not in st.session_state:
+                            st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                        if state_nc_key not in st.session_state:
+                            st.session_state[state_nc_key] = (db_val == 'NC')
+                            
+                        with col_abs:
+                            chk_absent = st.checkbox("", key=state_abs_key, label_visibility="collapsed")
+                        with col_nc:
+                            chk_nc = st.checkbox("", key=state_nc_key, label_visibility="collapsed")
+                            
                         with col_marks:
-                            # Pull active database rows to show current entries if modifying records
-                            existing_mark_df = run_query("""
-                                SELECT marks_obtained FROM marks 
-                                WHERE student_id = :s_id AND subject = :sub AND exam_type = :exam
-                            """, {"s_id": int(single_id), "sub": subject, "exam": single_exam})
+                            initial_score = "" if db_val in ['A', 'ABSENT', 'NC'] else db_val
+                            is_disabled = chk_absent or chk_nc
+                            display_score = "A" if chk_absent else ("NC" if chk_nc else initial_score)
                             
-                            default_val = str(existing_mark_df.iloc[0]['marks_obtained']) if not existing_mark_df.empty else ""
-                            
-                            updated_scores[subject] = st.text_input(
+                            score_input = st.text_input(
                                 f"Marks for {subject}", 
-                                value=default_val, 
+                                value=display_score if is_disabled else initial_score, 
                                 placeholder="e.g. 38 or A", 
                                 label_visibility="collapsed",
-                                key=f"roll_mark_in_{single_id}_{subject.replace(' ', '_')}"
+                                key=f"roll_mark_in_{single_id}_{subject.replace(' ', '_')}",
+                                disabled=is_disabled
                             )
+                        
+                        updated_scores[subject] = "A" if chk_absent else ("NC" if chk_nc else score_input)
 
                     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-                    submit_button = st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", use_container_width=True)
+                    submit_button = st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", type="primary", use_container_width=True)
                     
                     if submit_button:
                         import time
@@ -981,6 +1013,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 success_count += 1
                         
                         if success_count > 0:
+                            # Clear specific view component states safely upon successful operation completion
+                            for subject in subjects_list:
+                                st.session_state.pop(f"s_abs_{single_id}_{subject.replace(' ', '_')}", None)
+                                st.session_state.pop(f"s_nc_{single_id}_{subject.replace(' ', '_')}", None)
+                                
                             st.success(f"🎉 Successfully saved/updated academic records across {success_count} subjects for {s_name}!")
                             st.toast(f"Saved entries for Roll No: {single_id}", icon="💾")
                             st.cache_data.clear()
