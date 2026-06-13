@@ -2512,11 +2512,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
 
             # =========================================================================
-            # --- ATTENDANCE REPORT MATRIX (UPGRADED LOOKUP STRATEGY) ---
+            # --- ATTENDANCE REPORT MATRIX (MATCHED TO SUPABASE SCHEMA) ---
             # =========================================================================
             tot_days_row, att_days_row, pct_days_row = "", "", ""
             overall_tot_days, overall_att_days = 0, 0
 
+            # Months tracking dictionary mapped precisely to your month_name records
             month_map = {
                 "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
                 "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
@@ -2524,58 +2525,41 @@ if menu_choice == "📈 Multi-Test Progress Report":
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
             if not attendance_df.empty:
-                # 1. Standardize our loop student ID to plain strings and plain integers
-                clean_s_id_str = str(s_id).strip().lstrip('0')
-                if not clean_s_id_str: # Safe fallback if ID was literally "0" or "000"
-                    clean_s_id_str = "0"
-                
-                # 2. Try casting to clean integers if possible
+                # Safely cast loop student ID string directly to an integer matching Supabase's type
                 try:
-                    clean_s_id_int = int(float(clean_s_id_str))
-                except ValueError:
-                    clean_s_id_int = None
+                    target_student_id = int(float(str(s_id).strip()))
+                except (ValueError, TypeError):
+                    target_student_id = None
 
-                # 3. Create variants of the attendance column to compare against
-                att_df_copy = attendance_df.copy()
-                att_df_copy['match_str'] = att_df_copy['student_id'].astype(str).str.strip().str.split('.').str[0].str.lstrip('0')
-                
-                # Try String variant match first
-                s_att = att_df_copy[att_df_copy["match_str"] == clean_s_id_str].copy()
-                
-                # Fallback: Try Raw Numeric match if string evaluation came up blank
-                if s_att.empty and clean_s_id_int is not None:
-                    try:
-                        s_att = attendance_df[attendance_df["student_id"].astype(float).astype(int) == clean_s_id_int].copy()
-                    except:
-                        pass
+                if target_student_id is not None:
+                    # Filter your dataframe using the correct column name: student_id
+                    s_att = attendance_df[attendance_df["student_id"] == target_student_id].copy()
+                    
+                    if not s_att.empty:
+                        # Extract metrics using your exact Supabase columns: month_name, total_days, present_days
+                        for _, row in s_att.iterrows():
+                            db_month = str(row.get("month_name", "")).strip()
+                            
+                            # Match variants like "May" or "June"
+                            matched_month = None
+                            for m_name in month_map.keys():
+                                if db_month.lower().startswith(m_name.lower()[:3]):
+                                    matched_month = m_name
+                                    break
+                            
+                            if matched_month:
+                                try:
+                                    t_days = int(row.get("total_days", 0))
+                                    p_days = int(row.get("present_days", 0))
+                                    
+                                    attendance_matrix[matched_month] = {
+                                        "total": t_days, 
+                                        "present": p_days
+                                    }
+                                except (ValueError, TypeError):
+                                    pass
 
-                # If we successfully located the records, aggregate them by month!
-                if not s_att.empty:
-                    s_att['attendance_date'] = s_att['attendance_date'].astype(str).str.strip()
-                    if 'parsed_date' not in s_att.columns:
-                        s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
-
-                    for m_name, m_num in month_map.items():
-                        # Engine Strategy A: Native Datetime Filtering
-                        if 'parsed_date' in s_att.columns and not s_att['parsed_date'].isna().all():
-                            month_records = s_att[s_att['parsed_date'].dt.month == m_num]
-                            t_days = len(month_records)
-                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
-                        
-                        # Engine Strategy B: Descriptive Text / Summary Row Backups
-                        else:
-                            matched_col = 'month_name' if 'month_name' in s_att.columns else ('month' if 'month' in s_att.columns else '')
-                            if matched_col:
-                                month_records = s_att[s_att[matched_col].astype(str).str.strip().str.lower().str.startswith(m_name.lower()[:3])]
-                                t_days = int(month_records['total_days'].sum()) if 'total_days' in month_records.columns and not month_records.empty else len(month_records)
-                                p_days = int(month_records['present_days'].sum()) if 'present_days' in month_records.columns and not month_records.empty else len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
-                            else:
-                                t_days, p_days = 0, 0
-
-                        if t_days > 0:
-                            attendance_matrix[m_name] = {"total": t_days, "present": p_days}
-
-            # --- GENERATE CELL STRINGS FOR THIS CARD ---
+            # --- GENERATE CELL HTML CODES FOR THIS CARD ---
             for m_name in month_map.keys():
                 t_d = attendance_matrix[m_name].get("total", 0)
                 a_d = attendance_matrix[m_name].get("present", 0)
