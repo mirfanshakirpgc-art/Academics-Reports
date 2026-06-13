@@ -994,7 +994,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
 
-    # Line 997
 elif entry_mode == "👤 By Single Student Roll Number":
     # ====================================================================
     # 🎨 MODULE & SUB-MODULE STYLE WRAPPER (Custom Borders and Grid Cards)
@@ -1273,7 +1272,7 @@ elif entry_mode == "👤 By Single Student Roll Number":
 
         # THIS IS CRITICAL: Make sure the HTML div tag for the main module is closed
         # and aligned perfectly inside the "By Single Student Roll Number" block!
-        st.markdown('</div>', unsafe_allow_html=True) 
+    st.markdown('</div>', unsafe_allow_html=True) 
 
 # Line 1291 - Ensure this has the EXACT same indentation as your other main "if/elif" entry modes
 elif entry_mode == "📤 Bulk Excel/CSV Import":
