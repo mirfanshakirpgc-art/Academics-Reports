@@ -3333,25 +3333,30 @@ if "run_update" not in globals():
 # ====================================================================================
 # UNIFIED CENTRAL MODULE: 👥 STUDENT OPERATIONS MANAGEMENT
 # ====================================================================================
-if menu_choice == "👥 Student Operations Management":
+elif menu_choice == "👥 Student Operations Management":
     st.title("👥 Student Operations Management Console")
     st.markdown("Centralized workflow for profile records, status adjustments, audit trails, and batch promotions.")
     st.markdown("---")
     
     # --------------------------------------------------------------------------------
-    # FLOW CHART LEVEL 1: GLOBAL CONTEXT SELECTION MATRIX
+    # FLOW CHART LEVEL 1 & 2: GLOBAL CONTEXT SELECTION MATRIX (2-Year Cohort Lifecycle)
     # --------------------------------------------------------------------------------
     st.markdown("### 🌐 Step 1 & 2: Global Configuration Parameters")
-    col_g1, col_g2 = st.columns(2)
+    
+    col_g1, col_g2, col_g3 = st.columns(3)
     
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     active_session = st.session_state.get("current_session", "2026-28")
     default_session_idx = session_options.index(active_session) if active_session in session_options else 0
     
     with col_g1:
-        global_session = st.selectbox("📅 Select Session:", session_options, index=default_session_idx, key="global_stud_sess_filter")
+        global_session = st.selectbox("📅 Select Long-Term Cohort Session:", session_options, index=default_session_idx, key="global_stud_sess_filter")
     with col_g2:
-        global_system = st.selectbox("🎓 Select Academic System:", ["Annual System", "Semester System"], key="global_stud_sys_filter")
+        global_system_display = st.selectbox("🎓 Select Academic System:", ["Annual System", "Semester System"], key="global_stud_sys_filter")
+        global_system = "annual" if global_system_display == "Annual System" else "semester"
+    with col_g3:
+        # Crucial Filter: Isolates the current lifecycle step of the session cohort
+        global_grade = st.selectbox("🏫 Current Grade Level Focus:", ["11th", "12th"], key="global_stud_grade_filter")
         
     st.markdown("---")
 
@@ -3375,36 +3380,38 @@ if menu_choice == "👥 Student Operations Management":
             if not search_id.isdigit():
                 st.error("❌ Invalid Format: Student ID must contain numbers only.")
             else:
-                # Query strictly filters by the global context variables selected above
+                # Queries student within their permanent session and active grade level context
                 stu_df = run_query("""
                     SELECT id, name, class, section, session, status, system_type 
-                    FROM students WHERE id = :id AND session = :sess AND system_type = :sys
-                """, {"id": int(search_id), "sess": global_session, "sys": global_system})
+                    FROM students 
+                    WHERE id = :id 
+                      AND session = :sess 
+                      AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys))
+                      AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
+                """, {"id": int(search_id), "sess": global_session, "sys": global_system, "cls": global_grade})
                 
                 if stu_df.empty:
-                    st.warning(f"⚠️ No active matching profile found with ID '{search_id}' in the `{global_session}` | `{global_system}` pool.")
+                    st.warning(f"⚠️ No matching active profile found with ID '{search_id}' within Class {global_grade} of Session {global_session}.")
                 else:
                     student = stu_df.iloc[0]
                     s_id = int(student['id'])
                     s_name = str(student['name']).upper()
                     
-                    st.success(f"📂 **Active Workspace:** {s_name} (ID: {s_id}) | Class Level: **{student['class']}** | Section: **{student['section']}**")
+                    st.info(f"📂 **Active Workspace:** {s_name} (ID: {s_id}) | Current Setup: **Class {student['class']} - Section {student['section']}**")
                     
-                    # Unified audit log context required for high-importance record mutations
                     global_remarks = st.text_input("📝 Action Audit Log Remarks *", placeholder="Provide explicit reason context for these adjustments", key="global_mut_remarks")
                     st.markdown("###")
 
-                    # Master layout columns for single student sub-modules
                     col_sub_left, col_sub_right = st.columns(2)
 
                     with col_sub_left:
                         # ------------------------------------------------============================
-                        # SUB-MODULE 1: SESSION CHANGE
+                        # SUB-MODULE 1: SESSION CHANGE (Cohort Re-assignment)
                         # ------------------------------------------------============================
                         with st.container(border=True):
-                            st.markdown("#### 1️⃣ Session Change")
-                            st.caption(f"Current tracking cycle: `{student['session']}`")
-                            target_sess = st.selectbox("Target Session Migration:", session_options, index=session_options.index(student['session']) if student['session'] in session_options else 0, key="sub_mod_sess_drop")
+                            st.markdown("#### 1️⃣ Session Track Migration")
+                            st.caption(f"Current Permanent Cohort Cycle: `{student['session']}`")
+                            target_sess = st.selectbox("Migrate to Different Multi-Year Session:", session_options, index=session_options.index(student['session']) if student['session'] in session_options else 0, key="sub_mod_sess_drop")
                             
                             if st.button("🔄 Change Session Track", use_container_width=True):
                                 run_update("UPDATE students SET session = :session WHERE id = :id", {"session": target_sess, "id": s_id})
@@ -3412,19 +3419,28 @@ if menu_choice == "👥 Student Operations Management":
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
                                     VALUES (:id, 'SESSION_CHANGE', :old, :new, CURRENT_DATE, :rem)
                                 """, {"id": s_id, "old": student['session'], "new": target_sess, "rem": global_remarks.strip() if global_remarks.strip() else "Session Relocation"})
-                                st.toast("✅ Session registration shifted successfully!")
+                                st.toast("✅ Student cohort group shifted successfully!")
                                 st.rerun()
 
                         # ------------------------------------------------============================
                         # SUB-MODULE 3: SECTION CHANGE
                         # ------------------------------------------------============================
                         with st.container(border=True):
-                            st.markdown("#### 3️⃣ Section Change")
-                            st.caption(f"Current dynamic allocation: `{student['section']}`")
-                            available_sections = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
-                            target_sec = st.selectbox("Target Section Assignment:", available_sections, index=available_sections.index(student['section']) if student['section'] in available_sections else 0, key="sub_mod_sec_drop")
+                            st.markdown("#### 3️⃣ Section Re-allocation")
+                            st.caption(f"Current Class Section: `{student['section']}`")
                             
-                            if st.button("📐 Change Section Room", use_container_width=True):
+                            # Dynamic fetch of only sections configured for the student's active grade layout
+                            section_pool_df = run_query("""
+                                SELECT DISTINCT section FROM students 
+                                WHERE LOWER(TRIM(class)) = LOWER(TRIM(:cls)) AND session = :sess
+                            """, {"cls": student['class'], "sess": student['session']})
+                            
+                            fallback_sections = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
+                            available_sections = sorted(list(set([str(s) for s in section_pool_df['section'].tolist() if s] + fallback_sections)))
+                            
+                            target_sec = st.selectbox("Select Target Section:", available_sections, index=available_sections.index(student['section']) if student['section'] in available_sections else 0, key="sub_mod_sec_drop")
+                            
+                            if st.button("📐 Update Section Allocation", use_container_width=True):
                                 run_update("UPDATE students SET section = :section WHERE id = :id", {"section": target_sec, "id": s_id})
                                 run_update("""
                                     INSERT INTO student_logs (student_id, change_type, old_value, new_value, log_date, remarks) 
@@ -3438,18 +3454,18 @@ if menu_choice == "👥 Student Operations Management":
                         # ------------------------------------------------============================
                         with st.container(border=True):
                             st.markdown("#### 5️⃣ Delete from System")
-                            st.caption("⚠️ Permanent eviction mechanism. This data completely drops out of the registry ledger.")
+                            st.caption("⚠️ Permanent eviction mechanism. This data completely drops out of the operational database.")
                             confirm_eviction = st.checkbox("Verify authorization to purge entry rows permanently", key="evict_check_box_gate")
                             
                             if st.button("🗑️ Permanent Eviction Trigger", type="primary", use_container_width=True, disabled=not confirm_eviction):
                                 run_update("DELETE FROM students WHERE id = :id", {"id": s_id})
-                                st.error("Record row purged permanently.")
+                                st.error("Record row purged permanently from database.")
                                 st.rerun()
 
                     with col_sub_right:
                         # ------------------------------------------------============================
                         # SUB-MODULE 2: STUDENT STATUS
-                        # ----------------------------------------------------------------============
+                        # ------------------------------------------------============================
                         with st.container(border=True):
                             st.markdown("#### 2️⃣ Student Status (Left / Re-Active)")
                             st.caption(f"Current profile operational flag: `{student['status']}`")
@@ -3475,24 +3491,25 @@ if menu_choice == "👥 Student Operations Management":
                                     st.rerun()
 
                         # ------------------------------------------------============================
-                        # SUB-MODULE 4: STUDENT DATA EDIT
+                        # SUB-MODULE 4: STUDENT DATA & SYSTEM EDIT
                         # ------------------------------------------------============================
                         with st.container(border=True):
-                            st.markdown("#### 4️⃣ Student Data Edit")
-                            st.caption("Modify student structural variables and metadata attributes safely.")
+                            st.markdown("#### 4️⃣ Data Registry & Academic System Editor")
+                            st.caption("Modify student structural variables and system formats safely.")
                             
                             edit_name = st.text_input("Edit Legal Full Name:", value=str(student['name']))
-                            edit_sys = st.selectbox("Target Academic System Track:", ["Annual System", "Semester System"], index=0 if str(student['system_type']) == "Annual System" else 1)
+                            edit_sys_display = st.selectbox("Target Academic System Track:", ["Annual System", "Semester System"], index=0 if str(student['system_type']).lower() == "annual" else 1)
+                            edit_sys_value = "annual" if edit_sys_display == "Annual System" else "semester"
                             
                             if st.button("💾 Save Profile Matrix Edits", use_container_width=True):
                                 run_update("""
                                     UPDATE students SET name = :name, system_type = :sys WHERE id = :id
-                                """, {"name": edit_name.strip(), "sys": edit_sys, "id": s_id})
+                                """, {"name": edit_name.strip(), "sys": edit_sys_value, "id": s_id})
                                 st.toast("✅ Master registration metadata rewritten!")
                                 st.rerun()
 
                     # --------------------------------------------------------------------------------
-                    # SUB-MODULE 7: HISTORY OF ACTIVITIES (AUDIT TRAIL VIEW)
+                    # SUB-MODULE 7: HISTORY OF ACTIVITIES
                     # --------------------------------------------------------------------------------
                     st.markdown("---")
                     with st.container(border=True):
@@ -3517,65 +3534,87 @@ if menu_choice == "👥 Student Operations Management":
     elif workspace_mode == "🗂️ Whole Section Batch Operations":
         st.markdown("### 📦 Bulk Section Operations Matrix")
         
-        # Load sections available under the globally filtered context
+        # Pulls section options matching BOTH the cohort year AND their current grade level
         sections_data = run_query("""
             SELECT DISTINCT section FROM students 
-            WHERE session = :sess AND system_type = :sys AND status = 'ACTIVE' ORDER BY section
-        """, {"sess": global_session, "sys": global_system})
+            WHERE session = :sess 
+              AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys)) 
+              AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
+              AND status = 'ACTIVE' 
+            ORDER BY section
+        """, {"sess": global_session, "sys": global_system, "cls": global_grade})
         
-        found_sections = sections_data['section'].tolist() if not sections_data.empty else []
+        found_sections = [str(sec) for sec in sections_data['section'].tolist() if sec] if not sections_data.empty else []
         
         if not found_sections:
-            st.info(f"💡 No active student groups found under Session '{global_session}' with Academic Track '{global_system}'.")
+            st.info(f"💡 No active student groups found inside Class {global_grade} for the `{global_session}` session pool.")
         else:
             # ----------------------------------------------------------------============
-            # SUB-MODULE 6: PROMOTE TO NEXT CLASS
-            # ----------------------------------------------------------------============
+            # SUB-MODULE 6: PROMOTE TO NEXT CLASS (Maintains Session Cohort Constancy)
+            # ------------------------------------------------============================
             with st.container(border=True):
-                st.markdown("### 6️⃣ Promote to Next Class")
-                st.markdown(f"**Source Selection Scope:** Session: `{global_session}` | System Track: `{global_system}`")
+                st.markdown("### 6️⃣ Cohort Class Promotion Engine")
+                st.info(f"🔄 **Lifecycle Rule:** Promoting students will change their Grade Level but preserve their permanent **{global_session}** session footprint.")
                 
-                selected_source_sec = st.selectbox("📁 Select Source Section to Promote:", found_sections)
+                selected_source_sec = st.selectbox("📁 Select Source Section to Update:", found_sections)
                 
-                st.markdown("##### 🎯 Destination Properties Setup")
-                col_p1, col_p2 = st.columns(2)
-                with col_p1:
-                    target_class_level = st.selectbox("Target Promotion Class:", ["12th", "Graduated/Alumni"], index=0)
-                with col_p2:
-                    target_dest_section = st.selectbox("Target Destination Section Assignment:", ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"])
+                # Automatically infers destination class target based on step
+                inferred_next_class = "12th" if global_grade == "11th" else "Graduated/Alumni"
                 
-                if st.button("🚀 Push Batch Roster Promotion Pipeline", type="primary", use_container_width=True):
-                    # Cache records to create historical promotion references
+                st.markdown(f"##### 🎯 Destination Section Setup (Moving to Class: **{inferred_next_class}**)")
+                
+                # Fetching known sections matching the upcoming 12th grade level block to avoid picking old layout names
+                dest_sections_df = run_query("""
+                    SELECT DISTINCT section FROM students 
+                    WHERE session = :sess AND LOWER(TRIM(class)) = LOWER(TRIM(:next_cls))
+                """, {"sess": global_session, "next_cls": inferred_next_class})
+                
+                base_options = ["A", "B", "C", "MQ1", "MQ2", "EK1", "EQ1"]
+                final_dest_options = sorted(list(set([str(s) for s in dest_sections_df['section'].tolist() if s] + base_options)))
+                
+                target_dest_section = st.selectbox("Select Target Destination Section Assignment:", final_dest_options)
+                
+                if st.button("🚀 Execute Mass Class Cohort Promotion", type="primary", use_container_width=True):
+                    # Step 1: Capture matching student row details before mutating them
                     cohort_roster = run_query("""
                         SELECT id, class, section, session FROM students 
-                        WHERE session = :sess AND system_type = :sys AND section = :sec AND status = 'ACTIVE'
-                    """, {"sess": global_session, "sys": global_system, "sec": selected_source_sec})
+                        WHERE session = :sess 
+                          AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys)) 
+                          AND section = :sec 
+                          AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
+                          AND status = 'ACTIVE'
+                    """, {"sess": global_session, "sys": global_system, "sec": selected_source_sec, "cls": global_grade})
                     
                     import uuid
                     promotion_batch_id = f"PROMO-{str(uuid.uuid4())[:6].upper()}"
                     
+                    # Step 2: Log state transitions into permanent audit histories
                     for _, student_row in cohort_roster.iterrows():
                         run_update("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
                             VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
                         """, {
                             "s_id": int(student_row['id']), "old_cls": student_row['class'], 
-                            "old_sec": student_row['section'], "old_sess": student_row['session'], 
-                            "new_cls": target_class_level, "new_sec": target_dest_section.upper(), 
+                            "old_sec": student_row['section'], "old_sess": student_row['session'], # Stays constant
+                            "new_cls": inferred_next_class, "new_sec": target_dest_section.upper(), 
                             "b_id": promotion_batch_id
                         })
                     
-                    # Mass update student profile properties
+                    # Step 3: Mutate only the grade and target section values, preserving session keys intact
                     run_update("""
                         UPDATE students 
                         SET class = :next_cls, section = :next_sec
-                        WHERE session = :sess AND system_type = :sys AND section = :sec AND status = 'ACTIVE'
+                        WHERE session = :sess 
+                          AND LOWER(TRIM(system_type)) = LOWER(TRIM(:sys)) 
+                          AND section = :sec 
+                          AND LOWER(TRIM(class)) = LOWER(TRIM(:cls))
+                          AND status = 'ACTIVE'
                     """, {
-                        "next_cls": target_class_level, "next_sec": target_dest_section.upper(), 
-                        "sess": global_session, "sys": global_system, "sec": selected_source_sec
+                        "next_cls": inferred_next_class, "next_sec": target_dest_section.upper(), 
+                        "sess": global_session, "sys": global_system, "sec": selected_source_sec, "cls": global_grade
                     })
                     
-                    st.success(f"🎉 Roster safely promoted to **Class {target_class_level} ({target_dest_section})**! Batch Reference: `{promotion_batch_id}`")
+                    st.success(f"🎉 Success! Promoted section to **Class {inferred_next_class} ({target_dest_section})**. The original session allocation ({global_session}) remains unchanged.")
                     st.rerun()
         
     # ==============================================================================
