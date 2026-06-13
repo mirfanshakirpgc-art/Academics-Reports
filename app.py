@@ -2380,7 +2380,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     attendance_df.columns = [c.lower() for c in attendance_df.columns]
                     attendance_df["student_id"] = attendance_df["student_id"].astype(str).str.strip()
                     
-                    for field in ["date_marked", "date", "att_date"]:
+                    for field in ["date_marked", "date", "att_date", "attendance_date"]:
                         if field in attendance_df.columns:
                             attendance_df = attendance_df.rename(columns={field: "attendance_date"})
                             break
@@ -2390,6 +2390,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                             break
             except Exception as internal_err:
                 st.error(f"⚠️ Critical Fallback Error: Attendance schema mapping could not auto-resolve: {str(internal_err)}")
+
+        # --- RE-ENGINEERED ATTENDANCE MATRIX AGGREGATOR ---
+        # (Replace your current matrix loop down in the code with this safer datetime parse)
 
         # CSS Styling Configurations
         css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
@@ -2552,17 +2555,27 @@ if menu_choice == "📈 Multi-Test Progress Report":
             if not attendance_df.empty:
                 s_att = attendance_df[attendance_df["student_id"] == s_id].copy()
                 if not s_att.empty:
-                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce') if 'attendance_date' in s_att.columns else pd.NaT
+                    # Clean strings before running datetime converter to catch legacy formats securely
+                    s_att['attendance_date'] = s_att['attendance_date'].astype(str).str.strip()
+                    s_att['parsed_date'] = pd.to_datetime(s_att['attendance_date'], errors='coerce')
 
                     for m_name, m_num in month_map.items():
-                        if 'attendance_date' in s_att.columns:
+                        # Primary check: using standard datetime elements
+                        if 'parsed_date' in s_att.columns and not s_att['parsed_date'].isna().all():
                             month_records = s_att[s_att['parsed_date'].dt.month == m_num]
                             t_days = len(month_records)
-                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])])
+                            p_days = len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
                         else:
-                            month_records = s_att[s_att['month_name'].astype(str).str.strip().str.lower() == m_name.lower()]
-                            t_days = int(month_records['total_days'].sum()) if not month_records.empty else 0
-                            p_days = int(month_records['present_days'].sum()) if not month_records.empty else 0
+                            # Secondary structural backup check: look for textual string names in database
+                            has_month_col = any(x in s_att.columns for x in ['month_name', 'month'])
+                            matched_col = 'month_name' if 'month_name' in s_att.columns else ('month' if 'month' in s_att.columns else '')
+                            
+                            if matched_col:
+                                month_records = s_att[s_att[matched_col].astype(str).str.strip().str.lower().str.startswith(m_name.lower()[:3])]
+                                t_days = int(month_records['total_days'].sum()) if 'total_days' in month_records.columns and not month_records.empty else len(month_records)
+                                p_days = int(month_records['present_days'].sum()) if 'present_days' in month_records.columns and not month_records.empty else len(month_records[month_records['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1', '1.0'])])
+                            else:
+                                t_days, p_days = 0, 0
 
                         if t_days > 0:
                             attendance_matrix[m_name] = {"total": t_days, "present": p_days}
