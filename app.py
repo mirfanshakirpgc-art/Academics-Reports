@@ -1207,7 +1207,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 if "Attendance Entry Management" in menu_choice:
     st.title("🚨 TEST: CODE REACHED SUCCESSFULLY!")
     st.write(f"Current menu selection is: {menu_choice}")
-    st.stop() # 🛑 This will now catch your click instantly!
+    st.stop() # 🛑 This will now force the page to render!
     
     import datetime  
     import pandas as pd
