@@ -2680,8 +2680,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         
-        # Display the custom print dashboard inside your Streamlit portal interface context
-        st.components.html(composite_html_payload, height=900, scrolling=True)
+        # 👑 FIX: Import and use the correct components v1 namespace path
+        import streamlit.components.v1 as components
+        components.html(composite_html_payload, height=900, scrolling=True)
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
