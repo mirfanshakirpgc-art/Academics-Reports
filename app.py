@@ -330,10 +330,9 @@ elif menu_choice == "➕ Add Students":
     
     try:
         session_options = AVAILABLE_SESSIONS
-        if "2024-26" in session_options:
-            session_options = [s for s in session_options if s != "2024-26"]
-        if "2027-29" not in session_options:
-            session_options.append("2027-29")
+        # Ensures 2026-28 is explicitly visible and doesn't get dropped by legacy filter checks
+        if "2026-28" not in session_options:
+            session_options.append("2026-28")
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
         
@@ -381,10 +380,16 @@ elif menu_choice == "➕ Add Students":
             selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
         
         selected_discipline = "INFORMATION_TECHNOLOGY"
+        
+        # --- COMPLETED FALLBACK AND LOOKUP LOGIC ---
         available_sections = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(selected_class, ["DIT_B", "DIT_G"])
+        cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
         
         with c4:
-            selected_section = st.selectbox("📋 3. Select Target Section:", available_sections, key="add_stu_sec_semester")
+            if cleaned_sections:
+                selected_section = st.selectbox("📋 3. Select Target Section:", cleaned_sections, key="add_stu_sec_semester")
+            else:
+                selected_section = st.text_input("📋 3. Enter Target Section Manually:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
 
     st.markdown("---")
     
