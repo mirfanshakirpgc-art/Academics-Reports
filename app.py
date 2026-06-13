@@ -1077,6 +1077,34 @@ if menu_choice == "📅 Attendance Entry Management":
         
     # Calculate matching index dynamically so it snaps to your Settings dashboard choice
     default_index = session_options.index(active_session) if active_session in session_options else 0
+
+    st.markdown("## 📅 Daily Attendance Roster Sheet")
+    st.markdown("---")
+
+    # --- HORIZONTAL FILTER LAYOUT ROW ---
+    col_sess, col_sys, col_level, col_sec = st.columns(4)
+    
+    with col_sess:
+        # 🚀 FIXED: selectbox now uses the dynamically calculated default_index
+        selected_session = st.selectbox(
+            "Select Session:", 
+            options=session_options, 
+            index=default_index, 
+            key="attendance_entry_session_select"
+        )
+        
+    with col_sys:
+        # Keep your existing system layout selectbox code here...
+        # e.g., selected_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
+        pass
+        
+    with col_level:
+        # Keep your existing class level layout selectbox code here...
+        pass
+        
+    with col_sec:
+        # Keep your existing section selection layout selectbox code here...
+        pass
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
