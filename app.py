@@ -3266,8 +3266,14 @@ elif menu_choice == "🎓 Promote Students":
     st.subheader("🔍 Step 1: Select Source Student Pool")
     src_c1, src_c2, src_c3 = st.columns(3)
     
+    # 🚀 DYNAMIC STATE INTEGRATION: Link up dropdowns straight to Settings State tracking memory
+    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
+    active_session = st.session_state.get("current_session", "2026-28")
+    default_index = session_options.index(active_session) if active_session in session_options else 0
+    
     with src_c1:
-        promo_session = st.selectbox("Source Academic Session:", AVAILABLE_SESSIONS, index=1, key="promo_src_sess")
+        # Synced dynamically to focus straight on your global administrative choice
+        promo_session = st.selectbox("Source Academic Session:", session_options, index=default_index, key="promo_src_sess")
     with src_c2:
         source_class = st.selectbox("Current Class Level:", ["11th", "12th"], index=0, key="promo_src_class")
     with src_c3:
@@ -3409,11 +3415,13 @@ elif menu_choice == "🎓 Promote Students":
                         old_sess = str(row['session']).strip()
                         new_sec = target_section.strip().upper()
 
+                        # Log previous state parameters into history tracker array
                         execute_db_command("""
                             INSERT INTO promotion_history (student_id, old_class, old_section, old_session, new_class, new_section, batch_id)
                             VALUES (:s_id, :old_cls, :old_sec, :old_sess, :new_cls, :new_sec, :b_id)
                         """, {"s_id": s_id, "old_cls": old_cls, "old_sec": old_sec, "old_sess": old_sess, "new_cls": next_class, "new_sec": new_sec, "b_id": batch_identifier})
 
+                        # Execute state change into master student directory record
                         execute_db_command("""
                             UPDATE students 
                             SET class = :next_cls, section = :next_sec, session = :new_sess
