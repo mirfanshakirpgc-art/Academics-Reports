@@ -763,20 +763,18 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
     }
 
-    # CSS Injection to force strict line-heights and vertical flexbox centering across columns
+    # Enhanced CSS to cancel out empty collapsed label blocks inside columns
     st.markdown("""
         <style>
-            .entry-row-container {
-                display: flex;
-                align-items: center;
-                min-height: 55px;
-                padding: 4px 0px;
-                border-bottom: 1px solid #f1f5f9;
-            }
             .vertical-align-center {
                 display: flex;
                 align-items: center;
-                height: 38px;
+                height: 40px; /* Matches standard Streamlit text input height exactly */
+            }
+            /* Strip the native top layout margins from naked collapsed checkboxes */
+            div[data-testid="stCheckbox"] {
+                margin-top: 8px !important;
+                padding-top: 0px !important;
             }
             .main-module-card { 
                 background-color: #ffffff; 
@@ -914,7 +912,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
-                    # --- NATIVE INLINE FOCUS SHIFT JS via data-testid/aria-label hooks ---
+                    # --- FOCUS SHIFT JAVASCRIPT ENGINE ---
                     st.components.v1.html("""
                         <script>
                             const rootDoc = window.parent.document;
@@ -956,7 +954,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     with st.form(f"bulk_marks_form_{sel_exam}_{sel_subject}"):
                         updated_section_scores = {}
                         
-                        # LEDGER MAIN HEADERS BLOCK
+                        # LEDGER HEADERS
                         h_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
                         h_cols[0].caption("🆔 **Roll No**")
                         h_cols[1].caption("👤 **Student Name**")
@@ -965,7 +963,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         h_cols[4].caption("➖ **NC**")
                         st.markdown("<hr style='margin:2px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
                         
-                        # ROW ITERATION
+                        # DATA ROWS
                         for idx, row in roster_df.iterrows():
                             student_id = int(row['ID'])
                             student_name = str(row['Student Name']).upper()
@@ -990,7 +988,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 r_cols[1].markdown(f"<div class='vertical-align-center' style='font-size: 0.9rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
                                 
                                 with r_cols[2]:
-                                    # Used label to assign unique identifiable aria-label signatures for JavaScript navigation
                                     score_input = st.text_input(
                                         f"sec_field_m_{student_id}_{idx}", 
                                         value=display_score, 
@@ -1001,14 +998,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     )
                                     
                                 with r_cols[3]:
-                                    st.markdown('<div class="vertical-align-center">', unsafe_allow_html=True)
                                     st.checkbox("ABS", key=state_abs_key, label_visibility="collapsed")
-                                    st.markdown('</div>', unsafe_allow_html=True)
                                     
                                 with r_cols[4]:
-                                    st.markdown('<div class="vertical-align-center">', unsafe_allow_html=True)
                                     st.checkbox("NC", key=state_nc_key, label_visibility="collapsed")
-                                    st.markdown('</div>', unsafe_allow_html=True)
                                     
                             updated_section_scores[student_id] = {"marks": score_input, "abs_key": state_abs_key, "nc_key": state_nc_key}
                         
@@ -1179,14 +1172,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 )
                                 
                             with s_cols[2]:
-                                st.markdown('<div class="vertical-align-center">', unsafe_allow_html=True)
                                 st.checkbox("S_ABS", key=s_abs_key, label_visibility="collapsed")
-                                st.markdown('</div>', unsafe_allow_html=True)
                                 
                             with s_cols[3]:
-                                st.markdown('<div class="vertical-align-center">', unsafe_allow_html=True)
                                 st.checkbox("S_NC", key=s_nc_key, label_visibility="collapsed")
-                                st.markdown('</div>', unsafe_allow_html=True)
                                 
                         updated_scores[sub_slug] = {"marks": score_input, "abs_key": s_abs_key, "nc_key": s_nc_key}
 
