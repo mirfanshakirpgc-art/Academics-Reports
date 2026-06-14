@@ -2688,28 +2688,59 @@ if menu_choice == "📈 Multi-Test Progress Report":
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 if menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
+
+    st.title("🪪 Student Result Cards — Print Engine")
+
+    # 1. CORE FILTERS REQUIRED BY USER
+    col_sel1, col_sel2, col_sel3 = st.columns(3)
+    with col_sel1:
+        selected_session = st.selectbox("📅 Select Session:", options=["2024-2026", "2025-2027", "2023-2025"])
+    with col_sel2:
+        selected_system = st.selectbox("⚙️ Select Academic System:", options=["Annual System", "Semester System"])
+    with col_sel3:
+        # Dynamically calculate class selection array based on system type
+        class_options = ["11th", "12th"] if selected_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
+        selected_class = st.selectbox("🏫 Select Class:", options=class_options)
+
+    # 2. PRINT SCOPE CONFIGURATION REQUIRED BY USER
+    print_scope = st.radio("𖨾 Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     
-    # Move them here if they belong to this page!
-    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
-    
-    print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
+    # Context-dependent UI targets
     col_c1, col_c2 = st.columns(2)
     with col_c1: 
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-    with col_c2: 
-        selected_test = st.selectbox("🎯 Select Test Term:", options=AVAILABLE_EXAMS)
+    with col_c2:
+        # Allow target section customization or fall back automatically using lookup markers
+        target_section_input = st.text_input("📋 Target Section (Leave empty to auto-detect from Student ID):").upper().strip()
 
-    if search_id and search_id.isdigit() and selected_test:
-        base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
+    if search_id and search_id.isdigit():
+        # Clean verification pull restricted directly by user choices
+        base_student = run_query(
+            "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
+            {"id": int(search_id), "session": selected_session}
+        )
+        
         if not base_student.empty:
-            target_section = base_student['section'].iloc[0].upper().strip()
+            detected_section = base_student['section'].iloc[0].upper().strip()
+            detected_class = base_student['class'].iloc[0]
+            
+            # Reassign variable matching filter scope
+            active_section = target_section_input if target_section_input else detected_section
             
             if print_scope == "👥 Complete Section Cards":
-                students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
+                students_to_print = run_query(
+                    "SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) AND session = :session AND class = :class ORDER BY id ASC", 
+                    {"section": active_section, "session": selected_session, "class": selected_class}
+                )
             else:
-                students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": base_student['class'].iloc[0]}])
+                students_to_print = pd.DataFrame([{
+                    "id": int(search_id), 
+                    "name": base_student['name'].iloc[0], 
+                    "section": detected_section, 
+                    "class": detected_class
+                }])
 
-            # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND LAYOUT
+            # HTML ENGINE GENERATION LOOP
             compiled_html = """
             <!DOCTYPE html>
             <html>
@@ -2720,16 +2751,13 @@ if menu_choice == "🪪 Student Result Cards":
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
                 
-                /* VERTICAL BLOCK HEADER LAYOUT */
                 .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
                 .logo-row { display: block; width: 100%; margin-bottom: 12px; }
                 .logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
                 
                 .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
-                .inst-sub-header { font-size: 13px; font-weight: normal; margin: 4px 0 0 0; text-align: center; color: #444; width: 100%; }
                 .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
                 
-                /* THE HORIZONTAL STRUCTURAL GRID */
                 .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
                 .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
                 .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
@@ -2740,7 +2768,6 @@ if menu_choice == "🪪 Student Result Cards":
                 
                 .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
                 
-                /* HORIZONTAL ATTENDANCE LAYOUT */
                 .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
                 .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
                 .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
@@ -2750,7 +2777,6 @@ if menu_choice == "🪪 Student Result Cards":
                 .footer-signatures-table td { border: none; }
                 .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
                 
-                /* CONTROL ACTIONS BUTTONS BAR styling wrapper element */
                 .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
                 .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
                 .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
@@ -2771,7 +2797,6 @@ if menu_choice == "🪪 Student Result Cards":
                     <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
                     <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
                 </div>
-             Meso-container
             """
 
             for idx, student_row in students_to_print.iterrows():
@@ -2779,38 +2804,18 @@ if menu_choice == "🪪 Student Result Cards":
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).upper()
-                test_name = selected_test.upper()
                 
-                # Dynamic matching utilizing DISCIPLINE_SECTIONS_MAP 
-                matched_disp = "MEDICAL"
-                for disp, secs_by_class in DISCIPLINE_SECTIONS_MAP.items():
-                    # Handle both flat lists and multi-level class dictionary definitions
-                    if isinstance(secs_by_class, dict):
-                        for class_key, sections_list in secs_by_class.items():
-                            if section in [x.upper().strip() for x in sections_list]:
-                                matched_disp = disp
-                                break
-                    elif isinstance(secs_by_class, list):
-                        if section in [x.upper().strip() for x in secs_by_class]:
-                            matched_disp = disp
-                            break
-                
-                # Safe lookups on shared session states to bypass original NameErrors
-                current_academic_system = st.session_state.get('academic_system', 'Annual System')
-                if current_academic_system == "Semester System" or "SEMESTER" in grade_class:
-                    subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(student_row['class'], ["ICT"])
+                # Assign subject list targets dynamically based on runtime choices
+                if selected_system == "Semester System":
+                    subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT"])
                 else:
-                    clean_class_key = "12th" if "12" in grade_class or any(k in section for k in ["MQ", "MK", "EQ", "EK", "CQ", "CK", "IK", "IQ", "FK", "FQ"]) else "11th"
-                    subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(clean_class_key, ["ENGLISH", "URDU"])
+                    matched_disp = "ICS" if any(k in section for k in ["ICS", "CQ", "CK"]) else "MEDICAL"
+                    subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, ["ENGLISH", "URDU"])
                 
-                raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
+                raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
+                db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # Fetch full complete sequence ledger dataset for attendance matrix tracking
-                db_att = run_query("""
-                    SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
-                    FROM attendance WHERE student_id = :id
-                """, {"id": current_id})
-                
+                # Compile attendance metric matrices
                 att_cells = {}
                 tot_sum, pres_sum = 0, 0
                 for m in AVAILABLE_MONTHS:
@@ -2826,19 +2831,12 @@ if menu_choice == "🪪 Student Result Cards":
                     else:
                         att_cells[m] = {"td": "", "pd": "", "pct": ""}
                 
-                # Determine overall attendance percentage figure
-                attendance_percentage = 0.0
-                if tot_sum > 0:
-                    attendance_percentage = (pres_sum / tot_sum) * 100
-                        
+                attendance_percentage = (pres_sum / tot_sum) * 100 if tot_sum > 0 else 0.0
                 overall_pct_str = f"{int(attendance_percentage)}%" if tot_sum > 0 else ""
                 att_cells["Over All Att."] = {"td": str(tot_sum) if tot_sum > 0 else "", "pd": str(pres_sum) if tot_sum > 0 else "", "pct": overall_pct_str}
 
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-                
-                # Reset grand totals for this student card
-                grand_total_marks = 0.0
-                grand_obtained_marks = 0.0
+                grand_total_marks, grand_obtained_marks = 0.0, 0.0
                 
                 compiled_html += f"""
                 <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
@@ -2849,15 +2847,15 @@ if menu_choice == "🪪 Student Result Cards":
                         <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                     </div>
                     
-                    <div class="doc-type-banner"> Result Card</div>
+                    <div class="doc-type-banner">{selected_system.upper()} ASSESSMENT MATRIX</div>
                     
                     <table class="meta-layout-table">
                         <tr>
-                            <td style="width: 40%;"> Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                            <td style="width: 14%;"> ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
-                            <td style="width: 16%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
-                            <td style="width: 14%;"> Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 16%;"> Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td>
+                            <td style="width: 35%;"> Name: <span class="underlined-value-span" style="width: 80%;">{name}</span></td>
+                            <td style="width: 15%;"> ID: <span class="underlined-value-span" style="width: 70%;">{current_id}</span></td>
+                            <td style="width: 15%;"> Section: <span class="underlined-value-span" style="width: 60%;">{section}</span></td>
+                            <td style="width: 15%;"> Class: <span class="underlined-value-span" style="width: 60%;">{selected_class}</span></td>
+                            <td style="width: 20%;"> Session: <span class="underlined-value-span" style="width: 65%;">{selected_session}</span></td>
                         </tr>
                     </table>
                     
@@ -2880,8 +2878,9 @@ if menu_choice == "🪪 Student Result Cards":
 
                 for sub in subjects_list:
                     sub_clean = sub.upper().strip()
-                    match = raw_marks[(raw_marks['subject'] == sub_clean) & (raw_marks['exam_type'] == selected_test)]
+                    match = raw_marks[raw_marks['subject'] == sub_clean]
                     obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
+                    
                     if not match.empty:
                         try:
                             obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
@@ -2904,11 +2903,8 @@ if menu_choice == "🪪 Student Result Cards":
                                 grand_obtained_marks += num_obt
                                 grand_total_marks += tot_marks_num
                                 has_valid_marks_data = True
-                                
-                                if num_obt >= pass_marks_num:
-                                    status_disp = "Pass"
-                                else:
-                                    status_disp = "Fail"
+                                status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
+                                if num_obt < pass_marks_num:
                                     student_failed_any_subject = True
                         except Exception: 
                             pass
@@ -2926,33 +2922,18 @@ if menu_choice == "🪪 Student Result Cards":
                     </tr>
                     """
                 
-                # Grand Total calculation row
-                grand_per_disp = ""
-                grand_status_disp = ""
-                if has_valid_marks_data and grand_total_marks > 0:
-                    grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
-                    grand_status_disp = "Fail" if student_failed_any_subject else "Pass"
+                grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else ""
+                grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else ""
 
-                # --- ALGORITHMIC AUTOMATED REMARKS ENGINE ---
                 remarks_text = "No records found."
                 if has_valid_marks_data:
                     if student_failed_any_subject:
-                        if tot_sum > 0 and attendance_percentage < 85.0:
-                            remarks_text = "Unsatisfactory academic status with critical attendance below acceptable 85% benchmark. Immediate improvement required."
-                        else:
-                            remarks_text = "Academic failure detected in one or more subjects. Needs focused remedial attention and harder work."
+                        remarks_text = "Unsatisfactory record with structural failure status across modules. Remedial attention required."
                     else:
                         grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
-                        
-                        if tot_sum > 0 and attendance_percentage < 85.0:
-                            remarks_text = f"Good academic performance ({grand_percentage:.0f}%), but attendance is short ({attendance_percentage:.0f}%). Needs to maintain minimum 85% attendance."
-                        else:
-                            if grand_percentage >= 80:
-                                remarks_text = "Excellent work! Exceptional academic progress and highly commendable attendance performance."
-                            elif grand_percentage >= 60:
-                                remarks_text = "Good overall performance. Capable of achieving higher results with consistent effort."
-                            else:
-                                remarks_text = "Fair performance. Has passed all subjects but possesses significant potential to increase scores."
+                        if grand_percentage >= 80: remarks_text = "Excellent work! Commendable conceptual metrics."
+                        elif grand_percentage >= 60: remarks_text = "Good overall standing. Capable of higher development with effort."
+                        else: remarks_text = "Fair tracking markers. Possesses clear scope for upgrade."
 
                 compiled_html += f"""
                             <tr style="background-color: #fff; font-weight: bold;">
@@ -2966,8 +2947,7 @@ if menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <div class="section-header-title">Attendance Report</div>
-                    
+                    <div class="section-header-title">Attendance Matrix Metrics</div>
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
@@ -3009,17 +2989,13 @@ if menu_choice == "🪪 Student Result Cards":
                 <div class="print-page-break-divider"></div>
                 """
                 
-            # INJECT JAVASCRIPT ASYNC IMAGE CAPTURE INTERFACE LOGIC
             compiled_html += """
             <script>
-                // 1. Save Current / First visible student card layout asset configuration
                 document.getElementById('save-single-card-trigger').addEventListener('click', function() {
                     const targetCard = document.querySelector('.official-card-container');
-                    if (!targetCard) return alert("No active result card engine target detected.");
-                    
+                    if (!targetCard) return alert("No active layout configuration found.");
                     const sName = targetCard.getAttribute('data-student-name') || "student";
                     const sId = targetCard.id || "result";
-                    
                     html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
                         const dlLink = document.createElement('a');
                         dlLink.download = `${sId}_${sName}.png`;
@@ -3028,40 +3004,31 @@ if menu_choice == "🪪 Student Result Cards":
                     });
                 });
 
-                // 2. Iterative loop rendering pipeline logic to build and download a compressed ZIP package file mapping
                 document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
                     const allCards = document.querySelectorAll('.official-card-container');
-                    if (allCards.length === 0) return alert("Empty stack context scope configuration payload mapping.");
-                    
+                    if (allCards.length === 0) return alert("Empty print loop targets stack matching configurations.");
                     const actionBtn = this;
                     const primaryLabel = actionBtn.innerText;
                     actionBtn.innerText = "⏳ Generating Archive Images...";
                     actionBtn.disabled = true;
-                    
                     const archiveBundle = new JSZip();
-                    
                     try {
                         for(let index = 0; index < allCards.length; index++) {
                             const currentCard = allCards[index];
                             const cardIdStr = currentCard.id || `card_${index}`;
                             const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
-                            
-                            // High DPI scale conversion setup to ensure text rendering elements stay perfectly crisp
                             const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                             const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
-                            
                             archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
                         }
-                        
                         const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
                         const dlLink = document.createElement('a');
                         dlLink.download = "Section_Result_Cards_Archive.zip";
                         dlLink.href = URL.createObjectURL(compiledZipBlob);
                         dlLink.click();
-                        
                     } catch (error) {
                         console.error(error);
-                        alert("An engine configuration runtime execution interruption occurred.");
+                        alert("An error occurred compiling image packages.");
                     } finally {
                         actionBtn.innerText = primaryLabel;
                         actionBtn.disabled = false;
@@ -3071,13 +3038,12 @@ if menu_choice == "🪪 Student Result Cards":
             </body>
             </html>
             """
+            components.html(compiled_html, height=850, scrolling=True)
+        else:
+            st.warning("⚠️ No student records match the given Roll ID and Session selection details inside our ledger tracking data.")
             
-            # Render layout view frame container component
-            components.html(compiled_html, height=800, scrolling=True)
-            
-    # Sub-navigation tabs layout parsing matching the template schema requirements
+    # Audit log tables map out securely at base structural indentation layout
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
-
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
