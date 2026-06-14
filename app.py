@@ -2932,13 +2932,18 @@ elif menu_choice == "🪪 Student Result Cards":
                         tot_marks_num = int(tot_val) if tot_val else 100
                         pass_marks_num = int(tot_marks_num * 0.4)
                         
+                        # Requirement 1: Handled NC Status logic
                         if obt_val == "NC":
                             obt_disp, per_disp, status_disp = "NC", "NC", "NC"
+                            # Skipped: total marks are not processed or combined into grand_total_marks
+
+                        # Requirement 2: Handled Absent Status logic
                         elif obt_val in ["A", "ABSENT"]:
                             obt_disp, per_disp, status_disp = "A", "0%", "Fail"
-                            grand_total_marks += tot_marks_num
+                            grand_total_marks += tot_marks_num  # Added to Total Calculation boundary
                             student_failed_any_subject = True
                             has_valid_marks_data = True
+                            
                         elif obt_val.replace('.', '', 1).isdigit():
                             num_obt = float(obt_val)
                             obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
@@ -2953,6 +2958,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     except Exception: 
                         pass
                 else:
+                    # Generic structure fallback when entry dataset does not exist
                     grand_total_marks += 100
                 
                 compiled_html += f"""
@@ -3061,7 +3067,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
