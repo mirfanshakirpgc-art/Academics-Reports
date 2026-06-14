@@ -2695,17 +2695,28 @@ elif menu_choice == "🪪 Student Result Cards":
     # DYNAMIC DATA EXTRACTION FROM ADMINISTRATIVE SETTINGS SCHEMA
     # ==============================================================================
     try:
-        # Fetch active academic sessions from database
+        # 1. Fetch active academic sessions from database
         db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
         session_list = db_sessions['session_name'].tolist() if not db_sessions.empty else ["2024-2026", "2025-2027"]
         
-        # Fetch active sections from database
-        db_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
-        section_master_list = db_sections['section_name'].str.upper().str.strip().tolist() if not db_sections.empty else []
+        # 2. Dynamic Synchronization: Pull all active registered operational tracks from database 
+        db_disciplines = run_query("""
+            SELECT DISTINCT discipline_name 
+            FROM system_subjects_mapping 
+            WHERE discipline_name IS NOT NULL AND discipline_name != ''
+            ORDER BY discipline_name ASC
+        """)
+        
+        if not db_disciplines.empty:
+            discipline_options = db_disciplines['discipline_name'].str.upper().str.strip().tolist()
+        else:
+            # Fallback if maps haven't been compiled in sub-module 6 yet
+            discipline_options = ["ICS", "MEDICAL", "ICS_STATS"]
+
     except Exception as e:
         st.error(f"⚠️ Error initializing metadata tracks from settings: {e}")
         session_list = ["2024-2026", "2025-2027"]
-        section_master_list = []
+        discipline_options = ["ICS", "MEDICAL", "ICS_STATS"]
 
     # 1. CORE SEARCH FILTERS
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
@@ -2760,19 +2771,48 @@ elif menu_choice == "🪪 Student Result Cards":
     else: # Complete Section Cards Mode
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
-            selected_discipline = st.selectbox("🧬 Select Discipline:", options=["ICS", "MEDICAL"])
+            # Synchronized Dropdown loaded directly from mapping schema!
+            selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
+        
         with col_sec2:
-            filtered_sections = [s for s in section_master_list if selected_discipline in s] if section_master_list else []
-            if not filtered_sections:
-                filtered_sections = section_master_list if section_master_list else ["CB_GREEN", "CG_BLUE"]
-                
+            # Fetch matching class sections dynamically assigned to this class and session structure
+            db_filtered_sections = run_query("""
+                SELECT DISTINCT section_name FROM system_sections 
+                WHERE status = 'ACTIVE' 
+                AND (UPPER(discipline_association) = :disp OR UPPER(section_name) LIKE :disp_wildcard)
+                ORDER BY section_name ASC
+            """, {
+                "disp": str(selected_discipline).upper().strip(),
+                "disp_wildcard": f"%{str(selected_discipline).upper().strip()}%"
+            })
+            
+            # Context Switch Fallback logic
+            if not db_filtered_sections.empty:
+                filtered_sections = db_filtered_sections['section_name'].str.upper().str.strip().tolist()
+            else:
+                # Intelligent string matcher if formal database relations are unassigned
+                db_all_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE'")
+                if not db_all_sections.empty:
+                    all_sects = db_all_sections['section_name'].str.upper().str.strip().tolist()
+                    if "STATS" in selected_discipline:
+                        filtered_sections = [s for s in all_sects if "STATS" in s]
+                    elif "MEDICAL" in selected_discipline:
+                        filtered_sections = [s for s in all_sects if "GREEN" in s or "WHITE" in s] # Matches default Medical color metrics
+                    else:
+                        filtered_sections = [s for s in all_sects if "STATS" not in s and "GREEN" not in s]
+                else:
+                    filtered_sections = ["CB_GREEN"] if "MEDICAL" in selected_discipline else ["CB_STATS"]
+
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
         if active_section and selected_test_code:
-            students_to_print = run_query(
-                "SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) AND session = :session AND class = :class ORDER BY id ASC", 
-                {"section": active_section, "session": selected_session, "class": selected_class}
-            )
+            students_to_print = run_query("""
+                SELECT id, name, section, class FROM students 
+                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                AND session = :session 
+                AND class = :class 
+                ORDER BY id ASC
+            """, {"section": active_section, "session": selected_session, "class": selected_class})
 
     # 3. HTML ENGINE RUNTIME
     if not students_to_print.empty:
@@ -2828,7 +2868,6 @@ elif menu_choice == "🪪 Student Result Cards":
             </div>
         """
 
-        # Normalized Month Headers to prevent formatting mismatch drops
         DISPLAY_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 
         for idx, student_row in students_to_print.iterrows():
@@ -2841,7 +2880,8 @@ elif menu_choice == "🪪 Student Result Cards":
             if selected_system == "Semester System":
                 subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT"])
             else:
-                matched_disp = "ICS" if any(k in section for k in ["ICS", "CQ", "CK"]) else "MEDICAL"
+                # Dynamically choose curriculum map based on verified discipline track
+                matched_disp = "ICS" if "ICS" in section and "STATS" not in section else "ICS_STATS" if "STATS" in section else "MEDICAL"
                 subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, 
                                 ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"])
             
@@ -2850,19 +2890,15 @@ elif menu_choice == "🪪 Student Result Cards":
                 {"id": current_id, "exam_type": selected_test_code}
             )
             
-            # Fetch attendance and convert everything to upper case to guarantee accurate matches
             db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
             
             att_cells = {}
             tot_sum, pres_sum = 0, 0
             
             for m in DISPLAY_MONTHS:
-                # Create flexible comparison anchors (removes punctuation dots and excess spaces)
                 clean_m = m.upper().replace('.', '').strip()
-                
                 match_att = pd.DataFrame()
                 if not db_att.empty:
-                    # Match against month variations (e.g. 'AUG' or 'AUGUST')
                     match_att = db_att[
                         db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m[:3])
                     ]
