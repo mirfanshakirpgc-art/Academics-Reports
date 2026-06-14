@@ -2683,8 +2683,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
         components.html(composite_html_payload, height=900, scrolling=True)
 
 # --- END OF MULTI-TEST REPORT LOGIC ---
-    # Make sure these lines are indented by 4 spaces!
-    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 
 # ==============================================================================
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
