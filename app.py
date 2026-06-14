@@ -2807,6 +2807,23 @@ elif menu_choice == "🪪 Student Result Cards":
     # --------------------------------------------------------------------------
     # PART 4: DATA FETCHING & DISCIPLINE STABILIZATION LOGIC
     # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # Temporary Diagnostic Engine (Remove after debugging)
+    # --------------------------------------------------------------------------
+    if submit_execution and print_scope == "👤 Single Student Card" and search_id:
+        diag_query = run_query(f"SELECT id, name, class, discipline FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
+        if not diag_query.empty:
+            st.info("🔍 **Diagnostics Output for Single Student Lookup:**")
+            st.json({
+                "Database ID": str(diag_query['id'].iloc[0]),
+                "Student Name": str(diag_query['name'].iloc[0]),
+                "Class Column": str(diag_query['class'].iloc[0]),
+                "Discipline Column (Raw)": f"'{diag_query['discipline'].iloc[0]}'",
+                "Discipline Column (Length)": len(str(diag_query['discipline'].iloc[0]))
+            })
+        else:
+            st.error(f"❌ Diagnostics Failure: No student found with ID '{search_id}' in session '{selected_session}'.")
+    # --------------------------------------------------------------------------
     students_to_print = pd.DataFrame()
 
     if submit_execution:
