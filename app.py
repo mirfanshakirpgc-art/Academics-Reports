@@ -4233,90 +4233,39 @@ elif menu_choice == "⚙️ Settings":
             else:
                 st.info("No faculty profiles are currently registered.")
 
-        # ==============================================================================
-        # SUB-MODULE 2: SESSIONS & TERMS - INSIDE TAB1
-        # ==============================================================================
-        elif sub_menu == "📅 Sessions & Terms":
-            st.subheader("📅 Academic Session Management")
-            
-            if current_role == 'controller':
-                with st.form("session_reg_form", clear_on_submit=True):
-                    col_s1, col_s2 = st.columns(2)
-                    with col_s1:
-                        new_session_name = st.text_input("Session Code/Year:", placeholder="e.g. 2025-27")
-                    with col_s2:
-                        new_session_status = st.selectbox("Session Status:", options=["ACTIVE", "INACTIVE"])
-                        
-                    submit_session = st.form_submit_button("💾 Save Session to Registry")
-                    
-                    if submit_session:
-                        if new_session_name.strip() == "":
-                            st.error("Session Name is required.")
-                        else:
-                            check_existing = run_query("SELECT id FROM academic_sessions WHERE UPPER(TRIM(session_name)) = UPPER(TRIM(:name))", {"name": new_session_name.strip()})
-                            
-                            if check_existing.empty:
-                                run_update("""
-                                    INSERT INTO academic_sessions (session_name, status)
-                                    VALUES (:name, :status)
-                                """, {
-                                    "name": new_session_name.strip(),
-                                    "status": new_session_status
-                                })
-                                st.success(f"🎉 Successfully registered session '{new_session_name.strip()}'!")
-                                st.rerun()
-                            else:
-                                st.warning("A session with this name already exists.")
-                                
-            st.markdown("---")
-            st.write("#### Registered Academic Sessions")
-            
-            current_sessions = pd.DataFrame()
-            try:
-                current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
-            except Exception as e:
-                st.error(f"⚠️ Failed to read session records from database: {e}")
-                
-            if not current_sessions.empty:
-                st.dataframe(current_sessions, use_container_width=True, hide_index=True)
-                
-                st.markdown("### 🛠️ Manage Existing Academic Sessions")
-                session_list = [f"{row['ID']} - {row['Session Name']}" for _, row in current_sessions.iterrows()]
-                selected_sess_str = st.selectbox("Select a Session to Modify or Remove:", session_list, key="manage_sess_select")
-                
-                if selected_sess_str:
-                    selected_sess_id = int(selected_sess_str.split(" - ")[0])
-                    target_sess_row = current_sessions[current_sessions['ID'] == selected_sess_id].iloc[0]
-                    
-                    with st.form("edit_session_form"):
-                        updated_sess_name = st.text_input("Change Session Code/Year:", value=str(target_sess_row['Session Name'])).strip()
-                        updated_sess_status = st.selectbox("Change Session Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sess_row['Status'] == 'ACTIVE' else 1)
-                        
-                        col_su, col_sd = st.columns(2)
-                        with col_su:
-                            save_sess = st.form_submit_button("💾 Save Session Changes", type="primary", use_container_width=True)
-                        with col_sd:
-                            confirm_sess_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sess_chk")
-                            delete_sess = st.form_submit_button("🗑️ Delete Session Permanently", type="secondary", use_container_width=True)
-                            
-                    if save_sess:
+        if save_sess:
                         if not updated_sess_name:
                             st.error("Session Code/Year cannot be left blank.")
                         else:
                             try:
                                 with engine.begin() as conn:
-                                    conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), 
-                                                 {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
-    except Exception as db_error:
-        st.error(f"Database operation failed: {db_error}")
-        
-    # Fallback block for the sub_menu routing if an invalid/empty menu item is found
-    else:
-        st.info("Please select a management sub-module from the navigation menu.")
+                                    conn.execute(
+                                        text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), 
+                                        {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id}
+                                    )
+                                st.success("💾 Session configurations updated successfully!")
+                                st.rerun()
+                            except Exception as db_error:
+                                st.error(f"Database operation failed: {db_error}")
+
+                    if delete_sess:
+                        if not confirm_sess_del:
+                            st.warning("🔒 Please check the 'Confirm complete deletion' box before deleting.")
+                        else:
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("DELETE FROM academic_sessions WHERE id = :id"), {"id": selected_sess_id})
+                                st.success("🗑️ Session permanently removed from records.")
+                                st.rerun()
+                            except Exception as db_error:
+                                st.error(f"Failed to delete session record: {db_error}")
 
 # ====================================================================================
-# STRICT APP TEARDOWN LAYER & CONTEXT CLEANUP
+# GLOBAL ROUTING SAFETY NET & APP TEARDOWN LAYER
 # ====================================================================================
+        else:
+            st.info("Please select a management sub-module from the navigation menu.")
+
 if __name__ == "__main__":
     try:
         # Final safety initialization or sanity tracking can be run here if needed.
