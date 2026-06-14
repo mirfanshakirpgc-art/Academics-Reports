@@ -109,7 +109,7 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Create students table with system_type tracking columns
+        # 1. Create students table with system_type and discipline tracking columns
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
@@ -117,16 +117,25 @@ def initialize_database():
                 section VARCHAR(100),
                 class VARCHAR(100),
                 session VARCHAR(50),
+                discipline VARCHAR(100),
                 status VARCHAR(50) DEFAULT 'ACTIVE',
                 system_type VARCHAR(50) DEFAULT 'Annual System'
             );
         """))
         
-        # 2. Safe Patch: Force-inject system_type column into existing Supabase tables
+        # 2. Safe Patch: Force-inject system_type and discipline columns into existing Supabase tables
         try:
             conn.execute(text("""
                 ALTER TABLE students 
                 ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';
+            """))
+        except Exception:
+            pass # Skips quietly if the column already exists
+
+        try:
+            conn.execute(text("""
+                ALTER TABLE students 
+                ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);
             """))
         except Exception:
             pass # Skips quietly if the column already exists
