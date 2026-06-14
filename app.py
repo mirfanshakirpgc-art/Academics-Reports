@@ -2771,41 +2771,41 @@ elif menu_choice == "🪪 Student Result Cards":
     else: # Complete Section Cards Mode
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
-            # Synchronized Dropdown loaded directly from mapping schema!
+            # Dropdown derived safely from sub-module 6's distinct disciplines
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
         
         with col_sec2:
-            # Clean and isolate discipline string cleanly
             clean_disp_param = str(selected_discipline).upper().strip()
+            filtered_sections = []
 
-            # Using standard SQL string concatenation avoids breaking pandas parameters!
-            db_filtered_sections = run_query("""
-                SELECT DISTINCT section_name 
-                FROM system_sections 
-                WHERE status = 'ACTIVE' 
-                AND (
-                    UPPER(discipline_association) = :disp 
-                    OR UPPER(section_name) LIKE '%' || :disp || '%'
-                )
-                ORDER BY section_name ASC
-            """, {"disp": clean_disp_param})
-            
-            # Context Switch Fallback logic
-            if not db_filtered_sections.empty:
-                filtered_sections = db_filtered_sections['section_name'].str.upper().str.strip().tolist()
-            else:
-                # Intelligent string matcher fallback if table records are empty
-                db_all_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE'")
+            try:
+                # 1. Pull all active sections safely from the system table
+                db_all_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
+                
                 if not db_all_sections.empty:
                     all_sects = db_all_sections['section_name'].str.upper().str.strip().tolist()
+                    
+                    # 2. Match section strings against active discipline keys via Python logic (zero SQL dependency)
                     if "STATS" in clean_disp_param:
                         filtered_sections = [s for s in all_sects if "STATS" in s]
                     elif "MEDICAL" in clean_disp_param:
                         filtered_sections = [s for s in all_sects if "GREEN" in s or "WHITE" in s]
+                    elif "ICS" in clean_disp_param:
+                        # Matches general ICS sections (e.g., CB_BLUE, CG_BLUE) while isolating stats variants
+                        filtered_sections = [s for s in all_sects if "STATS" not in s and "GREEN" not in s and "WHITE" not in s]
                     else:
-                        filtered_sections = [s for s in all_sects if "STATS" not in s and "GREEN" not in s]
+                        # Catch-all fallback match for custom sub-module 6 discipline additions
+                        filtered_sections = [s for s in all_sects if clean_disp_param in s or any(part in s for part in clean_disp_param.split('_'))]
+                    
+                    # Last line of defense if custom rules yield empty results
+                    if not filtered_sections:
+                        filtered_sections = all_sects
                 else:
                     filtered_sections = ["CB_GREEN"] if "MEDICAL" in clean_disp_param else ["CB_STATS"]
+                    
+            except Exception as section_err:
+                # Absolute failure safety net
+                filtered_sections = ["CB_GREEN", "CB_STATS", "CB_BLUE"]
 
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
