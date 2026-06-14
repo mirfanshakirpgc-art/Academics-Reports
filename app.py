@@ -2666,13 +2666,19 @@ if menu_choice == "📈 Multi-Test Progress Report":
     # Make sure these lines are indented by 4 spaces!
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 
-# ----------------- 🪪 STUDENT RESULT CARDS -----------------
+# ==============================================================================
+# 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (CLEAN BUILT)
+# ==============================================================================
 elif menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
+    import pandas as pd
+    import streamlit as st
 
     st.title("🪪 Student Result Cards — Print Engine")
 
-    # Exact structural mapping reference for automatic cascading dropdowns
+    # --------------------------------------------------------------------------
+    # PART 1: MASTER REFERENCE DICTIONARIES (SINGLE SOURCE OF TRUTH)
+    # --------------------------------------------------------------------------
     DISCIPLINE_SECTIONS_MAP = {
         "MEDICAL": {
             "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
@@ -2706,7 +2712,6 @@ elif menu_choice == "🪪 Student Result Cards":
         }
     }
 
-    # Reference copy of Sub-Module 6 dictionary maps for processing
     CLASS_SUBJECTS_MASTER_MAP = {
         "11th": {
             "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
@@ -2738,15 +2743,15 @@ elif menu_choice == "🪪 Student Result Cards":
         }
     }
 
+    # --------------------------------------------------------------------------
+    # PART 2: GLOBAL ACADEMIC ENVIRONMENT FILTERS
+    # --------------------------------------------------------------------------
     try:
         db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
         session_list = db_sessions['session_name'].tolist() if not db_sessions.empty else ["2024-2026", "2025-2027"]
-        discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
-    except Exception as e:
+    except Exception:
         session_list = ["2024-2026", "2025-2027"]
-        discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
 
-    # 1. CORE SEARCH FILTERS
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
         selected_session = st.selectbox("📅 Select Session:", options=session_list)
@@ -2767,15 +2772,17 @@ elif menu_choice == "🪪 Student Result Cards":
             selected_test_code = selected_combined_label.split(" (")[0].strip()
             selected_test_label = selected_test_code
         else:
-            fallback_options = ["MT_1 (Monthly Test 1)", "MT_2 (Monthly Test 2)", "SEND_UP (Send-Up Exam)", "PRE_BOARD (Pre-Board Exam)"]
+            fallback_options = ["MT_1 (Monthly Test 1)", "MT_2 (Monthly Test 2)", "SEND_UP (Send-Up Exam)"]
             selected_combined_label = st.selectbox("🎯 Select Test Term:", options=fallback_options)
             selected_test_code = selected_combined_label.split(" (")[0].strip()
             selected_test_label = selected_test_code
 
-    st.markdown("**𖨾 Select Print Scope:**")
-    print_scope = st.radio("Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True, label_visibility="collapsed")
+    # --------------------------------------------------------------------------
+    # PART 3: DYNAMIC INTERACTIVE FILTER SELECTION (REACTIVE & ON-THE-FLY)
+    # --------------------------------------------------------------------------
+    st.markdown("---")
+    print_scope = st.radio("𖨾 Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     
-    # These parameters must exist outside forms to remain fully reactive to user interactions
     search_id = ""
     selected_discipline = ""
     active_section = ""
@@ -2785,54 +2792,47 @@ elif menu_choice == "🪪 Student Result Cards":
     else:
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
-            selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
+            selected_discipline = st.selectbox("🧬 Select Discipline:", options=list(DISCIPLINE_SECTIONS_MAP.keys()))
         with col_sec2:
-            clean_disp = str(selected_discipline).strip()
-            clean_class = str(selected_class).upper().strip()
-            map_class_key = "11th" if "11TH" in clean_class else "12th" if "12TH" in clean_class else clean_class
-            filtered_sections = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {}).get(map_class_key, [])
-            active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
+            # Map selected class directly to our internal keys
+            clean_class_key = "11th" if "11TH" in str(selected_class).upper() else "12th" if "12TH" in str(selected_class).upper() else str(selected_class)
+            
+            # Fetch real sections bound specifically to this configuration
+            sections_pool = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(clean_class_key, [])
+            active_section = st.selectbox("📋 Select Section:", options=sections_pool)
 
-    # Simple execution handle instead of heavy container forms
-    st.markdown("<br>", unsafe_transform=True) if 'unsafe_transform' in st.markdown.__code__.co_varnames else st.write("")
-    submit_execution = st.button("🚀 Generate Result Cards", type="primary")
+    st.markdown("<br>", unsafe_allow_html=True)
+    submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
+    # --------------------------------------------------------------------------
+    # PART 4: DATA FETCHING & DISCIPLINE STABILIZATION LOGIC
+    # --------------------------------------------------------------------------
     students_to_print = pd.DataFrame()
 
     if submit_execution:
-        if print_scope == "👤 Single Student Card":
-            if search_id:
-                clean_search_id = str(search_id).strip()
-                all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
-                
-                if not all_session_students.empty:
-                    match_mask = (all_session_students['id'].astype(str).str.strip() == clean_search_id)
-                    single_student = all_session_students[match_mask]
-                    
-                    if single_student.empty:
-                        fuzzy_mask = all_session_students['id'].astype(str).str.contains(clean_search_id, case=False, na=False)
-                        single_student = all_session_students[fuzzy_mask]
-                    
-                    if not single_student.empty:
-                        students_to_print = pd.DataFrame([{
-                            "id": str(single_student['id'].iloc[0]).strip(), 
-                            "name": single_student['name'].iloc[0], 
-                            "section": single_student['section'].iloc[0].upper().strip(), 
-                            "class": single_student['class'].iloc[0],
-                            "discipline": str(single_student['discipline'].iloc[0]).strip().upper()
-                        }])
-        else:
-            if active_section:
-                all_section_data = run_query(f"""
-                    SELECT id, name, section, class, discipline FROM students 
-                    WHERE session = '{selected_session}' 
-                    AND class = '{selected_class}' 
-                    ORDER BY id ASC
-                """)
-                if not all_section_data.empty:
-                    students_to_print = all_section_data[all_section_data['section'].astype(str).str.upper().str.strip() == str(active_section).upper().strip()].copy()
+        if print_scope == "👤 Single Student Card" and search_id:
+            raw_student = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
+            if not raw_student.empty:
+                students_to_print = raw_student.copy()
+                # Single lookup takes the exact database stored string
+                students_to_print['target_discipline_string'] = students_to_print['discipline']
+        
+        elif print_scope == "👥 Complete Section Cards" and active_section:
+            section_students = run_query(f"""
+                SELECT id, name, section, class, discipline FROM students 
+                WHERE session = '{selected_session}' 
+                AND class = '{selected_class}' 
+                AND UPPER(TRIM(section)) = '{str(active_section).upper().strip()}'
+                ORDER BY id ASC
+            """)
+            if not section_students.empty:
+                students_to_print = section_students.copy()
+                # Force synchronization using what the user clicked in the UI dropdown map
+                students_to_print['target_discipline_string'] = selected_discipline
 
-    # 3. HTML RENDERING & PRINT ENGINE
+    # --------------------------------------------------------------------------
+    # PART 5: ROBUST COMPILATION LOOP & HTML RENDERING ENGINE
+    # --------------------------------------------------------------------------
     if submit_execution and not students_to_print.empty:
         compiled_html = """
         <!DOCTYPE html>
@@ -2843,44 +2843,37 @@ elif menu_choice == "🪪 Student Result Cards":
         <style>
             body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
             .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-            
             .header-block { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; width: 100%; gap: 20px; }
-            .logo-container { flex-shrink: 0; }
             .logo-img { max-height: 65px; width: auto; display: block; }
-            .inst-main-header { font-weight: bold; font-size: 30px; letter-spacing: 0.5px; margin: 0; text-transform: uppercase; text-align: center; }
-            
+            .inst-main-header { font-weight: bold; font-size: 30px; text-transform: uppercase; text-align: center; }
             .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1.5px; }
-            .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 25px; font-size: 15px; }
+            .meta-layout-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 15px; }
             .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
             .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
-            
             .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 14px; }
             .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 7px 5px; text-align: center; }
-            .doc-data-table th { font-weight: bold; background-color: #fff; text-transform: uppercase; }
-            
+            .doc-data-table th { font-weight: bold; text-transform: uppercase; }
             .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; padding-bottom: 3px; }
             .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
             .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-            .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
-            .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; }
-            
+            .attendance-matrix-table td.row-title-cell { font-weight: bold; text-align: left; padding-left: 5px; }
             .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
-            .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-            .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-            .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-            button:disabled { background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }
+            .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+            .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+            .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+            button:disabled { background: #6c757d !important; cursor: not-allowed; }
             @media print {
                 .action-controls-bar { display: none !important; }
-                .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-                .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
+                .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; }
+                .print-page-break-divider { page-break-after: always !important; }
             }
         </style>
         </head>
         <body>
             <div class="action-controls-bar">
-                <button class="print-btn" onclick="window.print();">🖨️ Print Document (Ctrl+P)</button>
-                <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
-                <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
+                <button class="print-btn" onclick="window.print();">🖨️ Print Cards (Ctrl+P)</button>
+                <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Image</button>
+                <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save All Section Cards (ZIP)</button>
             </div>
         """
 
@@ -2893,40 +2886,39 @@ elif menu_choice == "🪪 Student Result Cards":
             grade_class = str(student_row['class']).upper()
             test_name = selected_test_label.upper()
             
-            lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
-            
-            # Use selected dropdown value for section print context, database discipline for explicit singular lookups
-            if print_scope == "👤 Single Student Card":
-                raw_disp = str(student_row['discipline']).strip().upper()
-            else:
-                raw_disp = str(selected_discipline).strip().upper()
+            # Formulate structural keys
+            lookup_class_key = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
+            raw_disp_str = str(student_row['target_discipline_string']).strip().upper()
 
-            # String-normalized routing logic matching the map exactly
-            if "STATS" in raw_disp:
-                master_map_key = "ICS_STATS"
-            elif "PHYSIC" in raw_disp or "ICS" in raw_disp:
-                master_map_key = "ICS_PHYSICS"
-            elif "MED" in raw_disp:
-                master_map_key = "MEDICAL"
-            elif "ENG" in raw_disp or "ENGINEERING" in raw_disp:
-                master_map_key = "ENGINEERING"
-            elif "COMM" in raw_disp or "COMMERCE" in raw_disp:
-                master_map_key = "COMMERCE"
-            elif "HUM" in raw_disp or "HUMANITIES" in raw_disp:
-                master_map_key = "HUMANITIES"
+            # Map the cleaned text directly to the keys of CLASS_SUBJECTS_MASTER_MAP
+            if "STATS" in raw_disp_str:
+                resolved_map_key = "ICS_STATS"
+            elif "PHYSIC" in raw_disp_str or "ICS" in raw_disp_str:
+                resolved_map_key = "ICS_PHYSICS"
+            elif "MED" in raw_disp_str:
+                resolved_map_key = "MEDICAL"
+            elif "ENG" in raw_disp_str:
+                resolved_map_key = "ENGINEERING"
+            elif "COMM" in raw_disp_str:
+                resolved_map_key = "COMMERCE"
+            elif "HUM" in raw_disp_str:
+                resolved_map_key = "HUMANITIES"
             else:
-                master_map_key = raw_disp.replace(" ", "_").replace("(", "").replace(")", "")
+                resolved_map_key = raw_disp_str.replace(" ", "_").replace("(", "").replace(")", "")
 
-            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(master_map_key, None)
+            # Pull precise subjects list from structural map configurations
+            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(resolved_map_key, None)
             if not subjects_list:
-                subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).values())[0]
-            
+                # Absolute dynamic backup to avoid code breakage if dictionary matching misses completely
+                subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
+
+            # Fetch Marks & Attendance Records
             raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
             db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id_str}'")
             
+            # Build Attendance Columns Map
             att_cells = {}
             tot_sum, pres_sum = 0, 0
-            
             for m in DISPLAY_MONTHS:
                 clean_m = m.upper().replace('.', '').strip()[:3]
                 match_att = pd.DataFrame()
@@ -2949,12 +2941,11 @@ elif menu_choice == "🪪 Student Result Cards":
             logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
             grand_total_marks, grand_obtained_marks = 0.0, 0.0
             
+            # Start Card HTML Output
             compiled_html += f"""
             <div class="official-card-container" id="card-{current_id_str}" data-student-name="{name.replace(' ', '_')}">
                 <div class="header-block">
-                    <div class="logo-container">
-                        <img class="logo-img" src="{logo_base64}" alt="Logo">
-                    </div>
+                    <div><img class="logo-img" src="{logo_base64}" alt="Logo"></div>
                     <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                 </div>
                 
@@ -2987,10 +2978,11 @@ elif menu_choice == "🪪 Student Result Cards":
             student_failed_any_subject = False
             has_valid_marks_data = False
 
+            # Loop precisely over our specific mapped subjects
             for sub in subjects_list:
                 sub_clean = sub.upper().strip()
-                
                 match = pd.DataFrame()
+                
                 if not raw_marks.empty:
                     match = raw_marks[raw_marks['subject'] == sub_clean]
                     if match.empty:
@@ -3048,9 +3040,9 @@ elif menu_choice == "🪪 Student Result Cards":
                     remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
                 else:
                     grand_percentage = (grand_obtained_marks / grand_total_marks) * 100 if grand_total_marks > 0 else 0
-                    if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable term progress achievement."
+                    if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable progress achievement."
                     elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
-                    else: remarks_text = "Fair tracking evaluation. Clear operational margins exist for improvement."
+                    else: remarks_text = "Fair tracking evaluation. Operational margins exist for improvement."
 
             compiled_html += f"""
                         <tr style="background-color: #fff; font-weight: bold;">
@@ -3096,7 +3088,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 90%; font-style: italic;">{remarks_text}</span>
                 </div>
                 
-                <table class="footer-signatures-table" style="width:100%; margin-top:40px;">
+                <table style="width:100%; margin-top:40px;">
                     <tr>
                         <td style="text-align: left; width: 40%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Class Incharge Signature</td>
                         <td style="width:30%;"></td>
@@ -3111,7 +3103,7 @@ elif menu_choice == "🪪 Student Result Cards":
         <script>
             document.getElementById('save-single-card-trigger').addEventListener('click', function() {
                 const targetCard = document.querySelector('.official-card-container');
-                if (!targetCard) return alert("No active layout configuration found.");
+                if (!targetCard) return alert("No layout configuration found.");
                 const sName = targetCard.getAttribute('data-student-name') || "student";
                 const sId = targetCard.id || "result";
                 html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
@@ -3157,6 +3149,7 @@ elif menu_choice == "🪪 Student Result Cards":
         </html>
         """
         components.html(compiled_html, height=950, scrolling=True)
+    
     elif submit_execution:
         if print_scope == "👤 Single Student Card":
             st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
