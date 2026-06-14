@@ -2759,342 +2759,340 @@ elif menu_choice == "🪪 Student Result Cards":
                 ORDER BY id ASC
             """)
 
+ # ==============================================================================
+# PART 4: COMPILATION LOOP & RENDERING ENGINE
+# ==============================================================================
+if submit_execution and not students_to_print.empty:
+
     # --------------------------------------------------------------------------
-    # PART 4: COMPILATION LOOP WITH EMBEDDED REVERSE-MAPPING ROUTER
+    # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
     # --------------------------------------------------------------------------
-    if submit_execution and not students_to_print.empty:
-        compiled_html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-        <style>
-            body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-            .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-            .header-block { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; width: 100%; gap: 20px; }
-            .logo-img { max-height: 65px; width: auto; display: block; }
-            .inst-main-header { font-weight: bold; font-size: 30px; text-transform: uppercase; text-align: center; }
-            .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1.5px; }
-            .meta-layout-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 15px; }
-            .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
-            .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
-            .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 14px; }
-            .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 7px 5px; text-align: center; }
-            .doc-data-table th { font-weight: bold; text-transform: uppercase; }
-            .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; padding-bottom: 3px; }
-            .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
-            .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-            .attendance-matrix-table td.row-title-cell { font-weight: bold; text-align: left; padding-left: 5px; }
-            .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
-            .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
-            .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
-            .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
-            button:disabled { background: #6c757d !important; cursor: not-allowed; }
-            @media print {
-                .action-controls-bar { display: none !important; }
-                .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; }
-                .print-page-break-divider { page-break-after: always !important; }
-            }
-        </style>
-        </head>
-        <body>
-            <div class="action-controls-bar">
-                <button class="print-btn" onclick="window.print();">🖨️ Print Cards (Ctrl+P)</button>
-                <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Image</button>
-                <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save All Section Cards (ZIP)</button>
+    html_header_and_styles = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
+        .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
+        .header-block { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; width: 100%; gap: 20px; }
+        .logo-img { max-height: 65px; width: auto; display: block; }
+        .inst-main-header { font-weight: bold; font-size: 30px; text-transform: uppercase; text-align: center; }
+        .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1.5px; }
+        .meta-layout-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 15px; }
+        .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
+        .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
+        .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 14px; }
+        .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 7px 5px; text-align: center; }
+        .doc-data-table th { font-weight: bold; text-transform: uppercase; }
+        .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; padding-bottom: 3px; }
+        .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
+        .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
+        .attendance-matrix-table td.row-title-cell { font-weight: bold; text-align: left; padding-left: 5px; }
+        .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
+        .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+        .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+        .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+        button:disabled { background: #6c757d !important; cursor: not-allowed; }
+        @media print {
+            .action-controls-bar { display: none !important; }
+            .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; }
+            .print-page-break-divider { page-break-after: always !important; }
+        }
+    </style>
+    </head>
+    <body>
+        <div class="action-controls-bar">
+            <button class="print-btn" onclick="window.print();">🖨️ Print Cards (Ctrl+P)</button>
+            <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Image</button>
+            <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save All Section Cards (ZIP)</button>
+        </div>
+    """
+    compiled_html = html_header_and_styles
+    DISPLAY_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+
+    for idx, student_row in students_to_print.iterrows():
+        current_id_str = str(student_row['id']).strip()
+        name = str(student_row['name']).upper()
+        section = str(student_row['section']).upper().strip()
+        grade_class = str(student_row['class']).strip()
+        test_name = selected_test_label.upper()
+
+        # ----------------------------------------------------------------------
+        # MODULE B: DATA RESOLUTION & ATTENDANCE EXTRACTION PIPELINE
+        # ----------------------------------------------------------------------
+        
+        # Class configuration layer resolution
+        lookup_class_key = grade_class
+        if "1ST SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 1"
+        elif "2ND SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 2"
+        elif "3RD SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 3"
+        elif "4TH SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 4"
+
+        # Reverse map discipline layout context
+        detected_discipline_key = None
+        for discipline, class_layers in DISCIPLINE_SECTIONS_MAP.items():
+            sections_list = class_layers.get(lookup_class_key, [])
+            if section in [str(s).upper().strip() for s in sections_list]:
+                detected_discipline_key = discipline
+                break
+        
+        subject_mapping_key = detected_discipline_key
+        if detected_discipline_key == "ICS (PHYSICS)": subject_mapping_key = "ICS_PHYSICS"
+        elif detected_discipline_key == "ICS (STATS)": subject_mapping_key = "ICS_STATS"
+
+        subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(subject_mapping_key, None)
+        if not subjects_list:
+            try: subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
+            except Exception: subjects_list = ["English", "Urdu"]
+
+        # Database Extractions
+        raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
+        db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id_str}'")
+        
+        # Isolate Attendance Mapping Arrays 
+        att_cells = {}
+        tot_sum, pres_sum = 0, 0
+        for m in DISPLAY_MONTHS:
+            clean_m = m.upper().replace('.', '').strip()[:3]
+            match_att = pd.DataFrame()
+            if not db_att.empty:
+                match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m)]
+            
+            if not match_att.empty:
+                td = int(match_att['total_days'].iloc[0])
+                pd_val = int(match_att['present_days'].iloc[0])
+                tot_sum += td
+                pres_sum += pd_val
+                pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
+                att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
+            else:
+                att_cells[m] = {"td": "0", "pd": "0", "pct": "0%"}
+        
+        overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "0%"
+        att_cells["Over All Att."] = {"td": str(tot_sum), "pd": str(pres_sum), "pct": overall_pct_str}
+
+        # ----------------------------------------------------------------------
+        # MODULE C: CUSTOM ACADEMIC MARKS RULES & STRUCTURAL CARD GENERATION
+        # ----------------------------------------------------------------------
+        logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+        grand_total_marks, grand_obtained_marks = 0.0, 0.0
+        
+        compiled_html += f"""
+        <div class="official-card-container" id="card-{current_id_str}" data-student-name="{name.replace(' ', '_')}">
+            <div class="header-block">
+                <div><img class="logo-img" src="{logo_base64}" alt="Logo"></div>
+                <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
             </div>
-        """
-
-        DISPLAY_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
-
-        for idx, student_row in students_to_print.iterrows():
-            current_id_str = str(student_row['id']).strip()
-            name = str(student_row['name']).upper()
-            section = str(student_row['section']).upper().strip()
-            grade_class = str(student_row['class']).strip()
-            test_name = selected_test_label.upper()
-            
-            # 1. Track down the precise structural Class configuration key layer
-            lookup_class_key = grade_class
-            if "1ST SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 1"
-            elif "2ND SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 2"
-            elif "3RD SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 3"
-            elif "4TH SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 4"
-
-            # 2. Trace Section backwards through global master configuration map to resolve true discipline context
-            detected_discipline_key = None
-            for discipline, class_layers in DISCIPLINE_SECTIONS_MAP.items():
-                sections_list = class_layers.get(lookup_class_key, [])
-                if section in [str(s).upper().strip() for s in sections_list]:
-                    detected_discipline_key = discipline
-                    break
-            
-            # 3. Formulate direct cross-references matching CLASS_SUBJECTS_MASTER_MAP keys precisely
-            subject_mapping_key = detected_discipline_key
-            if detected_discipline_key == "ICS (PHYSICS)":
-                subject_mapping_key = "ICS_PHYSICS"
-            elif detected_discipline_key == "ICS (STATS)":
-                subject_mapping_key = "ICS_STATS"
-
-            # 4. Extract subject structural lists safely from the top mapping file parameters
-            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(subject_mapping_key, None)
-            if not subjects_list:
-                try:
-                    subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
-                except Exception:
-                    subjects_list = ["English", "Urdu"]
-
-            # Fetch Marks & Attendance Records
-            raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
-            db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id_str}'")
-            
-            # Build Attendance Columns Map
-            att_cells = {}
-            tot_sum, pres_sum = 0, 0
-            for m in DISPLAY_MONTHS:
-                clean_m = m.upper().replace('.', '').strip()[:3]
-                match_att = pd.DataFrame()
-                
-                if not db_att.empty:
-                    match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m)]
-                
-                if not match_att.empty:
-                    td = int(match_att['total_days'].iloc[0])
-                    pd_val = int(match_att['present_days'].iloc[0])
-                    tot_sum += td
-                    pres_sum += pd_val
-                    pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
-                    att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
-                else:
-                    att_cells[m] = {"td": "0", "pd": "0", "pct": "0%"}
-            
-            overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "0%"
-            att_cells["Over All Att."] = {"td": str(tot_sum), "pd": str(pres_sum), "pct": overall_pct_str}
-
-            logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-            grand_total_marks, grand_obtained_marks = 0.0, 0.0
-            
-            # Card HTML Output
-            compiled_html += f"""
-            <div class="official-card-container" id="card-{current_id_str}" data-student-name="{name.replace(' ', '_')}">
-                <div class="header-block">
-                    <div><img class="logo-img" src="{logo_base64}" alt="Logo"></div>
-                    <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                </div>
-                
-                <div class="doc-type-banner">RESULT CARD</div>
-                
-                <table class="meta-layout-table">
-                    <tr>
-                        <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                        <td style="width: 15%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id_str}</span></td>
-                        <td style="width: 20%;">Section: <span class="underlined-value-span" style="width: 62%;">{section}</span></td>
-                        <td style="width: 14%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                        <td style="width: 13%;">Test: <span class="underlined-value-span" style="width: 60%;">{test_name}</span></td>
-                    </tr>
-                </table>
-                
-                <table class="doc-data-table">
-                    <thead>
-                        <tr>
-                            <th style="text-align: left; width: 45%; padding-left: 10px;">Subjects</th>
-                            <th style="width: 11%;">Obt. Marks</th>
-                            <th style="width: 11%;">Total Marks</th>
-                            <th style="width: 11%;">Pass Marks</th>
-                            <th style="width: 11%;">Age%</th>
-                            <th style="width: 11%;">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            """
-            
-            student_failed_any_subject = False
-            has_valid_marks_data = False
-
-            for sub in subjects_list:
-                sub_clean = sub.upper().strip()
-                match = pd.DataFrame()
-                
-                if not raw_marks.empty:
-                    match = raw_marks[raw_marks['subject'] == sub_clean]
-                    if match.empty:
-                        match = raw_marks[raw_marks['subject'].str.contains(sub_clean[:4], regex=False, na=False)]
-
-                obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "-", 100, 40, "-", "-"
-                
-                if not match.empty:
-                    try:
-                        obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
-                        tot_val = match['total_marks'].iloc[0]
-                        tot_marks_num = int(tot_val) if tot_val else 100
-                        pass_marks_num = int(tot_marks_num * 0.4)
-                        
-                        # 1. If student is marked NC (Not Considered)
-                        if obt_val == "NC":
-                            obt_disp, per_disp, status_disp = "NC", "NC", "NC"
-                            # We deliberately DO NOT add tot_marks_num to grand_total_marks here
-
-                        # 2. If student is marked Absent (A)
-                        elif obt_val in ["A", "ABSENT"]:
-                            obt_disp, per_disp, status_disp = "A", "0%", "Fail"
-                            grand_total_marks += tot_marks_num
-                            student_failed_any_subject = True
-                            has_valid_marks_data = True
-                            
-                        # 3. If numerical marks exist
-                        elif obt_val.replace('.', '', 1).isdigit():
-                            num_obt = float(obt_val)
-                            obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
-                            per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
-                            
-                            grand_obtained_marks += num_obt
-                            grand_total_marks += tot_marks_num
-                            has_valid_marks_data = True
-                            status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
-                            if num_obt < pass_marks_num:
-                                student_failed_any_subject = True
-                    except Exception: 
-                        pass
-                else:
-                    # Explicit context fallback logic (Only add if not an ongoing NC block structure exception)
-                    grand_total_marks += 100
-                
-                compiled_html += f"""
+            <div class="doc-type-banner">RESULT CARD</div>
+            <table class="meta-layout-table">
                 <tr>
-                    <td style="text-align: left; padding-left: 10px;">{sub}</td>
-                    <td>{obt_disp}</td>
-                    <td>{tot_marks_num}</td>
-                    <td>{pass_marks_num}</td>
-                    <td>{per_disp}</td>
-                    <td style="font-weight: bold;">{status_disp}</td>
+                    <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
+                    <td style="width: 15%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id_str}</span></td>
+                    <td style="width: 20%;">Section: <span class="underlined-value-span" style="width: 62%;">{section}</span></td>
+                    <td style="width: 14%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
+                    <td style="width: 13%;">Test: <span class="underlined-value-span" style="width: 60%;">{test_name}</span></td>
                 </tr>
-                """
-            
-            grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else "0%"
-            grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else "-"
-
-            remarks_text = "No academic metrics verified for current exam context."
-            if has_valid_marks_data:
-                if student_failed_any_subject:
-                    remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
-                else:
-                    grand_percentage = (grand_obtained_marks / grand_total_marks) * 100 if grand_total_marks > 0 else 0
-                    if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable progress achievement."
-                    elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
-                    else: remarks_text = "Fair tracking evaluation. Operational margins exist for improvement."
-
-            compiled_html += f"""
-                        <tr style="background-color: #fff; font-weight: bold;">
-                            <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
-                            <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
-                            <td>{int(grand_total_marks)}</td>
-                            <td>-</td>
-                            <td>{grand_per_disp}</td>
-                            <td>{grand_status_disp}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <div class="section-header-title" style="border-bottom: 1px dashed #000;">ATTENDANCE REPORT</div>
-                <table class="attendance-matrix-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 14%;">Metric</th>
-                            {''.join([f'<th style="width: 6.5%;">{m}</th>' for m in DISPLAY_MONTHS])}
-                            <th style="width: 8%;">Over All Att.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="row-title-cell">Total Days</td>
-                            {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in DISPLAY_MONTHS])}
-                            <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
-                        </tr>
-                        <tr>
-                            <td class="row-title-cell">Att. Days</td>
-                            {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in DISPLAY_MONTHS])}
-                            <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
-                        </tr>
-                        <tr>
-                            <td class="row-title-cell">Age%</td>
-                            {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in DISPLAY_MONTHS])}
-                            <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <div style="font-size:14px; margin-top:30px; margin-bottom:15px;">
-                    Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 90%; font-style: italic;">{remarks_text}</span>
-                </div>
-                
-                <table style="width:100%; margin-top:40px;">
+            </table>
+            <table class="doc-data-table">
+                <thead>
                     <tr>
-                        <td style="text-align: left; width: 40%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Class Incharge Signature</td>
-                        <td style="width:30%;"></td>
-                        <td style="text-align: right; width: 30%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Principal</td>
+                        <th style="text-align: left; width: 45%; padding-left: 10px;">Subjects</th>
+                        <th style="width: 11%;">Obt. Marks</th>
+                        <th style="width: 11%;">Total Marks</th>
+                        <th style="width: 11%;">Pass Marks</th>
+                        <th style="width: 11%;">Age%</th>
+                        <th style="width: 11%;">Status</th>
                     </tr>
-                </table>
-            </div>
-            <div class="print-page-break-divider"></div>
-            """
-            
-        compiled_html += """
-        <script>
-            document.getElementById('save-single-card-trigger').addEventListener('click', function() {
-                const targetCard = document.querySelector('.official-card-container');
-                if (!targetCard) return alert("No layout configuration found.");
-                const sName = targetCard.getAttribute('data-student-name') || "student";
-                const sId = targetCard.id || "result";
-                html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
-                    const dlLink = document.createElement('a');
-                    dlLink.download = `${sId}_${sName}.png`;
-                    dlLink.href = canvas.toDataURL('image/png');
-                    dlLink.click();
-                });
-            });
-
-            document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
-                const allCards = document.querySelectorAll('.official-card-container');
-                if (allCards.length === 0) return alert("No active cards to compile.");
-                const actionBtn = this;
-                const primaryLabel = actionBtn.innerText;
-                actionBtn.innerText = "⏳ Generating Archive Images...";
-                actionBtn.disabled = true;
-                const archiveBundle = new JSZip();
-                try {
-                    for(let index = 0; index < allCards.length; index++) {
-                        const currentCard = allCards[index];
-                        const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
-                        const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
-                        const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
-                        archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
-                    }
-                    const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
-                    const dlLink = document.createElement('a');
-                    dlLink.download = "Section_Result_Cards_Archive.zip";
-                    dlLink.href = URL.createObjectURL(compiledZipBlob);
-                    dlLink.click();
-                } catch (error) {
-                    console.error(error);
-                    alert("An error occurred compiling image packages.");
-                } finally {
-                    actionBtn.innerText = primaryLabel;
-                    actionBtn.disabled = false;
-                }
-            });
-        </script>
-        </body>
-        </html>
+                </thead>
+                <tbody>
         """
-        components.html(compiled_html, height=950, scrolling=True)
-    
-    elif submit_execution:
-        if print_scope == "👤 Single Student Card":
-            st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
-        else:
-            st.warning(f"⚠️ No active student rows found matching section group: '{active_section}' for {selected_class} ({selected_session}).")
+        
+        student_failed_any_subject = False
+        has_valid_marks_data = False
+
+        for sub in subjects_list:
+            sub_clean = sub.upper().strip()
+            match = pd.DataFrame()
+            if not raw_marks.empty:
+                match = raw_marks[raw_marks['subject'] == sub_clean]
+                if match.empty:
+                    match = raw_marks[raw_marks['subject'].str.contains(sub_clean[:4], regex=False, na=False)]
+
+            obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "-", 100, 40, "-", "-"
+            
+            if not match.empty:
+                try:
+                    obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
+                    tot_val = match['total_marks'].iloc[0]
+                    tot_marks_num = int(tot_val) if tot_val else 100
+                    pass_marks_num = int(tot_marks_num * 0.4)
+                    
+                    # Criteria A: NC (Not Considered) Rule
+                    if obt_val == "NC":
+                        obt_disp, per_disp, status_disp = "NC", "NC", "NC"
+                    
+                    # Criteria B: A (Absent) Rule
+                    elif obt_val in ["A", "ABSENT"]:
+                        obt_disp, per_disp, status_disp = "A", "0%", "Fail"
+                        grand_total_marks += tot_marks_num
+                        student_failed_any_subject = True
+                        has_valid_marks_data = True
+                        
+                    # Criteria C: Regular Numerical Value
+                    elif obt_val.replace('.', '', 1).isdigit():
+                        num_obt = float(obt_val)
+                        obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
+                        per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
+                        grand_obtained_marks += num_obt
+                        grand_total_marks += tot_marks_num
+                        has_valid_marks_data = True
+                        status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
+                        if num_obt < pass_marks_num: student_failed_any_subject = True
+                except Exception: pass
+            else:
+                grand_total_marks += 100
+            
+            compiled_html += f"""
+            <tr>
+                <td style="text-align: left; padding-left: 10px;">{sub}</td>
+                <td>{obt_disp}</td>
+                <td>{tot_marks_num}</td>
+                <td>{pass_marks_num}</td>
+                <td>{per_disp}</td>
+                <td style="font-weight: bold;">{status_disp}</td>
+            </tr>
+            """
+        
+        grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else "0%"
+        grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else "-"
+
+        # Compute Remarks Text Strings safely
+        remarks_text = "No academic metrics verified for current exam context."
+        if has_valid_marks_data:
+            if student_failed_any_subject:
+                remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
+            else:
+                grand_percentage = (grand_obtained_marks / grand_total_marks) * 100 if grand_total_marks > 0 else 0
+                if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable progress achievement."
+                elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
+                else: remarks_text = "Fair tracking evaluation. Operational margins exist for improvement."
+
+        compiled_html += f"""
+                    <tr style="background-color: #fff; font-weight: bold;">
+                        <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
+                        <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
+                        <td>{int(grand_total_marks)}</td>
+                        <td>-</td>
+                        <td>{grand_per_disp}</td>
+                        <td>{grand_status_disp}</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="section-header-title" style="border-bottom: 1px dashed #000;">ATTENDANCE REPORT</div>
+            <table class="attendance-matrix-table">
+                <thead>
+                    <tr>
+                        <th style="width: 14%;">Metric</th>
+                        {''.join([f'<th style="width: 6.5%;">{m}</th>' for m in DISPLAY_MONTHS])}
+                        <th style="width: 8%;">Over All Att.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="row-title-cell">Total Days</td>
+                        {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in DISPLAY_MONTHS])}
+                        <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
+                    </tr>
+                    <tr>
+                        <td class="row-title-cell">Att. Days</td>
+                        {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in DISPLAY_MONTHS])}
+                        <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
+                    </tr>
+                    <tr>
+                        <td class="row-title-cell">Age%</td>
+                        {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in DISPLAY_MONTHS])}
+                        <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div style="font-size:14px; margin-top:30px; margin-bottom:15px;">
+                Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 90%; font-style: italic;">{remarks_text}</span>
+            </div>
+            
+            <table style="width:100%; margin-top:40px;">
+                <tr>
+                    <td style="text-align: left; width: 40%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Class Incharge Signature</td>
+                    <td style="width:30%;"></td>
+                    <td style="text-align: right; width: 30%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Principal</td>
+                </tr>
+            </table>
+        </div>
+        <div class="print-page-break-divider"></div>
+        """
+
+    # --------------------------------------------------------------------------
+    # MODULE D: EXPORT ACTIONS SCRIPT & EXTERNAL UI DISPLAY HOOKS
+    # --------------------------------------------------------------------------
+    compiled_html += """
+    <script>
+        document.getElementById('save-single-card-trigger').addEventListener('click', function() {
+            const targetCard = document.querySelector('.official-card-container');
+            if (!targetCard) return alert("No layout configuration found.");
+            const sName = targetCard.getAttribute('data-student-name') || "student";
+            const sId = targetCard.id || "result";
+            html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
+                const dlLink = document.createElement('a');
+                dlLink.download = `${sId}_${sName}.png`;
+                dlLink.href = canvas.toDataURL('image/png');
+                dlLink.click();
+            });
+        });
+
+        document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
+            const allCards = document.querySelectorAll('.official-card-container');
+            if (allCards.length === 0) return alert("No active cards to compile.");
+            const actionBtn = this;
+            const primaryLabel = actionBtn.innerText;
+            actionBtn.innerText = "⏳ Generating Archive Images...";
+            actionBtn.disabled = true;
+            const archiveBundle = new JSZip();
+            try {
+                for(let index = 0; index < allCards.length; index++) {
+                    const currentCard = allCards[index];
+                    const cardIdStr = currentCard.id || `card_${index}`;
+                    const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
+                    const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
+                    const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
+                    archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
+                }
+                const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
+                const dlLink = document.createElement('a');
+                dlLink.download = "Section_Result_Cards_Archive.zip";
+                dlLink.href = URL.createObjectURL(compiledZipBlob);
+                dlLink.click();
+            } catch (error) {
+                console.error(error);
+                alert("An error occurred compiling image packages.");
+            } finally {
+                actionBtn.innerText = primaryLabel;
+                actionBtn.disabled = false;
+            }
+        });
+    </script>
+    </body>
+    </html>
+    """
+    components.html(compiled_html, height=950, scrolling=True)
+
+elif submit_execution:
+    if print_scope == "👤 Single Student Card":
+        st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
+    else:
+        st.warning(f"⚠️ No active student rows found matching section group: '{active_section}' for {selected_class} ({selected_session}).")
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
