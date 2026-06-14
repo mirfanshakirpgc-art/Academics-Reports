@@ -2784,25 +2784,19 @@ elif menu_choice == "🪪 Student Result Cards":
         
         if search_id and selected_test_code:
             clean_search_id = str(search_id).strip()
-            
-            # Fetch whole session safely to memory first, avoiding driver parameter binding errors completely
             all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
             
             if not all_session_students.empty:
-                # Direct match filter via Pandas evaluation
                 match_mask = (all_session_students['id'].astype(str) == clean_search_id)
                 single_student = all_session_students[match_mask]
                 
-                # Fallback fuzzy matching filter via Pandas logic
                 if single_student.empty:
                     fuzzy_mask = all_session_students['id'].astype(str).str.contains(clean_search_id, case=False, na=False)
                     single_student = all_session_students[fuzzy_mask]
                 
                 if not single_student.empty:
-                    # Clean and normalize the student's tracked discipline to match master map keys
                     raw_discipline = str(single_student['discipline'].iloc[0]).strip().upper() if "discipline" in single_student.columns else ""
                     
-                    # Map standard variations to master map keys
                     if "ICS" in raw_discipline and "STAT" in raw_discipline:
                         selected_discipline_tracked = "ICS_STATS"
                     elif "ICS" in raw_discipline and "PHYSIC" in raw_discipline:
@@ -2838,7 +2832,6 @@ elif menu_choice == "🪪 Student Result Cards":
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
         if active_section and selected_test_code:
-            # Added "discipline" here to ensure bulk profile prints can read layout tracking mappings
             all_section_data = run_query(f"""
                 SELECT id, name, section, class, discipline FROM students 
                 WHERE session = '{selected_session}' 
@@ -2846,7 +2839,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 ORDER BY id ASC
             """)
             if not all_section_data.empty:
-                # Perform clean section filtering out of database engine layers
                 students_to_print = all_section_data[all_section_data['section'].astype(str).str.upper().str.strip() == str(active_section).upper().strip()].copy()
 
     # 3. HTML RENDERING & PRINT ENGINE
@@ -2912,24 +2904,21 @@ elif menu_choice == "🪪 Student Result Cards":
             
             lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             
-            # Safe parsing for layout tracking variables inside both modes
+            # Smart determination of correct fallback discipline tracking mapping values
             if print_scope == "👤 Single Student Card":
                 lookup_disp = student_row['discipline']
             else:
-                raw_disp = str(student_row['discipline']).strip().upper() if 'discipline' in student_row else ""
+                # Deduce tracking directly from selected dropdown discipline key values
+                raw_disp = str(selected_discipline).strip().upper()
                 if "ICS" in raw_disp and "STAT" in raw_disp:
                     lookup_disp = "ICS_STATS"
                 elif "ICS" in raw_disp and "PHYSIC" in raw_disp:
                     lookup_disp = "ICS_PHYSICS"
                 else:
                     lookup_disp = raw_disp.replace(" ", "_").replace("(", "").replace(")", "")
-            
-            if lookup_disp == "ICS (PHYSICS)": lookup_disp = "ICS_PHYSICS"
-            elif lookup_disp == "ICS (STATS)": lookup_disp = "ICS_STATS"
 
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(lookup_disp, ["English", "Urdu", "T_Quran"])
             
-            # Format injection strategy ensures maximum query stability
             raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id}' AND exam_type = '{selected_test_code}'")
             db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id}'")
             
@@ -2939,7 +2928,6 @@ elif menu_choice == "🪪 Student Result Cards":
             for m in DISPLAY_MONTHS:
                 clean_m = m.upper().replace('.', '').strip()[:3]
                 match_att = pd.DataFrame()
-                
                 if not db_att.empty:
                     match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m)]
                 
@@ -2997,10 +2985,18 @@ elif menu_choice == "🪪 Student Result Cards":
             student_failed_any_subject = False
             has_valid_marks_data = False
 
-            # Fixed rendering loop: Now drives directly from Master Subjects configuration array
+            # FORCED ITERATION: Loop across every single master configured array layout item 
             for sub in subjects_list:
                 sub_clean = sub.upper().strip()
-                match = raw_marks[raw_marks['subject'] == sub_clean] if not raw_marks.empty else pd.DataFrame()
+                
+                # Loose matching lookup safety system to cover variations like "Computer" vs "Computer Science"
+                match = pd.DataFrame()
+                if not raw_marks.empty:
+                    match = raw_marks[raw_marks['subject'] == sub_clean]
+                    if match.empty:
+                        # Try fuzzy partial substring match if perfect match fails
+                        match = raw_marks[raw_marks['subject'].str.contains(sub_clean[:4], regex=False, na=False)]
+
                 obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "-", 100, 40, "-", "-"
                 
                 if not match.empty:
@@ -3031,8 +3027,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     except Exception: 
                         pass
                 else:
-                    # Default placeholders for expected master subjects not yet submitted to the database
-                    obt_disp, per_disp, status_disp = "-", "-", "-"
+                    # Keep expected rows visible on card output even if db returns null marks fields
                     grand_total_marks += 100
                 
                 compiled_html += f"""
@@ -3042,7 +3037,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <td>{tot_marks_num}</td>
                     <td>{pass_marks_num}</td>
                     <td>{per_disp}</td>
-                    <td style="font-weight: bold; color:{'red' if status_disp == 'Fail' else 'black'};">{status_disp}</td>
+                    <td style="font-weight: bold;">{status_disp}</td>
                 </tr>
                 """
             
@@ -3066,7 +3061,7 @@ elif menu_choice == "🪪 Student Result Cards":
                             <td>{int(grand_total_marks)}</td>
                             <td>-</td>
                             <td>{grand_per_disp}</td>
-                            <td style="color:{'red' if grand_status_disp == 'Fail' else 'black'};">{grand_status_disp}</td>
+                            <td>{grand_status_disp}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -3105,9 +3100,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 
                 <table class="footer-signatures-table" style="width:100%; margin-top:40px;">
                     <tr>
-                        <td style="text-align: left; width: 50%; font-weight: bold; border-top:1px solid #000; padding-top:5px; max-width:200px;">Class Incharge Signature</td>
+                        <td style="text-align: left; width: 40%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Class Incharge Signature</td>
                         <td style="width:30%;"></td>
-                        <td style="text-align: right; width: 20%; font-weight: bold; border-top:1px solid #000; padding-top:5px; max-width:150px;">Principal</td>
+                        <td style="text-align: right; width: 30%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Principal</td>
                     </tr>
                 </table>
             </div>
@@ -3141,7 +3136,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
