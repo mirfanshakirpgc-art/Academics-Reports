@@ -2775,33 +2775,37 @@ elif menu_choice == "🪪 Student Result Cards":
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
         
         with col_sec2:
-            # Fetch matching class sections dynamically assigned to this class and session structure
+            # Clean and isolate discipline string cleanly
+            clean_disp_param = str(selected_discipline).upper().strip()
+
+            # Using standard SQL string concatenation avoids breaking pandas parameters!
             db_filtered_sections = run_query("""
-                SELECT DISTINCT section_name FROM system_sections 
+                SELECT DISTINCT section_name 
+                FROM system_sections 
                 WHERE status = 'ACTIVE' 
-                AND (UPPER(discipline_association) = :disp OR UPPER(section_name) LIKE :disp_wildcard)
+                AND (
+                    UPPER(discipline_association) = :disp 
+                    OR UPPER(section_name) LIKE '%' || :disp || '%'
+                )
                 ORDER BY section_name ASC
-            """, {
-                "disp": str(selected_discipline).upper().strip(),
-                "disp_wildcard": f"%{str(selected_discipline).upper().strip()}%"
-            })
+            """, {"disp": clean_disp_param})
             
             # Context Switch Fallback logic
             if not db_filtered_sections.empty:
                 filtered_sections = db_filtered_sections['section_name'].str.upper().str.strip().tolist()
             else:
-                # Intelligent string matcher if formal database relations are unassigned
+                # Intelligent string matcher fallback if table records are empty
                 db_all_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE'")
                 if not db_all_sections.empty:
                     all_sects = db_all_sections['section_name'].str.upper().str.strip().tolist()
-                    if "STATS" in selected_discipline:
+                    if "STATS" in clean_disp_param:
                         filtered_sections = [s for s in all_sects if "STATS" in s]
-                    elif "MEDICAL" in selected_discipline:
-                        filtered_sections = [s for s in all_sects if "GREEN" in s or "WHITE" in s] # Matches default Medical color metrics
+                    elif "MEDICAL" in clean_disp_param:
+                        filtered_sections = [s for s in all_sects if "GREEN" in s or "WHITE" in s]
                     else:
                         filtered_sections = [s for s in all_sects if "STATS" not in s and "GREEN" not in s]
                 else:
-                    filtered_sections = ["CB_GREEN"] if "MEDICAL" in selected_discipline else ["CB_STATS"]
+                    filtered_sections = ["CB_GREEN"] if "MEDICAL" in clean_disp_param else ["CB_STATS"]
 
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
