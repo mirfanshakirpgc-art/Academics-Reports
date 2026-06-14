@@ -2855,10 +2855,16 @@ if submit_execution and not students_to_print.empty:
         att_cells = {}
         tot_sum, pres_sum = 0, 0
         for m in DISPLAY_MONTHS:
+            # Clean loop month string down to core alphabets for comparative fallback matching
             clean_m = m.upper().replace('.', '').strip()[:3]
             match_att = pd.DataFrame()
+            
             if not db_att.empty:
-                match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m)]
+                # Upgraded Matching Rule: checks if the table month name starts with or contains our target token
+                match_att = db_att[
+                    db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.contains(clean_m, na=False) |
+                    db_att['m_name'].str.strip().str.startswith(clean_m, na=False)
+                ]
             
             if not match_att.empty:
                 td = int(match_att['total_days'].iloc[0])
