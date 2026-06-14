@@ -4069,36 +4069,23 @@ elif menu_choice == "⚙️ Settings":
     tab1, tab2 = st.tabs(["📋 General Configurations", "🛡️ Master Access Control"])
     
     with tab1:
-        # ----------------------------------------------------------------------
-        # INDENTATION LAYER 1: Core setup definitions
-        # ----------------------------------------------------------------------
         current_user = st.session_state.get('username', 'admin')
         current_role = st.session_state.get('role', 'admin')
         
-        # Enforce role-based structural routing arrays (Appended new modules)
-        if current_role == 'controller':
-            settings_options = [
-                "📝 Faculty Registration", 
-                "📅 Sessions & Terms", 
-                "🗂️ Section Master", 
-                "📑 Test & Exam Frameworks",
-                "🧬 Add Disciplines",
-                "📚 Add Subject Mapping"
-            ]
-        else:
-            settings_options = [
-                "📝 Faculty Registration", 
-                "📅 Sessions & Terms", 
-                "🗂️ Section Master", 
-                "📑 Test & Exam Frameworks",
-                "🧬 Add Disciplines",
-                "📚 Add Subject Mapping"
-            ]
+        # Enforce role-based structural routing arrays
+        settings_options = [
+            "📝 Faculty Registration", 
+            "📅 Sessions & Terms", 
+            "🗂️ Section Master", 
+            "📑 Test & Exam Frameworks",
+            "🧬 Add Disciplines",
+            "📚 Add Subject Mapping"
+        ]
             
         sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
 
         # ==============================================================================
-        # MODULE A: SESSIONS & TERMS TRACK - INSIDE TAB1
+        # MODULE 1: SESSIONS & TERMS TRACK
         # ==============================================================================
         if sub_menu == "📅 Sessions & Terms":
             st.subheader("🗓️ Global Academic Session Management")
@@ -4106,16 +4093,9 @@ elif menu_choice == "⚙️ Settings":
 
             available_options = st.session_state.get("available_sessions", ["2025-26", "2026-27"])
             current_active = st.session_state.get("current_session", "2025-26")
-            
             default_index = available_options.index(current_active) if current_active in available_options else 0
 
-            chosen_session = st.selectbox(
-                "Set Global Active Session Track:",
-                options=available_options,
-                index=default_index,
-                key="global_settings_session_selector"
-            )
-            
+            chosen_session = st.selectbox("Set Global Active Session Track:", options=available_options, index=default_index, key="global_settings_session_selector")
             if st.button("💾 Apply Configuration Changes", type="primary"):
                 st.session_state["current_session"] = chosen_session
                 st.success(f"🚀 System configuration updated! Active session is now set to **{chosen_session}**.")
@@ -4123,14 +4103,12 @@ elif menu_choice == "⚙️ Settings":
 
             st.markdown("---")
             st.write("#### ➕ Register New Academic Session Record")
-            
             with st.form("session_reg_form", clear_on_submit=True):
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
                     new_session_name = st.text_input("Session Code/Year:", placeholder="e.g. 2025-27")
                 with col_s2:
                     new_session_status = st.selectbox("Session Status:", options=["ACTIVE", "INACTIVE"])
-                    
                 submit_session = st.form_submit_button("💾 Save Session to Registry")
                 
                 if submit_session:
@@ -4139,13 +4117,7 @@ elif menu_choice == "⚙️ Settings":
                     else:
                         check_existing = run_query("SELECT id FROM academic_sessions WHERE UPPER(TRIM(session_name)) = UPPER(TRIM(:name))", {"name": new_session_name.strip()})
                         if check_existing.empty:
-                            run_update("""
-                                INSERT INTO academic_sessions (session_name, status)
-                                VALUES (:name, :status)
-                            """, {
-                                "name": new_session_name.strip(),
-                                "status": new_session_status
-                            })
+                            run_update("INSERT INTO academic_sessions (session_name, status) VALUES (:name, :status)", {"name": new_session_name.strip(), "status": new_session_status})
                             st.success(f"🎉 Successfully registered session '{new_session_name.strip()}'!")
                             st.rerun()
                         else:
@@ -4153,7 +4125,6 @@ elif menu_choice == "⚙️ Settings":
                                 
             st.markdown("---")
             st.write("#### Registered Academic Sessions")
-            
             current_sessions = pd.DataFrame()
             try:
                 current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
@@ -4162,7 +4133,6 @@ elif menu_choice == "⚙️ Settings":
                 
             if not current_sessions.empty:
                 st.dataframe(current_sessions, use_container_width=True, hide_index=True)
-                
                 st.markdown("### 🛠️ Manage Existing Academic Sessions")
                 session_list = [f"{row['ID']} - {row['Session Name']}" for _, row in current_sessions.iterrows()]
                 selected_sess_str = st.selectbox("Select a Session to Modify or Remove:", session_list, key="manage_sess_select")
@@ -4174,7 +4144,6 @@ elif menu_choice == "⚙️ Settings":
                     with st.form("edit_session_form"):
                         updated_sess_name = st.text_input("Change Session Code/Year:", value=str(target_sess_row['Session Name'])).strip()
                         updated_sess_status = st.selectbox("Change Session Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sess_row['Status'] == 'ACTIVE' else 1)
-                        
                         col_su, col_sd = st.columns(2)
                         with col_su:
                             save_sess = st.form_submit_button("💾 Save Session Changes", type="primary", use_container_width=True)
@@ -4188,10 +4157,7 @@ elif menu_choice == "⚙️ Settings":
                             else:
                                 try:
                                     with engine.begin() as conn:
-                                        conn.execute(
-                                            text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), 
-                                            {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id}
-                                        )
+                                        conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
                                     st.success("💾 Session configurations updated successfully!")
                                     st.rerun()
                                 except Exception as db_error:
@@ -4212,11 +4178,10 @@ elif menu_choice == "⚙️ Settings":
                 st.info("No academic sessions are currently registered.")
 
         # ==============================================================================
-        # MODULE B: FACULTY REGISTRATION TRACK - INSIDE TAB1
+        # MODULE 2: FACULTY REGISTRATION TRACK
         # ==============================================================================
         elif sub_menu == "📝 Faculty Registration":
-            st.write("### ➕ Register New Faculty Member")
-
+            st.subheader("➕ Register New Faculty Member")
             with st.form("teacher_reg_form", clear_on_submit=True):
                 col_f1, col_f2 = st.columns(2)
                 with col_f1:
@@ -4225,7 +4190,6 @@ elif menu_choice == "⚙️ Settings":
                 with col_f2:
                     new_teacher_phone = st.text_input("Contact Number:", placeholder="e.g. +923001234567").strip()
                     new_teacher_email = st.text_input("Email Address:", placeholder="e.g. ali@institution.edu").strip()
-                    
                 submit_faculty = st.form_submit_button("💾 Register Faculty Member", type="primary")
                 
                 if submit_faculty:
@@ -4238,15 +4202,7 @@ elif menu_choice == "⚙️ Settings":
                                 st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
                             else:
                                 with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status)
-                                        VALUES (:code, :name, :phone, :email, 'ACTIVE')
-                                    """), {
-                                        "code": int(new_teacher_id),
-                                        "name": new_teacher_name,
-                                        "phone": new_teacher_phone,
-                                        "email": new_teacher_email
-                                    })
+                                    conn.execute(text("INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status) VALUES (:code, :name, :phone, :email, 'ACTIVE')"), {"code": int(new_teacher_id), "name": new_teacher_name, "phone": new_teacher_phone, "email": new_teacher_email})
                                 st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
                                 st.rerun()
                         except Exception as err:
@@ -4254,7 +4210,6 @@ elif menu_choice == "⚙️ Settings":
 
             st.markdown("---")
             st.write("#### Registered Institutional Faculty")
-            
             current_faculty = pd.DataFrame()
             try:
                 current_faculty = run_query('SELECT teacher_id as "Teacher ID", teacher_name as "Teacher Name", phone_number as "Phone Number", email_address as "Email", status as "Status" FROM system_teachers ORDER BY teacher_name ASC')
@@ -4263,7 +4218,6 @@ elif menu_choice == "⚙️ Settings":
                 
             if not current_faculty.empty:
                 st.dataframe(current_faculty, use_container_width=True, hide_index=True)
-                
                 st.markdown("### 🛠️ Manage Existing Faculty Members")
                 faculty_list = [f"{row['Teacher ID']} - {row['Teacher Name']}" for _, row in current_faculty.iterrows()]
                 selected_fac_str = st.selectbox("Select a Teacher Profile to Modify or Remove:", faculty_list, key="manage_fac_select")
@@ -4278,7 +4232,6 @@ elif menu_choice == "⚙️ Settings":
                         updated_fac_phone = st.text_input("Update Contact Number:", value=str(target_fac_row['Phone Number'])).strip()
                         updated_fac_email = st.text_input("Update Email Address:", value=str(target_fac_row['Email'])).strip()
                         updated_fac_status = st.selectbox("Change Employment Status:", ["ACTIVE", "INACTIVE"], index=0 if target_fac_row['Status'] == 'ACTIVE' else 1)
-                        
                         col_fu, col_fd = st.columns(2)
                         with col_fu:
                             save_fac = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
@@ -4292,22 +4245,11 @@ elif menu_choice == "⚙️ Settings":
                             else:
                                 try:
                                     with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE system_teachers 
-                                            SET teacher_id = :new_id, teacher_name = :name, phone_number = :phone, email_address = :email, status = :status 
-                                            WHERE teacher_id = :old_id
-                                        """), {
-                                            "new_id": int(updated_fac_id),
-                                            "name": updated_fac_name, 
-                                            "phone": updated_fac_phone, 
-                                            "email": updated_fac_email, 
-                                            "status": updated_fac_status, 
-                                            "old_id": selected_fac_id
-                                        })
+                                        conn.execute(text("UPDATE system_teachers SET teacher_id = :new_id, teacher_name = :name, phone_number = :phone, email_address = :email, status = :status WHERE teacher_id = :old_id"), {"new_id": int(updated_fac_id), "name": updated_fac_name, "phone": updated_fac_phone, "email": updated_fac_email, "status": updated_fac_status, "old_id": selected_fac_id})
                                     st.success(f"🎉 Successfully updated profile details for {updated_fac_name}!")
                                     st.rerun()
                                 except Exception as err:
-                                    st.error(f"❌ Modification failed. The ID might conflict with another teacher's record: {err}")
+                                    st.error(f"❌ Modification failed: {err}")
                             
                         if delete_fac:
                             if not confirm_fac_del:
@@ -4319,20 +4261,44 @@ elif menu_choice == "⚙️ Settings":
                                     st.success("Faculty profile completely removed from system records.")
                                     st.rerun()
                                 except Exception as err:
-                                    st.error(f"❌ Cannot delete this teacher because they are currently assigned to active course allocations: {err}")
+                                    st.error(f"❌ Cannot delete this teacher: {err}")
             else:
                 st.info("No faculty profiles are currently registered.")
 
         # ==============================================================================
-        # FALLBACK SAFETY NEST FOR UNCONFIGURED MODULE ARRAYS
+        # MODULE 3: SECTION MASTER
+        # ==============================================================================
+        elif sub_menu == "🗂️ Section Master":
+            st.subheader("🗂️ Section Master Management")
+            st.info("Configure, group, and track core physical and virtual sections for course execution rosters here.")
+            # Place your section layout inputs or queries here
+
+        # ==============================================================================
+        # MODULE 4: TEST & EXAM FRAMEWORKS
+        # ==============================================================================
+        elif sub_menu == "📑 Test & Exam Frameworks":
+            st.subheader("📑 Evaluation Tracks & Grade Rules")
+            st.info("Define parameters for term distributions, threshold formulas, and exam system weighting rules.")
+
+        # ==============================================================================
+        # MODULE 5: ADD DISCIPLINES
+        # ==============================================================================
+        elif sub_menu == "🧬 Add Disciplines":
+            st.subheader("🧬 Institutional Stream & Discipline Matrix")
+            st.info("Register major academic tracks, programmatic lines, and institutional wings.")
+
+        # ==============================================================================
+        # MODULE 6: ADD SUBJECT MAPPING
+        # ==============================================================================
+        elif sub_menu == "📚 Add Subject Mapping":
+            st.subheader("📚 Subject, Course & Syllabus Mapping Engine")
+            st.info("Cross-reference master course descriptions to specific programmatic years, terms, and sections.")
+
+        # ==============================================================================
+        # FALLBACK ROUTING LAYER
         # ==============================================================================
         else:
             st.info("Please select a management sub-module from the navigation sidebar matrix.")
-
-# ====================================================================================
-# STRICT APP TEARDOWN LAYER & CONTEXT CLEANUP
-# ====================================================================================
-if __name__ == "__main__":
     try:
         pass
     except Exception as structural_critical_error:
