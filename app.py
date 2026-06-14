@@ -2667,7 +2667,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 
 # ==============================================================================
-# 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (CLEAN BUILT)
+# 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
 # ==============================================================================
 elif menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
@@ -2677,74 +2677,7 @@ elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
 
     # --------------------------------------------------------------------------
-    # PART 1: MASTER REFERENCE DICTIONARIES (SINGLE SOURCE OF TRUTH)
-    # --------------------------------------------------------------------------
-    DISCIPLINE_SECTIONS_MAP = {
-        "MEDICAL": {
-            "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-            "12th": ["MQ1", "MQ2", "MK"]
-        },
-        "ENGINEERING": {
-            "11th": ["EG_BLUE", "EB_BLUE"],
-            "12th": ["EQ", "EK"]
-        },
-        "ICS (PHYSICS)": {
-            "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
-            "12th": ["CQ1", "CQ2", "CK1", "CK2"]
-        },
-        "ICS (STATS)": {
-            "11th": ["CG_STATS", "CB_STATS"],
-            "12th": ["CQ3", "CK3"]
-        },
-        "COMMERCE": {
-            "11th": ["IG", "IB"],
-            "12th": ["IK", "IQ"]
-        },
-        "HUMANITIES": {
-            "11th": ["FB", "FG"],
-            "12th": ["FK", "FQ"]
-        },
-        "INFORMATION_TECHNOLOGY": {
-            "1ST SEMESTER": ["DIT_B", "DIT_G"],
-            "2ND SEMESTER": ["DIT_B", "DIT_G"],
-            "3RD SEMESTER": ["DIT_B", "DIT_G"],
-            "4TH SEMESTER": ["DIT_B", "DIT_G"]
-        }
-    }
-
-    CLASS_SUBJECTS_MASTER_MAP = {
-        "11th": {
-            "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
-            "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
-            "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-            "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-            "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
-            "COMMERCE": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"]
-        },
-        "12th": {
-            "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
-            "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
-            "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-            "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-            "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
-            "COMMERCE": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
-        },
-        "1ST SEMESTER": {
-            "INFORMATION_TECHNOLOGY": ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-        },
-        "2ND SEMESTER": {
-            "INFORMATION_TECHNOLOGY": ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-        },
-        "3RD SEMESTER": {
-            "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
-        },
-        "4TH SEMESTER": {
-            "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
-        }
-    }
-
-    # --------------------------------------------------------------------------
-    # PART 2: GLOBAL ACADEMIC ENVIRONMENT FILTERS
+    # PART 1: GLOBAL ACADEMIC ENVIRONMENT FILTERS
     # --------------------------------------------------------------------------
     try:
         db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
@@ -2778,7 +2711,7 @@ elif menu_choice == "🪪 Student Result Cards":
             selected_test_label = selected_test_code
 
     # --------------------------------------------------------------------------
-    # PART 3: DYNAMIC INTERACTIVE FILTER SELECTION (REACTIVE & ON-THE-FLY)
+    # PART 2: DYNAMIC FILTER SELECTION (LINKED TO GLOBAL DICTIONARIES)
     # --------------------------------------------------------------------------
     st.markdown("---")
     print_scope = st.radio("𖨾 Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
@@ -2787,68 +2720,48 @@ elif menu_choice == "🪪 Student Result Cards":
     selected_discipline = ""
     active_section = ""
 
+    # Normalize UI class selection to align with mapping dictionary keys
+    normalized_class_input = str(selected_class).strip()
+    if "1ST SEMESTER" in normalized_class_input.upper(): normalized_class_input = "Semester 1"
+    elif "2ND SEMESTER" in normalized_class_input.upper(): normalized_class_input = "Semester 2"
+    elif "3RD SEMESTER" in normalized_class_input.upper(): normalized_class_input = "Semester 3"
+    elif "4TH SEMESTER" in normalized_class_input.upper(): normalized_class_input = "Semester 4"
+
     if print_scope == "👤 Single Student Card":
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
     else:
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
+            # Reads directly from the global DISCIPLINE_SECTIONS_MAP keys at the top of file
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=list(DISCIPLINE_SECTIONS_MAP.keys()))
         with col_sec2:
-            # Map selected class directly to our internal keys
-            clean_class_key = "11th" if "11TH" in str(selected_class).upper() else "12th" if "12TH" in str(selected_class).upper() else str(selected_class)
-            
-            # Fetch real sections bound specifically to this configuration
-            sections_pool = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(clean_class_key, [])
+            # Dynamically filters available sections using the top map mapping matrix
+            sections_pool = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(normalized_class_input, [])
             active_section = st.selectbox("📋 Select Section:", options=sections_pool)
 
     st.markdown("<br>", unsafe_allow_html=True)
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 4: DATA FETCHING & DISCIPLINE STABILIZATION LOGIC
-    # --------------------------------------------------------------------------
-    # --------------------------------------------------------------------------
-    # Temporary Diagnostic Engine (Remove after debugging)
-    # --------------------------------------------------------------------------
-    if submit_execution and print_scope == "👤 Single Student Card" and search_id:
-        diag_query = run_query(f"SELECT id, name, class, discipline FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
-        if not diag_query.empty:
-            st.info("🔍 **Diagnostics Output for Single Student Lookup:**")
-            st.json({
-                "Database ID": str(diag_query['id'].iloc[0]),
-                "Student Name": str(diag_query['name'].iloc[0]),
-                "Class Column": str(diag_query['class'].iloc[0]),
-                "Discipline Column (Raw)": f"'{diag_query['discipline'].iloc[0]}'",
-                "Discipline Column (Length)": len(str(diag_query['discipline'].iloc[0]))
-            })
-        else:
-            st.error(f"❌ Diagnostics Failure: No student found with ID '{search_id}' in session '{selected_session}'.")
+    # PART 3: DATA EXTRACTION ENGINE (CLEAN RECORD FETCHING)
     # --------------------------------------------------------------------------
     students_to_print = pd.DataFrame()
 
     if submit_execution:
         if print_scope == "👤 Single Student Card" and search_id:
-            raw_student = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
-            if not raw_student.empty:
-                students_to_print = raw_student.copy()
-                # Store the exact database string in upper case to clear whitespace issues
-                students_to_print['target_discipline_string'] = students_to_print['discipline'].astype(str).str.upper().str.strip()
+            students_to_print = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            section_students = run_query(f"""
-                SELECT id, name, section, class, discipline FROM students 
+            students_to_print = run_query(f"""
+                SELECT id, name, section, class FROM students 
                 WHERE session = '{selected_session}' 
                 AND class = '{selected_class}' 
                 AND UPPER(TRIM(section)) = '{str(active_section).upper().strip()}'
                 ORDER BY id ASC
             """)
-            if not section_students.empty:
-                students_to_print = section_students.copy()
-                # Force synchronization using what the user clicked in the UI dropdown map
-                students_to_print['target_discipline_string'] = str(selected_discipline).upper().strip()
 
     # --------------------------------------------------------------------------
-    # PART 5: ROBUST COMPILATION LOOP & HTML RENDERING ENGINE
+    # PART 4: COMPILATION LOOP WITH EMBEDDED REVERSE-MAPPING ROUTER
     # --------------------------------------------------------------------------
     if submit_execution and not students_to_print.empty:
         compiled_html = """
@@ -2900,37 +2813,39 @@ elif menu_choice == "🪪 Student Result Cards":
             current_id_str = str(student_row['id']).strip()
             name = str(student_row['name']).upper()
             section = str(student_row['section']).upper().strip()
-            grade_class = str(student_row['class']).upper()
+            grade_class = str(student_row['class']).strip()
             test_name = selected_test_label.upper()
             
-            # Formulate structural keys
-            lookup_class_key = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
-            raw_disp_str = str(student_row['target_discipline_string']).strip().upper()
+            # 1. Track down the precise structural Class configuration key layer
+            lookup_class_key = grade_class
+            if "1ST SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 1"
+            elif "2ND SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 2"
+            elif "3RD SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 3"
+            elif "4TH SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 4"
 
-            # Robust mapping translation checking database strings thoroughly
-            if "STATS" in raw_disp_str or "I.C.S STATS" in raw_disp_str:
-                resolved_map_key = "ICS_STATS"
-            elif "PHYSIC" in raw_disp_str or "I.C.S PHYS" in raw_disp_str or "ICS" in raw_disp_str:
-                resolved_map_key = "ICS_PHYSICS"
-            elif "MED" in raw_disp_str or "F.SC MEDICAL" in raw_disp_str:
-                resolved_map_key = "MEDICAL"
-            elif "ENG" in raw_disp_str or "ENGINEERING" in raw_disp_str:
-                resolved_map_key = "ENGINEERING"
-            elif "COMM" in raw_disp_str or "COMMERCE" in raw_disp_str or "I.COM" in raw_disp_str:
-                resolved_map_key = "COMMERCE"
-            elif "HUM" in raw_disp_str or "HUMANITIES" in raw_disp_str or "F.A" in raw_disp_str:
-                resolved_map_key = "HUMANITIES"
-            else:
-                # Direct fallback clean up replacement
-                resolved_map_key = raw_disp_str.replace(" ", "_").replace("(", "").replace(")", "")
+            # 2. Trace Section backwards through global master configuration map to resolve true discipline context
+            detected_discipline_key = None
+            for discipline, class_layers in DISCIPLINE_SECTIONS_MAP.items():
+                sections_list = class_layers.get(lookup_class_key, [])
+                if section in [str(s).upper().strip() for s in sections_list]:
+                    detected_discipline_key = discipline
+                    break
+            
+            # 3. Formulate direct cross-references matching CLASS_SUBJECTS_MASTER_MAP keys precisely
+            subject_mapping_key = detected_discipline_key
+            if detected_discipline_key == "ICS (PHYSICS)":
+                subject_mapping_key = "ICS_PHYSICS"
+            elif detected_discipline_key == "ICS (STATS)":
+                subject_mapping_key = "ICS_STATS"
 
-            # Pull precise subjects list from structural map configurations
-            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(resolved_map_key, None)
-            # Pull precise subjects list from structural map configurations
-            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(resolved_map_key, None)
+            # 4. Extract subject structural lists safely from the top mapping file parameters
+            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(subject_mapping_key, None)
             if not subjects_list:
-                # Absolute dynamic backup to avoid code breakage if dictionary matching misses completely
-                subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
+                # Emergency runtime safeguard layout bridge
+                try:
+                    subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
+                except Exception:
+                    subjects_list = ["English", "Urdu"]
 
             # Fetch Marks & Attendance Records
             raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
@@ -2961,7 +2876,7 @@ elif menu_choice == "🪪 Student Result Cards":
             logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
             grand_total_marks, grand_obtained_marks = 0.0, 0.0
             
-            # Start Card HTML Output
+            # Card HTML Output
             compiled_html += f"""
             <div class="official-card-container" id="card-{current_id_str}" data-student-name="{name.replace(' ', '_')}">
                 <div class="header-block">
@@ -2998,7 +2913,6 @@ elif menu_choice == "🪪 Student Result Cards":
             student_failed_any_subject = False
             has_valid_marks_data = False
 
-            # Loop precisely over our specific mapped subjects
             for sub in subjects_list:
                 sub_clean = sub.upper().strip()
                 match = pd.DataFrame()
