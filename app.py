@@ -2681,316 +2681,110 @@ if menu_choice == "📈 Multi-Test Progress Report":
         import streamlit.components.v1 as components
         components.html(composite_html_payload, height=900, scrolling=True)
 
-# ----------------- 🪪 STUDENT RESULT CARDS -----------------
-elif menu_choice == "🪪 Student Result Cards":
-    st.title("🪪 Student Result Cards — Print Engine")
-    
-    # --- SAFE SESSION STATE FETCH WITH ROBUST FALLBACKS ---
-    current_academic_system = st.session_state.get('academic_system', 'Annual System')
-    active_available_months = st.session_state.get('AVAILABLE_MONTHS', ["MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER", "JANUARY", "FEBRUARY", "MARCH"])
-    
-    # Fallback exams if settings module hasn't been saved yet
-    active_available_exams = st.session_state.get('AVAILABLE_EXAMS', ["1st Term", "Mid Term", "Final Term"])
-    
-    # Provide deep defaults for Annual & Semester Maps to guarantee loop execution
-    if 'DISCIPLINE_MAP' not in st.session_state:
-        st.session_state['DISCIPLINE_MAP'] = {
-            "MEDICAL": {"11th": ["ENGLISH", "URDU", "ISLAMIAT", "BIOLOGY", "PHYSICS", "CHEMISTRY"], "12th": ["ENGLISH", "URDU", "PAK STUDIES", "BIOLOGY", "PHYSICS", "CHEMISTRY"]},
-            "ENGINEERING": {"11th": ["ENGLISH", "URDU", "ISLAMIAT", "MATH", "PHYSICS", "CHEMISTRY"], "12th": ["ENGLISH", "URDU", "PAK STUDIES", "MATH", "PHYSICS", "CHEMISTRY"]},
-            "ICS": {"11th": ["ENGLISH", "URDU", "ISLAMIAT", "MATH", "PHYSICS", "COMPUTER"], "12th": ["ENGLISH", "URDU", "PAK STUDIES", "MATH", "PHYSICS", "COMPUTER"]},
-            "COMMERCE": {"11th": ["ENGLISH", "URDU", "ISLAMIAT", "ACCOUNTING", "ECONOMICS"], "12th": ["ENGLISH", "URDU", "PAK STUDIES", "ACCOUNTING", "COMMERCE"]}
-        }
-    
-    if 'SEMESTER_MAP' not in st.session_state:
-        st.session_state['SEMESTER_MAP'] = {
-            "Semester 1": ["ICT", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT"],
-            "Semester 2": ["DATA STRUCTURES", "DATABASE SYSTEMS", "OOP"],
-            "Semester 3": ["WEB DEVELOPMENT", "SOFTWARE ENGINEERING"],
-            "Semester 4": ["CLOUD COMPUTING", "CYBER SECURITY"]
-        }
+import pandas as pd
+import streamlit as st
 
-    if 'DISCIPLINE_SECTIONS_MAP' not in st.session_state:
-        st.session_state['DISCIPLINE_SECTIONS_MAP'] = {"MEDICAL": ["A", "B"], "ENGINEERING": ["C"], "ICS": ["D"], "COMMERCE": ["E"]}
+# ----------------- ⚙️ ACADEMIC SYSTEM SETTINGS -----------------
+if menu_choice == "⚙️ Academic System Setting":
+    st.title("⚙️ Academic System Settings Configuration")
+    st.markdown("Configure your active institutional structures below. These changes dynamically sync with the student result card generation engines.")
 
-    print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
-    col_c1, col_c2 = st.columns(2)
-    with col_c1: 
-        search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-    with col_c2: 
-        selected_test = st.selectbox("🎯 Select Test Term:", options=active_available_exams)
+    # Create distinct configuration layout rows
+    col1, col2, col3 = st.columns(3)
 
-    if search_id and search_id.isdigit() and selected_test:
-        base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
-        
-        if base_student.empty:
-            st.warning("⚠️ No student found with that ID in the database.")
+    # 1. OPTION: Select Session
+    with col1:
+        current_year = 2026
+        session_options = [
+            f"{current_year}-{current_year+1}",
+            f"{current_year-1}-{current_year}",
+            f"{current_year-2}-{current_year-1}"
+        ]
+        selected_session = st.selectbox(
+            "📆 Select Session:",
+            options=session_options,
+            key="setting_session"
+        )
+        st.session_state['ACTIVE_SESSION'] = selected_session
+
+    # 2. OPTION: Select Academic System
+    with col2:
+        system_type = st.selectbox(
+            "🏛️ Select Academic System:",
+            options=["Annual System", "Semester System"],
+            key="setting_system_type"
+        )
+        st.session_state['academic_system'] = system_type
+
+    # 3. OPTION: Select Class (Dynamically Computed based on System Selection)
+    with col3:
+        if system_type == "Annual System":
+            class_options = ["11th", "12th"]
         else:
-            target_section = base_student['section'].iloc[0].upper().strip()
+            class_options = ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
             
-            if print_scope == "👥 Complete Section Cards":
-                students_to_print = run_query("SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) ORDER BY id ASC", {"section": target_section})
-            else:
-                students_to_print = pd.DataFrame([{"id": int(search_id), "name": base_student['name'].iloc[0], "section": target_section, "class": base_student['class'].iloc[0]}])
+        selected_class = st.selectbox(
+            "🎓 Select Class / Level:",
+            options=class_options,
+            key="setting_selected_class"
+        )
+        # Store the actively selected class focus context
+        st.session_state['CURRENT_SETTING_CLASS'] = selected_class
 
-            # HTML PAYLOAD WITH INTEGRATED INLINE STYLES AND LAYOUT
-            compiled_html = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-            <style>
-                body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-                .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-                .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
-                .logo-row { display: block; width: 100%; margin-bottom: 12px; }
-                .logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
-                .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
-                .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
-                .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
-                .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
-                .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
-                .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
-                .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-                .doc-data-table th { font-weight: bold; background-color: #fff; }
-                .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
-                .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
-                .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
-                .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
-                .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
-                .footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
-                .footer-signatures-table td { border: none; }
-                .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
-                .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
-                .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-                .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-                .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-                @media print {
-                    .action-controls-bar { display: none !important; }
-                    .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-                    .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
-                }
-            </style>
-            </head>
-            <body>
-                <div class="action-controls-bar">
-                    <button class="print-btn" onclick="window.print();">🖨️ Print Document (Ctrl+P)</button>
-                    <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
-                    <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
-                </div>
-            """
+    st.markdown("---")
 
-            for idx, student_row in students_to_print.iterrows():
-                current_id = int(student_row['id'])
-                name = str(student_row['name']).upper()
-                section = str(student_row['section']).upper().strip()
-                grade_class = str(student_row['class']).upper().strip()
-                test_name = selected_test.upper()
-                
-                # Match Discipline Category
-                matched_disp = "MEDICAL"
-                for disp, secs in st.session_state['DISCIPLINE_SECTIONS_MAP'].items():
-                    if section in [x.upper().strip() for x in secs]: 
-                        matched_disp = disp
-                        break
-                
-                # --- SYSTEM CONFIG ROUTING FOR SUBJECTS LIST ---
-                if current_academic_system == "Semester System":
-                    if "SEMESTER 1" in grade_class or "1ST" in grade_class or "SEM 1" in grade_class:
-                        subjects_list = st.session_state['SEMESTER_MAP'].get("Semester 1", [])
-                    elif "SEMESTER 2" in grade_class or "2ND" in grade_class or "SEM 2" in grade_class:
-                        subjects_list = st.session_state['SEMESTER_MAP'].get("Semester 2", [])
-                    elif "SEMESTER 3" in grade_class or "3RD" in grade_class or "SEM 3" in grade_class:
-                        subjects_list = st.session_state['SEMESTER_MAP'].get("Semester 3", [])
-                    else:
-                        subjects_list = st.session_state['SEMESTER_MAP'].get("Semester 4", [])
-                else:
-                    clean_class_key = "12th" if "12" in grade_class else "11th"
-                    subjects_list = st.session_state['DISCIPLINE_MAP'].get(matched_disp, {}).get(clean_class_key, ["ENGLISH", "URDU"])
-                
-                raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
-                db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM daily_attendance WHERE student_id = :id", {"id": current_id})
-                
-                # Dynamic Attendance Compilation Loop
-                att_cells = {}
-                tot_sum, pres_sum = 0, 0
-                for m in active_available_months:
-                    m_upper = m.upper().strip()
-                    match_att = db_att[db_att['m_name'] == m_upper]
-                    if not match_att.empty:
-                        td = int(match_att['total_days'].iloc[0])
-                        pd_val = int(match_att['present_days'].iloc[0])
-                        tot_sum += td
-                        pres_sum += pd_val
-                        pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
-                        att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
-                    else:
-                        att_cells[m] = {"td": "", "pd": "", "pct": ""}
-                
-                attendance_percentage = (pres_sum / tot_sum) * 100 if tot_sum > 0 else 0.0
-                att_cells["Over All Att."] = {
-                    "td": str(tot_sum) if tot_sum > 0 else "",
-                    "pd": str(pres_sum) if tot_sum > 0 else "",
-                    "pct": f"{int(attendance_percentage)}%" if tot_sum > 0 else ""
-                }
+    # --- SUBJECT CURRICULUM CONFIGURATION BLOCK FOR THE SELECTED CONTEXT ---
+    st.subheader(f"📚 Subject Mapping Engine — {selected_class} ({system_type})")
+    st.caption(f"Editing layout constraints for Session {selected_session}")
 
-                logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-                grand_total_marks = 0.0
-                grand_obtained_marks = 0.0
-                
-                compiled_html += f"""
-                <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
-                    <div class="header-block">
-                        <div class="logo-row"><img class="logo-img" src="{logo_base64}"></div>
-                        <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-                    </div>
-                    <div class="doc-type-banner">Result Card</div>
-                    <table class="meta-layout-table">
-                        <tr>
-                            <td style="width: 40%;"> Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                            <td style="width: 14%;"> ID: <span class="underlined-value-span" style="width: 68%;">{current_id}</span></td>
-                            <td style="width: 16%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
-                            <td style="width: 14%;"> Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                            <td style="width: 16%;"> Test: <span class="underlined-value-span" style="width: 65%;">{test_name}</span></td>
-                        </tr>
-                    </table>
-                    <table class="doc-data-table">
-                        <thead>
-                            <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
-                                <th style="width: 13%;">Obt. Marks</th>
-                                <th style="width: 13%;">Total Marks</th>
-                                <th style="width: 13%;">Pass Marks</th>
-                                <th style="width: 13%;">Age%</th>
-                                <th style="width: 13%;">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                """
-                
-                student_failed = False
-                has_marks = False
-
-                for sub in subjects_list:
-                    match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'] == selected_test)]
-                    obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
-                    if not match.empty:
-                        try:
-                            obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
-                            tot_val = match['total_marks'].iloc[0]
-                            tot_marks_num = int(tot_val) if tot_val else 100
-                            pass_marks_num = int(tot_marks_num * 0.4)
-                            
-                            if obt_val == "NC":
-                                obt_disp, per_disp, status_disp = "NC", "NC", "NC"
-                            elif obt_val in ["A", "ABSENT"]:
-                                obt_disp, per_disp, status_disp = "A", "0%", "Fail"
-                                grand_total_marks += tot_marks_num
-                                student_failed = True
-                                has_marks = True
-                            elif obt_val.replace('.', '', 1).isdigit():
-                                num_obt = float(obt_val)
-                                obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
-                                per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
-                                grand_obtained_marks += num_obt
-                                grand_total_marks += tot_marks_num
-                                has_marks = True
-                                if num_obt >= pass_marks_num:
-                                    status_disp = "Pass"
-                                else:
-                                    status_disp = "Fail"
-                                    student_failed = True
-                        except: pass
-                        
-                    style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
-                    compiled_html += f"""
-                    <tr>
-                        <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
-                        <td style="{style_override}">{obt_disp}</td>
-                        <td style="{style_override}">{tot_marks_num if obt_disp != "NC" else "NC"}</td>
-                        <td style="{style_override}">{pass_marks_num if obt_disp != "NC" else "NC"}</td>
-                        <td style="{style_override}">{per_disp}</td>
-                        <td style="font-weight: bold; {style_override}">{status_disp}</td>
-                    </tr>
-                    """
-                
-                grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_marks and grand_total_marks > 0 else ""
-                grand_status_disp = "Fail" if student_failed else ("Pass" if has_marks else "")
-
-                compiled_html += f"""
-                            <tr style="background-color: #fff; font-weight: bold;">
-                                <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
-                                <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
-                                <td>{int(grand_total_marks)}</td>
-                                <td>-</td>
-                                <td>{grand_per_disp}</td>
-                                <td>{grand_status_disp}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <div class="section-header-title">Attendance Report</div>
-                    <table class="attendance-matrix-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 12%;">Metric</th>
-                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in active_available_months])}
-                                <th style="width: 11%;">Over All Att.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td class="row-title-cell">Total Days</td>
-                                {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in active_available_months])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
-                            </tr>
-                            <tr>
-                                <td class="row-title-cell">Att. Days</td>
-                                {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in active_available_months])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
-                            </tr>
-                            <tr>
-                                <td class="row-title-cell">Age%</td>
-                                {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in active_available_months])}
-                                <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px;">
-                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">Satisfactory execution context.</span>
-                    </div>
-                    <table class="footer-signatures-table">
-                        <tr>
-                            <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
-                            <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
-                        </tr>
-                    </table>
-                </div>
-                <div class="print-page-break-divider"></div>
-                """
-                
-            compiled_html += """
-            <script>
-                document.getElementById('save-single-card-trigger').addEventListener('click', function() {
-                    const targetCard = document.querySelector('.official-card-container');
-                    if (!targetCard) return alert("No active result card engine target detected.");
-                    html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
-                        const dlLink = document.createElement('a');
-                        dlLink.download = "Result_Card.png";
-                        dlLink.href = canvas.toDataURL('image/png');
-                        dlLink.click();
-                    });
-                });
-            </script>
-            </body>
-            </html>
-            """
+    if system_type == "Annual System":
+        # Initialize Annual Mapping structure safely if missing
+        if 'DISCIPLINE_MAP' not in st.session_state:
+            st.session_state['DISCIPLINE_MAP'] = {
+                "MEDICAL": {"11th": ["ENGLISH", "URDU", "BIOLOGY"], "12th": ["ENGLISH", "URDU", "BIOLOGY"]},
+                "ENGINEERING": {"11th": ["ENGLISH", "URDU", "MATH"], "12th": ["ENGLISH", "URDU", "MATH"]},
+                "ICS": {"11th": ["ENGLISH", "URDU", "COMPUTER"], "12th": ["ENGLISH", "URDU", "COMPUTER"]},
+                "COMMERCE": {"11th": ["ENGLISH", "URDU", "ACCOUNTING"], "12th": ["ENGLISH", "URDU", "ACCOUNTING"]}
+            }
             
-            # --- FIXED HEIGHT AND SCROLLING DEFAULTS TO PREVENT BLANK VIEW ---
-            dynamic_height = max(850, len(students_to_print) * 750)
-            components.html(compiled_html, height=min(dynamic_height, 2500), scrolling=True)
+        disciplines = list(st.session_state['DISCIPLINE_MAP'].keys())
+        
+        # Display inputs only for the explicitly chosen Class tier (11th or 12th)
+        for disc in disciplines:
+            existing_sub_list = st.session_state['DISCIPLINE_MAP'].get(disc, {}).get(selected_class, ["ENGLISH", "URDU"])
+            raw_input = st.text_input(
+                f"Subjects for {disc} — {selected_class} (Comma Separated):",
+                value=", ".join(existing_sub_list),
+                key=f"input_{disc}_{selected_class}"
+            )
+            # Live parsing back to clean list tracking strings
+            st.session_state['DISCIPLINE_MAP'][disc][selected_class] = [s.strip().upper() for s in raw_input.split(",") if s.strip()]
 
+    else:
+        # Initialize Semester Mapping structure safely if missing
+        if 'SEMESTER_MAP' not in st.session_state:
+            st.session_state['SEMESTER_MAP'] = {
+                "Semester 1": ["ICT", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING"],
+                "Semester 2": ["DATA STRUCTURES", "DATABASE SYSTEMS", "OOP"],
+                "Semester 3": ["WEB DEVELOPMENT", "SOFTWARE ENGINEERING"],
+                "Semester 4": ["CLOUD COMPUTING", "CYBER SECURITY"]
+            }
+
+        # Display input field specifically matching the single chosen target Semester
+        existing_sem_list = st.session_state['SEMESTER_MAP'].get(selected_class, ["ICT"])
+        raw_sem_input = st.text_input(
+            f"Curriculum Core Subjects for {selected_class} Configuration:",
+            value=", ".join(existing_sem_list),
+            key=f"input_sem_{selected_class.replace(' ', '_')}"
+        )
+        st.session_state['SEMESTER_MAP'][selected_class] = [s.strip().upper() for s in raw_sem_input.split(",") if s.strip()]
+
+    st.markdown("---")
+
+    # Global Save Commit Control Button
+    if st.button("💾 Save System Configuration", type="primary"):
+        st.success(f"Successfully deployed runtime state rules for **Session {selected_session}**, **{system_type}**, focusing on **{selected_class}**!")
+        st.balloons()
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
