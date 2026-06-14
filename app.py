@@ -2684,10 +2684,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
     
+    # --- STEP 1: FETCH FRESH REAL-TIME CONFIGURATIONS FROM YOUR SETTINGS MODULE ---
+    # We pull from st.session_state (or you can substitute a database query if you save them there)
+    current_academic_system = st.session_state.get('academic_system', 'Annual System')
+    active_available_months = st.session_state.get('AVAILABLE_MONTHS', ["May", "June", "July", "August", "September", "October", "November", "December", "January", "February", "March"])
+    active_available_exams = st.session_state.get('AVAILABLE_EXAMS', [])
+    current_discipline_map = st.session_state.get('DISCIPLINE_MAP', {})
+    current_discipline_sections = st.session_state.get('DISCIPLINE_SECTIONS_MAP', {})
+
     print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     col_c1, col_c2 = st.columns(2)
     with col_c1: search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-    with col_c2: selected_test = st.selectbox("🎯 Select Test Term:", options=AVAILABLE_EXAMS)
+    with col_c2: selected_test = st.selectbox("🎯 Select Test Term:", options=active_available_exams if active_available_exams else AVAILABLE_EXAMS)
 
     if search_id and search_id.isdigit() and selected_test:
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
@@ -2740,7 +2748,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 .footer-signatures-table td { border: none; }
                 .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
                 
-                /* CONTROL ACTIONS BUTTONS BAR styling wrapper element */
+                /* CONTROL ACTIONS BUTTONS BAR */
                 .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
                 .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
                 .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
@@ -2767,27 +2775,38 @@ elif menu_choice == "🪪 Student Result Cards":
                 current_id = int(student_row['id'])
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
-                grade_class = str(student_row['class']).upper()
+                grade_class = str(student_row['class']).upper().strip()
                 test_name = selected_test.upper()
                 
                 matched_disp = "MEDICAL"
-                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
+                # Use the fetched section-to-discipline map from settings
+                for disp, secs in current_discipline_sections.items():
                     if section in [x.upper().strip() for x in secs]: 
                         matched_disp = disp
                         break
                 
-                subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
+                # --- STEP 2: DYNAMIC SUBJECT MATCHING BASED ON SETTINGS CHANGE ---
+                if current_academic_system == "Semester System":
+                    if "SEMESTER 1" in grade_class or "1ST SEMESTER" in grade_class:
+                        subjects_list = ["ICT", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT"]
+                    else:
+                        subjects_list = ["ICT", "OFFICE AUTOMATION"]
+                else:
+                    clean_class_key = "12th" if "12" in grade_class else "11th"
+                    # Pulls dynamically updated subject arrays directly from settings page values
+                    subjects_list = current_discipline_map.get(matched_disp, {}).get(clean_class_key, ["ENGLISH", "URDU"])
+                
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
-                # Fetch full complete sequence ledger dataset for horizontal formatting table matrix reconstruction
                 db_att = run_query("""
                     SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
-                    FROM attendance WHERE student_id = :id
+                    FROM daily_attendance WHERE student_id = :id
                 """, {"id": current_id})
                 
+                # --- STEP 3: DYNAMIC ATTENDANCE COLUMNS LOOP BASED ON SETTINGS ---
                 att_cells = {}
                 tot_sum, pres_sum = 0, 0
-                for m in AVAILABLE_MONTHS:
+                for m in active_available_months:
                     m_upper = m.upper().strip()
                     match_att = db_att[db_att['m_name'] == m_upper]
                     if not match_att.empty:
@@ -2800,7 +2819,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     else:
                         att_cells[m] = {"td": "", "pd": "", "pct": ""}
                 
-                # Determine overall attendance percentage figure
                 attendance_percentage = 0.0
                 if tot_sum > 0:
                     attendance_percentage = (pres_sum / tot_sum) * 100
@@ -2810,11 +2828,9 @@ elif menu_choice == "🪪 Student Result Cards":
 
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
                 
-                # Reset grand totals for this student card
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 
-                # Assigned explicit distinct container target ID hook tag for DOM processing pipeline execution
                 compiled_html += f"""
                 <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
                     <div class="header-block">
@@ -2900,14 +2916,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     </tr>
                     """
                 
-                # Grand Total calculation row
                 grand_per_disp = ""
                 grand_status_disp = ""
                 if has_valid_marks_data and grand_total_marks > 0:
                     grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%"
                     grand_status_disp = "Fail" if student_failed_any_subject else "Pass"
 
-                # --- ALGORITHMIC AUTOMATED REMARKS ENGINE ---
                 remarks_text = "No records found."
                 if has_valid_marks_data:
                     if student_failed_any_subject:
@@ -2946,24 +2960,24 @@ elif menu_choice == "🪪 Student Result Cards":
                         <thead>
                             <tr>
                                 <th style="width: 12%;">Metric</th>
-                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
+                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in active_available_months])}
                                 <th style="width: 11%;">Over All Att.</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td class="row-title-cell">Total Days</td>
-                                {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in AVAILABLE_MONTHS])}
+                                {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in active_available_months])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
                             </tr>
                             <tr>
                                 <td class="row-title-cell">Att. Days</td>
-                                {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in AVAILABLE_MONTHS])}
+                                {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in active_available_months])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
                             </tr>
                             <tr>
                                 <td class="row-title-cell">Age%</td>
-                                {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in AVAILABLE_MONTHS])}
+                                {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in active_available_months])}
                                 <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
                             </tr>
                         </tbody>
@@ -2986,7 +3000,6 @@ elif menu_choice == "🪪 Student Result Cards":
             # INJECT JAVASCRIPT ASYNC IMAGE CAPTURE INTERFACE LOGIC
             compiled_html += """
             <script>
-                // 1. Save Current / First visible student card layout asset configuration
                 document.getElementById('save-single-card-trigger').addEventListener('click', function() {
                     const targetCard = document.querySelector('.official-card-container');
                     if (!targetCard) return alert("No active result card engine target detected.");
@@ -3002,7 +3015,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     });
                 });
 
-                // 2. Iterative loop rendering pipeline logic to build and downloard a compressed ZIP package file mapping
                 document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
                     const allCards = document.querySelectorAll('.official-card-container');
                     if (allCards.length === 0) return alert("Empty stack context scope configuration payload mapping.");
@@ -3020,7 +3032,6 @@ elif menu_choice == "🪪 Student Result Cards":
                             const cardIdStr = currentCard.id || `card_${index}`;
                             const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
                             
-                            // High DPI scale conversion setup to ensure text rendering elements stay perfectly crisp
                             const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                             const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                             
@@ -3046,10 +3057,7 @@ elif menu_choice == "🪪 Student Result Cards":
             </html>
             """
             
-            # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-    # Sub-navigation tabs for managing vs viewing history
-    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
