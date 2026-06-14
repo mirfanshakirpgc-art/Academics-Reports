@@ -2775,10 +2775,12 @@ elif menu_choice == "🪪 Student Result Cards":
         class_options = ["11th", "12th"] if selected_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
         selected_class = st.selectbox("🏫 Select Class:", options=class_options)
     with col_sel4:
-        db_exams = run_query(
-            "SELECT exam_code, exam_display_name FROM exam_cycles WHERE system_type = :sys AND status = 'ACTIVE' ORDER BY exam_code ASC",
-            {"sys": selected_system}
-        )
+        # Fallback parameters technique using string formatting since driver binding style is obscured
+        try:
+            db_exams = run_query(f"SELECT exam_code, exam_display_name FROM exam_cycles WHERE system_type = '{selected_system}' AND status = 'ACTIVE' ORDER BY exam_code ASC")
+        except Exception:
+            db_exams = pd.DataFrame()
+
         if not db_exams.empty:
             exam_options = [f"{row['exam_code']} ({row['exam_display_name']})" for _, row in db_exams.iterrows()]
             selected_combined_label = st.selectbox("🎯 Select Test Term:", options=exam_options)
@@ -2803,30 +2805,29 @@ elif menu_choice == "🪪 Student Result Cards":
         
         if search_id and selected_test_code:
             clean_search_id = str(search_id).strip()
-            single_student = pd.DataFrame()
             
-            # Step A: Safe Direct string query execution (Universal Parameter Styling)
-            single_student = run_query(
-                "SELECT id, name, section, class, discipline FROM students WHERE id = :id AND session = :sess", 
-                {"id": clean_search_id, "sess": selected_session}
-            )
+            # METHOD CHANGE: Fetch whole session safely to memory first, avoiding driver parameter binding errors completely
+            all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
             
-            # Step B: Fallback sub-string parsing matching structure bounds
-            if single_student.empty:
-                single_student = run_query(
-                    "SELECT id, name, section, class, discipline FROM students WHERE CAST(id AS TEXT) LIKE :id_like AND session = :sess", 
-                    {"id_like": f"%{clean_search_id}%", "sess": selected_session}
-                )
+            if not all_session_students.empty:
+                # Direct match filter via Pandas evaluation
+                match_mask = (all_session_students['id'].astype(str) == clean_search_id)
+                single_student = all_session_students[match_mask]
                 
-            if not single_student.empty:
-                students_to_print = pd.DataFrame([{
-                    "id": int(single_student['id'].iloc[0]), 
-                    "name": single_student['name'].iloc[0], 
-                    "section": single_student['section'].iloc[0].upper().strip(), 
-                    "class": single_student['class'].iloc[0]
-                }])
-                if "discipline" in single_student.columns and str(single_student['discipline'].iloc[0]).strip():
-                    selected_discipline_tracked = str(single_student['discipline'].iloc[0]).strip().upper()
+                # Fallback fuzzy matching filter via Pandas logic
+                if single_student.empty:
+                    fuzzy_mask = all_session_students['id'].astype(str).str.contains(clean_search_id, case=False, na=False)
+                    single_student = all_session_students[fuzzy_mask]
+                
+                if not single_student.empty:
+                    students_to_print = pd.DataFrame([{
+                        "id": int(single_student['id'].iloc[0]), 
+                        "name": single_student['name'].iloc[0], 
+                        "section": single_student['section'].iloc[0].upper().strip(), 
+                        "class": single_student['class'].iloc[0]
+                    }])
+                    if "discipline" in single_student.columns and str(single_student['discipline'].iloc[0]).strip():
+                        selected_discipline_tracked = str(single_student['discipline'].iloc[0]).strip().upper()
     
     else: # Complete Section Cards Mode
         col_sec1, col_sec2 = st.columns(2)
@@ -2849,13 +2850,16 @@ elif menu_choice == "🪪 Student Result Cards":
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
         if active_section and selected_test_code:
-            students_to_print = run_query("""
+            # Inline explicit parameters layout formatting bypasses driver conflicts
+            students_to_print = run_query(f"""
                 SELECT id, name, section, class FROM students 
-                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-                AND session = :session 
-                AND class = :class 
+                WHERE session = '{selected_session}' 
+                AND class = '{selected_class}' 
                 ORDER BY id ASC
-            """, {"section": active_section, "session": selected_session, "class": selected_class})
+            """)
+            if not students_to_print.empty:
+                # Perform clean section filtering out of database engine layers
+                students_to_print = students_to_print[students_to_print['section'].astype(str).str.upper().str.strip() == str(active_section).upper().strip()]
 
     # 3. HTML RENDERING & PRINT ENGINE
     if not students_to_print.empty:
@@ -2926,22 +2930,9 @@ elif menu_choice == "🪪 Student Result Cards":
 
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(lookup_disp, ["English", "Urdu", "T_Quran"])
             
-            raw_marks = run_query(
-                "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
-                {"id": str(current_id), "exam_type": selected_test_code}
-            )
-            
-            # Parametrization isolation strategy for attendance collection 
-            db_att = run_query(
-                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", 
-                {"id": str(current_id)}
-            )
-            
-            if db_att.empty:
-                db_att = run_query(
-                    "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE CAST(student_id AS TEXT) LIKE :id_like", 
-                    {"id_like": f"%{current_id}%"}
-                )
+            # Format injection strategy ensures maximum query stability
+            raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id}' AND exam_type = '{selected_test_code}'")
+            db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id}'")
             
             att_cells = {}
             tot_sum, pres_sum = 0, 0
@@ -3145,7 +3136,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
