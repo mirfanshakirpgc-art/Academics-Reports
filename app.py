@@ -2321,10 +2321,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
                 marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
                 
-                # --- CASE-INSENSITIVE / STRING NORMALIZATION ENGINE ---
-                # Force any variation of "Computer" to unify as "Computer Science"
-            marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.title()
-            marks_df["subject_name"] = marks_df["subject_name"].replace({"Computer": "Computer Science"})
+                # --- FLAWLESS STRING SANITIZATION & UNIFICATION ---
+                # 1. Cast to string, strip whitespace, and normalize case
+                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.title()
+                # 2. Aggressively clean up any multi-space or trailing text hidden artifacts
+                marks_df["subject_name"] = marks_df["subject_name"].str.replace(r'\s+', ' ', regex=True)
+                # 3. Unify alternative values securely at the data frame root level
+                marks_df["subject_name"] = marks_df["subject_name"].replace({"Computer": "Computer Science"})
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
@@ -2418,16 +2421,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
                 if not s_marks.empty:
                     # ------------------------------------------------------------------
-                    # ⚡ DYNAMIC ELECTIVE TRANSLATION & UNIFICATION LAYER
+                    # ⚡ DYNAMIC ELECTIVE TRANSLATION & COLLAPSING UNIFICATION ENGINE
                     # ------------------------------------------------------------------
                     is_stats_section = s_section in ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
                     
-                    # Core normalization to bypass data-entry string inconsistencies
+                    # Ensure absolute string purity for this iteration slice
                     s_marks['display_subject'] = s_marks['subject_name'].astype(str).str.strip().str.title()
-                    s_marks['label_suffix'] = ""
-                    
-                    # UNIFICATION: Force any variant named "Computer" to match "Computer Science"
+                    s_marks['display_subject'] = s_marks['display_subject'].str.replace(r'\s+', ' ', regex=True)
                     s_marks['display_subject'] = s_marks['display_subject'].replace({"Computer": "Computer Science"})
+                    s_marks['label_suffix'] = ""
                     
                     if is_stats_section:
                         for m_idx, m_row in s_marks.iterrows():
@@ -2435,12 +2437,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 s_marks.at[m_idx, 'display_subject'] = "Statistics"
                                 s_marks.at[m_idx, 'label_suffix'] = " (Phy)"
                     
-                    distinct_subjects = sorted(s_marks["display_subject"].unique())
+                    # Unique array will now strictly yield a single unified "Computer Science" row index
+                    distinct_subjects = sorted(list(set(s_marks["display_subject"].dropna().tolist())))
                     
                     exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
                     exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
                     
                     for sub in distinct_subjects:
+                        # Slice data belonging to this specific unified subject name string
                         sub_marks = s_marks[s_marks["display_subject"] == sub]
                         row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
                         subject_pct_accum = 0
@@ -2454,13 +2458,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 
                             if not match_row.empty:
                                 try:
-                                    # If duplicate test entries are found for unified rows, grab the max/valid one
+                                    # Fallback safely to highest or first available metric if multiple rows intersect
                                     target_record = match_row.iloc[0]
                                     obt = float(target_record["marks_obtained"])
                                     tot = float(target_record["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    suffix_tag = target_record['label_suffix']
+                                    suffix_tag = target_record.get('label_suffix', '')
                                     row_tds += f"<td>{pct}%{suffix_tag}</td>"
                                     
                                     exam_totals_obtained[exam] += obt
