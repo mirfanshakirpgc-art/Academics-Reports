@@ -131,7 +131,7 @@ def initialize_database():
         except Exception:
             pass # Skips quietly if the column already exists
         
-        # 3. Create teachers table (Duplicate paste removed cleanly)
+        # 3. Create teachers table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_teachers (
                 teacher_id SERIAL PRIMARY KEY,
@@ -185,6 +185,7 @@ try:
     initialize_database()
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
+
 # ==============================================================================
 # --- DATABASE COMMAND UTILITIES ---
 # ==============================================================================
@@ -223,10 +224,6 @@ def run_query(query, params=None):
             raise original_error
 
 def execute_db_command(query, params=None):
-    """
-    Executes database modifications (INSERT, UPDATE, DELETE)
-    using the application's global database engine connection.
-    """
     if params is None:
         params = {}
     try:
@@ -348,18 +345,15 @@ if menu_choice == "📊 Home Dashboard":
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
-    # 🚀 SYSTEM STATE INTEGRATION: Dynamically fetch active configuration
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     active_session = st.session_state.get("current_session", "2026-28")
     
-    # Automatically calculate matching index so it snaps to the choice set in Settings
     default_index = session_options.index(active_session) if active_session in session_options else 0
         
     discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
 
     c1, c2 = st.columns(2)
     with c1: 
-        # Widget now follows global settings selection state flawlessly
         selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=default_index, key="add_stu_sess")
     with c2: 
         academic_system = st.radio("🏫 Select Academic System Structure:", ["🗓️ Annual System", "🎓 Semester System"], horizontal=True, key="add_stu_system_type")
@@ -400,8 +394,6 @@ elif menu_choice == "➕ Add Students":
             selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
         
         selected_discipline = "INFORMATION_TECHNOLOGY"
-        
-        # --- COMPLETED FALLBACK AND LOOKUP LOGIC ---
         available_sections = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(selected_class, ["DIT_B", "DIT_G"])
         cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
         
@@ -448,8 +440,6 @@ elif menu_choice == "➕ Add Students":
                     try:
                         clean_id = int(input_roll_number.strip())
                         clean_name = input_student_name.strip().upper()
-                        
-                        # Clean up system type value by removing emojis before saving to database
                         clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
                         
                         with engine.begin() as conn:
@@ -463,13 +453,14 @@ elif menu_choice == "➕ Add Students":
                                 "section": selected_section,
                                 "session": selected_session,
                                 "status": input_status,
-                                "system_type": clean_system_type # 🌟 Map clean variable to target column field
+                                "system_type": clean_system_type
                             })
                         
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered under {clean_system_type}.")
                         st.balloons()
                     except Exception as db_err:
                         st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned. Details: {db_err}")
+
     # ====================================================================================
     # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
     # ====================================================================================
@@ -497,8 +488,6 @@ elif menu_choice == "➕ Add Students":
                     if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
                         success_count = 0
                         error_count = 0
-                        
-                        # Clean up system type value by stripping UI emojis before database execution
                         clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
                         
                         for index, row in bulk_df.iterrows():
@@ -534,28 +523,22 @@ elif menu_choice == "➕ Add Students":
                 st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
 
     # ====================================================================================
-    # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB (FLOWCHART SPECIFICATION)
+    # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB
     # ====================================================================================
     else:
         st.markdown("### 🛠️ Student Records Administrative Hub")
         
-        # --- LEVEL 1 & 2: GLOBAL FILTER CONFIGURATION ---
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            # Safely falls back to basic string inputs if your session tracking lists aren't instantiated yet
-            global_session = st.selectbox("1️⃣ Select Operational Session:", ["2025-2026", "2026-2027"])
+            global_session = st.selectbox("1️⃣ Select Operational Session:", ["2024-26", "2025-27", "2026-28", "2027-29"])
         with col_g2:
             global_system = st.selectbox("2️⃣ Select Academic System:", ["🗓️ Annual System", "🎓 Semester System"])
             clean_global_system = global_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
 
         st.markdown("---")
         
-        # Split user interface into dual engine layout columns
         left_branch_col, right_branch_col = st.columns([1.1, 0.9])
         
-        # ====================================================================================
-        # LEFT OPERATIONS BRANCH: SINGLE STUDENT CONTROLLER
-        # ====================================================================================
         with left_branch_col:
             st.markdown("#### 👤 Single Student Operations")
             search_id = st.text_input("🔍 Search Student by Unique ID:", key="single_search_id_input").strip()
@@ -577,7 +560,6 @@ elif menu_choice == "➕ Add Students":
                         else:
                             student = stu_df.iloc[0]
                             
-                            # Display core identification telemetry
                             st.markdown(f"""
                             > **Identity:** {str(student['name']).upper()}  
                             > 🏫 **Placement:** Class {student['class']} | Section {student['section']}  
@@ -586,27 +568,20 @@ elif menu_choice == "➕ Add Students":
                             
                             st.markdown("##### ⚙️ Apply Target Field Mutations")
                             
-                            # Fetch mutation lookups dynamically from database configuration files
-                            try:
-                                with engine.connect() as conn:
-                                    all_sessions = [r[0] for r in conn.execute(text("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")).fetchall()]
-                                    all_sections = [r[0] for r in conn.execute(text("SELECT section_name FROM system_sections")).fetchall()]
-                            except Exception:
-                                all_sessions, all_sections = [student['session']], [student['section']]
+                            all_sessions = ["2024-26", "2025-27", "2026-28", "2027-29"]
+                            all_sections = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "DIT_B", "DIT_G", "CQ1", "CK1"]
                             
-                            # Setup mutation selector elements
                             col_m1, col_m2 = st.columns(2)
                             with col_m1:
-                                mutation_session = st.selectbox("🎯 Target Session:", all_sessions if all_sessions else ["2025-2026", "2026-2027"])
+                                mutation_session = st.selectbox("🎯 Target Session:", all_sessions, index=all_sessions.index(student['session']) if student['session'] in all_sessions else 0)
                             with col_m2:
-                                mutation_section = st.selectbox("🎯 Target Section:", all_sections if all_sections else ["A", "B", "C"])
+                                mutation_section = st.selectbox("🎯 Target Section:", all_sections, index=all_sections.index(student['section']) if student['section'] in all_sections else 0)
                                 
                             mutation_system = st.selectbox("🎯 Target Academic System:", ["Annual System", "Semester System"], 
                                                            index=0 if student['system_type'] == "Annual System" else 1)
                             
                             st.markdown("<br>", unsafe_allow_html=True)
                             
-                            # --- Blueprint Multi-Option Grid Control matrix ---
                             btn_col1, btn_col2, btn_col3 = st.columns(3)
                             
                             with btn_col1:
@@ -638,18 +613,15 @@ elif menu_choice == "➕ Add Students":
                             with btn_col3:
                                 if st.button("🎓 System Change", use_container_width=True):
                                     with engine.begin() as conn:
-                                        conn.execute(text("UPDATE students SET system_type = :sys WHERE id = :id"), {"sys": mutation_system, "id": student['id']})
-                                    st.success("Academic track modified successfully!")
+                                        conn.execute(text("UPDATE students SET system_type = :system_type WHERE id = :id"), {"system_type": mutation_system, "id": student['id']})
+                                    st.success("Academic System Structure Updated!")
                                     st.rerun()
-                                    
-                                if st.button("🗑️ Delete Entry", use_container_width=True, type="primary"):
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student['id']})
-                                    st.error("Record permanently erased.")
-                                    st.rerun()
-                                    
-                    except Exception as err:
-                        st.error(f"Execution pipeline fault: {err}")
+                    except Exception as e:
+                        st.error(f"Error executing operation: {e}")
+
+        with right_branch_col:
+            st.markdown("#### 👥 Bulk Actions / Section Promotion")
+            st.info("Your remaining functional block modules connect from here.")
 
         # ====================================================================================
         # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
