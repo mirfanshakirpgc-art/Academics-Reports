@@ -2725,16 +2725,43 @@ elif menu_choice == "🪪 Student Result Cards":
         }
     }
 
+    # Reference copy of Sub-Module 6 dictionary maps for processing
+    CLASS_SUBJECTS_MASTER_MAP = {
+        "11th": {
+            "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+            "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+            "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+            "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+            "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+            "COMMERCE": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"]
+        },
+        "12th": {
+            "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+            "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+            "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+            "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+            "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+            "COMMERCE": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+        },
+        "1ST SEMESTER": {
+            "INFORMATION_TECHNOLOGY": ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
+        },
+        "2ND SEMESTER": {
+            "INFORMATION_TECHNOLOGY": ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
+        },
+        "3RD SEMESTER": {
+            "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+        },
+        "4TH SEMESTER": {
+            "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+        }
+    }
+
     try:
-        # Fetch active academic sessions
         db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
         session_list = db_sessions['session_name'].tolist() if not db_sessions.empty else ["2024-2026", "2025-2027"]
-        
-        # Pull discipline choices straight from our mapping keys to guarantee compatibility
         discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
-
     except Exception as e:
-        st.error(f"⚠️ Error initializing metadata tracks from settings: {e}")
         session_list = ["2024-2026", "2025-2027"]
         discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
 
@@ -2775,12 +2802,12 @@ elif menu_choice == "🪪 Student Result Cards":
         
         if search_id and search_id.isdigit() and selected_test_code:
             single_student = run_query(
-                "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
-                {"id": int(search_id), "session": selected_session}
+                "SELECT id, name, section, class FROM students WHERE TRIM(CAST(id AS CHAR)) = TRIM(:id) AND session = :session", 
+                {"id": str(search_id).strip(), "session": selected_session}
             )
             if not single_student.empty:
                 students_to_print = pd.DataFrame([{
-                    "id": int(search_id), 
+                    "id": int(single_student['id'].iloc[0]), 
                     "name": single_student['name'].iloc[0], 
                     "section": single_student['section'].iloc[0].upper().strip(), 
                     "class": single_student['class'].iloc[0]
@@ -2795,17 +2822,14 @@ elif menu_choice == "🪪 Student Result Cards":
             clean_disp = str(selected_discipline).strip()
             clean_class = str(selected_class).upper().strip()
 
-            # Normalize structural class key strings to match the map schema
             if "11TH" in clean_class:
                 map_class_key = "11th"
             elif "12TH" in clean_class:
                 map_class_key = "12th"
             else:
-                map_class_key = clean_class  # Falls directly into '1ST SEMESTER', '2ND SEMESTER', etc.
+                map_class_key = clean_class
 
-            # Resolve sections perfectly via memory reference mapping
             filtered_sections = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {}).get(map_class_key, [])
-
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
         if active_section and selected_test_code:
@@ -2828,10 +2852,13 @@ elif menu_choice == "🪪 Student Result Cards":
         <style>
             body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
             .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-            .header-block { text-align: center; margin-bottom: 20px; width: 100%; position: relative; }
-            .logo-container { position: absolute; left: 0; top: 0; }
-            .logo-img { max-height: 55px; width: auto; display: block; }
-            .inst-main-header { font-weight: bold; font-size: 32px; letter-spacing: 0.5px; margin: 0; padding-top: 10px; text-transform: uppercase; text-align: center; width: 100%; }
+            
+            /* Clean Flexbox Layout stops logo and text overlap completely */
+            .header-block { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; width: 100%; gap: 15px; }
+            .logo-container { flex-shrink: 0; }
+            .logo-img { max-height: 60px; width: auto; display: block; }
+            .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; text-transform: uppercase; text-align: center; }
+            
             .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1.5px; }
             .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 25px; font-size: 15px; }
             .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
@@ -2880,20 +2907,26 @@ elif menu_choice == "🪪 Student Result Cards":
             grade_class = str(student_row['class']).upper()
             test_name = selected_test_label.upper()
             
-            # Resolve subject lists matching configurations dynamically
-            if selected_system == "Semester System":
-                subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT", "PROGRAMMING", "NETWORKING"])
-            else:
-                # Dynamic matching based on selected discipline mode
-                subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(selected_discipline, {}).get(selected_class, 
-                                ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"])
+            lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
+            
+            lookup_disp = selected_discipline
+            if lookup_disp == "ICS (PHYSICS)":
+                lookup_disp = "ICS_PHYSICS"
+            elif lookup_disp == "ICS (STATS)":
+                lookup_disp = "ICS_STATS"
+
+            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(lookup_disp, ["English", "Urdu", "T_Quran"])
             
             raw_marks = run_query(
-                "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
-                {"id": current_id, "exam_type": selected_test_code}
+                "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE TRIM(CAST(student_id AS CHAR)) = TRIM(:id) AND TRIM(exam_type) = :exam_type", 
+                {"id": str(current_id), "exam_type": selected_test_code}
             )
             
-            db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
+            # Type-cast parameters avoid missing attendance data when table IDs are imported as textual labels
+            db_att = run_query(
+                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE TRIM(CAST(student_id AS CHAR)) = TRIM(:id)", 
+                {"id": str(current_id)}
+            )
             
             att_cells = {}
             tot_sum, pres_sum = 0, 0
@@ -3096,7 +3129,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
