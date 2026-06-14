@@ -2746,7 +2746,7 @@ elif menu_choice == "🪪 Student Result Cards":
         session_list = ["2024-2026", "2025-2027"]
         discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
 
-    # 1. CORE SEARCH FILTERS (Outside form to allow interactive updates)
+    # 1. CORE SEARCH FILTERS
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
         selected_session = st.selectbox("📅 Select Session:", options=session_list)
@@ -2772,31 +2772,30 @@ elif menu_choice == "🪪 Student Result Cards":
             selected_test_code = selected_combined_label.split(" (")[0].strip()
             selected_test_label = selected_test_code
 
-    # Interactive dynamic fields that build parameters but don't execute processing yet
     st.markdown("**𖨾 Select Print Scope:**")
     print_scope = st.radio("Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True, label_visibility="collapsed")
     
-    # 2. SELECTION CONFIGURATION ENGINE WITHIN AN ACTION FORM
-    with st.form("print_engine_control_form"):
-        search_id = ""
-        selected_discipline = ""
-        active_section = ""
+    # These parameters must exist outside forms to remain fully reactive to user interactions
+    search_id = ""
+    selected_discipline = ""
+    active_section = ""
 
-        if print_scope == "👤 Single Student Card":
-            search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-        else:
-            col_sec1, col_sec2 = st.columns(2)
-            with col_sec1:
-                selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
-            with col_sec2:
-                clean_disp = str(selected_discipline).strip()
-                clean_class = str(selected_class).upper().strip()
-                map_class_key = "11th" if "11TH" in clean_class else "12th" if "12TH" in clean_class else clean_class
-                filtered_sections = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {}).get(map_class_key, [])
-                active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
+    if print_scope == "👤 Single Student Card":
+        search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
+    else:
+        col_sec1, col_sec2 = st.columns(2)
+        with col_sec1:
+            selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
+        with col_sec2:
+            clean_disp = str(selected_discipline).strip()
+            clean_class = str(selected_class).upper().strip()
+            map_class_key = "11th" if "11TH" in clean_class else "12th" if "12TH" in clean_class else clean_class
+            filtered_sections = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {}).get(map_class_key, [])
+            active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
-        # The explicit Submit button prevents automatic data fetching spikes!
-        submit_execution = st.form_submit_button("🚀 Generate Result Cards")
+    # Simple execution handle instead of heavy container forms
+    st.markdown("<br>", unsafe_transform=True) if 'unsafe_transform' in st.markdown.__code__.co_varnames else st.write("")
+    submit_execution = st.button("🚀 Generate Result Cards", type="primary")
 
     students_to_print = pd.DataFrame()
 
@@ -2896,31 +2895,30 @@ elif menu_choice == "🪪 Student Result Cards":
             
             lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             
-            # Bulletproof dynamic fallback parsing for clean dictionary alignment
+            # Use selected dropdown value for section print context, database discipline for explicit singular lookups
             if print_scope == "👤 Single Student Card":
                 raw_disp = str(student_row['discipline']).strip().upper()
             else:
                 raw_disp = str(selected_discipline).strip().upper()
 
+            # String-normalized routing logic matching the map exactly
             if "STATS" in raw_disp:
                 master_map_key = "ICS_STATS"
             elif "PHYSIC" in raw_disp or "ICS" in raw_disp:
                 master_map_key = "ICS_PHYSICS"
             elif "MED" in raw_disp:
                 master_map_key = "MEDICAL"
-            elif "ENG" in raw_disp:
+            elif "ENG" in raw_disp or "ENGINEERING" in raw_disp:
                 master_map_key = "ENGINEERING"
-            elif "COMM" in raw_disp:
+            elif "COMM" in raw_disp or "COMMERCE" in raw_disp:
                 master_map_key = "COMMERCE"
-            elif "HUM" in raw_disp:
+            elif "HUM" in raw_disp or "HUMANITIES" in raw_disp:
                 master_map_key = "HUMANITIES"
             else:
                 master_map_key = raw_disp.replace(" ", "_").replace("(", "").replace(")", "")
 
-            # Get subjects list; if it cannot find the map key, pull directly using the current class list default to avoid empty cards
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(master_map_key, None)
             if not subjects_list:
-                # Emergency fallback: match the first list available for that class if string processing fails completely
                 subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).values())[0]
             
             raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
