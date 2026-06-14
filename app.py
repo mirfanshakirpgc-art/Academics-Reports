@@ -2796,14 +2796,17 @@ elif menu_choice == "🪪 Student Result Cards":
     
     students_to_print = pd.DataFrame()
     active_section = ""
+    selected_discipline_tracked = "MEDICAL" # Track for dynamic single student card generation fallback
 
     if print_scope == "👤 Single Student Card":
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
         
-        if search_id and search_id.isdigit() and selected_test_code:
+        if search_id and selected_test_code:
+            clean_search_id = str(search_id).strip()
+            # Dual query fallback strategy guarantees verification logic executes regardless of string type storage bounds
             single_student = run_query(
-                "SELECT id, name, section, class FROM students WHERE TRIM(CAST(id AS CHAR)) = TRIM(:id) AND session = :session", 
-                {"id": str(search_id).strip(), "session": selected_session}
+                "SELECT id, name, section, class, discipline FROM students WHERE (id = :id_num OR CAST(id AS CHAR) LIKE :id_str) AND session = :session", 
+                {"id_num": int(clean_search_id) if clean_search_id.isdigit() else 0, "id_str": f"%{clean_search_id}%", "session": selected_session}
             )
             if not single_student.empty:
                 students_to_print = pd.DataFrame([{
@@ -2812,11 +2815,14 @@ elif menu_choice == "🪪 Student Result Cards":
                     "section": single_student['section'].iloc[0].upper().strip(), 
                     "class": single_student['class'].iloc[0]
                 }])
+                if "discipline" in single_student.columns and str(single_student['discipline'].iloc[0]).strip():
+                    selected_discipline_tracked = str(single_student['discipline'].iloc[0]).strip().upper()
     
     else: # Complete Section Cards Mode
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
+            selected_discipline_tracked = selected_discipline
         
         with col_sec2:
             clean_disp = str(selected_discipline).strip()
@@ -2853,11 +2859,10 @@ elif menu_choice == "🪪 Student Result Cards":
             body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
             .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
             
-            /* Clean Flexbox Layout stops logo and text overlap completely */
-            .header-block { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; width: 100%; gap: 15px; }
+            .header-block { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; width: 100%; gap: 20px; }
             .logo-container { flex-shrink: 0; }
-            .logo-img { max-height: 60px; width: auto; display: block; }
-            .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; text-transform: uppercase; text-align: center; }
+            .logo-img { max-height: 65px; width: auto; display: block; }
+            .inst-main-header { font-weight: bold; font-size: 30px; letter-spacing: 0.5px; margin: 0; text-transform: uppercase; text-align: center; }
             
             .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1.5px; }
             .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 25px; font-size: 15px; }
@@ -2909,33 +2914,35 @@ elif menu_choice == "🪪 Student Result Cards":
             
             lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             
-            lookup_disp = selected_discipline
-            if lookup_disp == "ICS (PHYSICS)":
-                lookup_disp = "ICS_PHYSICS"
-            elif lookup_disp == "ICS (STATS)":
-                lookup_disp = "ICS_STATS"
+            lookup_disp = selected_discipline_tracked
+            if lookup_disp == "ICS (PHYSICS)": lookup_disp = "ICS_PHYSICS"
+            elif lookup_disp == "ICS (STATS)": lookup_disp = "ICS_STATS"
 
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(lookup_disp, ["English", "Urdu", "T_Quran"])
             
+            # Simplified explicit numerical query parameters matching row signatures exactly
             raw_marks = run_query(
-                "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE TRIM(CAST(student_id AS CHAR)) = TRIM(:id) AND TRIM(exam_type) = :exam_type", 
-                {"id": str(current_id), "exam_type": selected_test_code}
+                "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
+                {"id": current_id, "exam_type": selected_test_code}
             )
             
-            # Type-cast parameters avoid missing attendance data when table IDs are imported as textual labels
+            # Universal loose condition pulls attendance records dynamically even if IDs contain spaces
             db_att = run_query(
-                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE TRIM(CAST(student_id AS CHAR)) = TRIM(:id)", 
-                {"id": str(current_id)}
+                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id OR CAST(student_id AS CHAR) LIKE :id_like", 
+                {"id": current_id, "id_like": f"%{current_id}%"}
             )
             
             att_cells = {}
             tot_sum, pres_sum = 0, 0
             
             for m in DISPLAY_MONTHS:
-                clean_m = m.upper().replace('.', '').strip()
+                # Stripping periods out ensures 'Aug.' safely intersects database markers like 'AUG' or 'AUGUST'
+                clean_m = m.upper().replace('.', '').strip()[:3]
                 match_att = pd.DataFrame()
+                
                 if not db_att.empty:
-                    match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m[:3])]
+                    # Clean lookups ensure partial matching matches perfectly across all variations
+                    match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m)]
                 
                 if not match_att.empty:
                     td = int(match_att['total_days'].iloc[0])
@@ -2945,10 +2952,10 @@ elif menu_choice == "🪪 Student Result Cards":
                     pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
                     att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
                 else:
-                    att_cells[m] = {"td": "", "pd": "", "pct": ""}
+                    att_cells[m] = {"td": "0", "pd": "0", "pct": "0%"}
             
-            overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else ""
-            att_cells["Over All Att."] = {"td": str(tot_sum) if tot_sum > 0 else "", "pd": str(pres_sum) if tot_sum > 0 else "", "pct": overall_pct_str}
+            overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "0%"
+            att_cells["Over All Att."] = {"td": str(tot_sum), "pd": str(pres_sum), "pct": overall_pct_str}
 
             logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
             grand_total_marks, grand_obtained_marks = 0.0, 0.0
@@ -3035,10 +3042,10 @@ elif menu_choice == "🪪 Student Result Cards":
                 </tr>
                 """
             
-            grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else ""
+            grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else "0%"
             grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else ""
 
-            remarks_text = "No records found."
+            remarks_text = "No academic metrics verified for current exam context."
             if has_valid_marks_data:
                 if student_failed_any_subject:
                     remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
@@ -3129,7 +3136,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
