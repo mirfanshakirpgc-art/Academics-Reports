@@ -2418,16 +2418,20 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
                 if not s_marks.empty:
                     # ------------------------------------------------------------------
-                    # ⚡ DYNAMIC ELECTIVE TRANSLATION LAYER (Physics ➡️ Statistics)
+                    # ⚡ DYNAMIC ELECTIVE TRANSLATION & UNIFICATION LAYER
                     # ------------------------------------------------------------------
                     is_stats_section = s_section in ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
                     
-                    s_marks['display_subject'] = s_marks['subject_name']
+                    # Core normalization to bypass data-entry string inconsistencies
+                    s_marks['display_subject'] = s_marks['subject_name'].astype(str).str.strip().str.title()
                     s_marks['label_suffix'] = ""
+                    
+                    # UNIFICATION: Force any variant named "Computer" to match "Computer Science"
+                    s_marks['display_subject'] = s_marks['display_subject'].replace({"Computer": "Computer Science"})
                     
                     if is_stats_section:
                         for m_idx, m_row in s_marks.iterrows():
-                            if m_row['subject_name'] == "Physics":
+                            if str(m_row['subject_name']).strip().title() == "Physics":
                                 s_marks.at[m_idx, 'display_subject'] = "Statistics"
                                 s_marks.at[m_idx, 'label_suffix'] = " (Phy)"
                     
@@ -2450,11 +2454,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 
                             if not match_row.empty:
                                 try:
-                                    obt = float(match_row.iloc[0]["marks_obtained"])
-                                    tot = float(match_row.iloc[0]["total_marks"])
+                                    # If duplicate test entries are found for unified rows, grab the max/valid one
+                                    target_record = match_row.iloc[0]
+                                    obt = float(target_record["marks_obtained"])
+                                    tot = float(target_record["total_marks"])
                                     pct = int((obt / tot) * 100) if tot > 0 else 0
                                     
-                                    suffix_tag = match_row.iloc[0]['label_suffix']
+                                    suffix_tag = target_record['label_suffix']
                                     row_tds += f"<td>{pct}%{suffix_tag}</td>"
                                     
                                     exam_totals_obtained[exam] += obt
