@@ -2801,14 +2801,24 @@ elif menu_choice == "🪪 Student Result Cards":
                     single_student = all_session_students[fuzzy_mask]
                 
                 if not single_student.empty:
+                    # Clean and normalize the student's tracked discipline to match master map keys
+                    raw_discipline = str(single_student['discipline'].iloc[0]).strip().upper() if "discipline" in single_student.columns else ""
+                    
+                    # Map standard variations to master map keys
+                    if "ICS" in raw_discipline and "STAT" in raw_discipline:
+                        selected_discipline_tracked = "ICS_STATS"
+                    elif "ICS" in raw_discipline and "PHYSIC" in raw_discipline:
+                        selected_discipline_tracked = "ICS_PHYSICS"
+                    else:
+                        selected_discipline_tracked = raw_discipline.replace(" ", "_").replace("(", "").replace(")", "")
+
                     students_to_print = pd.DataFrame([{
                         "id": int(single_student['id'].iloc[0]), 
                         "name": single_student['name'].iloc[0], 
                         "section": single_student['section'].iloc[0].upper().strip(), 
-                        "class": single_student['class'].iloc[0]
+                        "class": single_student['class'].iloc[0],
+                        "discipline": selected_discipline_tracked
                     }])
-                    if "discipline" in single_student.columns and str(single_student['discipline'].iloc[0]).strip():
-                        selected_discipline_tracked = str(single_student['discipline'].iloc[0]).strip().upper()
     
     else: # Complete Section Cards Mode
         col_sec1, col_sec2 = st.columns(2)
