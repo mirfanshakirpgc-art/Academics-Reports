@@ -3150,7 +3150,7 @@ if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() 
     """
     components.html(compiled_html, height=950, scrolling=True)
 
-elif submit_execution:
+elif locals().get('submit_execution', False):
     if print_scope == "👤 Single Student Card":
         st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
     else:
