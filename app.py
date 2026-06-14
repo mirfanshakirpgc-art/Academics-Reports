@@ -2852,7 +2852,8 @@ if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() 
         name = str(student_row['name']).upper()
         section = str(student_row['section']).upper().strip()
         grade_class = str(student_row['class']).strip()
-        test_name = selected_test_label.upper()
+        # Use the active exam or default to Multi-Test report naming syntax
+    test_name = locals().get('selected_test_label', 'MULTI-TEST REPORT').upper()
         # ----------------------------------------------------------------------
         # MODULE B: DATA RESOLUTION & ATTENDANCE EXTRACTION PIPELINE
         # ----------------------------------------------------------------------
