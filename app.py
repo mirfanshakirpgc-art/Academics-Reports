@@ -2,12 +2,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import sqlite3
 import os
 import base64
-import datetime
 from sqlalchemy import create_engine, text
-import streamlit.components.v1 as components
 
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
@@ -26,36 +23,6 @@ if os.path.exists(logo_filename):
     except Exception:
         pass
 
-# --- CORE HELPER FUNCTIONS ---
-def apply_filters(df, tab_key):
-    st.markdown("### ⚙️ Filter Configuration")
-    s_options = sorted(df['session'].unique())
-    d_options = sorted(df['discipline'].unique())
-    sec_options = sorted(df['section'].unique())
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        s = st.multiselect("Session:", s_options, default=s_options, key=f"s_{tab_key}")
-        d = st.multiselect("Discipline:", d_options, default=d_options, key=f"d_{tab_key}")
-    with col2:
-        sec = st.multiselect("Section:", sec_options, default=sec_options, key=f"sec_{tab_key}")
-    
-    f_df = df.copy()
-    f_df = f_df[f_df['session'].isin(s if s else s_options)]
-    f_df = f_df[f_df['discipline'].isin(d if d else d_options)]
-    f_df = f_df[f_df['section'].isin(sec if sec else sec_options)]
-    return f_df
-
-@st.cache_data(ttl=600)
-def fetch_analytics_data():
-    query = """
-        SELECT s.id, s.name, s.section, s.class, s.session, 
-               m.subject, m.marks_obtained, m.total_marks, m.exam_type
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id
-    """
-    return run_query(query, {})
-
 # --- DATABASE CONNECTION CONFIGURATION ---
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
@@ -65,127 +32,9 @@ def get_db_engine():
 
 engine = get_db_engine()
 
-# --- SETUP USER LOGIN SESSION MEMORY TRACKING ---
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "user_role" not in st.session_state:
-    st.session_state.user_role = None
-if "assigned_subject" not in st.session_state:
-    st.session_state.assigned_subject = None
-
-# 🚀 --- SYSTEM SETTINGS: GLOBAL ACADEMIC SESSION TRACKING ---
-if "current_session" not in st.session_state:
-    st.session_state["current_session"] = "2026-28"  # Default system active session
-
-if "available_sessions" not in st.session_state:
-    st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
-
-# --- SECURE GATEKEEPER LOGIN CHECK ---
-if not st.session_state.logged_in:
-    st.image("logo.png", width=120) 
-    st.title("Concordia College Kasur")
-    
-    username_input = st.text_input("Username")
-    password_input = st.text_input("Password", type="password")
-    
-    if st.button("Log In"):
-        with engine.connect() as conn:
-            query = text("SELECT role, assigned_subject FROM app_users WHERE username = :u AND password = :p")
-            result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
-            
-            if result:
-                st.session_state.logged_in = True
-                st.session_state.user_role = result[0]         
-                st.session_state.assigned_subject = result[1]    
-                st.success("Access Granted! Loading system...")
-                st.rerun()
-            else:
-                st.error("Incorrect username or password. Please try again.")
-    st.stop() 
-
-# ==============================================================================
-# --- AUTOMATIC TABLE SETUP ---
-# ==============================================================================
-def initialize_database():
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS students (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                section VARCHAR(100),
-                class VARCHAR(100),
-                session VARCHAR(50),
-                discipline VARCHAR(100),
-                status VARCHAR(50) DEFAULT 'ACTIVE',
-                system_type VARCHAR(50) DEFAULT 'Annual System'
-            );
-        """))
-        
-        try:
-            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';"))
-        except Exception: pass
-
-        try:
-            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);"))
-        except Exception: pass
-        
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS system_teachers (
-                teacher_id SERIAL PRIMARY KEY,
-                teacher_name VARCHAR(255) NOT NULL UNIQUE,
-                phone_number VARCHAR(50),
-                email_address VARCHAR(255),
-                status VARCHAR(50) DEFAULT 'ACTIVE'
-            );
-        """))
-
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS academic_allocations (
-                allocation_id SERIAL PRIMARY KEY,
-                session_term VARCHAR(50) NOT NULL,
-                class_level VARCHAR(100) NOT NULL,
-                section_name VARCHAR(100) NOT NULL,
-                subject_title VARCHAR(100) NOT NULL,
-                assigned_teacher_name VARCHAR(255) REFERENCES system_teachers(teacher_name) ON DELETE CASCADE,
-                is_class_incharge VARCHAR(10) DEFAULT 'No',
-                UNIQUE(session_term, class_level, section_name, subject_title)
-            );
-        """))
-        
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS marks (
-                id SERIAL PRIMARY KEY,
-                student_id INT REFERENCES students(id) ON DELETE CASCADE,
-                subject VARCHAR(100) NOT NULL,
-                exam_type VARCHAR(100) NOT NULL,
-                marks_obtained VARCHAR(50),
-                total_marks INT,
-                UNIQUE(student_id, subject, exam_type)
-            );
-        """))
-        
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS attendance (
-                id SERIAL PRIMARY KEY,
-                student_id INT REFERENCES students(id) ON DELETE CASCADE,
-                month_name VARCHAR(50) NOT NULL,
-                total_days INT DEFAULT 0,
-                present_days INT DEFAULT 0,
-                UNIQUE(student_id, month_name)
-            );
-        """))
-
-try:
-    initialize_database()
-except Exception as e:
-    st.error(f"Failed to initialize database tables: {e}")
-
-# ==============================================================================
 # --- DATABASE COMMAND UTILITIES ---
-# ==============================================================================
 def run_query(query, params=None):
-    if params is None:
-        params = {}
+    if params is None: params = {}
     clean_query = query.replace("[Session Name]", '"Session Name"')
     try:
         with engine.connect() as conn:
@@ -214,16 +63,193 @@ def run_query(query, params=None):
             raise original_error
 
 def execute_db_command(query, params=None):
-    if params is None:
-        params = {}
+    if params is None: params = {}
     try:
         with engine.begin() as conn:
             conn.execute(text(query), params)
     except Exception as e:
         raise RuntimeError(f"Database write execution failed: {str(e)}")
 
+# --- AUTOMATIC TABLE SETUP ---
+def initialize_database():
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS students (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                section VARCHAR(100),
+                class VARCHAR(100),
+                session VARCHAR(50),
+                discipline VARCHAR(100),
+                status VARCHAR(50) DEFAULT 'ACTIVE',
+                system_type VARCHAR(50) DEFAULT 'Annual System'
+            );
+        """))
+        try:
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';"))
+        except Exception: pass
+        try:
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);"))
+        except Exception: pass
+        
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS system_teachers (
+                teacher_id SERIAL PRIMARY KEY,
+                teacher_name VARCHAR(255) NOT NULL UNIQUE,
+                phone_number VARCHAR(50),
+                email_address VARCHAR(255),
+                status VARCHAR(50) DEFAULT 'ACTIVE'
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS academic_allocations (
+                allocation_id SERIAL PRIMARY KEY,
+                session_term VARCHAR(50) NOT NULL,
+                class_level VARCHAR(100) NOT NULL,
+                section_name VARCHAR(100) NOT NULL,
+                subject_title VARCHAR(100) NOT NULL,
+                assigned_teacher_name VARCHAR(255) REFERENCES system_teachers(teacher_name) ON DELETE CASCADE,
+                is_class_incharge VARCHAR(10) DEFAULT 'No',
+                UNIQUE(session_term, class_level, section_name, subject_title)
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS marks (
+                id SERIAL PRIMARY KEY,
+                student_id INT REFERENCES students(id) ON DELETE CASCADE,
+                subject VARCHAR(100) NOT NULL,
+                exam_type VARCHAR(100) NOT NULL,
+                marks_obtained VARCHAR(50),
+                total_marks INT,
+                UNIQUE(student_id, subject, exam_type)
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS attendance (
+                id SERIAL PRIMARY KEY,
+                student_id INT REFERENCES students(id) ON DELETE CASCADE,
+                month_name VARCHAR(50) NOT NULL,
+                total_days INT DEFAULT 0,
+                present_days INT DEFAULT 0,
+                UNIQUE(student_id, month_name)
+            );
+        """))
+
+try:
+    initialize_database()
+except Exception as e:
+    st.error(f"Failed to initialize database tables: {e}")
+
+# --- CORE HELPER FUNCTIONS ---
+def apply_filters(df, tab_key):
+    st.markdown("### ⚙️ Filter Configuration")
+    s_options = sorted(df['session'].unique()) if 'session' in df.columns else []
+    d_options = sorted(df['discipline'].unique()) if 'discipline' in df.columns else []
+    sec_options = sorted(df['section'].unique()) if 'section' in df.columns else []
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        s = st.multiselect("Session:", s_options, default=s_options, key=f"s_{tab_key}")
+        d = st.multiselect("Discipline:", d_options, default=d_options, key=f"d_{tab_key}")
+    with col2:
+        sec = st.multiselect("Section:", sec_options, default=sec_options, key=f"sec_{tab_key}")
+    
+    f_df = df.copy()
+    if s_options: f_df = f_df[f_df['session'].isin(s if s else s_options)]
+    if d_options: f_df = f_df[f_df['discipline'].isin(d if d else d_options)]
+    if sec_options: f_df = f_df[f_df['section'].isin(sec if sec else sec_options)]
+    return f_df
+
+@st.cache_data(ttl=600)
+def fetch_analytics_data():
+    query = """
+        SELECT s.id, s.name, s.section, s.class, s.session, s.discipline,
+               m.subject, m.marks_obtained, m.total_marks, m.exam_type
+        FROM students s
+        LEFT JOIN marks m ON s.id = m.student_id
+    """
+    return run_query(query, {})
+
+# --- SETUP USER LOGIN SESSION MEMORY TRACKING ---
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "user_role" not in st.session_state: st.session_state.user_role = None
+if "assigned_subject" not in st.session_state: st.session_state.assigned_subject = None
+if "current_session" not in st.session_state: st.session_state["current_session"] = "2026-28"
+if "available_sessions" not in st.session_state: st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
+
+# --- SECURE GATEKEEPER LOGIN CHECK ---
+if not st.session_state.logged_in:
+    st.image("logo.png", width=120) if os.path.exists("logo.png") else None
+    st.title("Concordia College Kasur")
+    username_input = st.text_input("Username")
+    password_input = st.text_input("Password", type="password")
+    
+    if st.button("Log In"):
+        with engine.connect() as conn:
+            query = text("SELECT role, assigned_subject FROM app_users WHERE username = :u AND password = :p")
+            result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
+            if result:
+                st.session_state.logged_in = True
+                st.session_state.user_role = result[0]         
+                st.session_state.assigned_subject = result[1]    
+                st.success("Access Granted! Loading system...")
+                st.rerun()
+            else:
+                st.error("Incorrect username or password. Please try again.")
+    st.stop() 
+
 # ==============================================================================
-# SIDEBAR NAVIGATION MODULE 
+# --- CRITICAL REGISTRATION & SYSTEM MASTER GLOBAL MATRICES ---
+# ==============================================================================
+CLASS_SUBJECTS_MASTER_MAP = {
+    "11th": {
+        "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+        "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+        "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+        "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+        "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+        "COMMERCE": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"]
+    },
+    "12th": {
+        "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+        "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+        "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+        "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+        "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+        "COMMERCE": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
+    },
+    "Semester 1": {"INFORMATION_TECHNOLOGY": ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]},
+    "Semester 2": {"INFORMATION_TECHNOLOGY": ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]},
+    "Semester 3": {"INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]},
+    "Semester 4": {"INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]}
+}
+
+DISCIPLINE_SECTIONS_MAP = {
+    "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
+    "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
+    "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+    "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
+    "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+    "HUMANITIES": {"11th": ["FB", "FG"], "12th": ["FK", "FQ"]},
+    "INFORMATION_TECHNOLOGY": {
+        "Semester 1": ["DIT_B", "DIT_G"], "Semester 2": ["DIT_B", "DIT_G"], 
+        "Semester 3": ["DIT_B", "DIT_G"], "Semester 4": ["DIT_B", "DIT_G"]
+    }
+}
+
+AVAILABLE_DISCIPLINE = list(CLASS_SUBJECTS_MASTER_MAP["11th"].keys())
+AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
+
+# --- TARGET FIXES FOR ATTENDANCE & MULTI-TEST REPORT MENUS ---
+AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+AVAILABLE_EXAMS = [
+    "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+    "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
+]
+
+# ==============================================================================
+# SIDEBAR ROUTER CONTROL MODULE 
 # ==============================================================================
 menu_choice = st.sidebar.radio(
     "Go To Module:",
