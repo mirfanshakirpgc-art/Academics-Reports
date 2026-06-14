@@ -2686,63 +2686,99 @@ if menu_choice == "📈 Multi-Test Progress Report":
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
-if menu_choice == "🪪 Student Result Cards":
+elif menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
 
     st.title("🪪 Student Result Cards — Print Engine")
 
-    # 1. CORE FILTERS REQUIRED BY USER (RESTORED TEST TERM SELECTBOX)
+    # ==============================================================================
+    # DYNAMIC DATA EXTRACTION FROM ADMINISTRATIVE SETTINGS SCHEMA
+    # ==============================================================================
+    try:
+        # Fetch active academic sessions from database
+        db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
+        session_list = db_sessions['session_name'].tolist() if not db_sessions.empty else ["2024-2026", "2025-2027"]
+        
+        # Fetch active sections from database
+        db_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
+        section_master_list = db_sections['section_name'].str.upper().str.strip().tolist() if not db_sections.empty else []
+    except Exception as e:
+        st.error(f"⚠️ Error initializing metadata tracks from settings: {e}")
+        session_list = ["2024-2026"]
+        section_master_list = []
+
+    # 1. CORE SEARCH FILTERS (Top Grid Layout)
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
-        selected_session = st.selectbox("📅 Select Session:", options=["2024-2026", "2025-2027", "2023-2025"])
+        selected_session = st.selectbox("📅 Select Session:", options=session_list)
     with col_sel2:
         selected_system = st.selectbox("⚙️ Select Academic System:", options=["Annual System", "Semester System"])
     with col_sel3:
-        # Dynamically calculate class selection array based on system type
         class_options = ["11th", "12th"] if selected_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
         selected_class = st.selectbox("🏫 Select Class:", options=class_options)
     with col_sel4:
-        # Re-integrated the critical test selection parameter
-        selected_test = st.selectbox("🎯 Select Test Term:", options=AVAILABLE_EXAMS)
+        # Dynamically filter exams linked specifically to the chosen academic stream mapping
+        db_exams = run_query(
+            "SELECT exam_code, exam_display_name FROM exam_cycles WHERE system_type = :sys AND status = 'ACTIVE' ORDER BY exam_display_name ASC",
+            {"sys": selected_system}
+        )
+        if not db_exams.empty:
+            exam_options = {row['exam_display_name']: row['exam_code'] for _, row in db_exams.iterrows()}
+            selected_test_label = st.selectbox("🎯 Select Test Term:", options=list(exam_options.keys()))
+            selected_test_code = exam_options[selected_test_label]
+        else:
+            selected_test_label = st.selectbox("🎯 Select Test Term:", options=["No Exams Configured"])
+            selected_test_code = None
 
-    # 2. PRINT SCOPE CONFIGURATION REQUIRED BY USER
+    # 2. PRINT SCOPE CONFIGURATION
     print_scope = st.radio("𖨾 Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     
-    # Context-dependent UI targets
     col_c1, col_c2 = st.columns(2)
     with col_c1: 
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
     with col_c2:
-        # Allow target section customization or fall back automatically using lookup markers
-        target_section_input = st.text_input("📋 Target Section (Leave empty to auto-detect from Student ID):").upper().strip()
+        # Dynamically provide registered structural labels or fallback to quick typing entry
+        if section_master_list:
+            target_section = st.selectbox("📋 Target Section Group:", options=["Auto-Detect from ID"] + section_master_list)
+            target_section_input = "" if target_section == "Auto-Detect from ID" else target_section
+        else:
+            target_section_input = st.text_input("📋 Target Section (Type manually):").upper().strip()
 
-    if search_id and search_id.isdigit() and selected_test:
-        # Clean verification pull restricted directly by user choices
-        base_student = run_query(
-            "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
-            {"id": int(search_id), "session": selected_session}
-        )
+    # 3. DATA FETCHING AND ENGINE RUNTIME
+    if (search_id and search_id.isdigit() if print_scope == "👤 Single Student Card" else True) and selected_test_code:
         
-        if not base_student.empty:
-            detected_section = base_student['section'].iloc[0].upper().strip()
-            detected_class = base_student['class'].iloc[0]
-            
-            # Reassign variable matching filter scope
-            active_section = target_section_input if target_section_input else detected_section
-            
-            if print_scope == "👥 Complete Section Cards":
+        # Construct target operational dataset execution array
+        if print_scope == "👤 Single Student Card":
+            base_student = run_query(
+                "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
+                {"id": int(search_id), "session": selected_session}
+            )
+            if not base_student.empty:
+                detected_section = base_student['section'].iloc[0].upper().strip()
+                detected_class = base_student['class'].iloc[0]
+                active_section = target_section_input if target_section_input else detected_section
+                
+                students_to_print = pd.DataFrame([{
+                    "id": int(search_id), 
+                    "name": base_student['name'].iloc[0], 
+                    "section": active_section, 
+                    "class": detected_class
+                }])
+            else:
+                students_to_print = pd.DataFrame()
+        else:
+            # Complete Section Mode execution matching parameters directly
+            active_section = target_section_input
+            if not active_section:
+                st.warning("⚠️ Please explicitly select or type a Target Section to view structural section batch loop blocks.")
+                students_to_print = pd.DataFrame()
+            else:
                 students_to_print = run_query(
                     "SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) AND session = :session AND class = :class ORDER BY id ASC", 
                     {"section": active_section, "session": selected_session, "class": selected_class}
                 )
-            else:
-                students_to_print = pd.DataFrame([{
-                    "id": int(search_id), 
-                    "name": base_student['name'].iloc[0], 
-                    "section": detected_section, 
-                    "class": detected_class
-                }])
 
+        if not students_to_print.empty:
             # HTML ENGINE GENERATION LOOP
             compiled_html = """
             <!DOCTYPE html>
@@ -2753,40 +2789,30 @@ if menu_choice == "🪪 Student Result Cards":
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-                
                 .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
                 .logo-row { display: block; width: 100%; margin-bottom: 12px; }
                 .logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
-                
                 .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
                 .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
-                
                 .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
                 .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
                 .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
-                
                 .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
                 .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
                 .doc-data-table th { font-weight: bold; background-color: #fff; }
-                
                 .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
-                
                 .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
                 .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
                 .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
                 .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
-                
                 .footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
                 .footer-signatures-table td { border: none; }
                 .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
-                
                 .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
                 .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
                 .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
                 .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
-                
                 button:disabled { background: #6c757d !important; cursor: not-allowed; opacity: 0.8; }
-                
                 @media print {
                     .action-controls-bar { display: none !important; }
                     .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
@@ -2807,23 +2833,23 @@ if menu_choice == "🪪 Student Result Cards":
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).upper()
-                test_name = selected_test.upper()
+                test_name = selected_test_label.upper()
                 
-                # Assign subject list targets dynamically based on runtime choices
+                # Assign subject lists based on discipline configurations tracking
                 if selected_system == "Semester System":
                     subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT"])
                 else:
                     matched_disp = "ICS" if any(k in section for k in ["ICS", "CQ", "CK"]) else "MEDICAL"
                     subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, ["ENGLISH", "URDU"])
                 
-                # Filter marks retrieval directly on selected_test parameter
+                # Query target scores filtered explicitly by system exam_code identifier key match
                 raw_marks = run_query(
                     "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
-                    {"id": current_id, "exam_type": selected_test}
+                    {"id": current_id, "exam_type": selected_test_code}
                 )
                 db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # Compile attendance metric matrices
+                # Process Attendance Matrix metrics
                 att_cells = {}
                 tot_sum, pres_sum = 0, 0
                 for m in AVAILABLE_MONTHS:
@@ -2937,12 +2963,12 @@ if menu_choice == "🪪 Student Result Cards":
                 remarks_text = "No records found."
                 if has_valid_marks_data:
                     if student_failed_any_subject:
-                        remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected across syllabus parameters."
+                        remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
                     else:
                         grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
                         if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable term progress achievement."
                         elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
-                        else: remarks_text = "Fair tracking evaluation. Clear operational margins exist for upgrading regular scores."
+                        else: remarks_text = "Fair tracking evaluation. Clear operational margins exist for improvement."
 
                 compiled_html += f"""
                             <tr style="background-color: #fff; font-weight: bold;">
@@ -3047,12 +3073,9 @@ if menu_choice == "🪪 Student Result Cards":
             </body>
             </html>
             """
-            components.html(compiled_html, height=850, scrolling=True)
+            components.html(compiled_html, height=900, scrolling=True)
         else:
-            st.warning("⚠️ No student records match the given Roll ID and Session selection details inside our ledger tracking data.")
-            
-    # Audit log tabs map out securely at base structural indentation layout
-    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
+            st.warning("⚠️ No student records matching your filtered combination were found inside our ledger tracking data.")
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
