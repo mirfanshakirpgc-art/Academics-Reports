@@ -4215,7 +4215,7 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("🧬 Academic Disciplines & Program Entries")
         st.info("Centralized console to view existing structural disciplines, modify active tracking setups, or initialize new program frameworks.")
 
-        # --- DATABASE READ: FETCH EXISTING RECORDS ---
+        # --- DATABASE READ: FETCH GENUINE DISCIPLINE RECORDS ---
         current_disciplines = pd.DataFrame()
         try:
             current_disciplines = run_query('''
@@ -4229,18 +4229,16 @@ elif menu_choice == "⚙️ Settings":
             ''')
         except Exception:
             try:
-                # Emergency fallback if academic_system column migration isn't fully committed
                 current_disciplines = run_query('SELECT id as "ID", discipline_name as "Discipline Name", status as "Status" FROM system_disciplines ORDER BY discipline_name ASC')
                 current_disciplines["Academic System"] = "Annual System"
             except Exception as e:
                 st.error(f"❌ Error communicating with database infrastructure: {e}")
 
-        # --- INTERACTIVE TABS LAYER ---
-        # Splitting workflows explicitly into 'View & Edit Existing' vs 'Add New Track'
+        # --- INTERACTIVE WORKSPACE TABS ---
         tab_view, tab_new = st.tabs(["📋 View & Edit Existing Disciplines", "➕ Add New Discipline Record"])
 
         # ==========================================
-        # 📂 TAB 1: VIEW & EDIT EXISTING ENTRIES
+        # 📂 TAB 1: DISPLAY & ALTER VALID ENTRIES
         # ==========================================
         with tab_view:
             if not current_disciplines.empty:
@@ -4250,7 +4248,6 @@ elif menu_choice == "⚙️ Settings":
                 st.markdown("---")
                 st.markdown("### ✏️ Edit or Modify an Existing Discipline")
                 
-                # Dynamic Dropdown generation from actual fetched data
                 disp_options = [f"{row['ID']} - {row['Discipline Name']} ({row['Academic System']})" for _, row in current_disciplines.iterrows()]
                 selected_disp_str = st.selectbox("Select target discipline parameter row to alter:", options=disp_options, key="edit_selector_node")
                 
@@ -4258,10 +4255,10 @@ elif menu_choice == "⚙️ Settings":
                     selected_id = int(selected_disp_str.split(" - ")[0])
                     target_row = current_disciplines[current_disciplines['ID'] == selected_id].iloc[0]
                     
-                    # Pull available system options safely from evaluation master profiles
+                    # Target dropdown mapping matching your explicit evaluation track options
                     try:
-                        sys_df = run_query("SELECT DISTINCT evaluation_track FROM system_evaluation_profiles WHERE status = 'ACTIVE'")
-                        sys_choices = sys_df['evaluation_track'].tolist() if not sys_df.empty else ["Annual System", "Semester System"]
+                        sys_df = run_query('SELECT DISTINCT "System Track" FROM system_evaluation_profiles WHERE status = \'ACTIVE\'')
+                        sys_choices = sys_df['System Track'].tolist() if not sys_df.empty else ["Annual System"]
                     except Exception:
                         sys_choices = ["Annual System", "Semester System"]
 
@@ -4269,7 +4266,8 @@ elif menu_choice == "⚙️ Settings":
                         col_m1, col_m2 = st.columns(2)
                         with col_m1:
                             edit_name = st.text_input("Modify Discipline Code/Title:", value=str(target_row['Discipline Name'])).upper().strip()
-                            edit_sys = st.selectbox("Assigned System Track Framework:", options=sys_choices, index=sys_choices.index(target_row['Academic System']) if target_row['Academic System'] in sys_choices else 0)
+                            current_track = target_row['Academic System'] if 'Academic System' in target_row else "Annual System"
+                            edit_sys = st.selectbox("Assigned System Track Framework:", options=sys_choices, index=sys_choices.index(current_track) if current_track in sys_choices else 0)
                         with col_m2:
                             edit_status = st.selectbox("Discipline Status Flag:", options=["ACTIVE", "INACTIVE"], index=0 if target_row['Status'] == 'ACTIVE' else 1)
                         
@@ -4298,7 +4296,7 @@ elif menu_choice == "⚙️ Settings":
 
                         if commit_delete:
                             if not confirm_delete:
-                                st.error("❌ You must explicitly check the confirmation checkpoint box to remove this row.")
+                                st.error("❌ You must explicitly check the confirmation checkbox to remove this row.")
                             else:
                                 try:
                                     with engine.begin() as conn:
@@ -4306,21 +4304,21 @@ elif menu_choice == "⚙️ Settings":
                                     st.success("🗑️ Track deleted from records.")
                                     st.rerun()
                                 except Exception as err:
-                                    st.error(f"❌ Deletion constraint encountered: {err}")
+                                    st.error(f"❌ Deletion restriction encountered: {err}")
             else:
                 st.info("ℹ️ No customized disciplines discovered in configuration rows. Head over to the next tab to initialize data records.")
 
         # ==========================================
-        # 📂 TAB 2: REGISTER NEW DISCIPLINES
+        # 📂 TAB 2: REGISTER NEW ENTRIES
         # ==========================================
         with tab_new:
             st.markdown("### ➕ Register a New Program Classification Track")
             
             try:
-                systems_query = run_query("SELECT DISTINCT evaluation_track FROM system_evaluation_profiles WHERE status = 'ACTIVE'")
-                available_frameworks = systems_query['evaluation_track'].tolist() if not systems_query.empty else ["Annual System"]
+                systems_query = run_query('SELECT DISTINCT "System Track" FROM system_evaluation_profiles WHERE status = \'ACTIVE\'')
+                available_frameworks = systems_query['System Track'].tolist() if not systems_query.empty else ["Annual System"]
             except Exception:
-                available_frameworks = ["Annual System", "Semester System"]
+                available_frameworks = ["Annual System"]
 
             with st.form("new_discipline_entry_form", clear_on_submit=True):
                 col_n1, col_n2 = st.columns(2)
@@ -4337,7 +4335,6 @@ elif menu_choice == "⚙️ Settings":
                         st.error("❌ Entry field input cannot be blank.")
                     else:
                         try:
-                            # Avoid duplicates tracking checkpoint
                             duplicate_check = run_query("SELECT id FROM system_disciplines WHERE UPPER(TRIM(discipline_name)) = :name", {"name": new_name})
                             if duplicate_check.empty:
                                 with engine.begin() as conn:
@@ -4345,10 +4342,10 @@ elif menu_choice == "⚙️ Settings":
                                         INSERT INTO system_disciplines (discipline_name, academic_system, status)
                                         VALUES (:name, :sys, :status)
                                     """), {"name": new_name, "sys": new_sys, "status": new_status})
-                                st.success(f"🎉 Track '{new_name}' successfully added to the core configuration platform!")
+                                st.success(f"🎉 Track '{new_name}' successfully added!")
                                 st.rerun()
                             else:
-                                st.warning("⚠️ This specific discipline title variant is already registered inside configuration rows.")
+                                st.warning("⚠️ This specific discipline title variant is already registered.")
                         except Exception as ex:
                             st.error(f"❌ Failed to submit structural row matrix: {ex}")
 
