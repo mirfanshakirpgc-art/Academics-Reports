@@ -2883,22 +2883,12 @@ if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() 
             except Exception: subjects_list = ["English", "Urdu"]
 
         # Database Performance Query
-        raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
-        
-        # FIXED: Directly pull live logs from daily_attendance using casting style of your ref code
-        try:
-            raw_logs_df = run_query("""
-                SELECT attendance_date, UPPER(TRIM(status)) as att_status
-                FROM daily_attendance
-                WHERE CAST(student_id AS TEXT) = TRIM(:st_id)
-            """, {"st_id": current_id_str})
-        except Exception:
-            # ==============================================================================
-        # 🔄 STEP 4A: SAFE LOCAL DATA SLICING (REPLACES DB QUERIES)
+        # ==============================================================================
+        # 🔄 STEP 4A: SAFE LOCAL DATA SLICING (REPLACES ACCIDENTALLY DUPLICATED QUERIES)
         # ==============================================================================
         current_id_str = str(student_row.get('student_id', '')).strip()
         
-        # 1. Slice and construct raw_marks locally
+        # 1. Slice and construct raw_marks locally from preloaded dataframe
         if 'marks_df' in locals() and not marks_df.empty:
             student_marks_df = marks_df[marks_df['student_id'] == current_id_str].copy()
             student_marks_df = student_marks_df.rename(columns={
