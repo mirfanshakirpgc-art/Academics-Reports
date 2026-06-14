@@ -2704,10 +2704,10 @@ elif menu_choice == "🪪 Student Result Cards":
         section_master_list = db_sections['section_name'].str.upper().str.strip().tolist() if not db_sections.empty else []
     except Exception as e:
         st.error(f"⚠️ Error initializing metadata tracks from settings: {e}")
-        session_list = ["2024-2026"]
+        session_list = ["2024-2026", "2025-2027"]
         section_master_list = []
 
-    # 1. CORE SEARCH FILTERS (Top Grid Layout)
+    # 1. CORE SEARCH FILTERS (Top Grid Layout matching final UI spec)
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
         selected_session = st.selectbox("📅 Select Session:", options=session_list)
@@ -2717,37 +2717,36 @@ elif menu_choice == "🪪 Student Result Cards":
         class_options = ["11th", "12th"] if selected_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
         selected_class = st.selectbox("🏫 Select Class:", options=class_options)
     with col_sel4:
-        # Dynamically filter exams linked specifically to the chosen academic stream mapping
+        # Fetching evaluation / exam tracking keys perfectly
         db_exams = run_query(
             "SELECT exam_code, exam_display_name FROM exam_cycles WHERE system_type = :sys AND status = 'ACTIVE' ORDER BY exam_display_name ASC",
             {"sys": selected_system}
         )
         if not db_exams.empty:
-            exam_options = {row['exam_display_name']: row['exam_code'] for _, row in db_exams.iterrows()}
-            selected_test_label = st.selectbox("🎯 Select Test Term:", options=list(exam_options.keys()))
-            selected_test_code = exam_options[selected_test_label]
+            exam_mapping = {row['exam_display_name']: row['exam_code'] for _, row in db_exams.iterrows()}
+            selected_test_label = st.selectbox("🎯 Select Test Term:", options=list(exam_mapping.keys()))
+            selected_test_code = exam_mapping[selected_test_label]
         else:
-            selected_test_label = st.selectbox("🎯 Select Test Term:", options=["No Exams Configured"])
-            selected_test_code = None
+            selected_test_label = st.selectbox("🎯 Select Test Term:", options=["MT_1", "MT_2", "SEND_UP", "PRE_BOARD"])
+            selected_test_code = selected_test_label
 
     # 2. PRINT SCOPE CONFIGURATION
-    print_scope = st.radio("𖨾 Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
+    st.markdown("**𖨾 Select Print Scope:**")
+    print_scope = st.radio("Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True, label_visibility="collapsed")
     
     col_c1, col_c2 = st.columns(2)
     with col_c1: 
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
     with col_c2:
-        # Dynamically provide registered structural labels or fallback to quick typing entry
         if section_master_list:
-            target_section = st.selectbox("📋 Target Section Group:", options=["Auto-Detect from ID"] + section_master_list)
+            target_section = st.selectbox("📋 Target Section (Leave empty to auto-detect from Student ID):", options=["Auto-Detect from ID"] + section_master_list)
             target_section_input = "" if target_section == "Auto-Detect from ID" else target_section
         else:
-            target_section_input = st.text_input("📋 Target Section (Type manually):").upper().strip()
+            target_section_input = st.text_input("📋 Target Section (Leave empty to auto-detect from Student ID):").upper().strip()
 
     # 3. DATA FETCHING AND ENGINE RUNTIME
     if (search_id and search_id.isdigit() if print_scope == "👤 Single Student Card" else True) and selected_test_code:
         
-        # Construct target operational dataset execution array
         if print_scope == "👤 Single Student Card":
             base_student = run_query(
                 "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
@@ -2767,10 +2766,9 @@ elif menu_choice == "🪪 Student Result Cards":
             else:
                 students_to_print = pd.DataFrame()
         else:
-            # Complete Section Mode execution matching parameters directly
             active_section = target_section_input
             if not active_section:
-                st.warning("⚠️ Please explicitly select or type a Target Section to view structural section batch loop blocks.")
+                st.warning("⚠️ Please explicitly select or type a Target Section to query student section groups.")
                 students_to_print = pd.DataFrame()
             else:
                 students_to_print = run_query(
@@ -2789,25 +2787,29 @@ elif menu_choice == "🪪 Student Result Cards":
             <style>
                 body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
                 .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-                .header-block { text-align: left; margin-bottom: 20px; width: 100%; }
-                .logo-row { display: block; width: 100%; margin-bottom: 12px; }
-                .logo-img { max-height: 48px; width: auto; display: block; margin-left: 0; }
-                .inst-main-header { font-weight: bold; font-size: 28px; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-align: center; width: 100%; }
-                .doc-type-banner { text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1px; }
-                .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 20px; font-size: 14px; }
-                .meta-layout-table td { border: none; padding: 3px; vertical-align: bottom; white-space: nowrap; }
+                .header-block { text-align: center; margin-bottom: 20px; width: 100%; position: relative; }
+                .logo-container { position: absolute; left: 0; top: 0; }
+                .logo-img { max-height: 55px; width: auto; display: block; }
+                .inst-main-header { font-weight: bold; font-size: 32px; letter-spacing: 0.5px; margin: 0; padding-top: 10px; text-transform: uppercase; text-align: center; width: 100%; }
+                .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1.5px; }
+                .meta-layout-table { width: 100%; border-collapse: collapse; border: none; margin-bottom: 25px; font-size: 15px; }
+                .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
                 .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
-                .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 14px; }
-                .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-                .doc-data-table th { font-weight: bold; background-color: #fff; }
-                .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 3px; }
-                .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
-                .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 5px 3px; text-align: center; }
+                
+                .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 14px; }
+                .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 7px 5px; text-align: center; }
+                .doc-data-table th { font-weight: bold; background-color: #fff; text-transform: uppercase; }
+                
+                .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; padding-bottom: 3px; }
+                .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
+                .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
                 .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
-                .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; font-size: 13px; }
-                .footer-signatures-table { width: 100%; margin-top: 45px; font-size: 14px; border: none; }
+                .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; }
+                
+                .footer-signatures-table { width: 100%; margin-top: 55px; font-size: 15px; border: none; }
                 .footer-signatures-table td { border: none; }
-                .sig-marker-line { border-top: 1px solid #000; width: 150px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
+                .sig-marker-line { border-top: 1px solid #000; width: 170px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
+                
                 .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
                 .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
                 .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
@@ -2828,6 +2830,8 @@ elif menu_choice == "🪪 Student Result Cards":
                 </div>
             """
 
+            AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+
             for idx, student_row in students_to_print.iterrows():
                 current_id = int(student_row['id'])
                 name = str(student_row['name']).upper()
@@ -2835,38 +2839,38 @@ elif menu_choice == "🪪 Student Result Cards":
                 grade_class = str(student_row['class']).upper()
                 test_name = selected_test_label.upper()
                 
-                # Assign subject lists based on discipline configurations tracking
+                # Dynamic Subject Assignment Mapping Blocks
                 if selected_system == "Semester System":
                     subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT"])
                 else:
                     matched_disp = "ICS" if any(k in section for k in ["ICS", "CQ", "CK"]) else "MEDICAL"
-                    subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, ["ENGLISH", "URDU"])
+                    subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, 
+                                    ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"])
                 
-                # Query target scores filtered explicitly by system exam_code identifier key match
+                # Dynamic Query payload mapping with true evaluated target test key code
                 raw_marks = run_query(
                     "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
                     {"id": current_id, "exam_type": selected_test_code}
                 )
                 db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # Process Attendance Matrix metrics
+                # Calculate attendance metrics cleanly
                 att_cells = {}
                 tot_sum, pres_sum = 0, 0
                 for m in AVAILABLE_MONTHS:
-                    m_upper = m.upper().strip()
-                    match_att = db_att[db_att['m_name'] == m_upper]
+                    m_upper = m.upper().replace('.', '').strip()
+                    match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip() == m_upper] if not db_att.empty else pd.DataFrame()
                     if not match_att.empty:
                         td = int(match_att['total_days'].iloc[0])
                         pd_val = int(match_att['present_days'].iloc[0])
                         tot_sum += td
                         pres_sum += pd_val
-                        pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
+                        pct = f"{int((pd_val / td) * 100)}%" if td > 0 else ""
                         att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
                     else:
                         att_cells[m] = {"td": "", "pd": "", "pct": ""}
                 
-                attendance_percentage = (pres_sum / tot_sum) * 100 if tot_sum > 0 else 0.0
-                overall_pct_str = f"{int(attendance_percentage)}%" if tot_sum > 0 else ""
+                overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else ""
                 att_cells["Over All Att."] = {"td": str(tot_sum) if tot_sum > 0 else "", "pd": str(pres_sum) if tot_sum > 0 else "", "pct": overall_pct_str}
 
                 logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
@@ -2875,34 +2879,33 @@ elif menu_choice == "🪪 Student Result Cards":
                 compiled_html += f"""
                 <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
                     <div class="header-block">
-                        <div class="logo-row">
+                        <div class="logo-container">
                             <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
                         </div>
                         <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                     </div>
                     
-                    <div class="doc-type-banner">{test_name} RESULT CARD ({selected_system.upper()})</div>
+                    <div class="doc-type-banner">RESULT CARD</div>
                     
                     <table class="meta-layout-table">
                         <tr>
-                            <td style="width: 30%;"> Name: <span class="underlined-value-span" style="width: 78%;">{name}</span></td>
-                            <td style="width: 12%;"> ID: <span class="underlined-value-span" style="width: 65%;">{current_id}</span></td>
-                            <td style="width: 15%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
-                            <td style="width: 15%;"> Class: <span class="underlined-value-span" style="width: 55%;">{selected_class}</span></td>
-                            <td style="width: 14%;"> Session: <span class="underlined-value-span" style="width: 50%;">{selected_session}</span></td>
-                            <td style="width: 14%;"> Term: <span class="underlined-value-span" style="width: 55%;">{test_name}</span></td>
+                            <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
+                            <td style="width: 15%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id}</span></td>
+                            <td style="width: 20%;">Section: <span class="underlined-value-span" style="width: 62%;">{section}</span></td>
+                            <td style="width: 14%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
+                            <td style="width: 13%;">Test: <span class="underlined-value-span" style="width: 60%;">{test_name}</span></td>
                         </tr>
                     </table>
                     
                     <table class="doc-data-table">
                         <thead>
                             <tr>
-                                <th style="text-align: left; width: 35%; padding-left: 10px;">Subjects</th>
-                                <th style="width: 13%;">Obt. Marks</th>
-                                <th style="width: 13%;">Total Marks</th>
-                                <th style="width: 13%;">Pass Marks</th>
-                                <th style="width: 13%;">Age%</th>
-                                <th style="width: 13%;">Status</th>
+                                <th style="text-align: left; width: 45%; padding-left: 10px;">Subjects</th>
+                                <th style="width: 11%;">Obt. Marks</th>
+                                <th style="width: 11%;">Total Marks</th>
+                                <th style="width: 11%;">Pass Marks</th>
+                                <th style="width: 11%;">Age%</th>
+                                <th style="width: 11%;">Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2913,8 +2916,8 @@ elif menu_choice == "🪪 Student Result Cards":
 
                 for sub in subjects_list:
                     sub_clean = sub.upper().strip()
-                    match = raw_marks[raw_marks['subject'] == sub_clean]
-                    obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
+                    match = raw_marks[raw_marks['subject'] == sub_clean] if not raw_marks.empty else pd.DataFrame()
+                    obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "-", "-", "", ""
                     
                     if not match.empty:
                         try:
@@ -2943,17 +2946,15 @@ elif menu_choice == "🪪 Student Result Cards":
                                     student_failed_any_subject = True
                         except Exception: 
                             pass
-                        
-                    style_override = "color: #7f8c8d; font-weight: bold;" if obt_disp == "NC" else ""
                     
                     compiled_html += f"""
                     <tr>
-                        <td style="text-align: left; font-weight: bold; padding-left: 10px;">{sub}</td>
-                        <td style="{style_override}">{obt_disp}</td>
-                        <td style="{style_override}">{tot_marks_num if obt_disp != "NC" else "NC"}</td>
-                        <td style="{style_override}">{pass_marks_num if obt_disp != "NC" else "NC"}</td>
-                        <td style="{style_override}">{per_disp}</td>
-                        <td style="font-weight: bold; {style_override}">{status_disp}</td>
+                        <td style="text-align: left; padding-left: 10px;">{sub}</td>
+                        <td>{obt_disp}</td>
+                        <td>{tot_marks_num}</td>
+                        <td>{pass_marks_num}</td>
+                        <td>{per_disp}</td>
+                        <td style="font-weight: bold;">{status_disp}</td>
                     </tr>
                     """
                 
@@ -2982,13 +2983,13 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <div class="section-header-title">Attendance Matrix Metrics</div>
+                    <div class="section-header-title" style="border-bottom: 1px dashed #000;">ATTENDANCE REPORT</div>
                     <table class="attendance-matrix-table">
                         <thead>
                             <tr>
-                                <th style="width: 12%;">Metric</th>
-                                {''.join([f'<th style="width: 6.7%;">{m}</th>' for m in AVAILABLE_MONTHS])}
-                                <th style="width: 11%;">Over All Att.</th>
+                                <th style="width: 14%;">Metric</th>
+                                {''.join([f'<th style="width: 6.5%;">{m}</th>' for m in AVAILABLE_MONTHS])}
+                                <th style="width: 8%;">Over All Att.</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -3010,8 +3011,8 @@ elif menu_choice == "🪪 Student Result Cards":
                         </tbody>
                     </table>
                     
-                    <div style="font-size:14px; margin-top:25px; margin-bottom:15px; font-weight: normal;">
-                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 88%; font-style: italic;">{remarks_text}</span>
+                    <div style="font-size:14px; margin-top:30px; margin-bottom:15px;">
+                        Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 90%; font-style: italic;">{remarks_text}</span>
                     </div>
                     
                     <table class="footer-signatures-table">
@@ -3073,9 +3074,9 @@ elif menu_choice == "🪪 Student Result Cards":
             </body>
             </html>
             """
-            components.html(compiled_html, height=900, scrolling=True)
+            components.html(compiled_html, height=950, scrolling=True)
         else:
-            st.warning("⚠️ No student records matching your filtered combination were found inside our ledger tracking data.")
+            st.warning("⚠️ No student records match the given Roll ID and Session selection details inside our ledger tracking data.")
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
