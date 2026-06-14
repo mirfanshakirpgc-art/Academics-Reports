@@ -2680,8 +2680,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
         import streamlit.components.v1 as components
         components.html(composite_html_payload, height=900, scrolling=True)
-import streamlit as pd
-import streamlit as st
 
 # ----------------- ⚙️ ACADEMIC SYSTEM SETTINGS -----------------
 if menu_choice == "⚙️ Academic System Setting":
