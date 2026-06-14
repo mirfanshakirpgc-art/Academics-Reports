@@ -2323,8 +2323,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
                 # --- CASE-INSENSITIVE / STRING NORMALIZATION ENGINE ---
                 # Force any variation of "Computer" to unify as "Computer Science"
-        marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.title()
-        marks_df["subject_name"] = marks_df["subject_name"].replace({"Computer": "Computer Science"})
+            marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.title()
+            marks_df["subject_name"] = marks_df["subject_name"].replace({"Computer": "Computer Science"})
         except Exception as e:
             st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
 
