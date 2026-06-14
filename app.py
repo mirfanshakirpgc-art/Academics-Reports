@@ -2323,7 +2323,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 
                 # --- FLAWLESS STRING SANITIZATION & UNIFICATION ---
                 # 1. Cast to string, strip whitespace, and normalize case
-                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.title()
+                # Clean, strip whitespaces, and force standard Title Case
+                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
+                
+                # Convert underscores to spaces right at the source database level
+                marks_df["subject_name"] = marks_df["subject_name"].str.replace('_', ' ')
+                
+                # Normalize any multi-spaces or casing, then fix standalone "Computer"
+                marks_df["subject_name"] = marks_df["subject_name"].str.replace(r'\s+', ' ', regex=True).str.title()
+                marks_df["subject_name"] = marks_df["subject_name"].replace({"Computer": "Computer Science"})
                 # 2. Aggressively clean up any multi-space or trailing text hidden artifacts
                 marks_df["subject_name"] = marks_df["subject_name"].str.replace(r'\s+', ' ', regex=True)
                 # 3. Unify alternative values securely at the data frame root level
