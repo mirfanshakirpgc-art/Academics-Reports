@@ -2681,13 +2681,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
         import streamlit.components.v1 as components
         components.html(composite_html_payload, height=900, scrolling=True)
 
-import pandas as pd
-import streamlit as st
+# --- END OF MULTI-TEST REPORT LOGIC ---
+    # Make sure these lines are indented by 4 spaces!
+    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
-elif menu_choice == "🪪 Student Result Cards":
+if menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
-    st.title("🪪 Student Result Cards — Print Engine")
     
     # Move them here if they belong to this page!
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
