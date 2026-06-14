@@ -4640,7 +4640,8 @@ elif menu_choice == "⚙️ Settings":
                     st.dataframe(mappings_display, use_container_width=True, hide_index=True)
                 else:
                     st.info("No courses or subjects have been cross-mapped to class units yet.")
-else:
+# Change 'else:' to 'elif' to explicitly protect your home dashboard state
+    elif menu_choice != "📊 Home Dashboard":
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
         st.warning("⚠️ Unresolved Application State Node Encountered.")
         st.info("Please select a valid functional module loop from the sidebar navigation menu.")
@@ -4651,7 +4652,6 @@ else:
 # ====================================================================================
 if __name__ == "__main__":
     try:
-        # Final safety initialization or sanity tracking can be run here if needed.
         pass
     except Exception as structural_critical_error:
         st.error(f"💥 Fatal Core Framework Exception Intercepted: {structural_critical_error}")
