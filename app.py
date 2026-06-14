@@ -2691,8 +2691,8 @@ if menu_choice == "🪪 Student Result Cards":
 
     st.title("🪪 Student Result Cards — Print Engine")
 
-    # 1. CORE FILTERS REQUIRED BY USER
-    col_sel1, col_sel2, col_sel3 = st.columns(3)
+    # 1. CORE FILTERS REQUIRED BY USER (RESTORED TEST TERM SELECTBOX)
+    col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
         selected_session = st.selectbox("📅 Select Session:", options=["2024-2026", "2025-2027", "2023-2025"])
     with col_sel2:
@@ -2701,6 +2701,9 @@ if menu_choice == "🪪 Student Result Cards":
         # Dynamically calculate class selection array based on system type
         class_options = ["11th", "12th"] if selected_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
         selected_class = st.selectbox("🏫 Select Class:", options=class_options)
+    with col_sel4:
+        # Re-integrated the critical test selection parameter
+        selected_test = st.selectbox("🎯 Select Test Term:", options=AVAILABLE_EXAMS)
 
     # 2. PRINT SCOPE CONFIGURATION REQUIRED BY USER
     print_scope = st.radio("𖨾 Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
@@ -2713,7 +2716,7 @@ if menu_choice == "🪪 Student Result Cards":
         # Allow target section customization or fall back automatically using lookup markers
         target_section_input = st.text_input("📋 Target Section (Leave empty to auto-detect from Student ID):").upper().strip()
 
-    if search_id and search_id.isdigit():
+    if search_id and search_id.isdigit() and selected_test:
         # Clean verification pull restricted directly by user choices
         base_student = run_query(
             "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
@@ -2804,6 +2807,7 @@ if menu_choice == "🪪 Student Result Cards":
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).upper()
+                test_name = selected_test.upper()
                 
                 # Assign subject list targets dynamically based on runtime choices
                 if selected_system == "Semester System":
@@ -2812,7 +2816,11 @@ if menu_choice == "🪪 Student Result Cards":
                     matched_disp = "ICS" if any(k in section for k in ["ICS", "CQ", "CK"]) else "MEDICAL"
                     subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, ["ENGLISH", "URDU"])
                 
-                raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
+                # Filter marks retrieval directly on selected_test parameter
+                raw_marks = run_query(
+                    "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
+                    {"id": current_id, "exam_type": selected_test}
+                )
                 db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
                 # Compile attendance metric matrices
@@ -2847,15 +2855,16 @@ if menu_choice == "🪪 Student Result Cards":
                         <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                     </div>
                     
-                    <div class="doc-type-banner">{selected_system.upper()} ASSESSMENT MATRIX</div>
+                    <div class="doc-type-banner">{test_name} RESULT CARD ({selected_system.upper()})</div>
                     
                     <table class="meta-layout-table">
                         <tr>
-                            <td style="width: 35%;"> Name: <span class="underlined-value-span" style="width: 80%;">{name}</span></td>
-                            <td style="width: 15%;"> ID: <span class="underlined-value-span" style="width: 70%;">{current_id}</span></td>
-                            <td style="width: 15%;"> Section: <span class="underlined-value-span" style="width: 60%;">{section}</span></td>
-                            <td style="width: 15%;"> Class: <span class="underlined-value-span" style="width: 60%;">{selected_class}</span></td>
-                            <td style="width: 20%;"> Session: <span class="underlined-value-span" style="width: 65%;">{selected_session}</span></td>
+                            <td style="width: 30%;"> Name: <span class="underlined-value-span" style="width: 78%;">{name}</span></td>
+                            <td style="width: 12%;"> ID: <span class="underlined-value-span" style="width: 65%;">{current_id}</span></td>
+                            <td style="width: 15%;"> Section: <span class="underlined-value-span" style="width: 55%;">{section}</span></td>
+                            <td style="width: 15%;"> Class: <span class="underlined-value-span" style="width: 55%;">{selected_class}</span></td>
+                            <td style="width: 14%;"> Session: <span class="underlined-value-span" style="width: 50%;">{selected_session}</span></td>
+                            <td style="width: 14%;"> Term: <span class="underlined-value-span" style="width: 55%;">{test_name}</span></td>
                         </tr>
                     </table>
                     
@@ -2928,12 +2937,12 @@ if menu_choice == "🪪 Student Result Cards":
                 remarks_text = "No records found."
                 if has_valid_marks_data:
                     if student_failed_any_subject:
-                        remarks_text = "Unsatisfactory record with structural failure status across modules. Remedial attention required."
+                        remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected across syllabus parameters."
                     else:
                         grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
-                        if grand_percentage >= 80: remarks_text = "Excellent work! Commendable conceptual metrics."
-                        elif grand_percentage >= 60: remarks_text = "Good overall standing. Capable of higher development with effort."
-                        else: remarks_text = "Fair tracking markers. Possesses clear scope for upgrade."
+                        if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable term progress achievement."
+                        elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
+                        else: remarks_text = "Fair tracking evaluation. Clear operational margins exist for upgrading regular scores."
 
                 compiled_html += f"""
                             <tr style="background-color: #fff; font-weight: bold;">
@@ -3042,7 +3051,7 @@ if menu_choice == "🪪 Student Result Cards":
         else:
             st.warning("⚠️ No student records match the given Roll ID and Session selection details inside our ledger tracking data.")
             
-    # Audit log tables map out securely at base structural indentation layout
+    # Audit log tabs map out securely at base structural indentation layout
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
