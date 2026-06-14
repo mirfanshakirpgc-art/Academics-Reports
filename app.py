@@ -2673,6 +2673,7 @@ elif menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
     import pandas as pd
     import streamlit as st
+    import numpy as np
 
     st.title("🪪 Student Result Cards — Print Engine")
 
@@ -2732,10 +2733,8 @@ elif menu_choice == "🪪 Student Result Cards":
     else:
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
-            # Reads directly from the global DISCIPLINE_SECTIONS_MAP keys at the top of file
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=list(DISCIPLINE_SECTIONS_MAP.keys()))
         with col_sec2:
-            # Dynamically filters available sections using the top map mapping matrix
             sections_pool = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(normalized_class_input, [])
             active_section = st.selectbox("📋 Select Section:", options=sections_pool)
 
@@ -2841,7 +2840,6 @@ elif menu_choice == "🪪 Student Result Cards":
             # 4. Extract subject structural lists safely from the top mapping file parameters
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(subject_mapping_key, None)
             if not subjects_list:
-                # Emergency runtime safeguard layout bridge
                 try:
                     subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
                 except Exception:
@@ -2855,9 +2853,12 @@ elif menu_choice == "🪪 Student Result Cards":
             att_cells = {}
             tot_sum, pres_sum = 0, 0
             for m in DISPLAY_MONTHS:
+                # Normalize lookups to match 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT' etc. safely
                 clean_m = m.upper().replace('.', '').strip()[:3]
                 match_att = pd.DataFrame()
+                
                 if not db_att.empty:
+                    # Normalized substring match across the dataframe
                     match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m)]
                 
                 if not match_att.empty:
