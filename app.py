@@ -4232,8 +4232,7 @@ elif menu_choice == "⚙️ Settings":
                                 st.error(f"❌ Cannot delete this teacher because they are currently assigned to active course allocations: {err}")
             else:
                 st.info("No faculty profiles are currently registered.")
-
-        if save_sess:
+                    if save_sess:
                         if not updated_sess_name:
                             st.error("Session Code/Year cannot be left blank.")
                         else:
