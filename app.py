@@ -2784,23 +2784,19 @@ elif menu_choice == "🪪 Student Result Cards":
         
         if search_id and selected_test_code:
             clean_search_id = str(search_id).strip()
-            # Fetch all matching criteria safely
             all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
             
             if not all_session_students.empty:
-                # Direct string evaluation to prevent numerical mismatch
                 match_mask = (all_session_students['id'].astype(str).str.strip() == clean_search_id)
                 single_student = all_session_students[match_mask]
                 
                 if single_student.empty:
-                    # Fallback fuzzy match
                     fuzzy_mask = all_session_students['id'].astype(str).str.contains(clean_search_id, case=False, na=False)
                     single_student = all_session_students[fuzzy_mask]
                 
                 if not single_student.empty:
                     raw_discipline = str(single_student['discipline'].iloc[0]).strip().upper()
                     
-                    # NORMALIZE: Align the single student's discipline perfectly with your master map keys
                     if "STATS" in raw_discipline:
                         selected_discipline_tracked = "ICS (STATS)"
                     elif "PHYSIC" in raw_discipline:
@@ -2816,7 +2812,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     else:
                         selected_discipline_tracked = raw_discipline
 
-                    # Build unified printable row matching the dictionary keys
                     students_to_print = pd.DataFrame([{
                         "id": str(single_student['id'].iloc[0]).strip(), 
                         "name": single_student['name'].iloc[0], 
@@ -2917,20 +2912,19 @@ elif menu_choice == "🪪 Student Result Cards":
             
             lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             
-            # Smart determination of correct fallback discipline tracking mapping values
             if print_scope == "👤 Single Student Card":
                 lookup_disp = student_row['discipline']
             else:
-                # Deduce tracking directly from selected dropdown discipline key values
                 raw_disp = str(selected_discipline).strip().upper()
-                if "ICS" in raw_disp and "STAT" in raw_disp:
-                    lookup_disp = "ICS_STATS"
-                elif "ICS" in raw_disp and "PHYSIC" in raw_disp:
-                    lookup_disp = "ICS_PHYSICS"
+                if "STATS" in raw_disp:
+                    lookup_disp = "ICS (STATS)"
+                elif "PHYSIC" in raw_disp:
+                    lookup_disp = "ICS (PHYSICS)"
                 else:
-                    lookup_disp = raw_disp.replace(" ", "_").replace("(", "").replace(")", "")
+                    lookup_disp = raw_disp
 
-            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(lookup_disp, ["English", "Urdu", "T_Quran"])
+            master_map_key = lookup_disp.replace(" ", "_").replace("(", "").replace(")", "")
+            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(master_map_key, ["English", "Urdu", "T_Quran"])
             
             raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id}' AND exam_type = '{selected_test_code}'")
             db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id}'")
@@ -2998,16 +2992,13 @@ elif menu_choice == "🪪 Student Result Cards":
             student_failed_any_subject = False
             has_valid_marks_data = False
 
-            # FORCED ITERATION: Loop across every single master configured array layout item 
             for sub in subjects_list:
                 sub_clean = sub.upper().strip()
                 
-                # Loose matching lookup safety system to cover variations like "Computer" vs "Computer Science"
                 match = pd.DataFrame()
                 if not raw_marks.empty:
                     match = raw_marks[raw_marks['subject'] == sub_clean]
                     if match.empty:
-                        # Try fuzzy partial substring match if perfect match fails
                         match = raw_marks[raw_marks['subject'].str.contains(sub_clean[:4], regex=False, na=False)]
 
                 obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "-", 100, 40, "-", "-"
@@ -3040,7 +3031,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     except Exception: 
                         pass
                 else:
-                    # Keep expected rows visible on card output even if db returns null marks fields
                     grand_total_marks += 100
                 
                 compiled_html += f"""
@@ -3149,7 +3139,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
