@@ -2687,8 +2687,10 @@ import streamlit as st
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
     import streamlit.components.v1 as components
-    
     st.title("🪪 Student Result Cards — Print Engine")
+    
+    # Move them here if they belong to this page!
+    manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
     
     print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     col_c1, col_c2 = st.columns(2)
