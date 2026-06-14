@@ -4360,104 +4360,152 @@ elif menu_choice == "⚙️ Settings":
 
 
     # ==============================================================================
-    # 📚 SUB-MODULE 6: SUBJECT MAPPING MATRIX (Smart Fetching from Code Dictionary)
+    # 📚 SUB-MODULE 6: SUBJECT MAPPING MATRIX (LIVE DJANGO-STYLE CASCADE)
     # ==============================================================================
     elif sub_menu == "📚 Add Subject Mapping":
         st.subheader("📚 Subject & Course Curriculum Matrix Mapping")
-        st.info("Map individual courses dynamically based on the verified structures registered in your institutional configuration dictionary.")
+        st.info("Map individual operational subjects dynamically sourced from your active master institutional configuration dictionaries.")
 
-        # 1. Select the Academic Class/Year Layer first to narrow down options
-        available_layers = list(CLASS_SUBJECTS_MASTER_MAP.keys())
-        chosen_layer = st.selectbox("1️⃣ Select Target Academic Class / Year Layer:", options=available_layers, key="map_layer_selector")
-
-        # 2. Extract corresponding tracks for the selected layer from dictionary mapping
-        layer_tracks = list(CLASS_SUBJECTS_MASTER_MAP[chosen_layer].keys())
+        # --- STEP 1: LIVE INTERACTIVE CASCADE SELECTORS (OUTSIDE THE FORM) ---
+        col_select1, col_select2 = st.columns(2)
         
-        # 3. Present UI layout inputs dynamically
+        with col_select1:
+            # 1. Select the Academic Year Class Layer
+            available_layers = list(CLASS_SUBJECTS_MASTER_MAP.keys())
+            chosen_layer = st.selectbox(
+                "1️⃣ Select Target Academic Class / Year Layer:", 
+                options=available_layers, 
+                key="live_map_layer_selector"
+            )
+
+            # 2. Extract matching tracks for the chosen layer dynamically
+            layer_tracks = list(CLASS_SUBJECTS_MASTER_MAP[chosen_layer].keys())
+            chosen_track = st.selectbox(
+                "2️⃣ Select Program Discipline Track:", 
+                options=layer_tracks, 
+                key="live_map_track_selector"
+            )
+
+        # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
+        dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
+
+        with col_select2:
+            st.markdown("""
+            <div style="background-color:#f9f9f9; padding:12px; border-radius:8px; border-left: 4px solid #ff4b4b;">
+                <p style="margin-bottom:4px; font-weight:bold; color:#333;">🎯 Dynamic Context Tracker Verified</p>
+                <span style="font-size:13px; color:#555;">
+                    <b>Active Layer:</b> <code style="color:#d63384;">""" + str(chosen_layer) + """</code><br>
+                    <b>Active Track:</b> <code style="color:#d63384;">""" + str(chosen_track) + """</code><br>
+                    <b>Curriculum Pool:</b> """ + ", ".join(dict_pulled_subjects) + """
+                </span>
+            </div>
+            """, unsafe_with_html=True)
+
+        st.markdown("---")
+
+        # --- STEP 2: SECURE SUBMISSION MATRIX FORM ---
         if current_role == 'controller':
+            st.markdown("### 💾 Record Mapping Association")
+            
             with st.form("smart_subject_mapping_form", clear_on_submit=True):
-                col_sub1, col_sub2 = st.columns(2)
-                with col_sub1:
-                    chosen_track = st.selectbox("2️⃣ Select Program Discipline Track:", options=layer_tracks)
-                    
-                    # 🔍 SMART FETCH: Get existing subjects array from the Python Master Dictionary instantly!
-                    existing_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
-                    
-                    # Present options to the user via an easy dropdown selector menu
-                    selected_subject_to_map = st.selectbox("3️⃣ Select Existing Subject to Map:", options=existing_subjects)
-                    
-                with col_sub2:
-                    st.markdown("**💡 Dictionary Profile Context Tracker**")
-                    st.caption(f"**Current Selected Track:** `{chosen_track}`")
-                    st.caption(f"**Detected Class Context:** `{chosen_layer}`")
-                    st.caption(f"**Available Curriculum Pool:** {', '.join(existing_subjects)}")
+                # Toggle option to add custom subjects not hardcoded into the dictionary pool
+                input_mode = st.radio(
+                    "Choose Subject Input Variant:",
+                    options=["Pick from Code Dictionary Pool", "Type a Brand New Subject entirely"],
+                    horizontal=True
+                )
+
+                if input_mode == "Pick from Code Dictionary Pool":
+                    selected_subject_to_map = st.selectbox(
+                        "3️⃣ Select Existing Subject to Map:", 
+                        options=dict_pulled_subjects
+                    )
+                else:
+                    selected_subject_to_map = st.text_input(
+                        "3️⃣ Type New Custom Subject Name:", 
+                        placeholder="e.g. SOCIOLOGY, ARABIC, CIVICS"
+                    )
+
+                submit_subject = st.form_submit_button("🚀 Save Course Mapping Parameters", type="primary")
                 
-                submit_subject = st.form_submit_button("💾 Save Course Mapping Parameters", type="primary")
-                
+                # --- STEP 3: DATA RETRIEVAL TRANSACTION WRITER ---
                 if submit_subject:
-                    try:
-                        # Standardize uppercase matching strings for database consistency
-                        db_disp = str(chosen_track).upper().strip()
-                        db_layer = str(chosen_layer).strip()
-                        db_sub = str(selected_subject_to_map).upper().strip()
+                    if not selected_subject_to_map:
+                        st.error("❌ Target subject selection value cannot be empty.")
+                    else:
+                        try:
+                            # Standardize case parameters for PostgreSQL rows
+                            db_disp = str(chosen_track).upper().strip()
+                            db_layer = str(chosen_layer).strip()
+                            db_sub = str(selected_subject_to_map).upper().strip()
 
-                        # Prevent duplicate constraint conflicts
-                        check_existing = run_query("""
-                            SELECT id FROM system_subjects_mapping 
-                            WHERE UPPER(TRIM(discipline_name)) = :disp 
-                            AND UPPER(TRIM(class_name)) = :cls
-                            AND UPPER(TRIM(subject_name)) = :sub
-                        """, {"disp": db_disp, "cls": db_layer, "sub": db_sub})
-                        
-                        if check_existing.empty:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO system_subjects_mapping (discipline_name, class_name, subject_name)
-                                    VALUES (:disp, :cls, :sub)
-                                """), {"disp": db_disp, "cls": db_layer, "sub": db_sub})
-                            st.cache_data.clear()
-                            st.success(f"🎉 Successfully mapped verified course: '{db_sub}' inside '{db_disp} ({db_layer})' structure!")
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ This exact subject tracking arrangement already exists inside your active database.")
-                    except Exception as e:
-                        st.error(f"❌ Could not write subject mapping parameter row: {e}")
+                            # Guard Clause: Prevent redundant structural allocations
+                            check_existing = run_query("""
+                                SELECT id FROM system_subjects_mapping 
+                                WHERE UPPER(TRIM(discipline_name)) = :disp 
+                                AND UPPER(TRIM(class_name)) = :cls
+                                AND UPPER(TRIM(subject_name)) = :sub
+                            """, {"disp": db_disp, "cls": db_layer, "sub": db_sub})
+                            
+                            if check_existing.empty:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        INSERT INTO system_subjects_mapping (discipline_name, class_name, subject_name)
+                                        VALUES (:disp, :cls, :sub)
+                                    """), {"disp": db_disp, "cls": db_layer, "sub": db_sub})
+                                
+                                st.cache_data.clear() # Force empty internal view memory maps
+                                st.success(f"🎉 Successfully mapped verified course: '{db_sub}' inside '{db_disp} ({db_layer})' structure!")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ This exact subject tracking arrangement already exists inside your active database.")
+                        except Exception as e:
+                            st.error(f"❌ Could not write subject mapping parameter row: {e}")
 
+        # --- STEP 4: GRID RENDER DISPLAY OF EXISTING COMPILATIONS ---
         st.markdown("---")
         st.write("#### Registered Structural Curriculum Maps")
         
         current_maps = pd.DataFrame()
         try:
-            current_maps = run_query('SELECT id as "ID", discipline_name as "Discipline Track", class_name as "Academic Term", subject_name as "Allocated Course" FROM system_subjects_mapping ORDER BY discipline_name ASC, class_name ASC, subject_name ASC')
+            current_maps = run_query('''
+                SELECT 
+                    id as "ID", 
+                    discipline_name as "Discipline Track", 
+                    class_name as "Academic Term", 
+                    subject_name as "Allocated Course" 
+                FROM system_subjects_mapping 
+                ORDER BY discipline_name ASC, class_name ASC, subject_name ASC
+            ''')
         except Exception:
-            st.warning("⚠️ Ready to process incoming matrix rules rows.")
+            st.warning("⚠️ Connected backend routing index table is empty or resetting.")
 
         if not current_maps.empty:
             st.dataframe(current_maps, use_container_width=True, hide_index=True)
             
-            st.markdown("### 🛠️ Modification Matrix Terminal")
+            st.markdown("### 🛠️ Delete or Remove Matrix Rules")
             mapping_list = [f"{row['ID']} - [{row['Discipline Track']}] ({row['Academic Term']}) ➔ {row['Allocated Course']}" for _, row in current_maps.iterrows()]
-            selected_map_str = st.selectbox("Select Course Rule Block to Alter:", mapping_list, key="manage_map_select")
+            selected_map_str = st.selectbox("Select Course Rule Block to Delete:", mapping_list, key="manage_map_select")
             
             if selected_map_str:
                 selected_map_id = int(selected_map_str.split(" - ")[0])
                 
                 with st.form("edit_mapping_form"):
                     st.warning(f"Confirm complete deletion actions for Allocation Rule Row reference ID #{selected_map_id}")
-                    confirm_map_del = st.checkbox("⚠️ Confirm complete deletion parameters", key="del_map_chk")
+                    confirm_map_del = st.checkbox("⚠️ Confirm complete historical removal from database", key="del_map_chk")
                     delete_map = st.form_submit_button("🗑️ Drop Subject Route Row", type="secondary", use_container_width=True)
                         
                 if delete_map:
                     if not confirm_map_del:
-                        st.error("❌ Check validation confirmation box checkpoint to drop curriculum row assignment link.")
+                        st.error("❌ You must check the validation box to drop this curriculum row assignment link.")
                     else:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("DELETE FROM system_subjects_mapping WHERE id = :id"), {"id": selected_map_id})
                             st.cache_data.clear()
-                            st.success("Curriculum routing row deleted successfully.")
+                            st.success("🎉 Curriculum routing row deleted successfully.")
                             st.rerun()
                         except Exception as err:
                             st.error(f"❌ Deletion process failure: {err}")
         else:
-            st.info("No curriculum course mapping records structured inside table setups yet.")
+            st.info("ℹ]. No curriculum course mapping records structured inside table setups yet.")
