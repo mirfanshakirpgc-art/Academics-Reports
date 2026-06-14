@@ -2691,40 +2691,52 @@ elif menu_choice == "🪪 Student Result Cards":
 
     st.title("🪪 Student Result Cards — Print Engine")
 
-    # ==============================================================================
-    # DYNAMIC DATA EXTRACTION SYNCHRONIZED WITH SUB-MODULE 6 MASTER SETTINGS
-    # ==============================================================================
+    # Exact structural mapping reference for automatic cascading dropdowns
+    DISCIPLINE_SECTIONS_MAP = {
+        "MEDICAL": {
+            "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
+            "12th": ["MQ1", "MQ2", "MK"]
+        },
+        "ENGINEERING": {
+            "11th": ["EG_BLUE", "EB_BLUE"],
+            "12th": ["EQ", "EK"]
+        },
+        "ICS (PHYSICS)": {
+            "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
+            "12th": ["CQ1", "CQ2", "CK1", "CK2"]
+        },
+        "ICS (STATS)": {
+            "11th": ["CG_STATS", "CB_STATS"],
+            "12th": ["CQ3", "CK3"]
+        },
+        "COMMERCE": {
+            "11th": ["IG", "IB"],
+            "12th": ["IK", "IQ"]
+        },
+        "HUMANITIES": {
+            "11th": ["FB", "FG"],
+            "12th": ["FK", "FQ"]
+        },
+        "INFORMATION_TECHNOLOGY": {
+            "1ST SEMESTER": ["DIT_B", "DIT_G"],
+            "2ND SEMESTER": ["DIT_B", "DIT_G"],
+            "3RD SEMESTER": ["DIT_B", "DIT_G"],
+            "4TH SEMESTER": ["DIT_B", "DIT_G"]
+        }
+    }
+
     try:
-        # 1. Fetch active academic sessions from database
+        # Fetch active academic sessions
         db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
         session_list = db_sessions['session_name'].tolist() if not db_sessions.empty else ["2024-2026", "2025-2027"]
         
-        # 2. ACCURATE LINKING WITH SUB-MODULE 6: Extract active disciplines from your master map variable
-        # If your master variable uses a different name, make sure it matches here (e.g., st.session_state or global)
-        if 'CLASS_SUBJECTS_MASTER_MAP' in globals():
-            # Gather all distinct tracks across all class layers (e.g., 'ICS', 'MEDICAL', 'ICS_STATS')
-            extracted_disciplines = set()
-            for layer in CLASS_SUBJECTS_MASTER_MAP:
-                for track in CLASS_SUBJECTS_MASTER_MAP[layer].keys():
-                    if track:
-                        extracted_disciplines.add(str(track).upper().strip())
-            discipline_options = sorted(list(extracted_disciplines))
-        else:
-            # Safe secondary query backup if the variable isn't in global memory scope
-            db_disciplines = run_query("SELECT DISTINCT UPPER(TRIM(discipline_name)) as d_name FROM system_subjects_mapping")
-            if not db_disciplines.empty:
-                discipline_options = db_disciplines['d_name'].tolist()
-            else:
-                discipline_options = ["ICS", "MEDICAL", "ICS_STATS"]
-
-        # If it's still empty, apply core institutional defaults
-        if not discipline_options:
-            discipline_options = ["ICS", "MEDICAL", "ICS_STATS"]
+        # Pull discipline choices straight from our mapping keys to guarantee compatibility
+        discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
 
     except Exception as e:
         st.error(f"⚠️ Error initializing metadata tracks from settings: {e}")
         session_list = ["2024-2026", "2025-2027"]
-        discipline_options = ["ICS", "MEDICAL", "ICS_STATS"]
+        discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
 
     # 1. CORE SEARCH FILTERS
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
@@ -2755,11 +2767,9 @@ elif menu_choice == "🪪 Student Result Cards":
     st.markdown("**𖨾 Select Print Scope:**")
     print_scope = st.radio("Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True, label_visibility="collapsed")
     
-    # Initialize variables to prevent runtime crashes
     students_to_print = pd.DataFrame()
     active_section = ""
 
-    # DYNAMIC LAYOUT FIELDS BASED ON PRINT SCOPE SELECTOR
     if print_scope == "👤 Single Student Card":
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
         
@@ -2779,80 +2789,35 @@ elif menu_choice == "🪪 Student Result Cards":
     else: # Complete Section Cards Mode
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
-            # Safely synchronized disciplines
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
         
-        else: # Complete Section Cards Mode
-        # Define the exact mapping configuration at runtime
-        DISCIPLINE_SECTIONS_MAP = {
-            "MEDICAL": {
-                "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-                "12th": ["MQ1", "MQ2", "MK"]
-            },
-            "ENGINEERING": {
-                "11th": ["EG_BLUE", "EB_BLUE"],
-                "12th": ["EQ", "EK"]
-            },
-            "ICS (PHYSICS)": {
-                "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
-                "12th": ["CQ1", "CQ2", "CK1", "CK2"]
-            },
-            "ICS (STATS)": {
-                "11th": ["CG_STATS", "CB_STATS"],
-                "12th": ["CQ3", "CK3"]
-            },
-            "COMMERCE": {
-                "11th": ["IG", "IB"],
-                "12th": ["IK", "IQ"]
-            },
-            "HUMANITIES": {
-                "11th": ["FB", "FG"],
-                "12th": ["FK", "FQ"]
-            },
-            "INFORMATION_TECHNOLOGY": {
-                "1ST SEMESTER": ["DIT_B", "DIT_G"],
-                "2ND SEMESTER": ["DIT_B", "DIT_G"],
-                "3RD SEMESTER": ["DIT_B", "DIT_G"],
-                "4TH SEMESTER": ["DIT_B", "DIT_G"]
-            }
-        }
-
-        col_sec1, col_sec2 = st.columns(2)
-        with col_sec1:
-            # Dropdown options derived dynamically from your mapping keys
-            selected_discipline = st.selectbox("🧬 Select Discipline:", options=list(DISCIPLINE_SECTIONS_MAP.keys()))
-        
         with col_sec2:
-            # Normalize selections to handle case-sensitivity safely
-            clean_disp = str(selected_discipline).strip() # Keys are exact string matches
-            clean_class = str(selected_class).upper().strip() # Normalize to match '11TH', '12TH' or '1ST SEMESTER'
+            clean_disp = str(selected_discipline).strip()
+            clean_class = str(selected_class).upper().strip()
 
-            # Standardize academic selections to match map subkeys
+            # Normalize structural class key strings to match the map schema
             if "11TH" in clean_class:
                 map_class_key = "11th"
             elif "12TH" in clean_class:
                 map_class_key = "12th"
             else:
-                # Matches "1ST SEMESTER", "2ND SEMESTER", etc. exactly as defined in the mapping keys
-                map_class_key = clean_class 
+                map_class_key = clean_class  # Falls directly into '1ST SEMESTER', '2ND SEMESTER', etc.
 
-            # Read directly from the reference map with a safe fallback array
-            discipline_group = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {})
-            filtered_sections = discipline_group.get(map_class_key, [])
-
-            # Safety Net: If something goes wrong or selection misses, fallback to showing all options for that class layer
-            if not filtered_sections:
-                st.caption("ℹ️ No strict section mapping found for this combination. Displaying general fallback.")
-                if "11th" in map_class_key:
-                    filtered_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CG_STATS", "IG", "FB"]
-                elif "12th" in map_class_key:
-                    filtered_sections = ["MQ1", "EQ", "CQ1", "CQ3", "IK", "FK"]
-                else:
-                    filtered_sections = ["DIT_B", "DIT_G"]
+            # Resolve sections perfectly via memory reference mapping
+            filtered_sections = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {}).get(map_class_key, [])
 
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
-    # 3. HTML ENGINE RUNTIME
+        if active_section and selected_test_code:
+            students_to_print = run_query("""
+                SELECT id, name, section, class FROM students 
+                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                AND session = :session 
+                AND class = :class 
+                ORDER BY id ASC
+            """, {"section": active_section, "session": selected_session, "class": selected_class})
+
+    # 3. HTML RENDERING & PRINT ENGINE
     if not students_to_print.empty:
         compiled_html = """
         <!DOCTYPE html>
@@ -2894,7 +2859,7 @@ elif menu_choice == "🪪 Student Result Cards":
             @media print {
                 .action-controls-bar { display: none !important; }
                 .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-                .print-page-break-divider { page-break-after: always !always !important; break-after: page !important; }
+                .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
             }
         </style>
         </head>
@@ -2915,12 +2880,12 @@ elif menu_choice == "🪪 Student Result Cards":
             grade_class = str(student_row['class']).upper()
             test_name = selected_test_label.upper()
             
+            # Resolve subject lists matching configurations dynamically
             if selected_system == "Semester System":
-                subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT"])
+                subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT", "PROGRAMMING", "NETWORKING"])
             else:
-                # Auto-detect track from section name
-                matched_disp = "ICS" if "ICS" in section and "STATS" not in section else "ICS_STATS" if "STATS" in section else "MEDICAL"
-                subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, 
+                # Dynamic matching based on selected discipline mode
+                subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(selected_discipline, {}).get(selected_class, 
                                 ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"])
             
             raw_marks = run_query(
@@ -2937,9 +2902,7 @@ elif menu_choice == "🪪 Student Result Cards":
                 clean_m = m.upper().replace('.', '').strip()
                 match_att = pd.DataFrame()
                 if not db_att.empty:
-                    match_att = db_att[
-                        db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m[:3])
-                    ]
+                    match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m[:3])]
                 
                 if not match_att.empty:
                     td = int(match_att['total_days'].iloc[0])
@@ -2961,7 +2924,7 @@ elif menu_choice == "🪪 Student Result Cards":
             <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
                 <div class="header-block">
                     <div class="logo-container">
-                        <img class="logo-img" src="{logo_base64}" alt="Concordia Logo">
+                        <img class="logo-img" src="{logo_base64}" alt="Logo">
                     </div>
                     <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
                 </div>
@@ -3133,7 +3096,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
