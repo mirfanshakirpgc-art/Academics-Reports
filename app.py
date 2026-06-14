@@ -2746,7 +2746,7 @@ elif menu_choice == "🪪 Student Result Cards":
         session_list = ["2024-2026", "2025-2027"]
         discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys())
 
-    # 1. CORE SEARCH FILTERS
+    # 1. CORE SEARCH FILTERS (Outside form to allow interactive updates)
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
         selected_session = st.selectbox("📅 Select Session:", options=session_list)
@@ -2772,68 +2772,69 @@ elif menu_choice == "🪪 Student Result Cards":
             selected_test_code = selected_combined_label.split(" (")[0].strip()
             selected_test_label = selected_test_code
 
-    # 2. PRINT SCOPE CONFIGURATION
+    # Interactive dynamic fields that build parameters but don't execute processing yet
     st.markdown("**𖨾 Select Print Scope:**")
     print_scope = st.radio("Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True, label_visibility="collapsed")
     
+    # 2. SELECTION CONFIGURATION ENGINE WITHIN AN ACTION FORM
+    with st.form("print_engine_control_form"):
+        search_id = ""
+        selected_discipline = ""
+        active_section = ""
+
+        if print_scope == "👤 Single Student Card":
+            search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
+        else:
+            col_sec1, col_sec2 = st.columns(2)
+            with col_sec1:
+                selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
+            with col_sec2:
+                clean_disp = str(selected_discipline).strip()
+                clean_class = str(selected_class).upper().strip()
+                map_class_key = "11th" if "11TH" in clean_class else "12th" if "12TH" in clean_class else clean_class
+                filtered_sections = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {}).get(map_class_key, [])
+                active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
+
+        # The explicit Submit button prevents automatic data fetching spikes!
+        submit_execution = st.form_submit_button("🚀 Generate Result Cards")
+
     students_to_print = pd.DataFrame()
-    active_section = ""
 
-    if print_scope == "👤 Single Student Card":
-        search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-        
-        if search_id and selected_test_code:
-            clean_search_id = str(search_id).strip()
-            all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
-            
-            if not all_session_students.empty:
-                match_mask = (all_session_students['id'].astype(str).str.strip() == clean_search_id)
-                single_student = all_session_students[match_mask]
+    if submit_execution:
+        if print_scope == "👤 Single Student Card":
+            if search_id:
+                clean_search_id = str(search_id).strip()
+                all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
                 
-                if single_student.empty:
-                    fuzzy_mask = all_session_students['id'].astype(str).str.contains(clean_search_id, case=False, na=False)
-                    single_student = all_session_students[fuzzy_mask]
-                
-                if not single_student.empty:
-                    students_to_print = pd.DataFrame([{
-                        "id": str(single_student['id'].iloc[0]).strip(), 
-                        "name": single_student['name'].iloc[0], 
-                        "section": single_student['section'].iloc[0].upper().strip(), 
-                        "class": single_student['class'].iloc[0],
-                        "discipline": str(single_student['discipline'].iloc[0]).strip().upper()
-                    }])
-    
-    else: # Complete Section Cards Mode
-        col_sec1, col_sec2 = st.columns(2)
-        with col_sec1:
-            selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
-        
-        with col_sec2:
-            clean_disp = str(selected_discipline).strip()
-            clean_class = str(selected_class).upper().strip()
-
-            if "11TH" in clean_class:
-                map_class_key = "11th"
-            elif "12TH" in clean_class:
-                map_class_key = "12th"
-            else:
-                map_class_key = clean_class
-
-            filtered_sections = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {}).get(map_class_key, [])
-            active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
-
-        if active_section and selected_test_code:
-            all_section_data = run_query(f"""
-                SELECT id, name, section, class, discipline FROM students 
-                WHERE session = '{selected_session}' 
-                AND class = '{selected_class}' 
-                ORDER BY id ASC
-            """)
-            if not all_section_data.empty:
-                students_to_print = all_section_data[all_section_data['section'].astype(str).str.upper().str.strip() == str(active_section).upper().strip()].copy()
+                if not all_session_students.empty:
+                    match_mask = (all_session_students['id'].astype(str).str.strip() == clean_search_id)
+                    single_student = all_session_students[match_mask]
+                    
+                    if single_student.empty:
+                        fuzzy_mask = all_session_students['id'].astype(str).str.contains(clean_search_id, case=False, na=False)
+                        single_student = all_session_students[fuzzy_mask]
+                    
+                    if not single_student.empty:
+                        students_to_print = pd.DataFrame([{
+                            "id": str(single_student['id'].iloc[0]).strip(), 
+                            "name": single_student['name'].iloc[0], 
+                            "section": single_student['section'].iloc[0].upper().strip(), 
+                            "class": single_student['class'].iloc[0],
+                            "discipline": str(single_student['discipline'].iloc[0]).strip().upper()
+                        }])
+        else:
+            if active_section:
+                all_section_data = run_query(f"""
+                    SELECT id, name, section, class, discipline FROM students 
+                    WHERE session = '{selected_session}' 
+                    AND class = '{selected_class}' 
+                    ORDER BY id ASC
+                """)
+                if not all_section_data.empty:
+                    students_to_print = all_section_data[all_section_data['section'].astype(str).str.upper().str.strip() == str(active_section).upper().strip()].copy()
 
     # 3. HTML RENDERING & PRINT ENGINE
-    if not students_to_print.empty:
+    if submit_execution and not students_to_print.empty:
         compiled_html = """
         <!DOCTYPE html>
         <html>
@@ -2895,8 +2896,12 @@ elif menu_choice == "🪪 Student Result Cards":
             
             lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             
-            # Direct normalization targeting your master map keys cleanly
-            raw_disp = str(student_row['discipline']).strip().upper()
+            # Bulletproof dynamic fallback parsing for clean dictionary alignment
+            if print_scope == "👤 Single Student Card":
+                raw_disp = str(student_row['discipline']).strip().upper()
+            else:
+                raw_disp = str(selected_discipline).strip().upper()
+
             if "STATS" in raw_disp:
                 master_map_key = "ICS_STATS"
             elif "PHYSIC" in raw_disp or "ICS" in raw_disp:
@@ -2912,7 +2917,11 @@ elif menu_choice == "🪪 Student Result Cards":
             else:
                 master_map_key = raw_disp.replace(" ", "_").replace("(", "").replace(")", "")
 
-            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(master_map_key, ["English", "Urdu", "T_Quran"])
+            # Get subjects list; if it cannot find the map key, pull directly using the current class list default to avoid empty cards
+            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(master_map_key, None)
+            if not subjects_list:
+                # Emergency fallback: match the first list available for that class if string processing fails completely
+                subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).values())[0]
             
             raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
             db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id_str}'")
@@ -3150,7 +3159,7 @@ elif menu_choice == "🪪 Student Result Cards":
         </html>
         """
         components.html(compiled_html, height=950, scrolling=True)
-    else:
+    elif submit_execution:
         if print_scope == "👤 Single Student Card":
             st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
         else:
