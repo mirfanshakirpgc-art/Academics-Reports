@@ -4229,20 +4229,20 @@ elif menu_choice == "⚙️ Settings":
                     if not new_disp_name:
                         st.error("❌ Discipline identity name code cannot be blank.")
                     else:
-                        check_existing = run_query("SELECT id FROM system_disciplines WHERE UPPER(TRIM(discipline_name)) = :name", {"name": new_disp_name})
-                        if check_existing.empty:
-                            try:
+                        try:
+                            check_existing = run_query("SELECT id FROM system_disciplines WHERE UPPER(TRIM(discipline_name)) = :name", {"name": new_disp_name})
+                            if check_existing.empty:
                                 with engine.begin() as conn:
                                     conn.execute(text("""
                                         INSERT INTO system_disciplines (discipline_name, status)
                                         VALUES (:name, :status)
                                     """), {"name": new_disp_name, "status": new_disp_status})
-                                st.success(f"🎉 Academic tracking track '{new_disp_name}' successfully added!")
+                                st.success(f"🎉 Academic track '{new_disp_name}' successfully added!")
                                 st.rerun()
-                            except Exception as err:
-                                st.error(f"❌ Database error: {err}")
-                        else:
-                            st.warning("⚠️ This structural academic discipline name variant already exists.")
+                            else:
+                                st.warning("⚠️ This structural academic discipline name variant already exists.")
+                        except Exception as e:
+                            st.error(f"❌ Please ensure the database table exists. Dev Error: {e}")
 
         st.markdown("---")
         st.write("#### Registered System Disciplines")
@@ -4251,7 +4251,7 @@ elif menu_choice == "⚙️ Settings":
         try:
             current_disciplines = run_query('SELECT id as "ID", discipline_name as "Discipline Name", status as "Status" FROM system_disciplines ORDER BY discipline_name ASC')
         except Exception as e:
-            st.error(f"⚠️ Unable to query discipline definitions: {e}")
+            st.warning("⚠️ The 'system_disciplines' table does not exist yet or is empty. Please check Step 1 setup.")
 
         if not current_disciplines.empty:
             st.dataframe(current_disciplines, use_container_width=True, hide_index=True)
@@ -4290,7 +4290,7 @@ elif menu_choice == "⚙️ Settings":
                             
                 if delete_disp:
                     if not confirm_disp_del:
-                        st.error("Please confirm authorization checkbox to proceed.")
+                        st.error("Check verification checkpoint confirmation box to delete track.")
                     else:
                         try:
                             with engine.begin() as conn:
@@ -4303,27 +4303,32 @@ elif menu_choice == "⚙️ Settings":
             st.info("No customized disciplines discovered in configuration rows.")
 
     # ==============================================================================
-    # 🆕 SUB-MODULE 6: ADD SUBJECT MAPPING
+    # 🆕 SUB-MODULE 6: ADD SUBJECT MAPPING (Linked to working Sections)
     # ==============================================================================
     elif sub_menu == "📚 Add Subject Mapping":
         st.subheader("📚 Subject & Course Curriculum Matrix Mapping")
-        st.info("Map individual operational subjects to their respective Disciplines and Class/Semester cohorts.")
+        st.info("Map individual operational subjects to your active Class Sections dynamically sourced from your Section Master database.")
 
-        # Pre-fetch active discipline categories to populate form options
+        # Dynamic Query: Fetch active Class Sections to populate the form drop-downs safely!
         try:
-            active_disp_df = run_query("SELECT discipline_name FROM system_disciplines WHERE status = 'ACTIVE' ORDER BY discipline_name ASC")
-            fetched_disciplines = active_disp_df['discipline_name'].tolist() if not active_disp_df.empty else ["ICS", "MEDICAL"]
+            active_sections_df = run_query("SELECT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
+            fetched_sections = active_sections_df['section_name'].tolist() if not active_sections_df.empty else []
         except Exception:
-            fetched_disciplines = ["ICS", "MEDICAL"]
+            fetched_sections = []
+            
+        if not fetched_sections:
+            st.warning("⚠️ No active sections found in your Section Master. Please add sections first before mapping subjects.")
+            fetched_sections = ["Default Section"]
 
         if current_role == 'controller':
             with st.form("subject_mapping_form", clear_on_submit=True):
                 col_sub1, col_sub2 = st.columns(2)
                 with col_sub1:
-                    chosen_disp = st.selectbox("Target Academic Discipline:", options=fetched_disciplines)
-                    chosen_class = st.selectbox("Target Class Cohort / Year Group:", options=["11th", "12th", "1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
+                    chosen_class = st.selectbox("Target Class Section / Group:", options=fetched_sections)
+                    # Keeping discipline field optional for compatibility
+                    chosen_disp = st.text_input("Associated Discipline Track (Optional):", value="GENERAL").upper().strip()
                 with col_sub2:
-                    new_subject_name = st.text_input("Subject Course Name:", placeholder="e.g. COMPUTER, MATHEMATICS, PHYSICS").upper().strip()
+                    new_subject_name = st.text_input("Subject Course Name:", placeholder="e.g. COMPUTER, MATHEMATICS, ENGLISH").upper().strip()
                 
                 submit_subject = st.form_submit_button("💾 Save Course Mapping Parameters", type="primary")
                 
@@ -4331,42 +4336,41 @@ elif menu_choice == "⚙️ Settings":
                     if not new_subject_name:
                         st.error("❌ Subject field cannot be left blank.")
                     else:
-                        # Prevent exact duplicates mapping combinations
-                        check_existing = run_query("""
-                            SELECT id FROM system_subjects_mapping 
-                            WHERE UPPER(TRIM(discipline_name)) = :disp 
-                            AND UPPER(TRIM(class_name)) = :cls 
-                            AND UPPER(TRIM(subject_name)) = :sub
-                        """, {"disp": chosen_disp, "cls": chosen_class, "sub": new_subject_name})
-                        
-                        if check_existing.empty:
-                            try:
+                        try:
+                            # Prevent exact duplicate mappings
+                            check_existing = run_query("""
+                                SELECT id FROM system_subjects_mapping 
+                                WHERE UPPER(TRIM(class_name)) = :cls 
+                                AND UPPER(TRIM(subject_name)) = :sub
+                            """, {"cls": chosen_class, "sub": new_subject_name})
+                            
+                            if check_existing.empty:
                                 with engine.begin() as conn:
                                     conn.execute(text("""
                                         INSERT INTO system_subjects_mapping (discipline_name, class_name, subject_name)
                                         VALUES (:disp, :cls, :sub)
                                     """), {"disp": chosen_disp, "cls": chosen_class, "sub": new_subject_name})
-                                st.success(f"🎉 Successfully mapped course: '{new_subject_name}' inside {chosen_disp} ({chosen_class}) configuration!")
+                                st.success(f"🎉 Successfully mapped course: '{new_subject_name}' inside '{chosen_class}' structure!")
                                 st.rerun()
-                            except Exception as err:
-                                st.error(f"❌ Allocation query failure: {err}")
-                        else:
-                            st.warning("⚠️ This exact subject tracking arrangement already exists.")
+                            else:
+                                st.warning("⚠️ This exact subject tracking arrangement already exists.")
+                        except Exception as e:
+                            st.error(f"❌ Could not write subject mapping. Verify database setup: {e}")
 
         st.markdown("---")
         st.write("#### Registered Structural Curriculum Maps")
         
         current_maps = pd.DataFrame()
         try:
-            current_maps = run_query('SELECT id as "ID", discipline_name as "Discipline Group", class_name as "Class Level", subject_name as "Allocated Subject" FROM system_subjects_mapping ORDER BY discipline_name ASC, class_name ASC, subject_name ASC')
+            current_maps = run_query('SELECT id as "ID", discipline_name as "Track Group", class_name as "Class Section", subject_name as "Allocated Subject" FROM system_subjects_mapping ORDER BY class_name ASC, subject_name ASC')
         except Exception as e:
-            st.error(f"⚠️ Failed to read matrix details: {e}")
+            st.warning("⚠️ The 'system_subjects_mapping' table does not exist yet. Please run the SQL initialization script.")
 
         if not current_maps.empty:
             st.dataframe(current_maps, use_container_width=True, hide_index=True)
             
             st.markdown("### 🛠️ Modification Terminal")
-            mapping_list = [f"{row['ID']} - [{row['Discipline Group']}] {row['Class Level']} ➔ {row['Allocated Subject']}" for _, row in current_maps.iterrows()]
+            mapping_list = [f"{row['ID']} - [{row['Class Section']}] ➔ {row['Allocated Subject']}" for _, row in current_maps.iterrows()]
             selected_map_str = st.selectbox("Select Course Rule Block to Alter:", mapping_list, key="manage_map_select")
             
             if selected_map_str:
@@ -4376,9 +4380,7 @@ elif menu_choice == "⚙️ Settings":
                 with st.form("edit_mapping_form"):
                     col_mu, col_md = st.columns(2)
                     with col_mu:
-                        updated_disp = st.selectbox("Modify Discipline Category:", options=fetched_disciplines, index=fetched_disciplines.index(target_map_row['Discipline Group']) if target_map_row['Discipline Group'] in fetched_disciplines else 0)
-                        classes_list = ["11th", "12th", "1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
-                        updated_class = st.selectbox("Modify Class Cohort:", options=classes_list, index=classes_list.index(target_map_row['Class Level']) if target_map_row['Class Level'] in classes_list else 0)
+                        updated_class = st.selectbox("Modify Assigned Section:", options=fetched_sections, index=fetched_sections.index(target_map_row['Class Section']) if target_map_row['Class Section'] in fetched_sections else 0)
                     with col_md:
                         updated_sub_name = st.text_input("Modify Subject Name:", value=str(target_map_row['Allocated Subject'])).upper().strip()
                     
@@ -4391,15 +4393,15 @@ elif menu_choice == "⚙️ Settings":
                         
                 if save_map:
                     if not updated_sub_name:
-                        st.error("❌ Subject name change context cannot be string empty.")
+                        st.error("❌ Subject name change context cannot be empty.")
                     else:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE system_subjects_mapping 
-                                    SET discipline_name = :disp, class_name = :cls, subject_name = :sub 
+                                    SET class_name = :cls, subject_name = :sub 
                                     WHERE id = :id
-                                """), {"disp": updated_disp, "cls": updated_class, "sub": updated_sub_name, "id": selected_map_id})
+                                """), {"cls": updated_class, "sub": updated_sub_name, "id": selected_map_id})
                             st.success("Subject curriculum route updated successfully!")
                             st.rerun()
                         except Exception as err:
