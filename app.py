@@ -4360,7 +4360,7 @@ elif menu_choice == "⚙️ Settings":
 
 
     # ==============================================================================
-    # 📚 SUB-MODULE 6: SUBJECT MAPPING MATRIX (LIVE DJANGO-STYLE CASCADE)
+    # 📚 SUB-MODULE 6: SUBJECT MAPPING MATRIX (LIVE DECOUPLED CASCADE)
     # ==============================================================================
     elif sub_menu == "📚 Add Subject Mapping":
         st.subheader("📚 Subject & Course Curriculum Matrix Mapping")
@@ -4389,42 +4389,27 @@ elif menu_choice == "⚙️ Settings":
         # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
         dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
 
-        # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
-        dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
-
-        # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
-        dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
-
         with col_select2:
-            # 1. Safely convert your list to a readable string
-            subjects_string = ", ".join(dict_pulled_subjects)
+            st.write("### 🎯 Context Tracker Verified")
             
-            # 2. Use a raw multiline string with placeholder tags to avoid CSS bracket conflicts
-            html_template = """
-            <div style="background-color:#f9f9f9; padding:12px; border-radius:8px; border-left: 4px solid #ff4b4b;">
-                <p style="margin-bottom:4px; font-weight:bold; color:#333;">🎯 Dynamic Context Tracker Verified</p>
-                <span style="font-size:13px; color:#555;">
-                    <b>Active Layer:</b> <code style="color:#d63384;">{layer}</code><br>
-                    <b>Active Track:</b> <code style="color:#d63384;">{track}</code><br>
-                    <b>Curriculum Pool:</b> {pool}
-                </span>
-            </div>
-            """
-            
-            # 3. Inject variables cleanly using .format()
-            st.markdown(
-                html_template.format(layer=chosen_layer, track=chosen_track, pool=subjects_string), 
-                unsafe_with_html=True
-            )
+            # Safe native container rendering - eliminates python f-string/HTML bracket compilation errors
+            with st.container(border=True):
+                st.markdown(f"**Active Layer:** :red[`{chosen_layer}`]")
+                st.markdown(f"**Active Track:** :red[`{chosen_track}`]")
+                st.markdown("**📖 Available Curriculum Pool:**")
+                
+                # Render clean bullet points safely
+                for sub in dict_pulled_subjects:
+                    st.markdown(f"- `{sub}`")
 
         st.markdown("---")
-
+        
         # --- STEP 2: SECURE SUBMISSION MATRIX FORM ---
         if current_role == 'controller':
             st.markdown("### 💾 Record Mapping Association")
             
             with st.form("smart_subject_mapping_form", clear_on_submit=True):
-                # Toggle option to add custom subjects not hardcoded into the dictionary pool
+                # Interactive toggle allows selecting dictionary pools OR adding brand new courses
                 input_mode = st.radio(
                     "Choose Subject Input Variant:",
                     options=["Pick from Code Dictionary Pool", "Type a Brand New Subject entirely"],
@@ -4440,22 +4425,22 @@ elif menu_choice == "⚙️ Settings":
                     selected_subject_to_map = st.text_input(
                         "3️⃣ Type New Custom Subject Name:", 
                         placeholder="e.g. SOCIOLOGY, ARABIC, CIVICS"
-                    )
+                    ).upper().strip()
 
                 submit_subject = st.form_submit_button("🚀 Save Course Mapping Parameters", type="primary")
                 
-                # --- STEP 3: DATA RETRIEVAL TRANSACTION WRITER ---
+                # --- STEP 3: DATABASE INSERT TRANSACTION WRITER ---
                 if submit_subject:
                     if not selected_subject_to_map:
                         st.error("❌ Target subject selection value cannot be empty.")
                     else:
                         try:
-                            # Standardize case parameters for PostgreSQL rows
+                            # Standardize casing parameters for clean PostgreSQL lookups
                             db_disp = str(chosen_track).upper().strip()
                             db_layer = str(chosen_layer).strip()
                             db_sub = str(selected_subject_to_map).upper().strip()
 
-                            # Guard Clause: Prevent redundant structural allocations
+                            # Guard Clause: Prevent identical duplicate matrix allocations
                             check_existing = run_query("""
                                 SELECT id FROM system_subjects_mapping 
                                 WHERE UPPER(TRIM(discipline_name)) = :disp 
@@ -4470,7 +4455,7 @@ elif menu_choice == "⚙️ Settings":
                                         VALUES (:disp, :cls, :sub)
                                     """), {"disp": db_disp, "cls": db_layer, "sub": db_sub})
                                 
-                                st.cache_data.clear() # Force empty internal view memory maps
+                                st.cache_data.clear() # Clear internal display cache instantly
                                 st.success(f"🎉 Successfully mapped verified course: '{db_sub}' inside '{db_disp} ({db_layer})' structure!")
                                 st.rerun()
                             else:
@@ -4478,7 +4463,7 @@ elif menu_choice == "⚙️ Settings":
                         except Exception as e:
                             st.error(f"❌ Could not write subject mapping parameter row: {e}")
 
-        # --- STEP 4: GRID RENDER DISPLAY OF EXISTING COMPILATIONS ---
+        # --- STEP 4: GRID DISPLAY & DELETION PROCESSING MANAGEMENT ---
         st.markdown("---")
         st.write("#### Registered Structural Curriculum Maps")
         
@@ -4524,4 +4509,4 @@ elif menu_choice == "⚙️ Settings":
                         except Exception as err:
                             st.error(f"❌ Deletion process failure: {err}")
         else:
-            st.info("ℹ]. No curriculum course mapping records structured inside table setups yet.")
+            st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
