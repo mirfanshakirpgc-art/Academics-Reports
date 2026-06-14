@@ -2796,16 +2796,16 @@ elif menu_choice == "🪪 Student Result Cards":
     
     students_to_print = pd.DataFrame()
     active_section = ""
-    selected_discipline_tracked = "MEDICAL" # Track for dynamic single student card generation fallback
+    selected_discipline_tracked = "MEDICAL"
 
     if print_scope == "👤 Single Student Card":
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
         
         if search_id and selected_test_code:
             clean_search_id = str(search_id).strip()
-            # Dual query fallback strategy guarantees verification logic executes regardless of string type storage bounds
+            # Patched: Standardized cross-engine safe string evaluation 
             single_student = run_query(
-                "SELECT id, name, section, class, discipline FROM students WHERE (id = :id_num OR CAST(id AS CHAR) LIKE :id_str) AND session = :session", 
+                "SELECT id, name, section, class, discipline FROM students WHERE (id = :id_num OR id LIKE :id_str) AND session = :session", 
                 {"id_num": int(clean_search_id) if clean_search_id.isdigit() else 0, "id_str": f"%{clean_search_id}%", "session": selected_session}
             )
             if not single_student.empty:
@@ -2920,15 +2920,14 @@ elif menu_choice == "🪪 Student Result Cards":
 
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(lookup_disp, ["English", "Urdu", "T_Quran"])
             
-            # Simplified explicit numerical query parameters matching row signatures exactly
             raw_marks = run_query(
                 "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
                 {"id": current_id, "exam_type": selected_test_code}
             )
             
-            # Universal loose condition pulls attendance records dynamically even if IDs contain spaces
+            # Universal parameter matching across database types
             db_att = run_query(
-                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id OR CAST(student_id AS CHAR) LIKE :id_like", 
+                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id OR student_id LIKE :id_like", 
                 {"id": current_id, "id_like": f"%{current_id}%"}
             )
             
@@ -2936,12 +2935,10 @@ elif menu_choice == "🪪 Student Result Cards":
             tot_sum, pres_sum = 0, 0
             
             for m in DISPLAY_MONTHS:
-                # Stripping periods out ensures 'Aug.' safely intersects database markers like 'AUG' or 'AUGUST'
                 clean_m = m.upper().replace('.', '').strip()[:3]
                 match_att = pd.DataFrame()
                 
                 if not db_att.empty:
-                    # Clean lookups ensure partial matching matches perfectly across all variations
                     match_att = db_att[db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.startswith(clean_m)]
                 
                 if not match_att.empty:
