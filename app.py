@@ -2784,28 +2784,41 @@ elif menu_choice == "🪪 Student Result Cards":
         
         if search_id and selected_test_code:
             clean_search_id = str(search_id).strip()
+            # Fetch all matching criteria safely
             all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
             
             if not all_session_students.empty:
-                match_mask = (all_session_students['id'].astype(str) == clean_search_id)
+                # Direct string evaluation to prevent numerical mismatch
+                match_mask = (all_session_students['id'].astype(str).str.strip() == clean_search_id)
                 single_student = all_session_students[match_mask]
                 
                 if single_student.empty:
+                    # Fallback fuzzy match
                     fuzzy_mask = all_session_students['id'].astype(str).str.contains(clean_search_id, case=False, na=False)
                     single_student = all_session_students[fuzzy_mask]
                 
                 if not single_student.empty:
-                    raw_discipline = str(single_student['discipline'].iloc[0]).strip().upper() if "discipline" in single_student.columns else ""
+                    raw_discipline = str(single_student['discipline'].iloc[0]).strip().upper()
                     
-                    if "ICS" in raw_discipline and "STAT" in raw_discipline:
-                        selected_discipline_tracked = "ICS_STATS"
-                    elif "ICS" in raw_discipline and "PHYSIC" in raw_discipline:
-                        selected_discipline_tracked = "ICS_PHYSICS"
+                    # NORMALIZE: Align the single student's discipline perfectly with your master map keys
+                    if "STATS" in raw_discipline:
+                        selected_discipline_tracked = "ICS (STATS)"
+                    elif "PHYSIC" in raw_discipline:
+                        selected_discipline_tracked = "ICS (PHYSICS)"
+                    elif "MED" in raw_discipline:
+                        selected_discipline_tracked = "MEDICAL"
+                    elif "ENG" in raw_discipline:
+                        selected_discipline_tracked = "ENGINEERING"
+                    elif "COMM" in raw_discipline:
+                        selected_discipline_tracked = "COMMERCE"
+                    elif "HUM" in raw_discipline:
+                        selected_discipline_tracked = "HUMANITIES"
                     else:
-                        selected_discipline_tracked = raw_discipline.replace(" ", "_").replace("(", "").replace(")", "")
+                        selected_discipline_tracked = raw_discipline
 
+                    # Build unified printable row matching the dictionary keys
                     students_to_print = pd.DataFrame([{
-                        "id": int(single_student['id'].iloc[0]), 
+                        "id": str(single_student['id'].iloc[0]).strip(), 
                         "name": single_student['name'].iloc[0], 
                         "section": single_student['section'].iloc[0].upper().strip(), 
                         "class": single_student['class'].iloc[0],
