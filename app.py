@@ -2814,8 +2814,8 @@ elif menu_choice == "🪪 Student Result Cards":
             raw_student = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
             if not raw_student.empty:
                 students_to_print = raw_student.copy()
-                # Single lookup takes the exact database stored string
-                students_to_print['target_discipline_string'] = students_to_print['discipline']
+                # Store the exact database string in upper case to clear whitespace issues
+                students_to_print['target_discipline_string'] = students_to_print['discipline'].astype(str).str.upper().str.strip()
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
             section_students = run_query(f"""
@@ -2828,7 +2828,7 @@ elif menu_choice == "🪪 Student Result Cards":
             if not section_students.empty:
                 students_to_print = section_students.copy()
                 # Force synchronization using what the user clicked in the UI dropdown map
-                students_to_print['target_discipline_string'] = selected_discipline
+                students_to_print['target_discipline_string'] = str(selected_discipline).upper().strip()
 
     # --------------------------------------------------------------------------
     # PART 5: ROBUST COMPILATION LOOP & HTML RENDERING ENGINE
@@ -2890,22 +2890,25 @@ elif menu_choice == "🪪 Student Result Cards":
             lookup_class_key = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             raw_disp_str = str(student_row['target_discipline_string']).strip().upper()
 
-            # Map the cleaned text directly to the keys of CLASS_SUBJECTS_MASTER_MAP
-            if "STATS" in raw_disp_str:
+            # Robust mapping translation checking database strings thoroughly
+            if "STATS" in raw_disp_str or "I.C.S STATS" in raw_disp_str:
                 resolved_map_key = "ICS_STATS"
-            elif "PHYSIC" in raw_disp_str or "ICS" in raw_disp_str:
+            elif "PHYSIC" in raw_disp_str or "I.C.S PHYS" in raw_disp_str or "ICS" in raw_disp_str:
                 resolved_map_key = "ICS_PHYSICS"
-            elif "MED" in raw_disp_str:
+            elif "MED" in raw_disp_str or "F.SC MEDICAL" in raw_disp_str:
                 resolved_map_key = "MEDICAL"
-            elif "ENG" in raw_disp_str:
+            elif "ENG" in raw_disp_str or "ENGINEERING" in raw_disp_str:
                 resolved_map_key = "ENGINEERING"
-            elif "COMM" in raw_disp_str:
+            elif "COMM" in raw_disp_str or "COMMERCE" in raw_disp_str or "I.COM" in raw_disp_str:
                 resolved_map_key = "COMMERCE"
-            elif "HUM" in raw_disp_str:
+            elif "HUM" in raw_disp_str or "HUMANITIES" in raw_disp_str or "F.A" in raw_disp_str:
                 resolved_map_key = "HUMANITIES"
             else:
+                # Direct fallback clean up replacement
                 resolved_map_key = raw_disp_str.replace(" ", "_").replace("(", "").replace(")", "")
 
+            # Pull precise subjects list from structural map configurations
+            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(resolved_map_key, None)
             # Pull precise subjects list from structural map configurations
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(resolved_map_key, None)
             if not subjects_list:
