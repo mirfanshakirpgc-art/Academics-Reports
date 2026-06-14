@@ -4389,14 +4389,20 @@ elif menu_choice == "⚙️ Settings":
         # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
         dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
 
+        # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
+        dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
+
         with col_select2:
-            st.markdown("""
+            # We convert the list into a clean comma-separated string first to prevent TypeErrors!
+            subjects_string = ", ".join(dict_pulled_subjects)
+            
+            st.markdown(f"""
             <div style="background-color:#f9f9f9; padding:12px; border-radius:8px; border-left: 4px solid #ff4b4b;">
                 <p style="margin-bottom:4px; font-weight:bold; color:#333;">🎯 Dynamic Context Tracker Verified</p>
                 <span style="font-size:13px; color:#555;">
-                    <b>Active Layer:</b> <code style="color:#d63384;">""" + str(chosen_layer) + """</code><br>
-                    <b>Active Track:</b> <code style="color:#d63384;">""" + str(chosen_track) + """</code><br>
-                    <b>Curriculum Pool:</b> """ + ", ".join(dict_pulled_subjects) + """
+                    <b>Active Layer:</b> <code style="color:#d63384;">{chosen_layer}</code><br>
+                    <b>Active Track:</b> <code style="color:#d63384;">{chosen_track}</code><br>
+                    <b>Curriculum Pool:</b> {subjects_string}
                 </span>
             </div>
             """, unsafe_with_html=True)
