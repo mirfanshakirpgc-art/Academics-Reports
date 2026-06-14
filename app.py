@@ -2996,12 +2996,12 @@ if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() 
             <table class="doc-data-table">
                 <thead>
                     <tr>
-                        <th style="text-align: left; width: 45%; padding-left: 10px;">Subjects</th>
-                        <th style="width: 11%;">Obt. Marks</th>
-                        <th style="width: 11%;">Total Marks</th>
-                        <th style="width: 11%;">Pass Marks</th>
-                        <th style="width: 11%;">Age%</th>
-                        <th style="width: 11%;">Status</th>
+                    <th style="text-align: left; width: 45%; padding-left: 10px;">Subjects</th>
+                    <th style="width: 11%;">Obt. Marks</th>
+                    <th style="width: 11%;">Total Marks</th>
+                    <th style="width: 11%;">Pass Marks</th>
+                    <th style="width: 11%;">Age%</th>
+                    <th style="width: 11%;">Status</th>
                     </tr>
                 </thead>
                 <tbody>
