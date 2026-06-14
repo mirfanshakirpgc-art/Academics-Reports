@@ -2803,11 +2803,22 @@ elif menu_choice == "🪪 Student Result Cards":
         
         if search_id and selected_test_code:
             clean_search_id = str(search_id).strip()
-            # Patched: Standardized cross-engine safe string evaluation 
-            single_student = run_query(
-                "SELECT id, name, section, class, discipline FROM students WHERE (id = :id_num OR id LIKE :id_str) AND session = :session", 
-                {"id_num": int(clean_search_id) if clean_search_id.isdigit() else 0, "id_str": f"%{clean_search_id}%", "session": selected_session}
-            )
+            single_student = pd.DataFrame()
+            
+            # Step A: Direct Integer match lookup
+            if clean_search_id.isdigit():
+                single_student = run_query(
+                    "SELECT id, name, section, class, discipline FROM students WHERE id = :id_num AND session = :session", 
+                    {"id_num": int(clean_search_id), "session": selected_session}
+                )
+            
+            # Step B: Fallback string match lookup if direct match returns empty
+            if single_student.empty:
+                single_student = run_query(
+                    "SELECT id, name, section, class, discipline FROM students WHERE id LIKE :id_str AND session = :session", 
+                    {"id_str": f"%{clean_search_id}%", "session": selected_session}
+                )
+                
             if not single_student.empty:
                 students_to_print = pd.DataFrame([{
                     "id": int(single_student['id'].iloc[0]), 
@@ -2925,11 +2936,17 @@ elif menu_choice == "🪪 Student Result Cards":
                 {"id": current_id, "exam_type": selected_test_code}
             )
             
-            # Universal parameter matching across database types
+            # Simplified decoupled attendance lookup avoids query operational exceptions
             db_att = run_query(
-                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id OR student_id LIKE :id_like", 
-                {"id": current_id, "id_like": f"%{current_id}%"}
+                "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", 
+                {"id": current_id}
             )
+            
+            if db_att.empty:
+                db_att = run_query(
+                    "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id LIKE :id_like", 
+                    {"id_like": f"%{current_id}%"}
+                )
             
             att_cells = {}
             tot_sum, pres_sum = 0, 0
@@ -3133,7 +3150,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
