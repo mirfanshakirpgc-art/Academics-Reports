@@ -4213,14 +4213,11 @@ elif menu_choice == "⚙️ Settings":
     # ==============================================================================
     elif sub_menu == "🧬 Add Disciplines":
         st.subheader("🧬 Academic Disciplines & Program Entries")
-        st.info("View, modify, or register primary structural disciplines (e.g., ICS, FSc Medical, Commerce) linked to your active Academic Systems.")
+        st.info("Centralized console to view existing structural disciplines, modify active tracking setups, or initialize new program frameworks.")
 
-        # --- 1. FETCH & DISPLAY EXISTING DISCIPLINES ---
-        st.markdown("### 📋 Registered System Disciplines")
-        
+        # --- DATABASE READ: FETCH EXISTING RECORDS ---
         current_disciplines = pd.DataFrame()
         try:
-            # Added academic_system to the selection array for complete visibility
             current_disciplines = run_query('''
                 SELECT 
                     id as "ID", 
@@ -4230,138 +4227,130 @@ elif menu_choice == "⚙️ Settings":
                 FROM system_disciplines 
                 ORDER BY discipline_name ASC
             ''')
-        except Exception as e:
-            # Fallback if column needs to be created dynamically
+        except Exception:
             try:
+                # Emergency fallback if academic_system column migration isn't fully committed
                 current_disciplines = run_query('SELECT id as "ID", discipline_name as "Discipline Name", status as "Status" FROM system_disciplines ORDER BY discipline_name ASC')
-                current_disciplines["Academic System"] = "Annual System" # Default placeholder fallback
-            except Exception:
-                st.warning("⚠️ The 'system_disciplines' table does not exist yet. Please use the initialization form below to start.")
+                current_disciplines["Academic System"] = "Annual System"
+            except Exception as e:
+                st.error(f"❌ Error communicating with database infrastructure: {e}")
 
-        if not current_disciplines.empty:
-            # Displaying the existing records beautifully
-            st.dataframe(current_disciplines, use_container_width=True, hide_index=True)
-            
-            # --- 2. MANAGEMENT / EDIT TERMINAL ---
-            st.markdown("### 🛠️ Modify Existing Disciplines")
-            disp_list = [f"{row['ID']} - {row['Discipline Name']} ({row['Academic System']})" for _, row in current_disciplines.iterrows()]
-            selected_disp_str = st.selectbox("Select a Discipline to Modify or Remove:", disp_list, key="edit_disp_dropdown")
-            
-            if selected_disp_str:
-                selected_disp_id = int(selected_disp_str.split(" - ")[0])
-                target_disp_row = current_disciplines[current_disciplines['ID'] == selected_disp_id].iloc[0]
+        # --- INTERACTIVE TABS LAYER ---
+        # Splitting workflows explicitly into 'View & Edit Existing' vs 'Add New Track'
+        tab_view, tab_new = st.tabs(["📋 View & Edit Existing Disciplines", "➕ Add New Discipline Record"])
+
+        # ==========================================
+        # 📂 TAB 1: VIEW & EDIT EXISTING ENTRIES
+        # ==========================================
+        with tab_view:
+            if not current_disciplines.empty:
+                st.markdown("### 📋 Current Active Institutional Disciplines")
+                st.dataframe(current_disciplines, use_container_width=True, hide_index=True)
                 
-                # Fetch available active systems to prevent typos during editing
-                try:
-                    sys_df = run_query("SELECT DISTINCT evaluation_track FROM system_evaluation_profiles WHERE status = 'ACTIVE'")
-                    sys_options = sys_df['evaluation_track'].tolist() if not sys_df.empty else ["Annual System", "Semester System"]
-                except Exception:
-                    sys_options = ["Annual System", "Semester System"]
-
-                with st.form(f"edit_discipline_form_{selected_disp_id}"):
-                    col_e1, col_e2 = st.columns(2)
-                    with col_e1:
-                        updated_disp_name = st.text_input("Modify Discipline Name:", value=str(target_disp_row['Discipline Name'])).upper().strip()
-                        current_sys = target_disp_row['Academic System'] if 'Academic System' in target_disp_row else "Annual System"
-                        updated_sys = st.selectbox("Modify Academic System:", options=sys_options, index=sys_options.index(current_sys) if current_sys in sys_options else 0)
-                    with col_e2:
-                        updated_disp_status = st.selectbox("Modify Track Status:", ["ACTIVE", "INACTIVE"], index=0 if target_disp_row['Status'] == 'ACTIVE' else 1)
+                st.markdown("---")
+                st.markdown("### ✏️ Edit or Modify an Existing Discipline")
+                
+                # Dynamic Dropdown generation from actual fetched data
+                disp_options = [f"{row['ID']} - {row['Discipline Name']} ({row['Academic System']})" for _, row in current_disciplines.iterrows()]
+                selected_disp_str = st.selectbox("Select target discipline parameter row to alter:", options=disp_options, key="edit_selector_node")
+                
+                if selected_disp_str:
+                    selected_id = int(selected_disp_str.split(" - ")[0])
+                    target_row = current_disciplines[current_disciplines['ID'] == selected_id].iloc[0]
                     
-                    col_bu, col_bd = st.columns(2)
-                    with col_bu:
-                        save_disp = st.form_submit_button("💾 Save Structural Changes", type="primary", use_container_width=True)
-                    with col_bd:
-                        confirm_disp_del = st.checkbox("⚠️ Confirm complete deletion", key=f"del_chk_{selected_disp_id}")
-                        delete_disp = st.form_submit_button("🗑️ Delete Path Permanently", type="secondary", use_container_width=True)
+                    # Pull available system options safely from evaluation master profiles
+                    try:
+                        sys_df = run_query("SELECT DISTINCT evaluation_track FROM system_evaluation_profiles WHERE status = 'ACTIVE'")
+                        sys_choices = sys_df['evaluation_track'].tolist() if not sys_df.empty else ["Annual System", "Semester System"]
+                    except Exception:
+                        sys_choices = ["Annual System", "Semester System"]
+
+                    with st.form(f"modify_discipline_form_{selected_id}"):
+                        col_m1, col_m2 = st.columns(2)
+                        with col_m1:
+                            edit_name = st.text_input("Modify Discipline Code/Title:", value=str(target_row['Discipline Name'])).upper().strip()
+                            edit_sys = st.selectbox("Assigned System Track Framework:", options=sys_choices, index=sys_choices.index(target_row['Academic System']) if target_row['Academic System'] in sys_choices else 0)
+                        with col_m2:
+                            edit_status = st.selectbox("Discipline Status Flag:", options=["ACTIVE", "INACTIVE"], index=0 if target_row['Status'] == 'ACTIVE' else 1)
                         
-                if save_disp:
-                    if not updated_disp_name:
-                        st.error("❌ Discipline text field entry cannot be empty.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE system_disciplines 
-                                    SET discipline_name = :name, academic_system = :sys, status = :status 
-                                    WHERE id = :id
-                                """), {"name": updated_disp_name, "sys": updated_sys, "status": updated_disp_status, "id": selected_disp_id})
-                            st.success("🎉 Discipline schema row altered successfully!")
-                            st.rerun()
-                        except Exception as err:
-                            # Context fallback migration error handler
-                            with engine.begin() as conn:
-                                conn.execute(text("UPDATE system_disciplines SET discipline_name = :name, status = :status WHERE id = :id"),
-                                             {"name": updated_disp_name, "status": updated_disp_status, "id": selected_disp_id})
-                            st.success("🎉 Discipline altered successfully (without System track override)!")
-                            st.rerun()
-                            
-                if delete_disp:
-                    if not confirm_disp_del:
-                        st.error("❌ Check validation checkpoint confirmation box to delete track.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM system_disciplines WHERE id = :id"), {"id": selected_disp_id})
-                            st.success("🗑️ Discipline track removed completely.")
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Deletion restriction encountered: {err}")
-        else:
-            st.info("ℹ️ No customized disciplines discovered in configuration records. Create your first tracking entry below.")
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            commit_update = st.form_submit_button("💾 Save Structural Modifications", type="primary", use_container_width=True)
+                        with col_btn2:
+                            confirm_delete = st.checkbox("⚠️ Confirm complete historical removal", key=f"del_lock_{selected_id}")
+                            commit_delete = st.form_submit_button("🗑️ Drop Track Permanently", type="secondary", use_container_width=True)
 
+                        if commit_update:
+                            if not edit_name:
+                                st.error("❌ Discipline Identity reference text cannot be blank.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE system_disciplines 
+                                            SET discipline_name = :name, academic_system = :sys, status = :status 
+                                            WHERE id = :id
+                                        """), {"name": edit_name, "sys": edit_sys, "status": edit_status, "id": selected_id})
+                                    st.success("🎉 Database entry updated successfully!")
+                                    st.rerun()
+                                except Exception as err:
+                                    st.error(f"❌ Transaction failed: {err}")
 
-        # --- 3. EXPANDABLE TAB FOR NEW ENTRIES ---
-        st.markdown("---")
-        with st.expander("➕ Add New Discipline Entry", expanded=current_disciplines.empty):
-            st.markdown("#### Register a New Program Classification Track")
+                        if commit_delete:
+                            if not confirm_delete:
+                                st.error("❌ You must explicitly check the confirmation checkpoint box to remove this row.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("DELETE FROM system_disciplines WHERE id = :id"), {"id": selected_id})
+                                    st.success("🗑️ Track deleted from records.")
+                                    st.rerun()
+                                except Exception as err:
+                                    st.error(f"❌ Deletion constraint encountered: {err}")
+            else:
+                st.info("ℹ️ No customized disciplines discovered in configuration rows. Head over to the next tab to initialize data records.")
+
+        # ==========================================
+        # 📂 TAB 2: REGISTER NEW DISCIPLINES
+        # ==========================================
+        with tab_new:
+            st.markdown("### ➕ Register a New Program Classification Track")
             
-            # Fetch academic systems from evaluation frameworks seamlessly
             try:
-                systems_df = run_query("SELECT DISTINCT evaluation_track FROM system_evaluation_profiles WHERE status = 'ACTIVE'")
-                available_systems = systems_df['evaluation_track'].tolist() if not systems_df.empty else ["Annual System"]
+                systems_query = run_query("SELECT DISTINCT evaluation_track FROM system_evaluation_profiles WHERE status = 'ACTIVE'")
+                available_frameworks = systems_query['evaluation_track'].tolist() if not systems_query.empty else ["Annual System"]
             except Exception:
-                available_systems = ["Annual System", "Semester System"]
+                available_frameworks = ["Annual System", "Semester System"]
 
-            with st.form("discipline_registration_form", clear_on_submit=True):
-                col_d1, col_d2 = st.columns(2)
-                with col_d1:
-                    new_disp_name = st.text_input("Discipline Title/Code:", placeholder="e.g. ICS, FSc Medical, COMMERCE").upper().strip()
-                    chosen_system = st.selectbox("Select Academic System Framework:", options=available_systems)
-                with col_d2:
-                    new_disp_status = st.selectbox("Initial Discipline Status:", options=["ACTIVE", "INACTIVE"])
-                    
-                submit_discipline = st.form_submit_button("💾 Save Entry to Database", type="primary")
+            with st.form("new_discipline_entry_form", clear_on_submit=True):
+                col_n1, col_n2 = st.columns(2)
+                with col_n1:
+                    new_name = st.text_input("New Discipline Title/Code:", placeholder="e.g. COMMERCE, ICS, FSC MEDICAL").upper().strip()
+                    new_sys = st.selectbox("Target Academic System Association:", options=available_frameworks)
+                with col_n2:
+                    new_status = st.selectbox("Initial Discipline Operational Status:", options=["ACTIVE", "INACTIVE"])
                 
-                if submit_discipline:
-                    if not new_disp_name:
-                        st.error("❌ Discipline identity name code cannot be blank.")
+                submit_new = st.form_submit_button("🚀 Commit New Entry to Database", type="primary")
+
+                if submit_new:
+                    if not new_name:
+                        st.error("❌ Entry field input cannot be blank.")
                     else:
                         try:
-                            # Verify if row item configuration doesn't exist
-                            check_existing = run_query("SELECT id FROM system_disciplines WHERE UPPER(TRIM(discipline_name)) = :name", {"name": new_disp_name})
-                            if check_existing.empty:
+                            # Avoid duplicates tracking checkpoint
+                            duplicate_check = run_query("SELECT id FROM system_disciplines WHERE UPPER(TRIM(discipline_name)) = :name", {"name": new_name})
+                            if duplicate_check.empty:
                                 with engine.begin() as conn:
                                     conn.execute(text("""
                                         INSERT INTO system_disciplines (discipline_name, academic_system, status)
                                         VALUES (:name, :sys, :status)
-                                    """), {"name": new_disp_name, "sys": chosen_system, "status": new_disp_status})
-                                st.success(f"🎉 Academic track '{new_disp_name}' successfully added under {chosen_system}!")
+                                    """), {"name": new_name, "sys": new_sys, "status": new_status})
+                                st.success(f"🎉 Track '{new_name}' successfully added to the core configuration platform!")
                                 st.rerun()
                             else:
-                                st.warning("⚠️ This structural academic discipline name variant already exists.")
-                        except Exception as e:
-                            # Automatic structural migration if academic_system field is missing in backend table structure
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("ALTER TABLE system_disciplines ADD COLUMN academic_system VARCHAR(100) DEFAULT 'Annual System'"))
-                                    conn.execute(text("""
-                                        INSERT INTO system_disciplines (discipline_name, academic_system, status)
-                                        VALUES (:name, :sys, :status)
-                                    """), {"name": new_disp_name, "sys": chosen_system, "status": new_disp_status})
-                                st.success(f"🎉 Column generated & track '{new_disp_name}' saved successfully!")
-                                st.rerun()
-                            except Exception as migration_err:
-                                st.error(f"❌ Database execution block error: {migration_err}")
+                                st.warning("⚠️ This specific discipline title variant is already registered inside configuration rows.")
+                        except Exception as ex:
+                            st.error(f"❌ Failed to submit structural row matrix: {ex}")
 
     # ==============================================================================
     # 🆕 SUB-MODULE 6: ADD SUBJECT MAPPING (Linked to working Sections)
