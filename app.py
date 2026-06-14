@@ -2774,8 +2774,11 @@ elif menu_choice == "🪪 Student Result Cards":
  # ==============================================================================
 # PART 4: COMPILATION LOOP & RENDERING ENGINE
 # ==============================================================================
-# Use the correct list variable check assigned to your Multi-Test panel engine
-if (submit_single or ('submit_bulk' in locals() and submit_bulk)) and students_to_process:
+# Safely check if either form submission variable exists and is True
+is_single_clicked = locals().get('submit_single', False)
+is_bulk_clicked = locals().get('submit_bulk', False)
+
+if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() and students_to_process:
 
     # --------------------------------------------------------------------------
     # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
