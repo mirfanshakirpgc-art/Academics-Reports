@@ -2795,29 +2795,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     single_student = all_session_students[fuzzy_mask]
                 
                 if not single_student.empty:
-                    raw_discipline = str(single_student['discipline'].iloc[0]).strip().upper()
-                    
-                    if "STATS" in raw_discipline:
-                        selected_discipline_tracked = "ICS (STATS)"
-                    elif "PHYSIC" in raw_discipline:
-                        selected_discipline_tracked = "ICS (PHYSICS)"
-                    elif "MED" in raw_discipline:
-                        selected_discipline_tracked = "MEDICAL"
-                    elif "ENG" in raw_discipline:
-                        selected_discipline_tracked = "ENGINEERING"
-                    elif "COMM" in raw_discipline:
-                        selected_discipline_tracked = "COMMERCE"
-                    elif "HUM" in raw_discipline:
-                        selected_discipline_tracked = "HUMANITIES"
-                    else:
-                        selected_discipline_tracked = raw_discipline
-
                     students_to_print = pd.DataFrame([{
                         "id": str(single_student['id'].iloc[0]).strip(), 
                         "name": single_student['name'].iloc[0], 
                         "section": single_student['section'].iloc[0].upper().strip(), 
                         "class": single_student['class'].iloc[0],
-                        "discipline": selected_discipline_tracked
+                        "discipline": str(single_student['discipline'].iloc[0]).strip().upper()
                     }])
     
     else: # Complete Section Cards Mode
@@ -2912,27 +2895,23 @@ elif menu_choice == "🪪 Student Result Cards":
             
             lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             
-            if print_scope == "👤 Single Student Card":
-                raw_disp = str(student_row['discipline']).strip().upper()
-            else:
-                raw_disp = str(selected_discipline).strip().upper()
-
+            # Direct normalization targeting your master map keys cleanly
+            raw_disp = str(student_row['discipline']).strip().upper()
             if "STATS" in raw_disp:
-                lookup_disp = "ICS (STATS)"
-            elif "PHYSIC" in raw_disp:
-                lookup_disp = "ICS (PHYSICS)"
+                master_map_key = "ICS_STATS"
+            elif "PHYSIC" in raw_disp or "ICS" in raw_disp:
+                master_map_key = "ICS_PHYSICS"
             elif "MED" in raw_disp:
-                lookup_disp = "MEDICAL"
+                master_map_key = "MEDICAL"
             elif "ENG" in raw_disp:
-                lookup_disp = "ENGINEERING"
+                master_map_key = "ENGINEERING"
             elif "COMM" in raw_disp:
-                lookup_disp = "COMMERCE"
+                master_map_key = "COMMERCE"
             elif "HUM" in raw_disp:
-                lookup_disp = "HUMANITIES"
+                master_map_key = "HUMANITIES"
             else:
-                lookup_disp = raw_disp
+                master_map_key = raw_disp.replace(" ", "_").replace("(", "").replace(")", "")
 
-            master_map_key = lookup_disp.replace(" ", "_").replace("(", "").replace(")", "")
             subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class, {}).get(master_map_key, ["English", "Urdu", "T_Quran"])
             
             raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
