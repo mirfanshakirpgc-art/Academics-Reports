@@ -2893,8 +2893,32 @@ if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() 
                 WHERE CAST(student_id AS TEXT) = TRIM(:st_id)
             """, {"st_id": current_id_str})
         except Exception:
+            # ==============================================================================
+        # 🔄 STEP 4A: SAFE LOCAL DATA SLICING (REPLACES DB QUERIES)
+        # ==============================================================================
+        current_id_str = str(student_row.get('student_id', '')).strip()
+        
+        # 1. Slice and construct raw_marks locally
+        if 'marks_df' in locals() and not marks_df.empty:
+            student_marks_df = marks_df[marks_df['student_id'] == current_id_str].copy()
+            student_marks_df = student_marks_df.rename(columns={
+                'subject_name': 'subject',
+                'exam_type': 'exam_type'
+            })
+            raw_marks = student_marks_df
+        else:
+            import pandas as pd
+            raw_marks = pd.DataFrame(columns=['subject', 'marks_obtained', 'total_marks', 'exam_type'])
+
+        # 2. Slice and construct raw_logs_df locally for attendance tracking
+        if 'logs_df' in locals() and not logs_df.empty:
+            raw_logs_df = logs_df[logs_df['student_id'] == current_id_str].copy()
+        else:
             raw_logs_df = pd.DataFrame()
 
+        # ==============================================================================
+        # 📊 ATTENDANCE MATRIX PROCESSING PIPELINE
+        # ==============================================================================
         # Initialize tracking matrix template structure
         attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
