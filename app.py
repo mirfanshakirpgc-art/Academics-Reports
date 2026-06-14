@@ -2847,7 +2847,7 @@ if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() 
         "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
     }
 
-    for idx, student_row in students_to_print.iterrows():
+    for idx, student_row in enumerate(students_to_process):
         current_id_str = str(student_row['id']).strip()
         name = str(student_row['name']).upper()
         section = str(student_row['section']).upper().strip()
