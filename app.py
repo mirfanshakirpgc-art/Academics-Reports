@@ -2780,11 +2780,13 @@ elif menu_choice == "🪪 Student Result Cards":
  # ==============================================================================
 # PART 4: COMPILATION LOOP & RENDERING ENGINE
 # ==============================================================================
-# Safely check if either form submission variable exists and is True
 is_single_clicked = locals().get('submit_single', False)
 is_bulk_clicked = locals().get('submit_bulk', False)
 
-if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() and students_to_process:
+# FIX: Add a strict module check so this ONLY runs when "Multi-Test Progress Report" is selected
+is_multi_test_module = locals().get('v_menu') == "Multi-Test Progress Report" or locals().get('choose_module') == "Multi-Test Progress Report"
+
+if (is_single_clicked or is_bulk_clicked) and is_multi_test_module and 'students_to_process' in locals() and students_to_process:
 
     # --------------------------------------------------------------------------
     # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
