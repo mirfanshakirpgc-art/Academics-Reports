@@ -4308,8 +4308,8 @@ elif menu_choice == "⚙️ Settings":
                                     conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), 
                                                  {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
     # Fallback block for the sub_menu routing if an invalid/empty menu item is found
-        else:
-            st.info("Please select a management sub-module from the navigation menu.")
+            else:
+                st.info("Please select a management sub-module from the navigation menu.")
 
 # ====================================================================================
 # STRICT APP TEARDOWN LAYER & CONTEXT CLEANUP
