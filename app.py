@@ -2776,10 +2776,17 @@ if submit_execution and not students_to_print.empty:
     <style>
         body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
         .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
-        .header-block { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; width: 100%; gap: 20px; }
+        
+        /* New Stacked Header Framework */
+        .logo-row { width: 100%; text-align: left; margin-bottom: 10px; }
         .logo-img { max-height: 65px; width: auto; display: block; }
-        .inst-main-header { font-weight: bold; font-size: 30px; text-transform: uppercase; text-align: center; }
-        .doc-type-banner { text-align: center; font-weight: bold; font-size: 18px; text-transform: uppercase; margin: 25px 0 20px 0; letter-spacing: 1.5px; }
+        
+        .title-row { width: 100%; text-align: center; margin-bottom: 20px; }
+        .inst-main-header { font-weight: bold; font-size: 30px; text-transform: uppercase; margin: 0; }
+        
+        .banner-row { width: 100%; text-align: center; margin-bottom: 25px; }
+        .doc-type-banner { font-weight: bold; font-size: 18px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0; }
+        
         .meta-layout-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 15px; }
         .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
         .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
@@ -2798,7 +2805,7 @@ if submit_execution and not students_to_print.empty:
         @media print {
             .action-controls-bar { display: none !important; }
             .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; }
-            .print-page-break-divider { page-break-after: always !important; }
+            .print-page-break-divider { page-break-after: always !always !important; }
         }
     </style>
     </head>
@@ -2824,7 +2831,6 @@ if submit_execution and not students_to_print.empty:
         section = str(student_row['section']).upper().strip()
         grade_class = str(student_row['class']).strip()
         test_name = selected_test_label.upper()
-
         # ----------------------------------------------------------------------
         # MODULE B: DATA RESOLUTION & ATTENDANCE EXTRACTION PIPELINE
         # ----------------------------------------------------------------------
@@ -2918,11 +2924,19 @@ if submit_execution and not students_to_print.empty:
         
         compiled_html += f"""
         <div class="official-card-container" id="card-{current_id_str}" data-student-name="{name.replace(' ', '_')}">
-            <div class="header-block">
-                <div><img class="logo-img" src="{logo_base64}" alt="Logo"></div>
+            
+            <div class="logo-row">
+                <img class="logo-img" src="{logo_base64}" alt="Logo">
+            </div>
+            
+            <div class="title-row">
                 <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
             </div>
-            <div class="doc-type-banner">RESULT CARD</div>
+            
+            <div class="banner-row">
+                <div class="doc-type-banner">RESULT CARD</div>
+            </div>
+            
             <table class="meta-layout-table">
                 <tr>
                     <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
