@@ -4215,6 +4215,11 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("🧬 Academic Disciplines & Program Entries")
         st.info("Centralized console to view existing structural disciplines, modify active tracking setups, or initialize new program frameworks.")
 
+        # FORCE CLEAR STREAMLIT DATA CACHE TO BANISH OLD MIXED SECTIONS
+        if 'discipline_cache_cleared' not in st.session_state:
+            st.cache_data.clear()
+            st.session_state['discipline_cache_cleared'] = True
+
         # --- DATABASE READ: FETCH GENUINE DISCIPLINE RECORDS ---
         current_disciplines = pd.DataFrame()
         try:
@@ -4227,12 +4232,8 @@ elif menu_choice == "⚙️ Settings":
                 FROM system_disciplines 
                 ORDER BY discipline_name ASC
             ''')
-        except Exception:
-            try:
-                current_disciplines = run_query('SELECT id as "ID", discipline_name as "Discipline Name", status as "Status" FROM system_disciplines ORDER BY discipline_name ASC')
-                current_disciplines["Academic System"] = "Annual System"
-            except Exception as e:
-                st.error(f"❌ Error communicating with database infrastructure: {e}")
+        except Exception as e:
+            st.error(f"❌ Error communicating with database infrastructure: {e}")
 
         # --- INTERACTIVE WORKSPACE TABS ---
         tab_view, tab_new = st.tabs(["📋 View & Edit Existing Disciplines", "➕ Add New Discipline Record"])
@@ -4255,7 +4256,6 @@ elif menu_choice == "⚙️ Settings":
                     selected_id = int(selected_disp_str.split(" - ")[0])
                     target_row = current_disciplines[current_disciplines['ID'] == selected_id].iloc[0]
                     
-                    # Target dropdown mapping matching your explicit evaluation track options
                     try:
                         sys_df = run_query('SELECT DISTINCT "System Track" FROM system_evaluation_profiles WHERE status = \'ACTIVE\'')
                         sys_choices = sys_df['System Track'].tolist() if not sys_df.empty else ["Annual System"]
@@ -4280,7 +4280,7 @@ elif menu_choice == "⚙️ Settings":
 
                         if commit_update:
                             if not edit_name:
-                                st.error("❌ Discipline Identity reference text cannot be blank.")
+                                        st.error("❌ Discipline Identity reference text cannot be blank.")
                             else:
                                 try:
                                     with engine.begin() as conn:
@@ -4289,6 +4289,7 @@ elif menu_choice == "⚙️ Settings":
                                             SET discipline_name = :name, academic_system = :sys, status = :status 
                                             WHERE id = :id
                                         """), {"name": edit_name, "sys": edit_sys, "status": edit_status, "id": selected_id})
+                                    st.cache_data.clear() # Clear memory on write
                                     st.success("🎉 Database entry updated successfully!")
                                     st.rerun()
                                 except Exception as err:
@@ -4301,6 +4302,7 @@ elif menu_choice == "⚙️ Settings":
                                 try:
                                     with engine.begin() as conn:
                                         conn.execute(text("DELETE FROM system_disciplines WHERE id = :id"), {"id": selected_id})
+                                    st.cache_data.clear() # Clear memory on deletion
                                     st.success("🗑️ Track deleted from records.")
                                     st.rerun()
                                 except Exception as err:
@@ -4342,6 +4344,7 @@ elif menu_choice == "⚙️ Settings":
                                         INSERT INTO system_disciplines (discipline_name, academic_system, status)
                                         VALUES (:name, :sys, :status)
                                     """), {"name": new_name, "sys": new_sys, "status": new_status})
+                                st.cache_data.clear() # Clear memory on fresh insert
                                 st.success(f"🎉 Track '{new_name}' successfully added!")
                                 st.rerun()
                             else:
