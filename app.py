@@ -2774,7 +2774,8 @@ elif menu_choice == "🪪 Student Result Cards":
  # ==============================================================================
 # PART 4: COMPILATION LOOP & RENDERING ENGINE
 # ==============================================================================
-if submit_execution and not students_to_print.empty:
+# Use the correct list variable check assigned to your Multi-Test panel engine
+if (submit_single or ('submit_bulk' in locals() and submit_bulk)) and students_to_process:
 
     # --------------------------------------------------------------------------
     # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
