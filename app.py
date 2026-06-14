@@ -2707,7 +2707,7 @@ elif menu_choice == "🪪 Student Result Cards":
         session_list = ["2024-2026", "2025-2027"]
         section_master_list = []
 
-    # 1. CORE SEARCH FILTERS (Top Grid Layout matching final UI spec)
+    # 1. CORE SEARCH FILTERS
     col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
         selected_session = st.selectbox("📅 Select Session:", options=session_list)
@@ -2717,18 +2717,24 @@ elif menu_choice == "🪪 Student Result Cards":
         class_options = ["11th", "12th"] if selected_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
         selected_class = st.selectbox("🏫 Select Class:", options=class_options)
     with col_sel4:
-        # Fetching evaluation / exam tracking keys perfectly
+        # Fetch system code along with evaluation names from exam cycles
         db_exams = run_query(
-            "SELECT exam_code, exam_display_name FROM exam_cycles WHERE system_type = :sys AND status = 'ACTIVE' ORDER BY exam_display_name ASC",
+            "SELECT exam_code, exam_display_name FROM exam_cycles WHERE system_type = :sys AND status = 'ACTIVE' ORDER BY exam_code ASC",
             {"sys": selected_system}
         )
         if not db_exams.empty:
-            exam_mapping = {row['exam_display_name']: row['exam_code'] for _, row in db_exams.iterrows()}
-            selected_test_label = st.selectbox("🎯 Select Test Term:", options=list(exam_mapping.keys()))
-            selected_test_code = exam_mapping[selected_test_label]
+            # Format option labels explicitly as: "MT_1 (Monthly Test 1)"
+            exam_options = [f"{row['exam_code']} ({row['exam_display_name']})" for _, row in db_exams.iterrows()]
+            selected_combined_label = st.selectbox("🎯 Select Test Term:", options=exam_options)
+            # Safely extract just the System Code header chunk (e.g., "MT_1")
+            selected_test_code = selected_combined_label.split(" (")[0].strip()
+            selected_test_label = selected_test_code  # Force the layout to print "MT_1"
         else:
-            selected_test_label = st.selectbox("🎯 Select Test Term:", options=["MT_1", "MT_2", "SEND_UP", "PRE_BOARD"])
-            selected_test_code = selected_test_label
+            # Fallback hardcoded matching targets if database settings are empty
+            fallback_options = ["MT_1 (Monthly Test 1)", "MT_2 (Monthly Test 2)", "SEND_UP (Send-Up Exam)", "PRE_BOARD (Pre-Board Exam)"]
+            selected_combined_label = st.selectbox("🎯 Select Test Term:", options=fallback_options)
+            selected_test_code = selected_combined_label.split(" (")[0].strip()
+            selected_test_label = selected_test_code
 
     # 2. PRINT SCOPE CONFIGURATION
     st.markdown("**𖨾 Select Print Scope:**")
@@ -2745,39 +2751,44 @@ elif menu_choice == "🪪 Student Result Cards":
             target_section_input = st.text_input("📋 Target Section (Leave empty to auto-detect from Student ID):").upper().strip()
 
     # 3. DATA FETCHING AND ENGINE RUNTIME
-    if (search_id and search_id.isdigit() if print_scope == "👤 Single Student Card" else True) and selected_test_code:
-        
+    students_to_print = pd.DataFrame()
+    active_section = target_section_input
+
+    # Fallback lookup: Extract section from student ID if "Auto-Detect" remains selected
+    if not active_section and search_id and search_id.isdigit():
+        base_student = run_query(
+            "SELECT section, class FROM students WHERE id = :id AND session = :session", 
+            {"id": int(search_id), "session": selected_session}
+        )
+        if not base_student.empty:
+            active_section = base_student['section'].iloc[0].upper().strip()
+
+    if selected_test_code:
         if print_scope == "👤 Single Student Card":
-            base_student = run_query(
-                "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
-                {"id": int(search_id), "session": selected_session}
-            )
-            if not base_student.empty:
-                detected_section = base_student['section'].iloc[0].upper().strip()
-                detected_class = base_student['class'].iloc[0]
-                active_section = target_section_input if target_section_input else detected_section
-                
-                students_to_print = pd.DataFrame([{
-                    "id": int(search_id), 
-                    "name": base_student['name'].iloc[0], 
-                    "section": active_section, 
-                    "class": detected_class
-                }])
-            else:
-                students_to_print = pd.DataFrame()
+            if search_id and search_id.isdigit():
+                single_student = run_query(
+                    "SELECT id, name, section, class FROM students WHERE id = :id AND session = :session", 
+                    {"id": int(search_id), "session": selected_session}
+                )
+                if not single_student.empty:
+                    students_to_print = pd.DataFrame([{
+                        "id": int(search_id), 
+                        "name": single_student['name'].iloc[0], 
+                        "section": active_section if active_section else single_student['section'].iloc[0].upper().strip(), 
+                        "class": single_student['class'].iloc[0]
+                    }])
         else:
-            active_section = target_section_input
+            # Complete Section Cards Routing Block
             if not active_section:
-                st.warning("⚠️ Please explicitly select or type a Target Section to query student section groups.")
-                students_to_print = pd.DataFrame()
+                st.warning("⚠️ Complete Section mode active: Please either select/type an explicit Section or provide a valid Roll Number in the ID field to auto-detect the target section layout grid.")
             else:
                 students_to_print = run_query(
                     "SELECT id, name, section, class FROM students WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) AND session = :session AND class = :class ORDER BY id ASC", 
                     {"section": active_section, "session": selected_session, "class": selected_class}
                 )
 
+        # HTML COMPILE ENGINE RUNTIME 
         if not students_to_print.empty:
-            # HTML ENGINE GENERATION LOOP
             compiled_html = """
             <!DOCTYPE html>
             <html>
@@ -2837,9 +2848,8 @@ elif menu_choice == "🪪 Student Result Cards":
                 name = str(student_row['name']).upper()
                 section = str(student_row['section']).upper().strip()
                 grade_class = str(student_row['class']).upper()
-                test_name = selected_test_label.upper()
+                test_name = selected_test_label.upper() # Will output system code structure (e.g., "MT_1")
                 
-                # Dynamic Subject Assignment Mapping Blocks
                 if selected_system == "Semester System":
                     subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT"])
                 else:
@@ -2847,14 +2857,12 @@ elif menu_choice == "🪪 Student Result Cards":
                     subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, 
                                     ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"])
                 
-                # Dynamic Query payload mapping with true evaluated target test key code
                 raw_marks = run_query(
                     "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
                     {"id": current_id, "exam_type": selected_test_code}
                 )
                 db_att = run_query("SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", {"id": current_id})
                 
-                # Calculate attendance metrics cleanly
                 att_cells = {}
                 tot_sum, pres_sum = 0, 0
                 for m in AVAILABLE_MONTHS:
