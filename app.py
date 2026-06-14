@@ -2686,12 +2686,16 @@ import streamlit as st
 
 # ----------------- 🪪 STUDENT RESULT CARDS -----------------
 elif menu_choice == "🪪 Student Result Cards":
+    import streamlit.components.v1 as components
+    
     st.title("🪪 Student Result Cards — Print Engine")
     
     print_scope = st.radio("𖨾 Select Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True)
     col_c1, col_c2 = st.columns(2)
-    with col_c1: search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
-    with col_c2: selected_test = st.selectbox("🎯 Select Test Term:", options=AVAILABLE_EXAMS)
+    with col_c1: 
+        search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
+    with col_c2: 
+        selected_test = st.selectbox("🎯 Select Test Term:", options=AVAILABLE_EXAMS)
 
     if search_id and search_id.isdigit() and selected_test:
         base_student = run_query("SELECT name, section, class FROM students WHERE id = :id", {"id": int(search_id)})
@@ -2765,6 +2769,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Picture</button>
                     <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save Complete Section Cards (ZIP)</button>
                 </div>
+             Meso-container
             """
 
             for idx, student_row in students_to_print.iterrows():
@@ -2774,16 +2779,31 @@ elif menu_choice == "🪪 Student Result Cards":
                 grade_class = str(student_row['class']).upper()
                 test_name = selected_test.upper()
                 
+                # Dynamic matching utilizing DISCIPLINE_SECTIONS_MAP 
                 matched_disp = "MEDICAL"
-                for disp, secs in DISCIPLINE_SECTIONS_MAP.items():
-                    if section in [x.upper().strip() for x in secs]: 
-                        matched_disp = disp
-                        break
+                for disp, secs_by_class in DISCIPLINE_SECTIONS_MAP.items():
+                    # Handle both flat lists and multi-level class dictionary definitions
+                    if isinstance(secs_by_class, dict):
+                        for class_key, sections_list in secs_by_class.items():
+                            if section in [x.upper().strip() for x in sections_list]:
+                                matched_disp = disp
+                                break
+                    elif isinstance(secs_by_class, list):
+                        if section in [x.upper().strip() for x in secs_by_class]:
+                            matched_disp = disp
+                            break
                 
-                subjects_list = DISCIPLINE_SUBJECTS_MAP[matched_disp]
+                # Safe lookups on shared session states to bypass original NameErrors
+                current_academic_system = st.session_state.get('academic_system', 'Annual System')
+                if current_academic_system == "Semester System" or "SEMESTER" in grade_class:
+                    subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(student_row['class'], ["ICT"])
+                else:
+                    clean_class_key = "12th" if "12" in grade_class or any(k in section for k in ["MQ", "MK", "EQ", "EK", "CQ", "CK", "IK", "IQ", "FK", "FQ"]) else "11th"
+                    subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(clean_class_key, ["ENGLISH", "URDU"])
+                
                 raw_marks = run_query("SELECT UPPER(TRIM(subject)) as subject, TRIM(exam_type) as exam_type, marks_obtained, total_marks FROM marks WHERE student_id = :id", {"id": current_id})
                 
-                # Fetch full complete sequence ledger dataset for horizontal formatting table matrix reconstruction
+                # Fetch full complete sequence ledger dataset for attendance matrix tracking
                 db_att = run_query("""
                     SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days 
                     FROM attendance WHERE student_id = :id
@@ -2818,7 +2838,6 @@ elif menu_choice == "🪪 Student Result Cards":
                 grand_total_marks = 0.0
                 grand_obtained_marks = 0.0
                 
-                # Assigned explicit distinct container target ID hook tag for DOM processing pipeline execution
                 compiled_html += f"""
                 <div class="official-card-container" id="card-{current_id}" data-student-name="{name.replace(' ', '_')}">
                     <div class="header-block">
@@ -2858,7 +2877,8 @@ elif menu_choice == "🪪 Student Result Cards":
                 has_valid_marks_data = False
 
                 for sub in subjects_list:
-                    match = raw_marks[(raw_marks['subject'] == sub) & (raw_marks['exam_type'] == selected_test)]
+                    sub_clean = sub.upper().strip()
+                    match = raw_marks[(raw_marks['subject'] == sub_clean) & (raw_marks['exam_type'] == selected_test)]
                     obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "", "", "", ""
                     if not match.empty:
                         try:
@@ -3006,7 +3026,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     });
                 });
 
-                // 2. Iterative loop rendering pipeline logic to build and downloard a compressed ZIP package file mapping
+                // 2. Iterative loop rendering pipeline logic to build and download a compressed ZIP package file mapping
                 document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
                     const allCards = document.querySelectorAll('.official-card-container');
                     if (allCards.length === 0) return alert("Empty stack context scope configuration payload mapping.");
@@ -3052,7 +3072,8 @@ elif menu_choice == "🪪 Student Result Cards":
             
             # Render layout view frame container component
             components.html(compiled_html, height=800, scrolling=True)
-    # Sub-navigation tabs for managing vs viewing history
+            
+    # Sub-navigation tabs layout parsing matching the template schema requirements
     manage_tab, logs_tab = st.tabs(["🔧 Process Changes", "📋 Left & Transfer Audit Logs"])
 
 # ==============================================================================
