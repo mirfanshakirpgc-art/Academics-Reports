@@ -2782,46 +2782,75 @@ elif menu_choice == "🪪 Student Result Cards":
             # Safely synchronized disciplines
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
         
-        with col_sec2:
-            clean_disp_param = str(selected_discipline).upper().strip()
-            filtered_sections = []
+        else: # Complete Section Cards Mode
+        # Define the exact mapping configuration at runtime
+        DISCIPLINE_SECTIONS_MAP = {
+            "MEDICAL": {
+                "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
+                "12th": ["MQ1", "MQ2", "MK"]
+            },
+            "ENGINEERING": {
+                "11th": ["EG_BLUE", "EB_BLUE"],
+                "12th": ["EQ", "EK"]
+            },
+            "ICS (PHYSICS)": {
+                "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
+                "12th": ["CQ1", "CQ2", "CK1", "CK2"]
+            },
+            "ICS (STATS)": {
+                "11th": ["CG_STATS", "CB_STATS"],
+                "12th": ["CQ3", "CK3"]
+            },
+            "COMMERCE": {
+                "11th": ["IG", "IB"],
+                "12th": ["IK", "IQ"]
+            },
+            "HUMANITIES": {
+                "11th": ["FB", "FG"],
+                "12th": ["FK", "FQ"]
+            },
+            "INFORMATION_TECHNOLOGY": {
+                "1ST SEMESTER": ["DIT_B", "DIT_G"],
+                "2ND SEMESTER": ["DIT_B", "DIT_G"],
+                "3RD SEMESTER": ["DIT_B", "DIT_G"],
+                "4TH SEMESTER": ["DIT_B", "DIT_G"]
+            }
+        }
 
-            try:
-                # Isolate section lists cleanly using secure syntax
-                db_all_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
-                
-                if not db_all_sections.empty:
-                    all_sects = db_all_sections['section_name'].str.upper().str.strip().tolist()
-                    
-                    # Core String Pattern Matcher
-                    if "STATS" in clean_disp_param:
-                        filtered_sections = [s for s in all_sects if "STATS" in s]
-                    elif "MEDICAL" in clean_disp_param:
-                        filtered_sections = [s for s in all_sects if "GREEN" in s or "WHITE" in s]
-                    elif "ICS" in clean_disp_param:
-                        filtered_sections = [s for s in all_sects if "STATS" not in s and "GREEN" not in s and "WHITE" not in s]
-                    else:
-                        # Fallback for newly configured custom tracks from Sub-Module 6
-                        filtered_sections = [s for s in all_sects if clean_disp_param in s or any(part in s for part in clean_disp_param.split('_'))]
-                    
-                    if not filtered_sections:
-                        filtered_sections = all_sects
+        col_sec1, col_sec2 = st.columns(2)
+        with col_sec1:
+            # Dropdown options derived dynamically from your mapping keys
+            selected_discipline = st.selectbox("🧬 Select Discipline:", options=list(DISCIPLINE_SECTIONS_MAP.keys()))
+        
+        with col_sec2:
+            # Normalize selections to handle case-sensitivity safely
+            clean_disp = str(selected_discipline).strip() # Keys are exact string matches
+            clean_class = str(selected_class).upper().strip() # Normalize to match '11TH', '12TH' or '1ST SEMESTER'
+
+            # Standardize academic selections to match map subkeys
+            if "11TH" in clean_class:
+                map_class_key = "11th"
+            elif "12TH" in clean_class:
+                map_class_key = "12th"
+            else:
+                # Matches "1ST SEMESTER", "2ND SEMESTER", etc. exactly as defined in the mapping keys
+                map_class_key = clean_class 
+
+            # Read directly from the reference map with a safe fallback array
+            discipline_group = DISCIPLINE_SECTIONS_MAP.get(clean_disp, {})
+            filtered_sections = discipline_group.get(map_class_key, [])
+
+            # Safety Net: If something goes wrong or selection misses, fallback to showing all options for that class layer
+            if not filtered_sections:
+                st.caption("ℹ️ No strict section mapping found for this combination. Displaying general fallback.")
+                if "11th" in map_class_key:
+                    filtered_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CG_STATS", "IG", "FB"]
+                elif "12th" in map_class_key:
+                    filtered_sections = ["MQ1", "EQ", "CQ1", "CQ3", "IK", "FK"]
                 else:
-                    filtered_sections = ["CB_GREEN"] if "MEDICAL" in clean_disp_param else ["CB_STATS"]
-                    
-            except Exception:
-                filtered_sections = ["CB_GREEN", "CB_STATS", "CB_BLUE"]
+                    filtered_sections = ["DIT_B", "DIT_G"]
 
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
-
-        if active_section and selected_test_code:
-            students_to_print = run_query("""
-                SELECT id, name, section, class FROM students 
-                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-                AND session = :session 
-                AND class = :class 
-                ORDER BY id ASC
-            """, {"section": active_section, "session": selected_session, "class": selected_class})
 
     # 3. HTML ENGINE RUNTIME
     if not students_to_print.empty:
