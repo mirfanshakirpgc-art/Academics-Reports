@@ -4307,7 +4307,7 @@ elif menu_choice == "⚙️ Settings":
                                 with engine.begin() as conn:
                                     conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), 
                                                  {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
-                                else:
+            else:
                 st.info("No courses or subjects have been cross-mapped to class units yet.")
         
         # Fallback block for the sub_menu routing if an invalid/empty menu item is found
