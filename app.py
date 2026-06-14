@@ -2811,6 +2811,12 @@ if submit_execution and not students_to_print.empty:
     """
     compiled_html = html_header_and_styles
     DISPLAY_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+    
+    # Month map configuration matching the multi-test date parsing system
+    month_map = {
+        "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
+        "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
+    }
 
     for idx, student_row in students_to_print.iterrows():
         current_id_str = str(student_row['id']).strip()
@@ -2847,35 +2853,60 @@ if submit_execution and not students_to_print.empty:
             try: subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
             except Exception: subjects_list = ["English", "Urdu"]
 
-        # Database Extractions
+        # Database Performance Query
         raw_marks = run_query(f"SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = '{current_id_str}' AND exam_type = '{selected_test_code}'")
-        db_att = run_query(f"SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = '{current_id_str}'")
         
-        # Isolate Attendance Mapping Arrays 
+        # FIXED: Directly pull live logs from daily_attendance using casting style of your ref code
+        try:
+            raw_logs_df = run_query("""
+                SELECT attendance_date, UPPER(TRIM(status)) as att_status
+                FROM daily_attendance
+                WHERE CAST(student_id AS TEXT) = TRIM(:st_id)
+            """, {"st_id": current_id_str})
+        except Exception:
+            raw_logs_df = pd.DataFrame()
+
+        # Initialize tracking matrix template structure
+        attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
+
+        # Process logs on the fly into month matrix slots
+        if not raw_logs_df.empty:
+            try:
+                raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"])
+                for _, log_row in raw_logs_df.iterrows():
+                    log_date = log_row["attendance_date"]
+                    if pd.isna(log_date):
+                        continue
+                    
+                    log_month_int = log_date.month
+                    log_status = str(log_row["att_status"]).strip()
+
+                    matched_month_key = None
+                    for m_name, m_int in month_map.items():
+                        if m_int == log_month_int:
+                            matched_month_key = m_name
+                            break
+
+                    if matched_month_key:
+                        attendance_matrix[matched_month_key]["total"] += 1
+                        if log_status in ["P", "PRESENT"]:
+                            attendance_matrix[matched_month_key]["present"] += 1
+            except Exception:
+                pass
+
+        # Compile interface string cells from matrix data
         att_cells = {}
         tot_sum, pres_sum = 0, 0
-        for m in DISPLAY_MONTHS:
-            # Clean loop month string down to core alphabets for comparative fallback matching
-            clean_m = m.upper().replace('.', '').strip()[:3]
-            match_att = pd.DataFrame()
-            
-            if not db_att.empty:
-                # Upgraded Matching Rule: checks if the table month name starts with or contains our target token
-                match_att = db_att[
-                    db_att['m_name'].str.replace('.', '', regex=False).str.strip().str.contains(clean_m, na=False) |
-                    db_att['m_name'].str.strip().str.startswith(clean_m, na=False)
-                ]
-            
-            if not match_att.empty:
-                td = int(match_att['total_days'].iloc[0])
-                pd_val = int(match_att['present_days'].iloc[0])
-                tot_sum += td
-                pres_sum += pd_val
-                pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
-                att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
-            else:
-                att_cells[m] = {"td": "0", "pd": "0", "pct": "0%"}
         
+        for m in DISPLAY_MONTHS:
+            td = attendance_matrix[m]["total"]
+            pd_val = attendance_matrix[m]["present"]
+            tot_sum += td
+            pres_sum += pd_val
+            
+            pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
+            att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
+            
         overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "0%"
         att_cells["Over All Att."] = {"td": str(tot_sum), "pd": str(pres_sum), "pct": overall_pct_str}
 
@@ -2935,18 +2966,13 @@ if submit_execution and not students_to_print.empty:
                     tot_marks_num = int(tot_val) if tot_val else 100
                     pass_marks_num = int(tot_marks_num * 0.4)
                     
-                    # Criteria A: NC (Not Considered) Rule
                     if obt_val == "NC":
                         obt_disp, per_disp, status_disp = "NC", "NC", "NC"
-                    
-                    # Criteria B: A (Absent) Rule
                     elif obt_val in ["A", "ABSENT"]:
                         obt_disp, per_disp, status_disp = "A", "0%", "Fail"
                         grand_total_marks += tot_marks_num
                         student_failed_any_subject = True
                         has_valid_marks_data = True
-                        
-                    # Criteria C: Regular Numerical Value
                     elif obt_val.replace('.', '', 1).isdigit():
                         num_obt = float(obt_val)
                         obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
