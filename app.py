@@ -2805,18 +2805,17 @@ elif menu_choice == "🪪 Student Result Cards":
             clean_search_id = str(search_id).strip()
             single_student = pd.DataFrame()
             
-            # Step A: Direct Integer match lookup
-            if clean_search_id.isdigit():
-                single_student = run_query(
-                    "SELECT id, name, section, class, discipline FROM students WHERE id = :id_num AND session = :session", 
-                    {"id_num": int(clean_search_id), "session": selected_session}
-                )
+            # Step A: Safe Direct string query execution (Universal Parameter Styling)
+            single_student = run_query(
+                "SELECT id, name, section, class, discipline FROM students WHERE id = :id AND session = :sess", 
+                {"id": clean_search_id, "sess": selected_session}
+            )
             
-            # Step B: Fallback string match lookup if direct match returns empty
+            # Step B: Fallback sub-string parsing matching structure bounds
             if single_student.empty:
                 single_student = run_query(
-                    "SELECT id, name, section, class, discipline FROM students WHERE id LIKE :id_str AND session = :session", 
-                    {"id_str": f"%{clean_search_id}%", "session": selected_session}
+                    "SELECT id, name, section, class, discipline FROM students WHERE CAST(id AS TEXT) LIKE :id_like AND session = :sess", 
+                    {"id_like": f"%{clean_search_id}%", "sess": selected_session}
                 )
                 
             if not single_student.empty:
@@ -2890,10 +2889,6 @@ elif menu_choice == "🪪 Student Result Cards":
             .attendance-matrix-table th { font-weight: bold; background-color: #fff; }
             .attendance-matrix-table td.row-title-cell { font-weight: bold; background-color: #fff; text-align: left; padding-left: 5px; }
             
-            .footer-signatures-table { width: 100%; margin-top: 55px; font-size: 15px; border: none; }
-            .footer-signatures-table td { border: none; }
-            .sig-marker-line { border-top: 1px solid #000; width: 170px; text-align: center; padding-top: 4px; display: inline-block; font-weight: bold; }
-            
             .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
             .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
             .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
@@ -2933,18 +2928,18 @@ elif menu_choice == "🪪 Student Result Cards":
             
             raw_marks = run_query(
                 "SELECT UPPER(TRIM(subject)) as subject, marks_obtained, total_marks FROM marks WHERE student_id = :id AND TRIM(exam_type) = :exam_type", 
-                {"id": current_id, "exam_type": selected_test_code}
+                {"id": str(current_id), "exam_type": selected_test_code}
             )
             
-            # Simplified decoupled attendance lookup avoids query operational exceptions
+            # Parametrization isolation strategy for attendance collection 
             db_att = run_query(
                 "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id = :id", 
-                {"id": current_id}
+                {"id": str(current_id)}
             )
             
             if db_att.empty:
                 db_att = run_query(
-                    "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE student_id LIKE :id_like", 
+                    "SELECT UPPER(TRIM(month_name)) as m_name, total_days, present_days FROM attendance WHERE CAST(student_id AS TEXT) LIKE :id_like", 
                     {"id_like": f"%{current_id}%"}
                 )
             
