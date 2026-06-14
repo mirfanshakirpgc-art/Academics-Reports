@@ -2692,25 +2692,33 @@ elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
 
     # ==============================================================================
-    # DYNAMIC DATA EXTRACTION FROM ADMINISTRATIVE SETTINGS SCHEMA
+    # DYNAMIC DATA EXTRACTION SYNCHRONIZED WITH SUB-MODULE 6 MASTER SETTINGS
     # ==============================================================================
     try:
         # 1. Fetch active academic sessions from database
         db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
         session_list = db_sessions['session_name'].tolist() if not db_sessions.empty else ["2024-2026", "2025-2027"]
         
-        # 2. Dynamic Synchronization: Pull all active registered operational tracks from database 
-        db_disciplines = run_query("""
-            SELECT DISTINCT discipline_name 
-            FROM system_subjects_mapping 
-            WHERE discipline_name IS NOT NULL AND discipline_name != ''
-            ORDER BY discipline_name ASC
-        """)
-        
-        if not db_disciplines.empty:
-            discipline_options = db_disciplines['discipline_name'].str.upper().str.strip().tolist()
+        # 2. ACCURATE LINKING WITH SUB-MODULE 6: Extract active disciplines from your master map variable
+        # If your master variable uses a different name, make sure it matches here (e.g., st.session_state or global)
+        if 'CLASS_SUBJECTS_MASTER_MAP' in globals():
+            # Gather all distinct tracks across all class layers (e.g., 'ICS', 'MEDICAL', 'ICS_STATS')
+            extracted_disciplines = set()
+            for layer in CLASS_SUBJECTS_MASTER_MAP:
+                for track in CLASS_SUBJECTS_MASTER_MAP[layer].keys():
+                    if track:
+                        extracted_disciplines.add(str(track).upper().strip())
+            discipline_options = sorted(list(extracted_disciplines))
         else:
-            # Fallback if maps haven't been compiled in sub-module 6 yet
+            # Safe secondary query backup if the variable isn't in global memory scope
+            db_disciplines = run_query("SELECT DISTINCT UPPER(TRIM(discipline_name)) as d_name FROM system_subjects_mapping")
+            if not db_disciplines.empty:
+                discipline_options = db_disciplines['d_name'].tolist()
+            else:
+                discipline_options = ["ICS", "MEDICAL", "ICS_STATS"]
+
+        # If it's still empty, apply core institutional defaults
+        if not discipline_options:
             discipline_options = ["ICS", "MEDICAL", "ICS_STATS"]
 
     except Exception as e:
@@ -2771,7 +2779,7 @@ elif menu_choice == "🪪 Student Result Cards":
     else: # Complete Section Cards Mode
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
-            # Dropdown derived safely from sub-module 6's distinct disciplines
+            # Safely synchronized disciplines
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
         
         with col_sec2:
@@ -2779,32 +2787,29 @@ elif menu_choice == "🪪 Student Result Cards":
             filtered_sections = []
 
             try:
-                # 1. Pull all active sections safely from the system table
+                # Isolate section lists cleanly using secure syntax
                 db_all_sections = run_query("SELECT DISTINCT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
                 
                 if not db_all_sections.empty:
                     all_sects = db_all_sections['section_name'].str.upper().str.strip().tolist()
                     
-                    # 2. Match section strings against active discipline keys via Python logic (zero SQL dependency)
+                    # Core String Pattern Matcher
                     if "STATS" in clean_disp_param:
                         filtered_sections = [s for s in all_sects if "STATS" in s]
                     elif "MEDICAL" in clean_disp_param:
                         filtered_sections = [s for s in all_sects if "GREEN" in s or "WHITE" in s]
                     elif "ICS" in clean_disp_param:
-                        # Matches general ICS sections (e.g., CB_BLUE, CG_BLUE) while isolating stats variants
                         filtered_sections = [s for s in all_sects if "STATS" not in s and "GREEN" not in s and "WHITE" not in s]
                     else:
-                        # Catch-all fallback match for custom sub-module 6 discipline additions
+                        # Fallback for newly configured custom tracks from Sub-Module 6
                         filtered_sections = [s for s in all_sects if clean_disp_param in s or any(part in s for part in clean_disp_param.split('_'))]
                     
-                    # Last line of defense if custom rules yield empty results
                     if not filtered_sections:
                         filtered_sections = all_sects
                 else:
                     filtered_sections = ["CB_GREEN"] if "MEDICAL" in clean_disp_param else ["CB_STATS"]
                     
-            except Exception as section_err:
-                # Absolute failure safety net
+            except Exception:
                 filtered_sections = ["CB_GREEN", "CB_STATS", "CB_BLUE"]
 
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
@@ -2860,7 +2865,7 @@ elif menu_choice == "🪪 Student Result Cards":
             @media print {
                 .action-controls-bar { display: none !important; }
                 .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-                .print-page-break-divider { page-break-after: always !important; break-after: page !important; }
+                .print-page-break-divider { page-break-after: always !always !important; break-after: page !important; }
             }
         </style>
         </head>
@@ -2884,7 +2889,7 @@ elif menu_choice == "🪪 Student Result Cards":
             if selected_system == "Semester System":
                 subjects_list = st.session_state.get('SEMESTER_MAP', {}).get(selected_class, ["ICT"])
             else:
-                # Dynamically choose curriculum map based on verified discipline track
+                # Auto-detect track from section name
                 matched_disp = "ICS" if "ICS" in section and "STATS" not in section else "ICS_STATS" if "STATS" in section else "MEDICAL"
                 subjects_list = st.session_state.get('DISCIPLINE_MAP', {}).get(matched_disp, {}).get(selected_class, 
                                 ["COMPUTER", "MATHEMATICS", "PHYSICS", "URDU", "ENGLISH", "ISL_ETH", "T_QURAN"])
