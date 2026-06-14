@@ -2756,7 +2756,6 @@ elif menu_choice == "🪪 Student Result Cards":
         class_options = ["11th", "12th"] if selected_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
         selected_class = st.selectbox("🏫 Select Class:", options=class_options)
     with col_sel4:
-        # Fallback parameters technique using string formatting since driver binding style is obscured
         try:
             db_exams = run_query(f"SELECT exam_code, exam_display_name FROM exam_cycles WHERE system_type = '{selected_system}' AND status = 'ACTIVE' ORDER BY exam_code ASC")
         except Exception:
@@ -2779,7 +2778,6 @@ elif menu_choice == "🪪 Student Result Cards":
     
     students_to_print = pd.DataFrame()
     active_section = ""
-    selected_discipline_tracked = "MEDICAL"
 
     if print_scope == "👤 Single Student Card":
         search_id = st.text_input("🔍 Enter Student Roll Number / ID:")
@@ -2787,7 +2785,7 @@ elif menu_choice == "🪪 Student Result Cards":
         if search_id and selected_test_code:
             clean_search_id = str(search_id).strip()
             
-            # METHOD CHANGE: Fetch whole session safely to memory first, avoiding driver parameter binding errors completely
+            # Fetch whole session safely to memory first, avoiding driver parameter binding errors completely
             all_session_students = run_query(f"SELECT id, name, section, class, discipline FROM students WHERE session = '{selected_session}'")
             
             if not all_session_students.empty:
@@ -2824,7 +2822,6 @@ elif menu_choice == "🪪 Student Result Cards":
         col_sec1, col_sec2 = st.columns(2)
         with col_sec1:
             selected_discipline = st.selectbox("🧬 Select Discipline:", options=discipline_options)
-            selected_discipline_tracked = selected_discipline
         
         with col_sec2:
             clean_disp = str(selected_discipline).strip()
@@ -2841,16 +2838,16 @@ elif menu_choice == "🪪 Student Result Cards":
             active_section = st.selectbox("📋 Select Section:", options=filtered_sections)
 
         if active_section and selected_test_code:
-            # Inline explicit parameters layout formatting bypasses driver conflicts
-            students_to_print = run_query(f"""
-                SELECT id, name, section, class FROM students 
+            # Added "discipline" here to ensure bulk profile prints can read layout tracking mappings
+            all_section_data = run_query(f"""
+                SELECT id, name, section, class, discipline FROM students 
                 WHERE session = '{selected_session}' 
                 AND class = '{selected_class}' 
                 ORDER BY id ASC
             """)
-            if not students_to_print.empty:
+            if not all_section_data.empty:
                 # Perform clean section filtering out of database engine layers
-                students_to_print = students_to_print[students_to_print['section'].astype(str).str.upper().str.strip() == str(active_section).upper().strip()]
+                students_to_print = all_section_data[all_section_data['section'].astype(str).str.upper().str.strip() == str(active_section).upper().strip()].copy()
 
     # 3. HTML RENDERING & PRINT ENGINE
     if not students_to_print.empty:
@@ -2915,7 +2912,18 @@ elif menu_choice == "🪪 Student Result Cards":
             
             lookup_class = "11th" if "11TH" in grade_class else "12th" if "12TH" in grade_class else grade_class
             
-            lookup_disp = selected_discipline_tracked
+            # Safe parsing for layout tracking variables inside both modes
+            if print_scope == "👤 Single Student Card":
+                lookup_disp = student_row['discipline']
+            else:
+                raw_disp = str(student_row['discipline']).strip().upper() if 'discipline' in student_row else ""
+                if "ICS" in raw_disp and "STAT" in raw_disp:
+                    lookup_disp = "ICS_STATS"
+                elif "ICS" in raw_disp and "PHYSIC" in raw_disp:
+                    lookup_disp = "ICS_PHYSICS"
+                else:
+                    lookup_disp = raw_disp.replace(" ", "_").replace("(", "").replace(")", "")
+            
             if lookup_disp == "ICS (PHYSICS)": lookup_disp = "ICS_PHYSICS"
             elif lookup_disp == "ICS (STATS)": lookup_disp = "ICS_STATS"
 
@@ -2989,10 +2997,11 @@ elif menu_choice == "🪪 Student Result Cards":
             student_failed_any_subject = False
             has_valid_marks_data = False
 
+            # Fixed rendering loop: Now drives directly from Master Subjects configuration array
             for sub in subjects_list:
                 sub_clean = sub.upper().strip()
                 match = raw_marks[raw_marks['subject'] == sub_clean] if not raw_marks.empty else pd.DataFrame()
-                obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "", "-", "-", "", ""
+                obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "-", 100, 40, "-", "-"
                 
                 if not match.empty:
                     try:
@@ -3021,6 +3030,10 @@ elif menu_choice == "🪪 Student Result Cards":
                                 student_failed_any_subject = True
                     except Exception: 
                         pass
+                else:
+                    # Default placeholders for expected master subjects not yet submitted to the database
+                    obt_disp, per_disp, status_disp = "-", "-", "-"
+                    grand_total_marks += 100
                 
                 compiled_html += f"""
                 <tr>
@@ -3029,19 +3042,19 @@ elif menu_choice == "🪪 Student Result Cards":
                     <td>{tot_marks_num}</td>
                     <td>{pass_marks_num}</td>
                     <td>{per_disp}</td>
-                    <td style="font-weight: bold;">{status_disp}</td>
+                    <td style="font-weight: bold; color:{'red' if status_disp == 'Fail' else 'black'};">{status_disp}</td>
                 </tr>
                 """
             
             grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else "0%"
-            grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else ""
+            grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else "-"
 
             remarks_text = "No academic metrics verified for current exam context."
             if has_valid_marks_data:
                 if student_failed_any_subject:
                     remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
                 else:
-                    grand_percentage = (grand_obtained_marks / grand_total_marks) * 100
+                    grand_percentage = (grand_obtained_marks / grand_total_marks) * 100 if grand_total_marks > 0 else 0
                     if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable term progress achievement."
                     elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
                     else: remarks_text = "Fair tracking evaluation. Clear operational margins exist for improvement."
@@ -3053,7 +3066,7 @@ elif menu_choice == "🪪 Student Result Cards":
                             <td>{int(grand_total_marks)}</td>
                             <td>-</td>
                             <td>{grand_per_disp}</td>
-                            <td>{grand_status_disp}</td>
+                            <td style="color:{'red' if grand_status_disp == 'Fail' else 'black'};">{grand_status_disp}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -3090,10 +3103,11 @@ elif menu_choice == "🪪 Student Result Cards":
                     Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 90%; font-style: italic;">{remarks_text}</span>
                 </div>
                 
-                <table class="footer-signatures-table">
+                <table class="footer-signatures-table" style="width:100%; margin-top:40px;">
                     <tr>
-                        <td style="text-align: left; width: 50%; visibility: hidden;"><span class="sig-marker-line">Class Incharge</span></td>
-                        <td style="text-align: right; width: 50%;"><span class="sig-marker-line">Principal Sign</span></td>
+                        <td style="text-align: left; width: 50%; font-weight: bold; border-top:1px solid #000; padding-top:5px; max-width:200px;">Class Incharge Signature</td>
+                        <td style="width:30%;"></td>
+                        <td style="text-align: right; width: 20%; font-weight: bold; border-top:1px solid #000; padding-top:5px; max-width:150px;">Principal</td>
                     </tr>
                 </table>
             </div>
@@ -3127,7 +3141,7 @@ elif menu_choice == "🪪 Student Result Cards":
                     for(let index = 0; index < allCards.length; index++) {
                         const currentCard = allCards[index];
                         const cardIdStr = currentCard.id || `card_${index}`;
-                        const studentNameStr = currentCard.getAttribute('data-student-name'] || "record";
+                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
                         const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
                         const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
                         archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
