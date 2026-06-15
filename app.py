@@ -2792,16 +2792,16 @@ elif menu_choice == "🪪 Student Result Cards":
                 selected_class = students_to_print.iloc[0]['class']
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            students_to_print = run_query(
-                """
-                SELECT id, name, section, class FROM students 
-                WHERE session = :session 
-                AND class = :class_val 
-                AND UPPER(TRIM(section)) = UPPER(TRIM(:sec_val))
-                ORDER BY id ASC
-                """,
-                {"session": selected_session, "class_val": selected_class, "sec_val": str(active_section).strip()}
-            )
+            # Change your SQL query to force trim both sides
+students_to_print = run_query(
+    """
+    SELECT id, name, section, class 
+    FROM students 
+    WHERE TRIM(session) = TRIM(:session) 
+    AND id = :sid
+    """,
+    {"session": selected_session.strip(), "sid": int(search_id.strip())}
+)
     # ==============================================================================
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # ==============================================================================
