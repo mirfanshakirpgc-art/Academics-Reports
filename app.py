@@ -1,3 +1,17 @@
+# ====================================================================================
+# TOP-OF-FILE TEMPORARY DIAGNOSTIC BLOCK
+# ====================================================================================
+try:
+    # This runs a quick connectivity check to make sure your engine is talking to the DB
+    with engine.connect() as test_conn:
+        test_conn.execute(text("SELECT 1"))
+except Exception as db_err:
+    import streamlit as st
+    st.error("🎯 SQL Diagnostic Engine Catch (Top of File):")
+    st.code(f"Raw Database Connection Error: {str(db_err)}")
+    st.info("💡 Recommendation: Check if your engine variable name matches, or if your database server is active.")
+    st.stop() # Safely halts execution right at the start if the connection is down
+# ====================================================================================
 # --- LINE 1: ALL IMPORTS MUST BE HERE ---
 import streamlit as st
 import pandas as pd
