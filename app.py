@@ -2793,15 +2793,15 @@ elif menu_choice == "🪪 Student Result Cards":
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
             # Change your SQL query to force trim both sides
-students_to_print = run_query(
-    """
-    SELECT id, name, section, class 
-    FROM students 
-    WHERE TRIM(session) = TRIM(:session) 
-    AND id = :sid
-    """,
-    {"session": selected_session.strip(), "sid": int(search_id.strip())}
-)
+            students_to_print = run_query(
+            """
+            SELECT id, name, section, class 
+            FROM students 
+            WHERE TRIM(session) = TRIM(:session) 
+            AND id = :sid
+            """,
+            {"session": selected_session.strip(), "sid": int(search_id.strip())}
+            )
     # ==============================================================================
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # ==============================================================================
