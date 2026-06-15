@@ -23,7 +23,7 @@ def get_db_engine():
 
 engine = get_db_engine()
 
-# --- DATABASE COMMAND UTILITIES (Moved up so helpers can use them) ---
+# --- DATABASE COMMAND UTILITIES ---
 def run_query(query, params=None):
     if params is None:
         params = {}
@@ -89,7 +89,6 @@ def apply_filters(df, tab_key):
 
 @st.cache_data(ttl=600)
 def fetch_analytics_data():
-    # FIXED: Added s.discipline explicitly to the SELECT target string array
     query = """
         SELECT s.id, s.name, s.section, s.class, s.session, s.discipline,
                m.subject, m.marks_obtained, m.total_marks, m.exam_type
@@ -120,17 +119,15 @@ if "user_role" not in st.session_state:
 if "assigned_subject" not in st.session_state:
     st.session_state.assigned_subject = None
 
-# 🚀 --- SYSTEM SETTINGS: GLOBAL ACADEMIC SESSION TRACKING ---
+# --- SYSTEM SETTINGS: GLOBAL ACADEMIC SESSION TRACKING ---
 if "current_session" not in st.session_state:
-    st.session_state["current_session"] = "2026-28"  # Default system active session
+    st.session_state["current_session"] = "2026-28"
 
 if "available_sessions" not in st.session_state:
     st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
-
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
-    # FIXED: Added dynamic fallback validation logic for base64 image streams
     if logo_base64:
         st.image(logo_base64, width=120) 
     else:
@@ -272,52 +269,6 @@ try:
     initialize_database()
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
-
-# ==============================================================================
-# --- DATABASE COMMAND UTILITIES ---
-# ==============================================================================
-def run_query(query, params=None):
-    if params is None:
-        params = {}
-    
-    clean_query = query.replace("[Session Name]", '"Session Name"')
-    
-    try:
-        with engine.connect() as conn:
-            return pd.read_sql_query(text(clean_query), conn, params=params)
-    except Exception as original_error:
-        try:
-            with engine.begin() as txn_conn:
-                try:
-                    txn_conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS academic_sessions (
-                            id SERIAL PRIMARY KEY,
-                            session_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                except Exception:
-                    pass
-
-                for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
-                    try:
-                        txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
-                    except Exception:
-                        pass 
-
-            with engine.connect() as retry_conn:
-                return pd.read_sql_query(text(clean_query), retry_conn, params=params)
-        except Exception:
-            raise original_error
-
-def execute_db_command(query, params=None):
-    if params is None:
-        params = {}
-    try:
-        with engine.begin() as conn:
-            conn.execute(text(query), params)
-    except Exception as e:
-        raise RuntimeError(f"Database write execution failed: {str(e)}")
 
 # ==============================================================================
 # SIDEBAR NAVIGATION MODULE 
