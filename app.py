@@ -2779,12 +2779,17 @@ elif menu_choice == "🪪 Student Result Cards":
     students_to_print = pd.DataFrame()
 
     if submit_execution:
-        if print_scope == "👤 Single Student Card" and search_id:
-            # Drop the restrictive class/section checks for single profile fetches
-            students_to_print = run_query(
-                "SELECT id, name, section, class FROM students WHERE session = :session AND id = :sid",
-                {"session": selected_session, "sid": search_id.strip()}
-            )
+    # 1. Print current filter context
+    st.write(f"Searching for ID: {search_id} | Session: {selected_session}")
+    
+    # 2. Execute the fetch
+    students_to_print = run_query(...) 
+    
+    # 3. Add a fallback check
+    if students_to_print.empty:
+        # Check the database for any entries for this ID regardless of filters
+        total_check = run_query("SELECT session, class FROM students WHERE id = :id", {"id": search_id})
+        st.write("Database shows student exists in these sessions:", total_check)
             
             # Auto-override active workspace context parameters if record is found
             if not students_to_print.empty:
