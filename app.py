@@ -233,6 +233,12 @@ def run_query(query, params=None):
         with engine.connect() as conn:
             return pd.read_sql_query(text(clean_query), conn, params=params)
     except Exception as original_error:
+        try:
+            # Fallback block configuration to capture and retry queries safely
+            with engine.begin() as conn:
+                return pd.read_sql_query(text(clean_query), conn, params=params)
+        except Exception:
+            raise original_error
 
 def execute_db_command(query, params=None):
     if params is None:
