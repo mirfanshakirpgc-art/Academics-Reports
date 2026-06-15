@@ -367,16 +367,13 @@ AVAILABLE_EXAMS = [
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
-# ----------------- 📊 HOME DASHBOARD -----------------
 # ==============================================================================
-# ROUTING CONTROLLER & VIEWPORTS
+# ROUTING CONTROLLER & VIEWPORTS (REPLACE YOUR ENTIRE ROUTER WITH THIS)
 # ==============================================================================
 
 if menu_choice == "📊 Home Dashboard":
     st.title("Concordia College Kasur")
     st.subheader("🏛️ Institutional Dashboard Overview")
-    
-    # These metrics will NOW ONLY show up when the user clicks 'Home Dashboard'
     try:
         s_count = run_query("SELECT COUNT(*) FROM students WHERE status='ACTIVE'").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
@@ -386,22 +383,51 @@ if menu_choice == "📊 Home Dashboard":
     c1, c2 = st.columns(2)
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
-    
-    # You can add dashboard charts/analytics components here safely!
+    # <-- Paste any main dashboard charts or analytics components right here!
 
-elif menu_choice == "🪪 Student Result Cards":
-    # Everything inside here is isolated strictly to the Result Cards view
-    st.title("🪪 Student Result Cards — Print Engine")
-    
-    # Your result card generation controls and code logic go here...
-    # (e.g., st.selectbox for Session, Class, Test Term, etc.)
+elif menu_choice == "➕ Add Students":
+    st.title("➕ Student Registration Portal")
+    # <-- Paste your entire single/bulk student addition UI and database insertion code here!
 
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
-    # Marks entry logic goes here...
+    # <-- Paste your selectboxes for exam entry and your st.data_editor grid code here! (Make sure to remove the extra whitespace bug if it's here!)
 
-# Add similar elif blocks for your remaining menu options...
+elif menu_choice == "📅 Attendance Entry Management":
+    st.title("📅 Attendance Entry Management")
+    # <-- Paste your monthly attendance marking sheet code here!
 
+elif menu_choice == "📋 Daily Attendance Report":
+    st.title("📋 Daily Attendance Report")
+    # <-- Paste your daily attendance view codes here!
+
+elif menu_choice == "📋 Section Summary Report":
+    st.title("📋 Section Summary Report")
+    # <-- Paste your section breakdown summary logic here!
+
+elif menu_choice == "📈 Multi-Test Progress Report":
+    st.title("📈 Multi-Test Progress Report")
+    # <-- Paste your multi-test student progress charts code here!
+
+elif menu_choice == "🪪 Student Result Cards":
+    st.title("🪪 Student Result Cards — Print Engine")
+    # <-- Paste your session dropdowns, single/complete section radio buttons, and PDF generation loops here!
+
+elif menu_choice == "👨‍🏫 Teacher Management":
+    st.title("👨‍🏫 Teacher Management & Allocations")
+    # <-- Paste your teacher profiles and subject routing allocations code here!
+
+elif menu_choice == "📈 Academic Analysis Reports":
+    st.title("📈 Academic Analysis Reports")
+    # <-- Paste your advanced visual failure/pass ratio charts here!
+
+elif menu_choice == "👥 Student Operations Management":
+    st.title("👥 Student Operations Management")
+    # <-- Paste your student status (Active/Withdrawn) editing tools here!
+
+elif menu_choice == "⚙️ Settings":
+    st.title("⚙️ System Control & Management Settings")
+    # <-- Paste your encryption/hash utilities and new user registration fields here!
 # ==============================================================================
 # ➕ DYNAMIC STUDENT PROFILE REGISTRATION PORTAL
 # ==============================================================================
