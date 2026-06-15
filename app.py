@@ -1,12 +1,3 @@
-Pasting your complete script makes troubleshooting much easier.
-
-The primary structural reason your errors are lingering is that **the script hits a hard cliff on line 421 and completely stops**. Notice how your last `try/except` block under `#### 🏢 Section-Based Batch Promotion` is broken off in mid-air with a lonely `except Exception:` and nothing underneath it?
-
-Because Python runs into an unexpected EOF (End of File) parsing error inside an unclosed block, **none of your other tabs (like Student Result Cards, Attendance, or Marks Entry) are rendering.**
-
-Let's clean this up entirely. Here is your complete, fully repaired, and structured code. All loose blocks have been safely closed, and placeholders have been neatly integrated so you have a solid, working app container.
-
-```python
 # --- LINE 1: ALL IMPORTS MUST BE HERE ---
 import streamlit as st
 import pandas as pd
@@ -347,10 +338,6 @@ AVAILABLE_EXAMS = [
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
-# ==============================================================================
-# ROUTING CONTROLLER & VIEWPORTS
-# ==============================================================================
-
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
     st.title("Concordia College Kasur")
@@ -642,8 +629,16 @@ elif menu_choice == "➕ Add Students":
                         st.error(f"Error executing operation: {e}")
 
         with right_branch_col:
+            st.markdown("#### 👥 Bulk Actions / Section Promotion")
+            st.info("Your remaining functional block modules connect from here.")
+
+        # ====================================================================================
+        # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
+        # ====================================================================================
+        with right_branch_col:
             st.markdown("#### 🏢 Section-Based Batch Promotion")
             
+            # Query sections conditionally based on the global top-tier controls
             try:
                 with engine.connect() as connection:
                     sec_query = text("""
@@ -651,71 +646,67 @@ elif menu_choice == "➕ Add Students":
                         WHERE session = :sess AND system_type = :syst AND status = 'ACTIVE'
                     """)
                     available_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
+            except Exception:
+                available_sections = []
                 
-                if available_sections:
-                    st.success(f"Discovered active section groups: {', '.join(available_sections)}")
-                else:
-                    st.info("No active student sections match your parameters.")
-            except Exception as batch_err:
-                st.error(f"Could not load batch sections: {batch_err}")
+            if not available_sections:
+                st.info(f"ℹ️ No batch segments found matching: {global_session} | Track: {clean_global_system}")
+            else:
+                source_section = st.selectbox("📁 Select Source Section to Process:", available_sections)
+                
+                try:
+                    with engine.connect() as connection:
+                        count_res = connection.execute(text("""
+                            SELECT COUNT(*) FROM students 
+                            WHERE session = :sess AND system_type = :syst AND section = :sec AND status = 'ACTIVE'
+                        """), {"sess": global_session, "syst": clean_global_system, "sec": source_section}).fetchone()
+                        batch_count = count_res[0] if count_res else 0
+                except Exception:
+                    batch_count = 0
+                    
+                st.metric(label="👥 Active Group Size Selected:", value=f"{batch_count} Students")
+                
+                if batch_count > 0:
+                    st.markdown("##### 🚀 Promoted Destination Targets")
+                    
+                    target_classes_list = [str(i) for i in range(1, 13)] + ["Graduated"]
+                    
+                    col_p1, col_p2 = st.columns(2)
+                    with col_p1:
+                        promo_target_class = st.selectbox("🎓 Promoted To Class:", target_classes_list, index=11)  # Default index points directly to class 12th
+                    with col_p2:
+                        try:
+                            with engine.connect() as conn:
+                                target_sections_list = [r[0] for r in conn.execute(text("SELECT section_name FROM system_sections")).fetchall()]
+                        except Exception:
+                            target_sections_list = ["A", "B", "C"]
+                        promo_target_section = st.selectbox("📐 Target Section Placement:", target_sections_list)
+                        
+                    if st.button("🚀 Process Batch Promotion Sequence", type="primary", use_container_width=True):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET class = :target_class, section = :target_section
+                                    WHERE session = :sess AND system_type = :syst AND section = :src_sec AND status = 'ACTIVE'
+                                """), {
+                                    "target_class": promo_target_class,
+                                    "target_section": promo_target_section,
+                                    "sess": global_session,
+                                    "syst": clean_global_system,
+                                    "src_sec": source_section
+                                })
+                            st.success(f"🎉 Success! Promoted {batch_count} students to Class {promo_target_class} - {promo_target_section}!")
+                            st.balloons()
+                            st.rerun()
+                        except Exception as promo_err:
+                            st.error(f"Batch execution exception: {promo_err}")
 
-# ----------------- 📝 ACADEMIC EXAM MARKS ENTRY -----------------
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry Workspace")
-    st.info("Marks management submodules go here.")
-
-# ----------------- 📅 ATTENDANCE ENTRY MANAGEMENT -----------------
-elif menu_choice == "📅 Attendance Entry Management":
-    st.title("📅 Attendance Entry Management")
-    st.info("Attendance entry grids go here.")
-
-# ----------------- 📋 DAILY ATTENDANCE REPORT -----------------
-elif menu_choice == "📋 Daily Attendance Report":
-    st.title("📋 Daily Attendance Report")
-
-# ----------------- 📋 SECTION SUMMARY REPORT -----------------
-elif menu_choice == "📋 Section Summary Report":
-    st.title("📋 Section Summary Report")
-
-# ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
-elif menu_choice == "📈 Multi-Test Progress Report":
-    st.title("📈 Multi-Test Progress Report")
-
-# ----------------- 🪪 STUDENT RESULT CARDS -----------------
-elif menu_choice == "🪪 Student Result Cards":
-    st.title("🪪 Student Result Cards Engine")
-    st.info("Result card print controller goes here.")
-
-# ----------------- 👨‍🏫 TEACHER MANAGEMENT -----------------
-elif menu_choice == "👨‍🏫 Teacher Management":
-    st.title("👨‍🏫 Teacher Management")
-
-# ----------------- 📈 ACADEMIC ANALYSIS REPORTS -----------------
-elif menu_choice == "📈 Academic Analysis Reports":
-    st.title("📈 Academic Analysis Reports")
-
-# ----------------- 👥 STUDENT OPERATIONS MANAGEMENT -----------------
-elif menu_choice == "👥 Student Operations Management":
-    st.title("👥 Student Operations Management")
-
-# ----------------- ⚙️ SETTINGS -----------------
-elif menu_choice == "⚙️ Settings":
-    st.title("⚙️ System Configuration Settings")
-
-# ==============================================================================
-# --- SYSTEM FOOTER METRICS AND SECURITY HOOKS ---
-# ==============================================================================
-st.markdown("<br><hr>", unsafe_allow_html=True)
-st.caption(f"🔒 Logged in safely as: **{st.session_state.get('user_role', 'Admission Office')}** | Institutional Context Boundary")
-
-```
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-# --- Change line 762 to match your sidebar list strings exactly ---
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
-    # ... rest of your workspace code
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
@@ -1185,258 +1176,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         st.success(f"🎉 Performance matrix for Roll Number {single_id} saved successfully!")
                         time.sleep(1.2)
                         st.rerun()
+        # This belongs inside the 'Single Entry' block (indented 8 spaces)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ====================================================================================
-    # WORKFLOW MODE C: BULK EXCEL/CSV IMPORT PORTAL
-    # ====================================================================================
-    elif entry_mode == "📤 Bulk Excel/CSV Import":
-        st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
-        st.subheader("📤 High-Throughput Bulk Data Engineering Engine")
-        st.markdown(
-            "Upload structural CSV or XLSX frameworks containing section grade arrays. "
-            "The parsing parser maps rows directly to database ledger structures based on student identifiers."
-        )
-        
-        # --- SUB-LAYOUT BOUNDARIES ---
-        bi1, bi2, bi3, bi4 = st.columns(4)
-        with bi1: bulk_sess = st.selectbox("Bulk Processing Session:", session_options, key="bulk_import_session")
-        with bi2: bulk_exam = st.selectbox("Bulk Destination Exam Cycle:", all_frameworks, index=1, key="bulk_import_exam")
-        with bi3: bulk_sub = st.text_input("Explicit Subject Target Identifier:", value="ENGLISH", key="bulk_import_subject_id").strip().upper()
-        with bi4: bulk_total = st.number_input("Bulk Scale Matrix Max-Value (Total):", min_value=1, max_value=2000, value=100, key="bulk_import_total")
-        
-        st.markdown("---")
-        
-        # --- REFERENCE TEMPLATE SYSTEM ---
-        with st.expander("📋 View Expected Spreadsheet Scheme Matrix & Guidelines"):
-            st.markdown("""
-                Ensure your tabular dataset coordinates strictly contain these header labels (case-agnostic):
-                * **`ROLL_NUMBER`** or **`STUDENT_ID`** *(Must match structural data integers)*
-                * **`MARKS_OBTAINED`** or **`SCORE`** *(Valid entries: Positive numbers, `A`, `ABSENT`, or `NC`)*
-                
-                *Example Layout Grid:*
-                | ROLL_NUMBER | SCORE |
-                | :--- | :--- |
-                | 10021 | 84 |
-                | 10022 | A |
-                | 10023 | 92.5 |
-                | 10024 | NC |
-            """)
-            
-        raw_file = st.file_uploader("📥 Select Matrix Source Ledger File (CSV or Excel Format)", type=["csv", "xlsx", "xls"], key="bulk_file_uploader_stream")
-        
-        if raw_file is not None:
-            try:
-                # --- EXTENSION CONTROLLER PARSER ---
-                if raw_file.name.endswith('.csv'):
-                    parsed_df = pd.read_csv(raw_file)
-                else:
-                    parsed_df = pd.read_excel(raw_file)
-                    
-                # Normalize text layout properties to map system coordinates cleanly
-                parsed_df.columns = [str(col).strip().upper() for col in parsed_df.columns]
-                
-                # --- AUTO MAP ENGINES ---
-                id_col = None
-                for target_id in ["ROLL_NUMBER", "ROLL_NO", "STUDENT_ID", "ID", "ROLLNUMBER"]:
-                    if target_id in parsed_df.columns:
-                        id_col = target_id
-                        break
-                        
-                score_col = None
-                for target_score in ["MARKS_OBTAINED", "MARKS", "SCORE", "OBTAINED_MARKS", "OBTAINED"]:
-                    if target_score in parsed_df.columns:
-                        score_col = target_score
-                        break
-                
-                if not id_col or not score_col:
-                    st.error(f"❌ Structural Layout Mismatch. Could not extract structural vectors. Detected Headers: `{list(parsed_df.columns)}`")
-                else:
-                    st.success(f"🎯 Array Mapped Successfully! Coordinate Mapping Sequence: `ID Vector` ➡️ **{id_col}** | `Value Matrix` ➡️ **{score_col}**")
-                    
-                    # Clean arrays inside preview
-                    preview_df = parsed_df[[id_col, score_col]].copy()
-                    preview_df.dropna(subset=[id_col], inplace=True)
-                    
-                    st.markdown(f"##### 📊 Extracted Records Stream Preview (Showing first {min(5, len(preview_df))} rows)")
-                    st.dataframe(preview_df.head(5), use_container_width=True)
-                    
-                    # --- EXECUTION FORM FOR COMMIT CONTROLS ---
-                    with st.form(key="bulk_commit_database_transaction_form"):
-                        st.warning(f"⚠️ Warning: Committing this file overwrite existing scores for **{bulk_exam}** — **{bulk_sub}** across the parsed roll numbers!")
-                        
-                        if st.form_submit_button("🚀 Execute Massive Import & Overwrite Matrix", type="primary", use_container_width=True):
-                            progress_bar = st.progress(0)
-                            status_msg = st.empty()
-                            
-                            success_counter = 0
-                            failure_counter = 0
-                            total_rows = len(preview_df)
-                            
-                            # Standardize parameters ahead of iteration loops
-                            final_exam_slug = str(bulk_exam).strip().upper()
-                            final_sub_slug = str(bulk_sub).strip().upper().replace(" ", "_")
-                            
-                            for idx, row in preview_df.iterrows():
-                                try:
-                                    # Parse current record items
-                                    raw_id = str(row[id_col]).split('.')[0].strip() # Clean float cast conversions
-                                    if not raw_id.isdigit():
-                                        failure_counter += 1
-                                        continue
-                                        
-                                    parsed_student_id = int(raw_id)
-                                    
-                                    raw_score = str(row[score_col]).strip().upper()
-                                    if raw_score in ["A", "ABSENT", "ABS"]:
-                                        final_score_val = "A"
-                                    elif raw_score in ["NC", "NOT_COMPLETED", "N_C"]:
-                                        final_score_val = "NC"
-                                    elif raw_score == "" or raw_score == "NAN" or raw_score == "NONE":
-                                        final_score_val = ""
-                                    else:
-                                        # Verify numeric scale configurations logic handles text types gracefully
-                                        float_val = float(raw_score)
-                                        # Standardize integer visualization structures for display integrity
-                                        final_score_val = str(int(float_val)) if float_val.is_integer() else str(float_val)
-                                    
-                                    # Perform Atomic Engine Operations
-                                    execute_db_command(
-                                        "DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam",
-                                        {"s_id": parsed_student_id, "sub": final_sub_slug, "exam": final_exam_slug}
-                                    )
-                                    
-                                    if final_score_val != "":
-                                        execute_db_command(
-                                            "INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :sub, :exam, :score, :total)",
-                                            {
-                                                "s_id": parsed_student_id, 
-                                                "sub": final_sub_slug, 
-                                                "exam": final_exam_slug, 
-                                                "score": final_score_val, 
-                                                "total": float(bulk_total)
-                                            }
-                                        )
-                                    success_counter += 1
-                                except Exception:
-                                    failure_counter += 1
-                                    
-                                # Smooth UI progress calculation frame limits
-                                ratio = (idx + 1) / total_rows
-                                progress_bar.progress(min(1.0, ratio))
-                            
-                            status_msg.empty()
-                            st.success(f"🏁 Transaction Layer Finalized! Processed Matrix Summary: **{success_counter} Records Committed** successfully, **{failure_counter} Rejected/Skipped** lines.")
-                            import time
-                            time.sleep(1.5)
-                            st.rerun()
-                            
-            except Exception as outer_err:
-                st.error(f"❌ Critical Internal Parsing Engine Exception Encountered: {outer_err}")
-                
-        st.markdown('</div>', unsafe_allow_html=True)
-        # ====================================================================================
-    # WORKFLOW MODE D: PERFORMANCE ANALYTICS & REPORTING SYSTEM
-    # ====================================================================================
-    elif entry_mode == "📊 Analytics & Insights":
-        st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
-        st.subheader("📊 Institutional Performance Analytics & Ledger")
-        st.markdown(
-            "Synthesize raw grade records into actionable metrics. This engine computes distribution metrics "
-            "and generates summary charts for review pipelines."
-        )
-
-        # --- SELECTION FILTERS FOR ANALYTICS ---
-        an1, an2 = st.columns(2)
-        with an1: report_exam = st.selectbox("Select Target Exam Cycle:", all_frameworks, key="analytics_exam_select")
-        with an2: 
-            # Fetch available subjects dynamically to prevent empty frames
-            raw_subjects = run_query("SELECT DISTINCT subject FROM marks")
-            available_subjects = [row[0] for row in raw_subjects] if raw_subjects else ["ENGLISH", "MATHEMATICS", "SCIENCE"]
-            report_sub = st.selectbox("Select Target Subject Framework:", available_subjects, key="analytics_subject_select")
-
-        st.markdown("---")
-
-        # --- DATA ENGINE EXTRACTION ---
-        analytics_query = """
-            SELECT m.student_id, s.name, m.marks_obtained, m.total_marks 
-            FROM marks m
-            JOIN students s ON m.student_id = s.roll_number
-            WHERE UPPER(TRIM(m.exam_type)) = :exam AND UPPER(TRIM(m.subject)) = :sub
-        """
-        raw_data = run_query(analytics_query, {"exam": str(report_exam).strip().upper(), "sub": str(report_sub).strip().upper()})
-
-        if not raw_data:
-            st.info(f"💡 No evaluation metrics found in the ledger database for **{report_exam}** — **{report_sub}**.")
-        else:
-            # Transform to DataFrame for matrix calculations
-            df_metrics = pd.DataFrame(raw_data, columns=["Roll Number", "Student Name", "Score String", "Total Scale"])
-            
-            # Extract numeric grades while separating exceptions ('A', 'NC')
-            numeric_scores = []
-            absent_count = 0
-            nc_count = 0
-            
-            for score in df_metrics["Score String"]:
-                if score == "A": absent_count += 1
-                elif score == "NC": nc_count += 1
-                else:
-                    try: numeric_scores.append(float(score))
-                    except ValueError: pass
-
-            total_records = len(df_metrics)
-            active_participants = len(numeric_scores)
-
-            # --- METRICS BRIEFING TILES ---
-            m1, m2, m3, m4 = st.columns(4)
-            with m1: st.metric("Total Enrolled Evaluated", f"{total_records} Students")
-            
-            if active_participants > 0:
-                max_possible = float(df_metrics["Total Scale"].iloc[0])
-                avg_calculated = sum(numeric_scores) / active_participants
-                pct_yield = (avg_calculated / max_possible) * 100 if max_possible > 0 else 0
-                
-                with m2: st.metric("Mean Class Grade", f"{avg_calculated:.2f} / {max_possible:.0f}")
-                with m3: st.metric("Highest Logged Mark", f"{max(numeric_scores):.1f}")
-                with m4: st.metric("Performance Performance Yield", f"{pct_yield:.1f}%")
-            else:
-                with m2: st.metric("Mean Class Grade", "N/A")
-                with m3: st.metric("Highest Logged Mark", "N/A")
-                with m4: st.metric("Performance Performance Yield", "N/A")
-
-            # --- EXCEPTION METRICS NOTICE ---
-            if absent_count > 0 or nc_count > 0:
-                st.caption(f"🚨 **Exception Registry Matrix Logs:** Detected **{absent_count}** Absent (A) entries and **{nc_count}** Non-Complete (NC) evaluations.")
-
-            st.markdown("### 📋 Gradebook Ledger & Distribution View")
-            
-            # --- SPLIT SCREEN PLOTS ---
-            plot_col, table_col = st.columns([1, 1])
-            
-            with plot_col:
-                st.markdown("##### 📈 Distribution Vector Chart")
-                if active_participants > 0:
-                    # Construct a clear bucket histogram using pandas and stream native charts
-                    chart_df = pd.DataFrame({"Scores": numeric_scores})
-                    st.bar_chart(chart_df["Scores"].value_counts().sort_index())
-                else:
-                    st.info("Insufficient data matrices to compute variance histogram curves.")
-
-            with table_col:
-                st.markdown("##### 🔍 Record Sheet Data Frame")
-                st.dataframe(df_metrics, use_container_width=True, hide_index=True)
-                
-                # --- EXPORT INTERFACES ---
-                csv_buffer = df_metrics.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Export Filtered Sheet to CSV",
-                    data=csv_buffer,
-                    file_name=f"Report_{report_exam}_{report_sub}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-
-        st.markdown('</div>', unsafe_allow_html=True)
+    elif entry_mode == "📊 Bulk Excel/CSV Import":
+        st.subheader("📊 Bulk Marks Import Portal")
+        # Your bulk import code continues here...
 # ==============================================================================
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
@@ -3035,13 +2780,11 @@ elif menu_choice == "🪪 Student Result Cards":
  # ==============================================================================
 # PART 4: COMPILATION LOOP & RENDERING ENGINE
 # ==============================================================================
+# Safely check if either form submission variable exists and is True
 is_single_clicked = locals().get('submit_single', False)
 is_bulk_clicked = locals().get('submit_bulk', False)
 
-# FIX: Add a strict module check so this ONLY runs when "Multi-Test Progress Report" is selected
-is_multi_test_module = locals().get('v_menu') == "Multi-Test Progress Report" or locals().get('choose_module') == "Multi-Test Progress Report"
-
-if (is_single_clicked or is_bulk_clicked) and is_multi_test_module and 'students_to_process' in locals() and students_to_process:
+if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() and students_to_process:
 
     # --------------------------------------------------------------------------
     # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
@@ -4059,21 +3802,19 @@ elif menu_choice == "👥 Student Operations Management":
                     st.success(f"🎉 Success! Whole section advanced to **{inferred_next_term} ({target_dest_section})**.")
                     st.rerun()
         
-  # ==============================================================================
+   # ==============================================================================
 # ROUTER INTEGRATION: ⚙️ ADMINISTRATIVE SYSTEM SETTINGS
 # ==============================================================================
 elif menu_choice == "⚙️ Settings":
     st.title("⚙️ Global Academic & Core Settings")
     st.markdown("Centralized administrative control console to manage institutional profiles, calendars, and evaluation tracks.")
     
-    # 🛡️ SYSTEM INTEGRATION: Initialize layout tabs to isolate permissions grid
-    tab1, tab2 = st.tabs(["📋 General Configurations", "🛡️ Master Access Control"])
+    # Safely acquire access credentials
+    current_user = st.session_state.get('username', 'admin')
+    current_role = st.session_state.get('role', 'controller') 
     
-    with tab1:
-        current_user = st.session_state.get('username', 'admin')
-        current_role = st.session_state.get('role', 'admin')
-        
-        # Enforce role-based structural routing arrays
+    # Enforce role-based structural routing arrays (Appended new modules)
+    if current_role == 'controller':
         settings_options = [
             "📝 Faculty Registration", 
             "📅 Sessions & Terms", 
@@ -4082,36 +3823,183 @@ elif menu_choice == "⚙️ Settings":
             "🧬 Add Disciplines",
             "📚 Add Subject Mapping"
         ]
+    else:
+        settings_options = [
+            "📝 Faculty Registration", 
+            "📅 Sessions & Terms", 
+            "🗂️ Section Master", 
+            "📑 Test & Exam Frameworks",
+            "🧬 Add Disciplines",
+            "📚 Add Subject Mapping"
+        ]
+        
+    sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
+
+    # ==============================================================================
+    # SUB-TAB HANDLING ENGINE (ROUTER LINKS)
+    # ==============================================================================
+    if sub_menu == "📅 Sessions & Terms":
+        st.subheader("🗓️ Global Academic Session Management")
+        st.info("Changing the active session here will instantly update the default values across all registration forms and reporting ledgers.")
+
+        available_options = st.session_state["available_sessions"]
+        current_active = st.session_state["current_session"]
+        
+        default_index = available_options.index(current_active) if current_active in available_options else 0
+
+        chosen_session = st.selectbox(
+            "Set Global Active Session Track:",
+            options=available_options,
+            index=default_index,
+            key="global_settings_session_selector"
+        )
+        
+        if st.button("💾 Apply Configuration Changes", type="primary"):
+            st.session_state["current_session"] = chosen_session
+            st.success(f"🚀 System configuration updated! Active session is now set to **{chosen_session}**.")
+            st.rerun()
+
+    elif sub_menu == "📝 Faculty Registration":
+        pass 
+        
+    elif sub_menu == "🗂️ Section Master":
+        pass 
+        
+    elif sub_menu == "📑 Test & Exam Frameworks":
+        pass
+
+    elif sub_menu == "🧬 Add Disciplines":
+        pass
+
+    elif sub_menu == "📚 Add Subject Mapping":
+        pass
+
+    # ==============================================================================
+    # SUB-MODULE 1: FACULTY REGISTRATION TRACK
+    # ==============================================================================
+    if sub_menu == "📝 Faculty Registration":
+        st.write("### ➕ Register New Faculty Member")
+
+        with st.form("teacher_reg_form", clear_on_submit=True):
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                new_teacher_id = st.number_input("Teacher ID Number (Numeric Only):", min_value=1, step=1, value=None, placeholder="e.g. 101")
+                new_teacher_name = st.text_input("Teacher Full Name:", placeholder="e.g. Prof. Muhammad Ali").strip()
+            with col_f2:
+                new_teacher_phone = st.text_input("Contact Number:", placeholder="e.g. +923001234567").strip()
+                new_teacher_email = st.text_input("Email Address:", placeholder="e.g. ali@institution.edu").strip()
+                
+            submit_faculty = st.form_submit_button("💾 Register Faculty Member", type="primary")
             
-        sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
+            if submit_faculty:
+                if not new_teacher_id or not new_teacher_name:
+                    st.error("❌ Both 'Teacher ID Number' and 'Teacher Full Name' are mandatory entries.")
+                else:
+                    try:
+                        check_id = run_query("SELECT teacher_id FROM system_teachers WHERE teacher_id = :code", {"code": int(new_teacher_id)})
+                        if not check_id.empty:
+                            st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
+                        else:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status)
+                                    VALUES (:code, :name, :phone, :email, 'ACTIVE')
+                                """), {
+                                    "code": int(new_teacher_id),
+                                    "name": new_teacher_name,
+                                    "phone": new_teacher_phone,
+                                    "email": new_teacher_email
+                                })
+                            st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
+                            st.rerun()
+                    except Exception as err:
+                        st.error(f"❌ Failed to write record to the database: {err}")
 
-        # ==============================================================================
-        # MODULE 1: SESSIONS & TERMS TRACK
-        # ==============================================================================
-        if sub_menu == "📅 Sessions & Terms":
-            st.subheader("🗓️ Global Academic Session Management")
-            st.info("Changing the active session here will instantly update the default values across all registration forms and reporting ledgers.")
+        st.markdown("---")
+        st.write("#### Registered Institutional Faculty")
+        
+        current_faculty = pd.DataFrame()
+        try:
+            current_faculty = run_query('SELECT teacher_id as "Teacher ID", teacher_name as "Teacher Name", phone_number as "Phone Number", email_address as "Email", status as "Status" FROM system_teachers ORDER BY teacher_name ASC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read faculty profiles from database: {e}")
+            
+        if not current_faculty.empty:
+            st.dataframe(current_faculty, use_container_width=True, hide_index=True)
+            
+            st.markdown("### 🛠️ Manage Existing Faculty Members")
+            faculty_list = [f"{row['Teacher ID']} - {row['Teacher Name']}" for _, row in current_faculty.iterrows()]
+            selected_fac_str = st.selectbox("Select a Teacher Profile to Modify or Remove:", faculty_list, key="manage_fac_select")
+            
+            if selected_fac_str:
+                selected_fac_id = int(selected_fac_str.split(" - ")[0])
+                target_fac_row = current_faculty[current_faculty['Teacher ID'] == selected_fac_id].iloc[0]
+                
+                with st.form("edit_faculty_form"):
+                    updated_fac_id = st.number_input("Modify Teacher ID Number:", min_value=1, step=1, value=int(target_fac_row['Teacher ID']))
+                    updated_fac_name = st.text_input("Change Teacher Full Name:", value=str(target_fac_row['Teacher Name'])).strip()
+                    updated_fac_phone = st.text_input("Update Contact Number:", value=str(target_fac_row['Phone Number'])).strip()
+                    updated_fac_email = st.text_input("Update Email Address:", value=str(target_fac_row['Email'])).strip()
+                    updated_fac_status = st.selectbox("Change Employment Status:", ["ACTIVE", "INACTIVE"], index=0 if target_fac_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_fu, col_fd = st.columns(2)
+                    with col_fu:
+                        save_fac = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                    with col_fd:
+                        confirm_fac_del = st.checkbox("⚠️ Confirm complete deletion", key="del_fac_chk")
+                        delete_fac = st.form_submit_button("🗑️ Delete Profile Permanently", type="secondary", use_container_width=True)
+                        
+                if save_fac:
+                    if not updated_fac_id or not updated_fac_name:
+                        st.error("❌ Teacher ID and Teacher Name cannot be left blank.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE system_teachers 
+                                    SET teacher_id = :new_id, teacher_name = :name, phone_number = :phone, email_address = :email, status = :status 
+                                    WHERE teacher_id = :old_id
+                                """), {
+                                    "new_id": int(updated_fac_id),
+                                    "name": updated_fac_name, 
+                                    "phone": updated_fac_phone, 
+                                    "email": updated_fac_email, 
+                                    "status": updated_fac_status, 
+                                    "old_id": selected_fac_id
+                                })
+                            st.success(f"🎉 Successfully updated profile details for {updated_fac_name}!")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Modification failed. The ID might conflict with another teacher's record: {err}")
+                        
+                if delete_fac:
+                    if not confirm_fac_del:
+                        st.error("Please check the confirmation box to authorize permanent deletion.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM system_teachers WHERE teacher_id = :id"), {"id": selected_fac_id})
+                            st.success("Faculty profile completely removed from system records.")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Cannot delete this teacher because they are currently assigned to active course allocations: {err}")
+        else:
+            st.info("No faculty profiles are currently registered.")
 
-            available_options = st.session_state.get("available_sessions", ["2025-26", "2026-27"])
-            current_active = st.session_state.get("current_session", "2025-26")
-            default_index = available_options.index(current_active) if current_active in available_options else 0
-
-            chosen_session = st.selectbox("Set Global Active Session Track:", options=available_options, index=default_index, key="global_settings_session_selector")
-            if st.button("💾 Apply Configuration Changes", type="primary"):
-                st.session_state["current_session"] = chosen_session
-                st.success(f"🚀 System configuration updated! Active session is now set to **{chosen_session}**.")
-                import time
-                time.sleep(1.5)
-                st.rerun()
-
-            st.markdown("---")
-            st.write("#### ➕ Register New Academic Session Record")
+    # ==============================================================================
+    # SUB-MODULE 2: SESSIONS & TERMS
+    # ==============================================================================
+    elif sub_menu == "📅 Sessions & Terms":
+        st.subheader("📅 Academic Session Management")
+        
+        if current_role == 'controller':
             with st.form("session_reg_form", clear_on_submit=True):
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
                     new_session_name = st.text_input("Session Code/Year:", placeholder="e.g. 2025-27")
                 with col_s2:
                     new_session_status = st.selectbox("Session Status:", options=["ACTIVE", "INACTIVE"])
+                    
                 submit_session = st.form_submit_button("💾 Save Session to Registry")
                 
                 if submit_session:
@@ -4119,565 +4007,595 @@ elif menu_choice == "⚙️ Settings":
                         st.error("Session Name is required.")
                     else:
                         check_existing = run_query("SELECT id FROM academic_sessions WHERE UPPER(TRIM(session_name)) = UPPER(TRIM(:name))", {"name": new_session_name.strip()})
+                        
                         if check_existing.empty:
-                            run_update("INSERT INTO academic_sessions (session_name, status) VALUES (:name, :status)", {"name": new_session_name.strip(), "status": new_session_status})
+                            run_update("""
+                                INSERT INTO academic_sessions (session_name, status)
+                                VALUES (:name, :status)
+                            """, {
+                                "name": new_session_name.strip(),
+                                "status": new_session_status
+                            })
                             st.success(f"🎉 Successfully registered session '{new_session_name.strip()}'!")
-                            import time
-                            time.sleep(1.5)
                             st.rerun()
                         else:
                             st.warning("A session with this name already exists.")
-                                
-            st.markdown("---")
-            st.write("#### Registered Academic Sessions")
-            current_sessions = pd.DataFrame()
-            try:
-                current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
-            except Exception as e:
-                st.error(f"⚠️ Failed to read session records from database: {e}")
-                
-            if not current_sessions.empty:
-                st.dataframe(current_sessions, use_container_width=True, hide_index=True)
-                st.markdown("### 🛠️ Manage Existing Academic Sessions")
-                session_list = [f"{row['ID']} - {row['Session Name']}" for _, row in current_sessions.iterrows()]
-                selected_sess_str = st.selectbox("Select a Session to Modify or Remove:", session_list, key="manage_sess_select")
-                
-                if selected_sess_str:
-                    selected_sess_id = int(selected_sess_str.split(" - ")[0])
-                    target_sess_row = current_sessions[current_sessions['ID'] == selected_sess_id].iloc[0]
-                    
-                    with st.form("edit_session_form"):
-                        updated_sess_name = st.text_input("Change Session Code/Year:", value=str(target_sess_row['Session Name'])).strip()
-                        updated_sess_status = st.selectbox("Change Session Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sess_row['Status'] == 'ACTIVE' else 1)
-                        col_su, col_sd = st.columns(2)
-                        with col_su:
-                            save_sess = st.form_submit_button("💾 Save Session Changes", type="primary", use_container_width=True)
-                        with col_sd:
-                            confirm_sess_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sess_chk")
-                            delete_sess = st.form_submit_button("🗑️ Delete Session Permanently", type="secondary", use_container_width=True)
                             
-                        if save_sess:
-                            if not updated_sess_name:
-                                st.error("Session Code/Year cannot be left blank.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
-                                    st.success("💾 Session configurations updated successfully!")
-                                    import time
-                                    time.sleep(1.5)
-                                    st.rerun()
-                                except Exception as db_error:
-                                    st.error(f"Database operation failed: {db_error}")
-
-                        if delete_sess:
-                            if not confirm_sess_del:
-                                st.warning("🔒 Please check the 'Confirm complete deletion' box before deleting.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM academic_sessions WHERE id = :id"), {"id": selected_sess_id})
-                                    st.success("🗑️ Session permanently removed from records.")
-                                    import time
-                                    time.sleep(1.5)
-                                    st.rerun()
-                                except Exception as db_error:
-                                    st.error(f"Failed to delete session record: {db_error}")
-            else:
-                st.info("No academic sessions are currently registered.")
-
-        # ==============================================================================
-        # MODULE 2: FACULTY REGISTRATION TRACK
-        # ==============================================================================
-        elif sub_menu == "📝 Faculty Registration":
-            st.subheader("➕ Register New Faculty Member")
-            with st.form("teacher_reg_form", clear_on_submit=True):
-                col_f1, col_f2 = st.columns(2)
-                with col_f1:
-                    new_teacher_id = st.number_input("Teacher ID Number (Numeric Only):", min_value=1, step=1, value=None, placeholder="e.g. 101")
-                    new_teacher_name = st.text_input("Teacher Full Name:", placeholder="e.g. Prof. Muhammad Ali").strip()
-                with col_f2:
-                    new_teacher_phone = st.text_input("Contact Number:", placeholder="e.g. +923001234567").strip()
-                    new_teacher_email = st.text_input("Email Address:", placeholder="e.g. ali@institution.edu").strip()
-                submit_faculty = st.form_submit_button("💾 Register Faculty Member", type="primary")
+        st.markdown("---")
+        st.write("#### Registered Academic Sessions")
+        
+        current_sessions = pd.DataFrame()
+        try:
+            current_sessions = run_query('SELECT id as "ID", session_name as "Session Name", status as "Status" FROM academic_sessions ORDER BY session_name DESC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read session records from database: {e}")
+            
+        if not current_sessions.empty:
+            st.dataframe(current_sessions, use_container_width=True, hide_index=True)
+            
+            st.markdown("### 🛠️ Manage Existing Academic Sessions")
+            session_list = [f"{row['ID']} - {row['Session Name']}" for _, row in current_sessions.iterrows()]
+            selected_sess_str = st.selectbox("Select a Session to Modify or Remove:", session_list, key="manage_sess_select")
+            
+            if selected_sess_str:
+                selected_sess_id = int(selected_sess_str.split(" - ")[0])
+                target_sess_row = current_sessions[current_sessions['ID'] == selected_sess_id].iloc[0]
                 
-                if submit_faculty:
-                    if not new_teacher_id or not new_teacher_name:
-                        st.error("❌ Both 'Teacher ID Number' and 'Teacher Full Name' are mandatory entries.")
+                with st.form("edit_session_form"):
+                    updated_sess_name = st.text_input("Change Session Code/Year:", value=str(target_sess_row['Session Name'])).strip()
+                    updated_sess_status = st.selectbox("Change Session Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sess_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_su, col_sd = st.columns(2)
+                    with col_su:
+                        save_sess = st.form_submit_button("💾 Save Session Changes", type="primary", use_container_width=True)
+                    with col_sd:
+                        confirm_sess_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sess_chk")
+                        delete_sess = st.form_submit_button("🗑️ Delete Session Permanently", type="secondary", use_container_width=True)
+                        
+                if save_sess:
+                    if not updated_sess_name:
+                        st.error("Session Code/Year cannot be left blank.")
                     else:
                         try:
-                            check_id = run_query("SELECT teacher_id FROM system_teachers WHERE teacher_id = :code", {"code": int(new_teacher_id)})
-                            if not check_id.empty:
-                                st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
-                            else:
-                                with engine.begin() as conn:
-                                    conn.execute(text("INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status) VALUES (:code, :name, :phone, :email, 'ACTIVE')"), {"code": int(new_teacher_id), "name": new_teacher_name, "phone": new_teacher_phone, "email": new_teacher_email})
-                                st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
-                                import time
-                                time.sleep(1.5)
-                                st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Failed to write record to the database: {err}")
-
-            st.markdown("---")
-            st.write("#### Registered Institutional Faculty")
-            current_faculty = pd.DataFrame()
-            try:
-                current_faculty = run_query('SELECT teacher_id as "Teacher ID", teacher_name as "Teacher Name", phone_number as "Phone Number", email_address as "Email", status as "Status" FROM system_teachers ORDER BY teacher_name ASC')
-            except Exception as e:
-                st.error(f"⚠️ Failed to read faculty profiles from database: {e}")
-                
-            if not current_faculty.empty:
-                st.dataframe(current_faculty, use_container_width=True, hide_index=True)
-                st.markdown("### 🛠️ Manage Existing Faculty Members")
-                faculty_list = [f"{row['Teacher ID']} - {row['Teacher Name']}" for _, row in current_faculty.iterrows()]
-                selected_fac_str = st.selectbox("Select a Teacher Profile to Modify or Remove:", faculty_list, key="manage_fac_select")
-                
-                if selected_fac_str:
-                    selected_fac_id = int(selected_fac_str.split(" - ")[0])
-                    target_fac_row = current_faculty[current_faculty['Teacher ID'] == selected_fac_id].iloc[0]
-                    
-                    with st.form("edit_faculty_form"):
-                        updated_fac_id = st.number_input("Modify Teacher ID Number:", min_value=1, step=1, value=int(target_fac_row['Teacher ID']))
-                        updated_fac_name = st.text_input("Change Teacher Full Name:", value=str(target_fac_row['Teacher Name'])).strip()
-                        updated_fac_phone = st.text_input("Update Contact Number:", value=str(target_fac_row['Phone Number'])).strip()
-                        updated_fac_email = st.text_input("Update Email Address:", value=str(target_fac_row['Email'])).strip()
-                        updated_fac_status = st.selectbox("Change Employment Status:", ["ACTIVE", "INACTIVE"], index=0 if target_fac_row['Status'] == 'ACTIVE' else 1)
-                        col_fu, col_fd = st.columns(2)
-                        with col_fu:
-                            save_fac = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
-                        with col_fd:
-                            confirm_fac_del = st.checkbox("⚠️ Confirm complete deletion", key="del_fac_chk")
-                            delete_fac = st.form_submit_button("🗑️ Delete Profile Permanently", type="secondary", use_container_width=True)
-                            
-                        if save_fac:
-                            if not updated_fac_id or not updated_fac_name:
-                                st.error("❌ Teacher ID and Teacher Name cannot be left blank.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("UPDATE system_teachers SET teacher_id = :new_id, teacher_name = :name, phone_number = :phone, email_address = :email, status = :status WHERE teacher_id = :old_id"), {"new_id": int(updated_fac_id), "name": updated_fac_name, "phone": updated_fac_phone, "email": updated_fac_email, "status": updated_fac_status, "old_id": selected_fac_id})
-                                    st.success(f"🎉 Successfully updated profile details for {updated_fac_name}!")
-                                    import time
-                                    time.sleep(1.5)
-                                    st.rerun()
-                                except Exception as err:
-                                    st.error(f"❌ Modification failed: {err}")
-                            
-                        if delete_fac:
-                            if not confirm_fac_del:
-                                st.error("Please check the confirmation box to authorize permanent deletion.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM system_teachers WHERE teacher_id = :id"), {"id": selected_fac_id})
-                                    st.success("Faculty profile completely removed from system records.")
-                                    import time
-                                    time.sleep(1.5)
-                                    st.rerun()
-                                except Exception as err:
-                                    st.error(f"❌ Cannot delete this teacher: {err}")
-            else:
-                st.info("No faculty profiles are currently registered.")
-
-        # ==============================================================================
-        # MODULE 3: SECTION MASTER
-        # ==============================================================================
-        elif sub_menu == "🗂️ Section Master":
-            st.subheader("🗂️ Section Master Management")
-            st.markdown("Configure, group, and track core physical and virtual sections for course execution rosters here.")
-            
-            session_df = pd.DataFrame()
-            try:
-                session_df = run_query("SELECT id, session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
-            except Exception as e:
-                st.error(f"Could not load active academic sessions: {e}")
-                
-            if session_df.empty:
-                st.warning("⚠️ Please register and activate at least one **Academic Session** before configuring class sections.")
-            else:
-                session_map = {row['session_name']: row['id'] for _, row in session_df.iterrows()}
-                
-                st.write("### ➕ Register New Class Section")
-                with st.form("section_reg_form", clear_on_submit=True):
-                    col_sec1, col_sec2 = st.columns(2)
-                    with col_sec1:
-                        new_sec_name = st.text_input("Section Name / Room ID:", placeholder="e.g. Section A, Alpha-2026").strip()
-                        new_class_level = st.selectbox("Target Class / Grade Level:", ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"])
-                    with col_sec2:
-                        new_sec_session = st.selectbox("Link to Academic Session Framework:", options=list(session_map.keys()))
-                        new_sec_capacity = st.number_input("Maximum Student Capacity Limit:", min_value=5, max_value=200, value=40, step=5)
-                        
-                    submit_section = st.form_submit_button("💾 Save Section to Registry", type="primary")
-                    
-                    if submit_section:
-                        if not new_sec_name:
-                            st.error("❌ Section Name/Room Identifier cannot be blank.")
-                        else:
-                            try:
-                                duplicate_check = run_query("""
-                                    SELECT id FROM academic_sections 
-                                    WHERE UPPER(TRIM(section_name)) = UPPER(TRIM(:name)) 
-                                    AND class_level = :lvl AND session_id = :sess_id
-                                """, {"name": new_sec_name, "lvl": new_class_level, "sess_id": session_map[new_sec_session]})
-                                
-                                if not duplicate_check.empty:
-                                    st.error(f"❌ '{new_sec_name}' is already assigned to '{new_class_level}' within this session framework.")
-                                else:
-                                    run_update("""
-                                        INSERT INTO academic_sections (section_name, class_level, max_capacity, session_id, status)
-                                        VALUES (:name, :lvl, :cap, :sess_id, 'ACTIVE')
-                                    """, {
-                                        "name": new_sec_name,
-                                        "lvl": new_class_level,
-                                        "cap": int(new_sec_capacity),
-                                        "sess_id": session_map[new_sec_session]
-                                    })
-                                    st.success(f"🎉 Successfully registered section roster allocation '{new_class_level} - {new_sec_name}'!")
-                                    import time
-                                    time.sleep(1.5)
-                                    st.rerun()
-                            except Exception as err:
-                                st.error(f"❌ Failed to commit new section record: {err}")
-                                
-                st.markdown("---")
-                st.write("#### Active Institutional Roster Records")
-                
-                current_sections = pd.DataFrame()
-                try:
-                    current_sections = run_query("""
-                        SELECT s.id as "ID", s.class_level as "Class Level", s.section_name as "Section Name", 
-                               s.max_capacity as "Capacity Limit", a.session_name as "Session Frame", s.status as "Status"
-                        FROM academic_sections s
-                        LEFT JOIN academic_sessions a ON s.session_id = a.id
-                        ORDER BY s.class_level ASC, s.section_name ASC
-                    """)
-                except Exception as e:
-                    st.error(f"⚠️ Failed to retrieve section registers from structural tables: {e}")
-                    
-                if not current_sections.empty:
-                    st.dataframe(current_sections, use_container_width=True, hide_index=True)
-                    st.markdown("### 🛠️ Manage Existing Section Registers")
-                    section_options_list = [f"{row['ID']} - {row['Class Level']} ({row['Section Name']})" for _, row in current_sections.iterrows()]
-                    selected_sec_str = st.selectbox("Select a Section Profile to Modify or Delete:", section_options_list, key="manage_sec_select")
-                    
-                    if selected_sec_str:
-                        target_sec_id = int(selected_sec_str.split(" - ")[0])
-                        target_sec_row = current_sections[current_sections['ID'] == target_sec_id].iloc[0]
-                        
-                        with st.form("edit_section_form"):
-                            mod_sec_name = st.text_input("Change Section Name/Room:", value=str(target_sec_row['Section Name'])).strip()
-                            mod_class_level = st.selectbox("Change Class/Grade Level Mapping:", ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"], index=["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"].index(target_sec_row['Class Level']) if target_sec_row['Class Level'] in ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"] else 0)
-                            mod_sec_capacity = st.number_input("Update Capacity Ceiling:", min_value=5, max_value=200, value=int(target_sec_row['Capacity Limit']), step=5)
-                            mod_sec_status = st.selectbox("Update Operational Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sec_row['Status'] == 'ACTIVE' else 1)
-                            
-                            col_secu, col_secd = st.columns(2)
-                            with col_secu:
-                                save_sec_edit = st.form_submit_button("💾 Save Profile Matrix Changes", type="primary", use_container_width=True)
-                            with col_secd:
-                                confirm_sec_del = st.checkbox("⚠️ Confirm permanent deletion", key="del_sec_chk")
-                                delete_sec_record = st.form_submit_button("🗑️ Delete Section Record", type="secondary", use_container_width=True)
-                                
-                            if save_sec_edit:
-                                if not mod_sec_name:
-                                    st.error("Section Label identifier cannot be blank.")
-                                else:
-                                    try:
-                                        with engine.begin() as conn:
-                                            conn.execute(text("""
-                                                UPDATE academic_sections 
-                                                SET section_name = :name, class_level = :lvl, max_capacity = :cap, status = :status 
-                                                WHERE id = :id
-                                            """), {"name": mod_sec_name, "lvl": mod_class_level, "cap": int(mod_sec_capacity), "status": mod_sec_status, "id": target_sec_id})
-                                        st.success(f"🎉 Updated setup profiles for section target '{mod_sec_name}'!")
-                                        import time
-                                        time.sleep(1.5)
-                                        st.rerun()
-                                    except Exception as err:
-                                        st.error(f"❌ Matrix transaction validation failed: {err}")
-                                        
-                            if delete_sec_record:
-                                if not confirm_sec_del:
-                                    st.error("Please explicitly authorize structural drop using the verification check box.")
-                                else:
-                                    try:
-                                        with engine.begin() as conn:
-                                            conn.execute(text("DELETE FROM academic_sections WHERE id = :id"), {"id": target_sec_id})
-                                        st.success("🗑️ Section footprint purged successfully.")
-                                        import time
-                                        time.sleep(1.5)
-                                        st.rerun()
-                                    except Exception as err:
-                                        st.error(f"❌ Action denied: Check if section is linked to active student registrations: {err}")
-                else:
-                    st.info("No corporate or institutional class sections are currently logged in database records.")
-
-        # ==============================================================================
-        # MODULE 4: TEST & EXAM FRAMEWORKS
-        # ==============================================================================
-        elif sub_menu == "📑 Test & Exam Frameworks":
-            st.subheader("📑 Evaluation Tracks & Grade Rules")
-            st.info("Define parameters for term distributions, threshold formulas, and exam system weighting rules.")
-
-        # ==============================================================================
-        # MODULE 5: ADD DISCIPLINES
-        # ==============================================================================
-        elif sub_menu == "🧬 Add Disciplines":
-            st.subheader("🧬 Institutional Stream & Discipline Matrix")
-            st.info("Register major academic tracks, programmatic lines, and institutional wings.")
-
-        # ==============================================================================
-        # MODULE 6: ADD SUBJECT MAPPING
-        # ==============================================================================
-        elif sub_menu == "📚 Add Subject Mapping":
-            st.subheader("📚 Subject, Course & Syllabus Mapping Engine")
-            st.info("Cross-reference master course descriptions to specific programmatic years, terms, and sections.")
-
-        # ==============================================================================
-        # FALLBACK ROUTING LAYER
-        # ==============================================================================
-        else:
-            st.info("Please select a management sub-module from the navigation sidebar matrix.")
-
-    # ==============================================================================
-    # 🛡️ TAB 2: MASTER ACCESS CONTROL & USER RIGHTS PROVISIONING
-    # ==============================================================================
-    with tab2:
-        st.subheader("🛡️ Master Access Control & User Provisioning")
-        st.markdown("Administrative utility to register institutional accounts, assign role-based access permissions, and manage user profiles.")
-
-        # ==============================================================================
-# 🧭 DYNAMIC SIDEBAR NAVIGATION PORTAL (ROLE-BASED ACCESS CONTROL)
-# ==============================================================================
-
-# 1. Fetch the user's role from the login session state (defaults to Admin for safety if missing)
-user_role = st.session_state.get("role", "Admin")
-
-# 2. Hardcode the absolute security map of which roles can click which menus
-MASTER_PERMISSIONS_ROUTING = {
-    "📊 Dashboard": ["Admin", "Admission Office", "Teacher", "Exam Controller"],
-    "🧑‍🎓 Student Registration": ["Admin", "Admission Office"],
-    "📝 Attendance Sheets": ["Admin", "Admission Office", "Teacher"],
-    "🎯 Entry of Marks": ["Admin", "Teacher", "Exam Controller"],
-    "📜 Institutional Reports": ["Admin", "Exam Controller"],
-    "⚙️ Settings": ["Admin"]  # 🔒 Hard locked: Only "Admin" will ever see this option
-}
-
-# 3. Build a dynamic, clean list of menus the logged-in user is actually authorized to view
-allowed_menu_options = [
-    menu_name for menu_name, allowed_roles in MASTER_PERMISSIONS_ROUTING.items()
-    if user_role in allowed_roles
-]
-
-# 4. Supply only the authorized menu options to the selection sidebar radio
-menu_choice = st.sidebar.radio("Navigation Portal Menu:", options=allowed_menu_options)
-
-# ==============================================================================
-# 🔀 THE ROUTING SYSTEM
-# ==============================================================================
-if menu_choice == "📊 Dashboard":
-    st.title("📊 Institutional Dashboard")
-    st.write(f"Logged in safely as: **{st.session_state.get('username')}** ({user_role})")
-    # Keep your existing Dashboard code here if you have any...
-
-elif menu_choice == "🧑‍🎓 Student Registration":
-    st.title("🧑‍🎓 Student Admissions Processing Engine")
-    # 📝 PASTE your original Student Registration page code here!
-
-elif menu_choice == "📝 Attendance Sheets":
-    st.title("📝 Student Attendance Sheets")
-    # 📝 PASTE your original Attendance code here!
-
-elif menu_choice == "🎯 Entry of Marks":
-    st.title("🎯 Academic Performance Marks Entry")
-    # 📝 PASTE your original Marks Entry code here!
-
-elif menu_choice == "📜 Institutional Reports":
-    st.title("📜 Institutional Reports Ledger")
-    # 📝 PASTE your original Reports code here!
-
-elif menu_choice == "⚙️ Settings":
-    st.title("⚙️ Global Academic & Core Settings")
-    
-    # Keep your database setups protected right here
-    FUTURE_ROLES_CONFIG = {
-        "Admin": "Full Control: Absolute read, write, and drop access across all modules.",
-        "Admission Office": "Attendance Management, Add New Students, and Edit Existing Student Data.",
-        "Teacher": "Just Marks Entry: Limited exclusively to academic test/exam score input.",
-        "Exam Controller": "Add all subjects marks, Edit Marks, and print all institutional reports."
-    }
-    
-    system_roles_matrix = list(FUTURE_ROLES_CONFIG.keys())
-    role_help_tooltip = "\n".join([f"• {role}: {desc}" for role, desc in FUTURE_ROLES_CONFIG.items()])
-
-    try:
-        import hashlib
-        with engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS system_users (
-                    username VARCHAR(100) PRIMARY KEY,
-                    password VARCHAR(255) NOT NULL,
-                    role VARCHAR(50) NOT NULL,
-                    status VARCHAR(20) DEFAULT 'ACTIVE'
-                );
-            """))
-            
-            check_admin = conn.execute(text("SELECT username FROM system_users WHERE username = 'admin'")).fetchone()
-            if not check_admin:
-                fallback_hash = hashlib.sha256("admin123".encode()).hexdigest()
-                conn.execute(text("""
-                    INSERT INTO system_users (username, password, role, status)
-                    VALUES ('admin', :pwd, 'Admin', 'ACTIVE')
-                """), {"pwd": fallback_hash})
-    except Exception as err:
-        st.error(f"⚠️ Could not initialize system_users table: {err}")
-        
-    # 📝 PASTE the rest of your original Settings Tab code here (Tabs, Create User Forms, etc.)
-        
-    # The rest of your settings tabs code goes here...
-
-        # --- STEP 1: CREATE OR QUICK-UPDATE USER ---
-        st.write("### ➕ Create / Provision User Account")
-        
-        with st.form("master_access_user_creation_form", clear_on_submit=True):
-            col_u1, col_u2 = st.columns(2)
-            with col_u1:
-                new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip().lower()
-                new_password = st.text_input("Account Password / Secret Key:", type="password", placeholder="Enter secure password")
-            with col_u2:
-                assigned_role = st.selectbox(
-                    "Assign System Rights / Role Level:",
-                    options=system_roles_matrix,
-                    help=role_help_tooltip
-                )
-                account_status = st.selectbox("Initial Account Status:", options=["ACTIVE", "DISABLED"])
-
-            submit_user = st.form_submit_button("🔒 Provision Account & Rights", type="primary")
-
-            if submit_user:
-                if not new_username or not new_password:
-                    st.error("❌ Both Username and Password fields are strictly mandatory.")
-                else:
-                    try:
-                        hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
-                        existing_user = run_query("SELECT username FROM system_users WHERE username = :user", {"user": new_username})
-                        
-                        with engine.begin() as conn:
-                            if not existing_user.empty:
-                                conn.execute(text("""
-                                    UPDATE system_users 
-                                    SET password = :pwd, role = :role, status = :status 
-                                    WHERE username = :user
-                                """), {"user": new_username, "pwd": hashed_password, "role": assigned_role, "status": account_status})
-                                st.success(f"🔄 Existing account details for '{new_username}' updated successfully!")
-                            else:
-                                conn.execute(text("""
-                                    INSERT INTO system_users (username, password, role, status)
-                                    VALUES (:user, :pwd, :role, :status)
-                                """), {"user": new_username, "pwd": hashed_password, "role": assigned_role, "status": account_status})
-                                st.success(f"🎉 New account '{new_username}' successfully provisioned!")
-                        
-                        import time
-                        time.sleep(1.5)
-                        st.rerun()
-                    except Exception as err:
-                        st.error(f"❌ Account tracking transaction failed: {err}")
-
-        st.markdown("---")
-
-        # --- STEP 2: DYNAMICALLY SHOW USERS & MANAGE/DELETE MATRIX ---
-        st.write("### 👥 Existing System Users & Access Control Registry")
-        
-        # Load active accounts from database
-        user_registry_df = pd.DataFrame()
-        try:
-            user_registry_df = run_query('SELECT username as "Username", role as "Assigned Role", status as "Status" FROM system_users ORDER BY username ASC')
-        except Exception as e:
-            st.error(f"⚠️ Failed to read credential records: {e}")
-
-        if not user_registry_df.empty:
-            # Display current users in a responsive clean grid layout
-            st.dataframe(user_registry_df, use_container_width=True, hide_index=True)
-            
-            st.write("#### 🛠️ Modify or Remove Existing Account")
-            
-            # Form drop-down list items based on database extraction records
-            user_options = user_registry_df["Username"].tolist()
-            selected_user_to_edit = st.selectbox("Select User Profile to Manage:", options=user_options, key="select_user_to_edit_box")
-            
-            if selected_user_to_edit:
-                # Find matching row from our data dataframe frame block
-                user_row = user_registry_df[user_registry_df["Username"] == selected_user_to_edit].iloc[0]
-                
-                with st.form("edit_and_delete_user_form"):
-                    st.markdown(f"Editing System Profile: **{selected_user_to_edit}**")
-                    
-                    col_ed1, col_ed2 = st.columns(2)
-                    with col_ed1:
-                        edit_password = st.text_input("Reset Password (Leave blank to keep current):", type="password", placeholder="Enter new password if changing")
-                        edit_role = st.selectbox(
-                            "Change System Access Role:", 
-                            options=system_roles_matrix, 
-                            index=system_roles_matrix.index(user_row["Assigned Role"]) if user_row["Assigned Role"] in system_roles_matrix else 0
-                        )
-                    with col_ed2:
-                        edit_status = st.selectbox(
-                            "Change Functional Account Status:", 
-                            options=["ACTIVE", "DISABLED"], 
-                            index=0 if user_row["Status"] == "ACTIVE" else 1
-                        )
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    col_btn1, col_btn2 = st.columns(2)
-                    
-                    with col_btn1:
-                        save_user_changes = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
-                    with col_btn2:
-                        confirm_user_deletion = st.checkbox("⚠️ Confirm complete account deletion", key="confirm_user_del_check")
-                        delete_user_permanently = st.form_submit_button("🗑️ Delete Account Permanently", type="secondary", use_container_width=True)
-
-                    # Handle Action 1: Save profile mutations
-                    if save_user_changes:
-                        try:
                             with engine.begin() as conn:
-                                if edit_password.strip() != "":
-                                    # Update with newly provided secret hashed key string array sequence
-                                    new_hashed_pwd = hashlib.sha256(edit_password.encode()).hexdigest()
-                                    conn.execute(text("""
-                                        UPDATE system_users 
-                                        SET password = :pwd, role = :role, status = :status 
-                                        WHERE username = :user
-                                    """), {"user": selected_user_to_edit, "pwd": new_hashed_pwd, "role": edit_role, "status": edit_status})
-                                else:
-                                    # Update settings role metadata structure variations only, skip touch password structure arrays
-                                    conn.execute(text("""
-                                        UPDATE system_users 
-                                        SET role = :role, status = :status 
-                                        WHERE username = :user
-                                    """), {"user": selected_user_to_edit, "role": edit_role, "status": edit_status})
-                                    
-                            st.success(f"🎉 System updates applied successfully to user account '{selected_user_to_edit}'!")
-                            import time
-                            time.sleep(1.5)
+                                conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), 
+                                             {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
+                            st.success("Session information successfully updated!")
                             st.rerun()
                         except Exception as err:
-                            st.error(f"❌ Verification change write request failed: {err}")
+                            st.error(f"❌ Modification failed. The session name might already exist: {err}")
+                        
+                if delete_sess:
+                    if not confirm_sess_del:
+                        st.error("Please check the confirmation box to authorize permanent deletion.")
+                    else:
+                        with engine.begin() as conn:
+                            conn.execute(text("DELETE FROM academic_sessions WHERE id = :id"), {"id": selected_sess_id})
+                        st.success("Session removed from system registers completely.")
+                        st.rerun()
+        else:
+            st.info("No academic sessions currently configured.")
 
-                    # Handle Action 2: Purge profile footprint row permanently
-                    if delete_user_permanently:
-                        if selected_user_to_edit == "admin":
-                            st.error("🔒 Security Policy Violation: The system root 'admin' account cannot be deleted.")
-                        elif not confirm_user_deletion:
-                            st.warning("🔒 Please check the confirmation checkbox before choosing to remove accounts permanently.")
+    # ==============================================================================
+    # SUB-MODULE 3: SECTION MASTER
+    # ==============================================================================
+    elif sub_menu == "🗂️ Section Master":
+        st.subheader("🗂️ Class Section Configuration")
+        
+        if current_role == 'controller':
+            with st.form("section_reg_form", clear_on_submit=True):
+                col_sec1, col_sec2 = st.columns(2)
+                with col_sec1:
+                    new_section_name = st.text_input("Section Structural Label:", placeholder="e.g. Section A")
+                with col_sec2:
+                    new_section_status = st.selectbox("Section Status:", options=["ACTIVE", "INACTIVE"])
+                    
+                submit_section = st.form_submit_button("💾 Save Section to Registry")
+                
+                if submit_section:
+                    if new_section_name.strip() == "":
+                        st.error("Section Name is required.")
+                    else:
+                        check_existing = run_query("SELECT id FROM system_sections WHERE UPPER(TRIM(section_name)) = UPPER(TRIM(:name))", {"name": new_section_name.strip()})
+                        
+                        if check_existing.empty:
+                            execute_db_command("""
+                                INSERT INTO system_sections (section_name, status)
+                                VALUES (:name, :status)
+                            """, {
+                                "name": new_section_name.strip(),
+                                "status": new_section_status
+                            })
+                            st.success(f"🎉 Successfully registered section '{new_section_name}'!")
+                            st.rerun()
+                        else:
+                            st.warning("A section with this name already exists.")
+                            
+        st.markdown("---")
+        st.write("#### Registered Class Sections")
+        
+        current_sections = pd.DataFrame()
+        try:
+            current_sections = run_query('SELECT id as "ID", section_name as "Section Name", status as "Status" FROM system_sections ORDER BY section_name ASC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read section configurations from database: {e}")
+            
+        if not current_sections.empty:
+            st.dataframe(current_sections, use_container_width=True, hide_index=True)
+            
+            st.markdown("### 🛠️ Manage Existing Sections")
+            section_list = [f"{row['ID']} - {row['Section Name']}" for _, row in current_sections.iterrows()]
+            selected_sec_str = st.selectbox("Select a Section to Modify or Remove:", section_list, key="manage_sec_select")
+            
+            if selected_sec_str:
+                selected_sec_id = int(selected_sec_str.split(" - ")[0])
+                target_row = current_sections[current_sections['ID'] == selected_sec_id].iloc[0]
+                
+                with st.form("edit_section_form"):
+                    updated_name = st.text_input("Change Section Label:", value=str(target_row['Section Name'])).upper().strip()
+                    updated_status = st.selectbox("Change Section Status:", ["ACTIVE", "INACTIVE"], index=0 if target_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_u, col_d = st.columns(2)
+                    with col_u:
+                        save_sec = st.form_submit_button("💾 Save Section Changes", type="primary", use_container_width=True)
+                    with col_d:
+                        confirm_sec_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sec_chk")
+                        delete_sec = st.form_submit_button("🗑️ Delete Section", type="secondary", use_container_width=True)
+                        
+                if save_sec:
+                    if not updated_name:
+                        st.error("Section label cannot be left blank.")
+                    else:
+                        execute_db_command("UPDATE system_sections SET section_name = :name, status = :status WHERE id = :id", 
+                                           {"name": updated_name, "status": updated_status, "id": selected_sec_id})
+                        st.success("Section updated successfully!")
+                        st.rerun()
+                        
+                if delete_sec:
+                    if not confirm_sec_del:
+                        st.error("Please check the confirmation box to authorize permanent deletion.")
+                    else:
+                        execute_db_command("DELETE FROM system_sections WHERE id = :id", {"id": selected_sec_id})
+                        st.success("Section removed from registry permanently.")
+                        st.rerun()
+        else:
+            st.info("No class sections currently configured.")
+
+    # ==============================================================================
+    # SUB-MODULE 4: TEST & EXAM FRAMEWORKS
+    # ==============================================================================
+    elif sub_menu == "📑 Test & Exam Frameworks":
+        st.subheader("📑 Evaluation Type & Test Profile Settings")
+        
+        if "settings_initialized" not in st.session_state:
+            st.session_state.settings_initialized = False
+        if "configured_system_type" not in st.session_state:
+            st.session_state.configured_system_type = "Annual System"
+
+        if not st.session_state.settings_initialized:
+            st.info("⚙️ **Platform Settings Required**: Please select the active Academic System track before defining or managing test frameworks.")
+            
+            with st.container(border=True):
+                st.markdown("#### 🛠️ Core Environment Settings")
+                sys_selection = st.selectbox(
+                    "Select Academic System:", 
+                    ["Annual System", "Semester System"], 
+                    key="wizard_system_type"
+                )
+                
+                if st.button("💾 Apply Configuration Parameters", use_container_width=True):
+                    st.session_state.configured_system_type = sys_selection
+                    st.session_state.settings_initialized = True
+                    st.success(f"🎯 Track set to {sys_selection}! Initializing layout modules...")
+                    st.rerun()
+
+        else:
+            with st.expander(f"⚙️ Active Track Profile: {st.session_state.configured_system_type}", expanded=False):
+                if st.button("🔄 Change Active Academic System Track", use_container_width=True):
+                    st.session_state.settings_initialized = False
+                    st.rerun()
+            
+            if current_role == 'controller':
+                with st.form("test_reg_form", clear_on_submit=True):
+                    col_t1, col_t2 = st.columns(2)
+                    with col_t1:
+                        new_test_name = st.text_input("Test / Exam Display Title:", placeholder="e.g. Mid-Term Examination")
+                        new_test_code = st.text_input("System Reference Key (No Spaces):", placeholder="e.g. MID_TERM").upper().strip()
+                    with col_t2:
+                        system_routing = st.selectbox(
+                            "Academic Stream Association:", 
+                            options=["Annual System", "Semester System"],
+                            index=0 if st.session_state.configured_system_type == "Annual System" else 1
+                        )
+                        new_test_status = st.selectbox("Configuration Status:", options=["ACTIVE", "INACTIVE"])
+                        
+                    submit_test = st.form_submit_button("💾 Save Test Framework Type")
+                    
+                    if submit_test:
+                        if new_test_name.strip() == "" or new_test_code == "":
+                            st.error("Both Test Name and Reference Key are mandatory entries.")
+                        else:
+                            check_existing = run_query("SELECT exam_code FROM exam_cycles WHERE UPPER(TRIM(exam_code)) = :code", {"code": new_test_code})
+                            
+                            if check_existing.empty:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO exam_cycles (exam_code, exam_display_name, system_type, status)
+                                            VALUES (:code, :name, :sys, :status)
+                                        """), {
+                                            "code": new_test_code,
+                                            "name": new_test_name.strip(),
+                                            "sys": system_routing,
+                                            "status": new_test_status
+                                        })
+                                    st.success(f"🎉 Successfully registered evaluation framework rule '{new_test_name}'!")
+                                    st.rerun()
+                                except Exception as err:
+                                    st.error(f"❌ Failed to insert framework record: {err}")
+                            else:
+                                st.warning("An evaluation pattern with this code identifier already exists.")
+                                        
+            st.markdown("---")
+            st.write("#### Registered Evaluation Profiles")
+            
+            current_tests = pd.DataFrame()
+            try:
+                current_tests = run_query('SELECT exam_code as "System Code", exam_display_name as "Evaluation Name", system_type as "System Track", status as "Status" FROM exam_cycles ORDER BY system_type ASC, exam_display_name ASC')
+            except Exception as e:
+                st.error(f"⚠️ Failed to read evaluation configurations: {e}")
+                
+            if not current_tests.empty:
+                st.dataframe(current_tests, use_container_width=True, hide_index=True)
+                
+                st.markdown("### 🛠️ Manage Existing Evaluation Profiles")
+                test_list = [f"{row['Evaluation Name']} ({row['System Code']})" for _, row in current_tests.iterrows()]
+                selected_test_str = st.selectbox("Select a Profile to Modify or Remove:", test_list, key="manage_test_select")
+                
+                if selected_test_str:
+                    selected_test_code = selected_test_str.split("(")[-1].replace(")", "").strip()
+                    target_test_row = current_tests[current_tests['System Code'] == selected_test_code].iloc[0]
+                    
+                    with st.form("edit_exam_form"):
+                        updated_test_name = st.text_input("Change Display Title:", value=str(target_test_row['Evaluation Name'])).strip()
+                        updated_test_status = st.selectbox("Change Evaluation Status:", ["ACTIVE", "INACTIVE"], index=0 if target_test_row['Status'] == 'ACTIVE' else 1)
+                        
+                        col_fu, col_fd = st.columns(2)
+                        with col_fu:
+                            save_test_mod = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                        with col_fd:
+                            confirm_test_del = st.checkbox("⚠️ Confirm complete deletion", key="del_test_chk")
+                            delete_test_mod = st.form_submit_button("🗑️ Delete Evaluation Profile", type="secondary", use_container_width=True)
+                            
+                    if save_test_mod:
+                        if not updated_test_name:
+                            st.error("Evaluation title cannot be left blank.")
                         else:
                             try:
                                 with engine.begin() as conn:
-                                    conn.execute(text("DELETE FROM system_users WHERE username = :user"), {"user": selected_user_to_edit})
-                                st.success(f"🗑️ Account '{selected_user_to_edit}' has been completely removed from system registries.")
-                                import time
-                                time.sleep(1.5)
+                                    conn.execute(text("""
+                                        UPDATE exam_cycles 
+                                        SET exam_display_name = :name, status = :status 
+                                        WHERE exam_code = :code
+                                    """), {"name": updated_test_name, "status": updated_test_status, "code": selected_test_code})
+                                st.success("Evaluation profile configuration updated successfully!")
                                 st.rerun()
                             except Exception as err:
-                                st.error(f"❌ Drop table row request execution rejected: {err}")
+                                st.error(f"❌ Failed to update evaluation item: {err}")
+                            
+                    if delete_test_mod:
+                        if not confirm_test_del:
+                            st.error("Please check the confirmation box to authorize permanent deletion.")
+                        else:
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("DELETE FROM exam_cycles WHERE exam_code = :code"), {"code": selected_test_code})
+                                st.success("Evaluation profile removed from system registers.")
+                                st.rerun()
+                            except Exception as err:
+                                st.error(f"❌ Complete removal failed: {err}")
+            else:
+                st.info("ℹ️ No evaluation profiles or exam cycles are currently configured.")
+
+    # ==============================================================================
+    # 🧬 SUB-MODULE 5: ACADEMIC DISCIPLINES & AUTOMATIC SYNC TERMINAL
+    # ==============================================================================
+    elif sub_menu == "🧬 Add Disciplines":
+        st.subheader("🧬 Academic Disciplines & Program Entries")
+        st.info("Centralized console to view existing structural disciplines, modify active tracking setups, or initialize new program frameworks.")
+
+        # --- AUTOMATIC BACKGROUND DICTIONARY SYNC ENGINE ---
+        dict_disciplines = set()
+        for yr, mappings in CLASS_SUBJECTS_MASTER_MAP.items():
+            for disc in mappings.keys():
+                dict_disciplines.add(disc.upper().strip())
+        for disc in DISCIPLINE_SECTIONS_MAP.keys():
+            cleaned_key = disc.replace(" (", "_").replace(")", "").upper().strip()
+            dict_disciplines.add(cleaned_key)
+
+        try:
+            with engine.begin() as conn:
+                for disc_name in dict_disciplines:
+                    # Automatically determine whether it belongs to Semester or Annual track
+                    is_semester = any("Semester" in str(yr) for yr in CLASS_SUBJECTS_MASTER_MAP.keys() if disc_name in [k.upper() for k in CLASS_SUBJECTS_MASTER_MAP[yr].keys()])
+                    track_system = "Semester System" if is_semester else "Annual System"
+                    
+                    conn.execute(text("""
+                        INSERT INTO system_disciplines (discipline_name, academic_system, status)
+                        VALUES (:name, :sys, 'ACTIVE')
+                        ON CONFLICT (discipline_name) DO NOTHING
+                    """), {"name": disc_name, "sys": track_system})
+        except Exception as sync_err:
+            st.write(f"⚙️ Database structural background initialization status: {sync_err}")
+
+        if 'discipline_deep_sync' not in st.session_state:
+            st.cache_data.clear()
+            st.session_state['discipline_deep_sync'] = True
+
+        # --- DATABASE READ: FETCH SYNCHRONIZED DISCIPLINE RECORDS ---
+        current_disciplines = pd.DataFrame()
+        try:
+            current_disciplines = run_query('''
+                SELECT 
+                    id as "ID", 
+                    discipline_name as "Discipline Name", 
+                    academic_system as "Academic System",
+                    status as "Status" 
+                FROM system_disciplines 
+                ORDER BY discipline_name ASC
+            ''')
+        except Exception as e:
+            st.error(f"❌ Error communicating with database infrastructure: {e}")
+
+        tab_view, tab_new = st.tabs(["📋 View & Edit Existing Disciplines", "➕ Add New Discipline Record"])
+
+        with tab_view:
+            if not current_disciplines.empty:
+                st.markdown("### 📋 Current Synchronized Institutional Disciplines")
+                st.dataframe(current_disciplines, use_container_width=True, hide_index=True)
+                
+                st.markdown("---")
+                st.markdown("### ✏️ Edit or Modify an Existing Discipline")
+                
+                disp_options = [f"{row['ID']} - {row['Discipline Name']} ({row['Academic System']})" for _, row in current_disciplines.iterrows()]
+                selected_disp_str = st.selectbox("Select target discipline parameter row to alter:", options=disp_options, key="edit_selector_node")
+                
+                if selected_disp_str:
+                    selected_id = int(selected_disp_str.split(" - ")[0])
+                    target_row = current_disciplines[current_disciplines['ID'] == selected_id].iloc[0]
+                    sys_choices = ["Annual System", "Semester System"]
+
+                    with st.form(f"modify_discipline_form_{selected_id}"):
+                        col_m1, col_m2 = st.columns(2)
+                        with col_m1:
+                            edit_name = st.text_input("Modify Discipline Code/Title:", value=str(target_row['Discipline Name'])).upper().strip()
+                            current_track = target_row['Academic System'] if 'Academic System' in target_row else "Annual System"
+                            edit_sys = st.selectbox("Assigned System Track Framework:", options=sys_choices, index=sys_choices.index(current_track) if current_track in sys_choices else 0)
+                        with col_m2:
+                            edit_status = st.selectbox("Discipline Status Flag:", options=["ACTIVE", "INACTIVE"], index=0 if target_row['Status'] == 'ACTIVE' else 1)
+                        
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            commit_update = st.form_submit_button("💾 Save Structural Modifications", type="primary", use_container_width=True)
+                        with col_btn2:
+                            confirm_delete = st.checkbox("⚠️ Confirm complete historical removal", key=f"del_lock_{selected_id}")
+                            commit_delete = st.form_submit_button("🗑️ Drop Track Permanently", type="secondary", use_container_width=True)
+
+                        if commit_update:
+                            if not edit_name:
+                                st.error("❌ Discipline identity text cannot be blank.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE system_disciplines 
+                                            SET discipline_name = :name, academic_system = :sys, status = :status 
+                                            WHERE id = :id
+                                        """), {"name": edit_name, "sys": edit_sys, "status": edit_status, "id": selected_id})
+                                    st.cache_data.clear() 
+                                    st.success("🎉 Database entry updated successfully!")
+                                    st.rerun()
+                                except Exception as err:
+                                    st.error(f"❌ Transaction failed: {err}")
+
+                        if commit_delete:
+                            if not confirm_delete:
+                                st.error("❌ You must check the validation box checkpoint to execute deletion.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("DELETE FROM system_disciplines WHERE id = :id"), {"id": selected_id})
+                                    st.cache_data.clear()
+                                    st.success("🗑️ Track deleted from records.")
+                                    st.rerun()
+                                except Exception as err:
+                                    st.error(f"❌ Deletion restriction encountered: {err}")
+            else:
+                st.info("ℹ️ No customized disciplines discovered in configuration records.")
+
+        with tab_new:
+            st.markdown("### ➕ Register a New Program Classification Track")
+            sys_choices = ["Annual System", "Semester System"]
+
+            with st.form("new_discipline_entry_form", clear_on_submit=True):
+                col_n1, col_n2 = st.columns(2)
+                with col_n1:
+                    new_name = st.text_input("New Discipline Title/Code:", placeholder="e.g. COMMERCE, ICS_PHYSICS, MEDICAL").upper().strip()
+                    new_sys = st.selectbox("Target Academic System Association:", options=sys_choices)
+                with col_n2:
+                    new_status = st.selectbox("Initial Discipline Operational Status:", options=["ACTIVE", "INACTIVE"])
+                
+                submit_new = st.form_submit_button("🚀 Commit New Entry to Database", type="primary")
+
+                if submit_new:
+                    if not new_name:
+                        st.error("❌ Entry field input cannot be blank.")
+                    else:
+                        try:
+                            duplicate_check = run_query("SELECT id FROM system_disciplines WHERE UPPER(TRIM(discipline_name)) = :name", {"name": new_name})
+                            if duplicate_check.empty:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        INSERT INTO system_disciplines (discipline_name, academic_system, status)
+                                        VALUES (:name, :sys, :status)
+                                    """), {"name": new_name, "sys": new_sys, "status": new_status})
+                                st.cache_data.clear()
+                                st.success(f"🎉 Track '{new_name}' successfully added!")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ This specific discipline title variant is already registered.")
+                        except Exception as ex:
+                            st.error(f"❌ Failed to submit structural row matrix: {ex}")
+
+
+    # ==============================================================================
+    # 📚 SUB-MODULE 6: SUBJECT MAPPING MATRIX (LIVE DECOUPLED CASCADE)
+    # ==============================================================================
+    elif sub_menu == "📚 Add Subject Mapping":
+        st.subheader("📚 Subject & Course Curriculum Matrix Mapping")
+        st.info("Map individual operational subjects dynamically sourced from your active master institutional configuration dictionaries.")
+
+        # --- STEP 1: LIVE INTERACTIVE CASCADE SELECTORS (OUTSIDE THE FORM) ---
+        col_select1, col_select2 = st.columns(2)
+        
+        with col_select1:
+            # 1. Select the Academic Year Class Layer
+            available_layers = list(CLASS_SUBJECTS_MASTER_MAP.keys())
+            chosen_layer = st.selectbox(
+                "1️⃣ Select Target Academic Class / Year Layer:", 
+                options=available_layers, 
+                key="live_map_layer_selector"
+            )
+
+            # 2. Extract matching tracks for the chosen layer dynamically
+            layer_tracks = list(CLASS_SUBJECTS_MASTER_MAP[chosen_layer].keys())
+            chosen_track = st.selectbox(
+                "2️⃣ Select Program Discipline Track:", 
+                options=layer_tracks, 
+                key="live_map_track_selector"
+            )
+
+        # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
+        dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
+
+        with col_select2:
+            st.write("### 🎯 Context Tracker Verified")
+            
+            # Safe native container rendering - eliminates python f-string/HTML bracket compilation errors
+            with st.container(border=True):
+                st.markdown(f"**Active Layer:** :red[`{chosen_layer}`]")
+                st.markdown(f"**Active Track:** :red[`{chosen_track}`]")
+                st.markdown("**📖 Available Curriculum Pool:**")
+                
+                # Render clean bullet points safely
+                for sub in dict_pulled_subjects:
+                    st.markdown(f"- `{sub}`")
+
+        st.markdown("---")
+        
+        # --- STEP 2: SECURE SUBMISSION MATRIX FORM ---
+        if current_role == 'controller':
+            st.markdown("### 💾 Record Mapping Association")
+            
+            with st.form("smart_subject_mapping_form", clear_on_submit=True):
+                # Interactive toggle allows selecting dictionary pools OR adding brand new courses
+                input_mode = st.radio(
+                    "Choose Subject Input Variant:",
+                    options=["Pick from Code Dictionary Pool", "Type a Brand New Subject entirely"],
+                    horizontal=True
+                )
+
+                if input_mode == "Pick from Code Dictionary Pool":
+                    selected_subject_to_map = st.selectbox(
+                        "3️⃣ Select Existing Subject to Map:", 
+                        options=dict_pulled_subjects
+                    )
+                else:
+                    selected_subject_to_map = st.text_input(
+                        "3️⃣ Type New Custom Subject Name:", 
+                        placeholder="e.g. SOCIOLOGY, ARABIC, CIVICS"
+                    ).upper().strip()
+
+                submit_subject = st.form_submit_button("🚀 Save Course Mapping Parameters", type="primary")
+                
+                # --- STEP 3: DATABASE INSERT TRANSACTION WRITER ---
+                if submit_subject:
+                    if not selected_subject_to_map:
+                        st.error("❌ Target subject selection value cannot be empty.")
+                    else:
+                        try:
+                            # Standardize casing parameters for clean PostgreSQL lookups
+                            db_disp = str(chosen_track).upper().strip()
+                            db_layer = str(chosen_layer).strip()
+                            db_sub = str(selected_subject_to_map).upper().strip()
+
+                            # Guard Clause: Prevent identical duplicate matrix allocations
+                            check_existing = run_query("""
+                                SELECT id FROM system_subjects_mapping 
+                                WHERE UPPER(TRIM(discipline_name)) = :disp 
+                                AND UPPER(TRIM(class_name)) = :cls
+                                AND UPPER(TRIM(subject_name)) = :sub
+                            """, {"disp": db_disp, "cls": db_layer, "sub": db_sub})
+                            
+                            if check_existing.empty:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        INSERT INTO system_subjects_mapping (discipline_name, class_name, subject_name)
+                                        VALUES (:disp, :cls, :sub)
+                                    """), {"disp": db_disp, "cls": db_layer, "sub": db_sub})
+                                
+                                st.cache_data.clear() # Clear internal display cache instantly
+                                st.success(f"🎉 Successfully mapped verified course: '{db_sub}' inside '{db_disp} ({db_layer})' structure!")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ This exact subject tracking arrangement already exists inside your active database.")
+                        except Exception as e:
+                            st.error(f"❌ Could not write subject mapping parameter row: {e}")
+
+        # --- STEP 4: GRID DISPLAY & DELETION PROCESSING MANAGEMENT ---
+        st.markdown("---")
+        st.write("#### Registered Structural Curriculum Maps")
+        
+        current_maps = pd.DataFrame()
+        try:
+            current_maps = run_query('''
+                SELECT 
+                    id as "ID", 
+                    discipline_name as "Discipline Track", 
+                    class_name as "Academic Term", 
+                    subject_name as "Allocated Course" 
+                FROM system_subjects_mapping 
+                ORDER BY discipline_name ASC, class_name ASC, subject_name ASC
+            ''')
+        except Exception:
+            st.warning("⚠️ Connected backend routing index table is empty or resetting.")
+
+        if not current_maps.empty:
+            st.dataframe(current_maps, use_container_width=True, hide_index=True)
+            
+            st.markdown("### 🛠️ Delete or Remove Matrix Rules")
+            mapping_list = [f"{row['ID']} - [{row['Discipline Track']}] ({row['Academic Term']}) ➔ {row['Allocated Course']}" for _, row in current_maps.iterrows()]
+            selected_map_str = st.selectbox("Select Course Rule Block to Delete:", mapping_list, key="manage_map_select")
+            
+            if selected_map_str:
+                selected_map_id = int(selected_map_str.split(" - ")[0])
+                
+                with st.form("edit_mapping_form"):
+                    st.warning(f"Confirm complete deletion actions for Allocation Rule Row reference ID #{selected_map_id}")
+                    confirm_map_del = st.checkbox("⚠️ Confirm complete historical removal from database", key="del_map_chk")
+                    delete_map = st.form_submit_button("🗑️ Drop Subject Route Row", type="secondary", use_container_width=True)
+                        
+                if delete_map:
+                    if not confirm_map_del:
+                        st.error("❌ You must check the validation box to drop this curriculum row assignment link.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM system_subjects_mapping WHERE id = :id"), {"id": selected_map_id})
+                            st.cache_data.clear()
+                            st.success("🎉 Curriculum routing row deleted successfully.")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Deletion process failure: {err}")
         else:
-            st.info("No corporate users are currently configured or present inside the system registry tables.")
+            st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
