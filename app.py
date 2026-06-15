@@ -619,14 +619,84 @@ elif menu_choice == "➕ Add Students":
                                     st.success("Enrollment status set back to ACTIVE.")
                                     st.rerun()
                                     
-                        with btn_col3:
-                            if st.button("🎓 System Change", use_container_width=True):
-                                with engine.begin() as conn:
-                                    conn.execute(text("UPDATE students SET system_type = :system_type WHERE id = :id"), {"system_type": mutation_system, "id": student['id']})
-                            st.success("Academic System Structure Updated!")
+                            with btn_col3:
+                                if st.button("🎓 System Change", use_container_width=True):
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE students SET system_type = :system_type WHERE id = :id"), {"system_type": mutation_system, "id": student['id']})
+                                    st.success("Academic System Structure Updated!")
+                                    st.rerun()
+                    except Exception as e:
+                        st.error(f"Error executing operation: {e}")
+
+        # ====================================================================================
+        # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
+        # ====================================================================================  
+        with right_branch_col:
+            st.markdown("#### 🏢 Section-Based Batch Promotion")
+            
+            # Query sections conditionally based on the global top-tier controls
+            try:
+                with engine.connect() as connection:
+                    sec_query = text("""
+                        SELECT DISTINCT section FROM students 
+                        WHERE session = :sess AND system_type = :syst AND status = 'ACTIVE'
+                    """)
+                    available_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
+            except Exception:
+                available_sections = []
+                
+            if not available_sections:
+                st.info(f"ℹ️ No batch segments found matching: {global_session} | Track: {clean_global_system}")
+            else:
+                source_section = st.selectbox("📁 Select Source Section to Process:", available_sections)
+                
+                try:
+                    with engine.connect() as connection:
+                        count_res = connection.execute(text("""
+                            SELECT COUNT(*) FROM students 
+                            WHERE session = :sess AND system_type = :syst AND section = :sec AND status = 'ACTIVE'
+                        """), {"sess": global_session, "syst": clean_global_system, "sec": source_section}).fetchone()
+                        batch_count = count_res[0] if count_res else 0
+                except Exception:
+                    batch_count = 0
+                    
+                st.metric(label="👥 Active Group Size Selected:", value=f"{batch_count} Students")
+                
+                if batch_count > 0:
+                    st.markdown("##### 🚀 Promoted Destination Targets")
+                    
+                    target_classes_list = [str(i) for i in range(1, 13)] + ["Graduated"]
+                    
+                    col_p1, col_p2 = st.columns(2)
+                    with col_p1:
+                        promo_target_class = st.selectbox("🎓 Promoted To Class:", target_classes_list, index=11)  # Default index points directly to class 12th
+                    with col_p2:
+                        try:
+                            with engine.connect() as conn:
+                                target_sections_list = [r[0] for r in conn.execute(text("SELECT section_name FROM system_sections")).fetchall()]
+                        except Exception:
+                            target_sections_list = ["A", "B", "C"]
+                        promo_target_section = st.selectbox("📐 Target Section Placement:", target_sections_list)
+                        
+                    if st.button("🚀 Process Batch Promotion Sequence", type="primary", use_container_width=True):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET class = :target_class, section = :target_section
+                                    WHERE session = :sess AND system_type = :syst AND section = :src_sec AND status = 'ACTIVE'
+                                """), {
+                                    "target_class": promo_target_class,
+                                    "target_section": promo_target_section,
+                                    "sess": global_session,
+                                    "syst": clean_global_system,
+                                    "src_sec": source_section
+                                })
+                            st.success(f"🎉 Success! Promoted {batch_count} students to Class {promo_target_class} - {promo_target_section}!")
+                            st.balloons()
                             st.rerun()
-            except Exception as e:
-                st.error(f"Error executing operation: {e}")
+                        except Exception as promo_err:
+                            st.error(f"Batch execution exception: {promo_err}")
 
         # ====================================================================================
         # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
