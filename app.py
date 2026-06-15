@@ -2718,8 +2718,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
 # ==============================================================================
 elif menu_choice == "🪪 Student Result Cards":
-st.write("DEBUG: Attendance table rows found:", len(debug_logs))
-st.dataframe(debug_logs.head())
     import streamlit.components.v1 as components
     import pandas as pd
     import streamlit as st
