@@ -4530,24 +4530,39 @@ elif menu_choice == "⚙️ Settings":
                         # 🔒 Secure Hashing Conversion Step prior to SQL transmission
                         hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
 
-                        # Core insertion engine transaction
+                        # Step 1: Check if user already exists
+                        existing_user = run_query("SELECT username FROM system_users WHERE username = :user", {"user": new_username})
+                        
                         with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO system_users (username, password, role, status)
-                                VALUES (:user, :pwd, :role, :status)
-                            """), {
-                                "user": new_username, 
-                                "pwd": hashed_password, 
-                                "role": assigned_role, 
-                                "status": account_status
-                            })
+                            if not existing_user.empty:
+                                # 🔄 User exists: Perform an UPDATE instead of a crashing INSERT
+                                conn.execute(text("""
+                                    UPDATE system_users 
+                                    SET password = :pwd, role = :role, status = :status 
+                                    WHERE username = :user
+                                """), {
+                                    "user": new_username, 
+                                    "pwd": hashed_password, 
+                                    "role": assigned_role, 
+                                    "status": account_status
+                                })
+                                st.success(f"🔄 Account profiles for existing user '{new_username}' updated successfully!")
+                            else:
+                                # ➕ User does not exist: Standard creation
+                                conn.execute(text("""
+                                    INSERT INTO system_users (username, password, role, status)
+                                    VALUES (:user, :pwd, :role, :status)
+                                """), {
+                                    "user": new_username, 
+                                    "pwd": hashed_password, 
+                                    "role": assigned_role, 
+                                    "status": account_status
+                                })
+                                st.success(f"🎉 Account '{new_username}' successfully provisioned as role context: **{assigned_role}**!")
                         
-                        # Use container elements to display success before screen destruction execution sequence
-                        st.success(f"🎉 Account '{new_username}' successfully provisioned as role context: **{assigned_role}**!")
-                        
-                        # Let the message stay visible on-screen for 2 seconds before the view reloads
+                        # Let the message stay visible on-screen for 2 seconds before reloading
                         import time
                         time.sleep(2.0)
                         st.rerun()
                     except Exception as err:
-                        st.error(f"❌ Account provisioning failed (User may already exist): {err}")
+                        st.error(f"❌ Account tracking transaction failed: {err}")
