@@ -2760,7 +2760,7 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (ZERO-PARAMETER ENGINE ISOLATION)
+    # PART 3: DATA EXTRACTION ENGINE (COLON-STRIPPED WILDCARD ENGINE)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
@@ -2768,32 +2768,35 @@ elif menu_choice == "🪪 Student Result Cards":
 
     if submit_execution:
         if print_scope == "👤 Single Student Card" and search_id:
-            # 1. Clean inputs completely of any spaces or rogue quotes
+            # Clean raw variables and completely remove problematic quotes
             clean_search_id = str(search_id).strip().replace("'", "''")
             clean_session = str(selected_session).strip().replace("'", "''")
             
-            # Double colons (::) are MANDATORY here so text() ignores them completely
-            clean_test_code = str(selected_test_code).strip().replace("'", "''").replace(":", "::")
+            # CRITICAL FIX: Extract only the part BEFORE the colon to completely 
+            # eliminate colons from the SQL string, avoiding SQLAlchemy text() tracking.
+            base_test_code = str(selected_test_code).split(":")[0].strip().replace("'", "''")
             
             df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
                 
-                # Fetch marks and logs using absolute flat strings
-                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{clean_test_code}'")
+                # Match using LIKE with a wildcard suffix, completely bypassing colons in the string literal
+                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code LIKE '{base_test_code}%'")
                 logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
             clean_session = str(selected_session).strip().replace("'", "''")
             clean_class = str(selected_class).strip().replace("'", "''")
-            clean_section = str(active_section).upper().strip().replace("'", "''").replace(":", "::")
+            
+            # Clean the section variable of any colons if they exist
+            clean_section = str(active_section).upper().split(":")[0].strip().replace("'", "''")
             
             df_res = run_query(f"""
                 SELECT id, name, section, class FROM students 
                 WHERE session = '{clean_session}' 
                 AND class = '{clean_class}' 
-                AND UPPER(TRIM(section)) = '{clean_section}'
+                AND UPPER(TRIM(section)) LIKE '{clean_section}%'
                 ORDER BY id ASC
             """)
             
@@ -2804,9 +2807,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
                 
                 if ids_formatted:
-                    clean_test_code = str(selected_test_code).strip().replace("'", "''").replace(":", "::")
+                    base_test_code = str(selected_test_code).split(":")[0].strip().replace("'", "''")
                     
-                    marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{clean_test_code}'")
+                    marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code LIKE '{base_test_code}%'")
                     logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
