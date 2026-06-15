@@ -2779,11 +2779,11 @@ elif menu_choice == "🪪 Student Result Cards":
     students_to_print = pd.DataFrame()
 
     if submit_execution:
-    # 1. Print current filter context
-    st.write(f"Searching for ID: {search_id} | Session: {selected_session}")
+        # 1. Print current filter context
+        st.write(f"Searching for ID: {search_id} | Session: {selected_session}")
     
     # 2. Execute the fetch
-    students_to_print = run_query(...) 
+        students_to_print = run_query(...) 
     
     # 3. Add a fallback check
     if students_to_print.empty:
