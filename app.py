@@ -4443,10 +4443,10 @@ elif menu_choice == "⚙️ Settings":
     # ==============================================================================
     with tab2:
         st.subheader("🛡️ Master Access Control & User Provisioning")
-        st.markdown("Administrative utility to register institutional accounts and assign role-based access permissions.")
+        st.markdown("Administrative utility to register institutional accounts, assign role-based access permissions, and manage user profiles.")
 
         # ------------------------------------------------------------------------------
-        # ⚙️ CENTRALIZED PERMISSION MATRIX BLUEPRINT (For Easy Future Modifications)
+        # ⚙️ CENTRALIZED PERMISSION MATRIX BLUEPRINT
         # ------------------------------------------------------------------------------
         FUTURE_ROLES_CONFIG = {
             "Admin": "Full Control: Absolute read, write, and drop access across all modules.",
@@ -4471,7 +4471,7 @@ elif menu_choice == "⚙️ Settings":
                     );
                 """))
                 
-                # Safety feature: Self-heal/ensure default fallback admin account exists
+                # Safety feature: Ensure default fallback admin account exists
                 check_admin = conn.execute(text("SELECT username FROM system_users WHERE username = 'admin'")).fetchone()
                 if not check_admin:
                     fallback_hash = hashlib.sha256("admin123".encode()).hexdigest()
@@ -4482,36 +4482,14 @@ elif menu_choice == "⚙️ Settings":
         except Exception as err:
             st.error(f"⚠️ Could not initialize system_users table: {err}")
 
-        # ------------------------------------------------------------------------------
-        # 📊 VISUAL BLOCK: SHOW USERS AND THEIR RIGHTS BREAKDOWN
-        # ------------------------------------------------------------------------------
-        with st.container(border=True):
-            st.markdown("#### 🔑 Assigned Role Matrix Reference")
-            st.markdown("Quick reference framework detailing the features accessible to each specific user class:")
-            
-            roles_list = list(FUTURE_ROLES_CONFIG.items())
-            half_way = (len(roles_list) + 1) // 2
-            col_matrix_1, col_matrix_2 = st.columns(2)
-            
-            with col_matrix_1:
-                for role_name, role_desc in roles_list[:half_way]:
-                    st.markdown(f"**🔹 {role_name}**")
-                    st.caption(role_desc)
-                    st.markdown("---")
-            with col_matrix_2:
-                for role_name, role_desc in roles_list[half_way:]:
-                    st.markdown(f"**🔹 {role_name}**")
-                    st.caption(role_desc)
-                    st.markdown("---")
-
-        # --- STEP 1: CREATE NEW USER & ASSIGN RIGHTS ---
-        st.write("### ➕ Create New User Account")
+        # --- STEP 1: CREATE OR QUICK-UPDATE USER ---
+        st.write("### ➕ Create / Provision User Account")
         
         with st.form("master_access_user_creation_form", clear_on_submit=True):
             col_u1, col_u2 = st.columns(2)
             with col_u1:
                 new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip().lower()
-                new_password = st.text_input("Account Password:", type="password", placeholder="Enter secure password")
+                new_password = st.text_input("Account Password / Secret Key:", type="password", placeholder="Enter secure password")
             with col_u2:
                 assigned_role = st.selectbox(
                     "Assign System Rights / Role Level:",
@@ -4527,42 +4505,125 @@ elif menu_choice == "⚙️ Settings":
                     st.error("❌ Both Username and Password fields are strictly mandatory.")
                 else:
                     try:
-                        # 🔒 Secure Hashing Conversion Step prior to SQL transmission
                         hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
-
-                        # Step 1: Check if user already exists
                         existing_user = run_query("SELECT username FROM system_users WHERE username = :user", {"user": new_username})
                         
                         with engine.begin() as conn:
                             if not existing_user.empty:
-                                # 🔄 User exists: Perform an UPDATE instead of a crashing INSERT
                                 conn.execute(text("""
                                     UPDATE system_users 
                                     SET password = :pwd, role = :role, status = :status 
                                     WHERE username = :user
-                                """), {
-                                    "user": new_username, 
-                                    "pwd": hashed_password, 
-                                    "role": assigned_role, 
-                                    "status": account_status
-                                })
-                                st.success(f"🔄 Account profiles for existing user '{new_username}' updated successfully!")
+                                """), {"user": new_username, "pwd": hashed_password, "role": assigned_role, "status": account_status})
+                                st.success(f"🔄 Existing account details for '{new_username}' updated successfully!")
                             else:
-                                # ➕ User does not exist: Standard creation
                                 conn.execute(text("""
                                     INSERT INTO system_users (username, password, role, status)
                                     VALUES (:user, :pwd, :role, :status)
-                                """), {
-                                    "user": new_username, 
-                                    "pwd": hashed_password, 
-                                    "role": assigned_role, 
-                                    "status": account_status
-                                })
-                                st.success(f"🎉 Account '{new_username}' successfully provisioned as role context: **{assigned_role}**!")
+                                """), {"user": new_username, "pwd": hashed_password, "role": assigned_role, "status": account_status})
+                                st.success(f"🎉 New account '{new_username}' successfully provisioned!")
                         
-                        # Let the message stay visible on-screen for 2 seconds before reloading
                         import time
-                        time.sleep(2.0)
+                        time.sleep(1.5)
                         st.rerun()
                     except Exception as err:
                         st.error(f"❌ Account tracking transaction failed: {err}")
+
+        st.markdown("---")
+
+        # --- STEP 2: DYNAMICALLY SHOW USERS & MANAGE/DELETE MATRIX ---
+        st.write("### 👥 Existing System Users & Access Control Registry")
+        
+        # Load active accounts from database
+        user_registry_df = pd.DataFrame()
+        try:
+            user_registry_df = run_query('SELECT username as "Username", role as "Assigned Role", status as "Status" FROM system_users ORDER BY username ASC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read credential records: {e}")
+
+        if not user_registry_df.empty:
+            # Display current users in a responsive clean grid layout
+            st.dataframe(user_registry_df, use_container_width=True, hide_index=True)
+            
+            st.write("#### 🛠️ Modify or Remove Existing Account")
+            
+            # Form drop-down list items based on database extraction records
+            user_options = user_registry_df["Username"].tolist()
+            selected_user_to_edit = st.selectbox("Select User Profile to Manage:", options=user_options, key="select_user_to_edit_box")
+            
+            if selected_user_to_edit:
+                # Find matching row from our data dataframe frame block
+                user_row = user_registry_df[user_registry_df["Username"] == selected_user_to_edit].iloc[0]
+                
+                with st.form("edit_and_delete_user_form"):
+                    st.markdown(f"Editing System Profile: **{selected_user_to_edit}**")
+                    
+                    col_ed1, col_ed2 = st.columns(2)
+                    with col_ed1:
+                        edit_password = st.text_input("Reset Password (Leave blank to keep current):", type="password", placeholder="Enter new password if changing")
+                        edit_role = st.selectbox(
+                            "Change System Access Role:", 
+                            options=system_roles_matrix, 
+                            index=system_roles_matrix.index(user_row["Assigned Role"]) if user_row["Assigned Role"] in system_roles_matrix else 0
+                        )
+                    with col_ed2:
+                        edit_status = st.selectbox(
+                            "Change Functional Account Status:", 
+                            options=["ACTIVE", "DISABLED"], 
+                            index=0 if user_row["Status"] == "ACTIVE" else 1
+                        )
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    col_btn1, col_btn2 = st.columns(2)
+                    
+                    with col_btn1:
+                        save_user_changes = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                    with col_btn2:
+                        confirm_user_deletion = st.checkbox("⚠️ Confirm complete account deletion", key="confirm_user_del_check")
+                        delete_user_permanently = st.form_submit_button("🗑️ Delete Account Permanently", type="secondary", use_container_width=True)
+
+                    # Handle Action 1: Save profile mutations
+                    if save_user_changes:
+                        try:
+                            with engine.begin() as conn:
+                                if edit_password.strip() != "":
+                                    # Update with newly provided secret hashed key string array sequence
+                                    new_hashed_pwd = hashlib.sha256(edit_password.encode()).hexdigest()
+                                    conn.execute(text("""
+                                        UPDATE system_users 
+                                        SET password = :pwd, role = :role, status = :status 
+                                        WHERE username = :user
+                                    """), {"user": selected_user_to_edit, "pwd": new_hashed_pwd, "role": edit_role, "status": edit_status})
+                                else:
+                                    # Update settings role metadata structure variations only, skip touch password structure arrays
+                                    conn.execute(text("""
+                                        UPDATE system_users 
+                                        SET role = :role, status = :status 
+                                        WHERE username = :user
+                                    """), {"user": selected_user_to_edit, "role": edit_role, "status": edit_status})
+                                    
+                            st.success(f"🎉 System updates applied successfully to user account '{selected_user_to_edit}'!")
+                            import time
+                            time.sleep(1.5)
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Verification change write request failed: {err}")
+
+                    # Handle Action 2: Purge profile footprint row permanently
+                    if delete_user_permanently:
+                        if selected_user_to_edit == "admin":
+                            st.error("🔒 Security Policy Violation: The system root 'admin' account cannot be deleted.")
+                        elif not confirm_user_deletion:
+                            st.warning("🔒 Please check the confirmation checkbox before choosing to remove accounts permanently.")
+                        else:
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("DELETE FROM system_users WHERE username = :user"), {"user": selected_user_to_edit})
+                                st.success(f"🗑️ Account '{selected_user_to_edit}' has been completely removed from system registries.")
+                                import time
+                                time.sleep(1.5)
+                                st.rerun()
+                            except Exception as err:
+                                st.error(f"❌ Drop table row request execution rejected: {err}")
+        else:
+            st.info("No corporate users are currently configured or present inside the system registry tables.")
