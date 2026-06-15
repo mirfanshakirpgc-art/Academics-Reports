@@ -2718,16 +2718,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
 # ==============================================================================
 elif menu_choice == "🪪 Student Result Cards":
-# --- DIAGNOSTIC ATTENDANCE FETCH ---
-st.write("DEBUG: Fetching logs for student_id:", int(current_id_str))
-
-# Check exactly what is in the table for this student
-debug_logs = run_query("""
-    SELECT student_id, attendance_date, status 
-    FROM daily_attendance 
-    WHERE student_id = :sid
-""", {"sid": int(current_id_str)})
-
 st.write("DEBUG: Attendance table rows found:", len(debug_logs))
 st.dataframe(debug_logs.head())
     import streamlit.components.v1 as components
@@ -2740,6 +2730,18 @@ st.dataframe(debug_logs.head())
     # --------------------------------------------------------------------------
     # PART 1: GLOBAL ACADEMIC ENVIRONMENT FILTERS
     # --------------------------------------------------------------------------
+    # --- DIAGNOSTIC ATTENDANCE FETCH ---
+st.write("DEBUG: Fetching logs for student_id:", int(current_id_str))
+
+# Check exactly what is in the table for this student
+debug_logs = run_query("""
+    SELECT student_id, attendance_date, status 
+    FROM daily_attendance 
+    WHERE student_id = :sid
+""", {"sid": int(current_id_str)})
+
+st.write("DEBUG: Attendance table rows found:", len(debug_logs))
+st.dataframe(debug_logs.head())
     try:
         db_sessions = run_query("SELECT DISTINCT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
         session_list = db_sessions['session_name'].tolist() if not db_sessions.empty else ["2024-2026", "2025-2027"]
