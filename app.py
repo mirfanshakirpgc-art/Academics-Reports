@@ -2837,31 +2837,38 @@ elif menu_choice == "🪪 Student Result Cards":
                 "cls": normalized_class_input,
                 "sec": active_section.strip()
             })
-    # ==============================================================================
-    # PART 4: COMPILATION LOOP & RENDERING ENGINE
-    # ==============================================================================
-    if submit_execution and not students_to_print.empty:
-        # --- Inside "🪪 Student Result Cards" section ---
-    if submit_execution and not students_to_print.empty:
-        # ... then your existing compiled_html generation logic follows ...
-        # Safe Fallback Cache Layers: Compile marks and logs frames dynamically if missing
+    # --- 1. PERFORMANCE DATA FETCH ---
+        # Instead of guessing the table name, fetch from the universal 'marks' table
         if 'marks_df' not in locals() or marks_df.empty:
-            exam_table = f"marks_{selected_session.replace('-', '_').lower()}_{selected_test_code.lower()}"
             try:
-                marks_df = run_query(f"SELECT * FROM {exam_table}")
+                # Optimized: Fetching by session is safer than dynamic table names
+                marks_df = run_query("""
+                    SELECT m.student_id, m.subject, m.marks_obtained, m.total_marks, m.exam_type 
+                    FROM marks m
+                    JOIN students s ON m.student_id = s.id
+                    WHERE s.session = :sess
+                """, {"sess": selected_session})
+                
                 if not marks_df.empty:
                     marks_df.columns = [c.lower() for c in marks_df.columns]
-            except Exception:
+            except Exception as e:
+                st.warning(f"Performance data fetch skipped: {e}")
                 marks_df = pd.DataFrame()
 
+        # --- 2. ATTENDANCE DATA FETCH ---
+        # Fixed: Query the table you actually use for entries (daily_attendance)
         if 'logs_df' not in locals() or logs_df.empty:
             try:
-                logs_df = run_query("SELECT student_id, attendance_date, att_status FROM attendance_logs")
+                logs_df = run_query("""
+                    SELECT student_id, attendance_date, status as att_status 
+                    FROM daily_attendance
+                """, {})
+                
                 if not logs_df.empty:
                     logs_df.columns = [c.lower() for c in logs_df.columns]
-            except Exception:
+            except Exception as e:
+                st.warning(f"Attendance data fetch skipped: {e}")
                 logs_df = pd.DataFrame()
-
         # --------------------------------------------------------------------------
         # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
         # --------------------------------------------------------------------------
