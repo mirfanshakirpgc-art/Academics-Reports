@@ -2760,7 +2760,7 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (SQLALCHEMY TEXT SECURE BINDING)
+    # PART 3: DATA EXTRACTION ENGINE (ZERO-PARAMETER ENGINE ISOLATION)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
@@ -2768,60 +2768,46 @@ elif menu_choice == "🪪 Student Result Cards":
 
     if submit_execution:
         if print_scope == "👤 Single Student Card" and search_id:
-            clean_search_id = str(search_id).strip()
+            # 1. Clean inputs completely of any spaces or rogue quotes
+            clean_search_id = str(search_id).strip().replace("'", "''")
+            clean_session = str(selected_session).strip().replace("'", "''")
             
-            # Using precise SQLAlchemy named bind parameters (:variable_name)
-            df_res = run_query(
-                "SELECT id, name, section, class FROM students WHERE session = :session_val AND id = :student_id_val", 
-                params={"session_val": selected_session, "student_id_val": clean_search_id}
-            )
+            # Double colons (::) are MANDATORY here so text() ignores them completely
+            clean_test_code = str(selected_test_code).strip().replace("'", "''").replace(":", "::")
+            
+            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
                 
-                marks_df = run_query(
-                    "SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = :student_id_val AND exam_code = :exam_code_val", 
-                    params={"student_id_val": clean_search_id, "exam_code_val": selected_test_code}
-                )
-                
-                logs_df = run_query(
-                    "SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = :student_id_val", 
-                    params={"student_id_val": clean_search_id}
-                )
+                # Fetch marks and logs using absolute flat strings
+                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{clean_test_code}'")
+                logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            df_res = run_query(
-                """
+            clean_session = str(selected_session).strip().replace("'", "''")
+            clean_class = str(selected_class).strip().replace("'", "''")
+            clean_section = str(active_section).upper().strip().replace("'", "''").replace(":", "::")
+            
+            df_res = run_query(f"""
                 SELECT id, name, section, class FROM students 
-                WHERE session = :session_val 
-                AND class = :class_val 
-                AND UPPER(TRIM(section)) = :section_val
+                WHERE session = '{clean_session}' 
+                AND class = '{clean_class}' 
+                AND UPPER(TRIM(section)) = '{clean_section}'
                 ORDER BY id ASC
-                """,
-                params={
-                    "session_val": selected_session, 
-                    "class_val": selected_class, 
-                    "section_val": str(active_section).upper().strip()
-                }
-            )
+            """)
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
-                student_ids = [str(r['id']).strip() for r in students_to_process]
+                student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
                 
-                # To bypass complex text() IN array binding, we cleanly inject the safe ID strings directly 
                 ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
                 
                 if ids_formatted:
-                    marks_df = run_query(
-                        f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = :exam_code_val", 
-                        params={"exam_code_val": selected_test_code}
-                    )
+                    clean_test_code = str(selected_test_code).strip().replace("'", "''").replace(":", "::")
                     
-                    # No params needed here because ids_formatted provides a secure inline string array
-                    logs_df = run_query(
-                        f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})"
-                    )
+                    marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{clean_test_code}'")
+                    logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
