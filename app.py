@@ -2766,416 +2766,412 @@ elif menu_choice == "🪪 Student Result Cards":
 
     if submit_execution:
         if print_scope == "👤 Single Student Card" and search_id:
-            students_to_print = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
+            students_to_print = run_query(
+                "SELECT id, name, section, class FROM students WHERE session = :session AND id = :sid",
+                {"session": selected_session, "sid": search_id.strip()}
+            )
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            students_to_print = run_query(f"""
+            students_to_print = run_query(
+                """
                 SELECT id, name, section, class FROM students 
-                WHERE session = '{selected_session}' 
-                AND class = '{selected_class}' 
-                AND UPPER(TRIM(section)) = '{str(active_section).upper().strip()}'
+                WHERE session = :session 
+                AND class = :class_val 
+                AND UPPER(TRIM(section)) = UPPER(TRIM(:sec_val))
                 ORDER BY id ASC
-            """)
+                """,
+                {"session": selected_session, "class_val": selected_class, "sec_val": str(active_section).strip()}
+            )
 
- # ==============================================================================
-# PART 4: COMPILATION LOOP & RENDERING ENGINE
-# ==============================================================================
-# Safely check if either form submission variable exists and is True
-is_single_clicked = locals().get('submit_single', False)
-is_bulk_clicked = locals().get('submit_bulk', False)
-
-if (is_single_clicked or is_bulk_clicked) and 'students_to_process' in locals() and students_to_process:
-
-    # --------------------------------------------------------------------------
-    # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
-    # --------------------------------------------------------------------------
-    html_header_and_styles = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <style>
-        body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
-        .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
+    # ==============================================================================
+    # PART 4: COMPILATION LOOP & RENDERING ENGINE
+    # ==============================================================================
+    if submit_execution and not students_to_print.empty:
         
-        /* New Stacked Header Framework */
-        .logo-row { width: 100%; text-align: left; margin-bottom: 10px; }
-        .logo-img { max-height: 65px; width: auto; display: block; }
-        
-        .title-row { width: 100%; text-align: center; margin-bottom: 20px; }
-        .inst-main-header { font-weight: bold; font-size: 30px; text-transform: uppercase; margin: 0; }
-        
-        .banner-row { width: 100%; text-align: center; margin-bottom: 25px; }
-        .doc-type-banner { font-weight: bold; font-size: 18px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0; }
-        
-        .meta-layout-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 15px; }
-        .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
-        .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
-        .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 14px; }
-        .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 7px 5px; text-align: center; }
-        .doc-data-table th { font-weight: bold; text-transform: uppercase; }
-        .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; padding-bottom: 3px; }
-        .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
-        .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-        .attendance-matrix-table td.row-title-cell { font-weight: bold; text-align: left; padding-left: 5px; }
-        .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
-        .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
-        .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
-        .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
-        button:disabled { background: #6c757d !important; cursor: not-allowed; }
-        @media print {
-            .action-controls-bar { display: none !important; }
-            .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; }
-            .print-page-break-divider { page-break-after: always !always !important; }
-        }
-    </style>
-    </head>
-    <body>
-        <div class="action-controls-bar">
-            <button class="print-btn" onclick="window.print();">🖨️ Print Cards (Ctrl+P)</button>
-            <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Image</button>
-            <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save All Section Cards (ZIP)</button>
-        </div>
-    """
-    compiled_html = html_header_and_styles
-    DISPLAY_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
-    
-    # Month map configuration matching the multi-test date parsing system
-    month_map = {
-        "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
-        "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
-    }
-
-    for idx, student_row in enumerate(students_to_process):
-        current_id_str = str(student_row['id']).strip()
-        name = str(student_row['name']).upper()
-        section = str(student_row['section']).upper().strip()
-        grade_class = str(student_row['class']).strip()
-        # Use the active exam or default to Multi-Test report naming syntax
-        test_name = locals().get('selected_test_label', 'MULTI-TEST REPORT').upper()
-        # ----------------------------------------------------------------------
-        # MODULE B: DATA RESOLUTION & ATTENDANCE EXTRACTION PIPELINE
-        # ----------------------------------------------------------------------
-        
-        # Class configuration layer resolution
-        lookup_class_key = grade_class
-        if "1ST SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 1"
-        elif "2ND SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 2"
-        elif "3RD SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 3"
-        elif "4TH SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 4"
-
-        # Reverse map discipline layout context
-        detected_discipline_key = None
-        for discipline, class_layers in DISCIPLINE_SECTIONS_MAP.items():
-            sections_list = class_layers.get(lookup_class_key, [])
-            if section in [str(s).upper().strip() for s in sections_list]:
-                detected_discipline_key = discipline
-                break
-        
-        subject_mapping_key = detected_discipline_key
-        if detected_discipline_key == "ICS (PHYSICS)": subject_mapping_key = "ICS_PHYSICS"
-        elif detected_discipline_key == "ICS (STATS)": subject_mapping_key = "ICS_STATS"
-
-        subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(subject_mapping_key, None)
-        if not subjects_list:
-            try: subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
-            except Exception: subjects_list = ["English", "Urdu"]
-
-        # Database Performance Query
-        # ==============================================================================
-        # 🔄 STEP 4A: SAFE LOCAL DATA SLICING (REPLACES ACCIDENTALLY DUPLICATED QUERIES)
-        # ==============================================================================
-        current_id_str = str(student_row.get('student_id', '')).strip()
-        
-        # 1. Slice and construct raw_marks locally from preloaded dataframe
-        if 'marks_df' in locals() and not marks_df.empty:
-            student_marks_df = marks_df[marks_df['student_id'] == current_id_str].copy()
-            student_marks_df = student_marks_df.rename(columns={
-                'subject_name': 'subject',
-                'exam_type': 'exam_type'
-            })
-            raw_marks = student_marks_df
-        else:
-            import pandas as pd
-            raw_marks = pd.DataFrame(columns=['subject', 'marks_obtained', 'total_marks', 'exam_type'])
-
-        # 2. Slice and construct raw_logs_df locally for attendance tracking
-        if 'logs_df' in locals() and not logs_df.empty:
-            raw_logs_df = logs_df[logs_df['student_id'] == current_id_str].copy()
-        else:
-            raw_logs_df = pd.DataFrame()
-
-        # ==============================================================================
-        # 📊 ATTENDANCE MATRIX PROCESSING PIPELINE
-        # ==============================================================================
-        # Initialize tracking matrix template structure
-        attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
-
-        # Process logs on the fly into month matrix slots
-        if not raw_logs_df.empty:
+        # Safe Fallback Cache Layers: Compile marks and logs frames dynamically if missing
+        if 'marks_df' not in locals() or marks_df.empty:
+            exam_table = f"marks_{selected_session.replace('-', '_').lower()}_{selected_test_code.lower()}"
             try:
-                raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"])
-                for _, log_row in raw_logs_df.iterrows():
-                    log_date = log_row["attendance_date"]
-                    if pd.isna(log_date):
-                        continue
-                    
-                    log_month_int = log_date.month
-                    log_status = str(log_row["att_status"]).strip()
-
-                    matched_month_key = None
-                    for m_name, m_int in month_map.items():
-                        if m_int == log_month_int:
-                            matched_month_key = m_name
-                            break
-
-                    if matched_month_key:
-                        attendance_matrix[matched_month_key]["total"] += 1
-                        if log_status in ["P", "PRESENT"]:
-                            attendance_matrix[matched_month_key]["present"] += 1
+                marks_df = run_query(f"SELECT * FROM {exam_table}")
+                if not marks_df.empty:
+                    marks_df.columns = [c.lower() for c in marks_df.columns]
             except Exception:
-                pass
+                marks_df = pd.DataFrame()
 
-        # Compile interface string cells from matrix data
-        att_cells = {}
-        tot_sum, pres_sum = 0, 0
-        
-        for m in DISPLAY_MONTHS:
-            td = attendance_matrix[m]["total"]
-            pd_val = attendance_matrix[m]["present"]
-            tot_sum += td
-            pres_sum += pd_val
-            
-            pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
-            att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
-            
-        overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "0%"
-        att_cells["Over All Att."] = {"td": str(tot_sum), "pd": str(pres_sum), "pct": overall_pct_str}
+        if 'logs_df' not in locals() or logs_df.empty:
+            try:
+                logs_df = run_query("SELECT student_id, attendance_date, att_status FROM attendance_logs")
+                if not logs_df.empty:
+                    logs_df.columns = [c.lower() for c in logs_df.columns]
+            except Exception:
+                logs_df = pd.DataFrame()
 
-        # ----------------------------------------------------------------------
-        # MODULE C: CUSTOM ACADEMIC MARKS RULES & STRUCTURAL CARD GENERATION
-        # ----------------------------------------------------------------------
-        logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-        grand_total_marks, grand_obtained_marks = 0.0, 0.0
-        
-        compiled_html += f"""
-        <div class="official-card-container" id="card-{current_id_str}" data-student-name="{name.replace(' ', '_')}">
+        # --------------------------------------------------------------------------
+        # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
+        # --------------------------------------------------------------------------
+        html_header_and_styles = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+        <style>
+            body { font-family: "Times New Roman", Times, serif; color: #000; background-color: #fff; margin: 0; padding: 10px; }
+            .official-card-container { max-width: 850px; margin: 10px auto; padding: 25px; border: 1px solid #000; background: #fff; position: relative; }
             
-            <div class="logo-row">
-                <img class="logo-img" src="{logo_base64}" alt="Logo">
+            .logo-row { width: 100%; text-align: left; margin-bottom: 10px; }
+            .logo-img { max-height: 65px; width: auto; display: block; }
+            
+            .title-row { width: 100%; text-align: center; margin-bottom: 20px; }
+            .inst-main-header { font-weight: bold; font-size: 30px; text-transform: uppercase; margin: 0; }
+            
+            .banner-row { width: 100%; text-align: center; margin-bottom: 25px; }
+            .doc-type-banner { font-weight: bold; font-size: 18px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0; }
+            
+            .meta-layout-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 15px; }
+            .meta-layout-table td { border: none; padding: 4px 2px; vertical-align: bottom; white-space: nowrap; }
+            .underlined-value-span { border-bottom: 1px solid #000; font-weight: bold; padding: 0 4px; display: inline-block; text-transform: uppercase; }
+            .doc-data-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 25px; font-size: 14px; }
+            .doc-data-table th, .doc-data-table td { border: 1px solid #000; padding: 7px 5px; text-align: center; }
+            .doc-data-table th { font-weight: bold; text-transform: uppercase; }
+            .section-header-title { font-size: 15px; font-weight: bold; margin: 25px 0 8px 0; text-align: left; text-transform: uppercase; padding-bottom: 3px; }
+            .attendance-matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
+            .attendance-matrix-table th, .attendance-matrix-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
+            .attendance-matrix-table td.row-title-cell { font-weight: bold; text-align: left; padding-left: 5px; }
+            .action-controls-bar { max-width: 850px; margin: 0 auto 20px auto; display: flex; gap: 10px; flex-wrap: wrap; }
+            .print-btn { background: #222; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+            .image-single-btn { background: #0066cc; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+            .image-section-btn { background: #198754; color: #fff; padding: 10px 20px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+            button:disabled { background: #6c757d !important; cursor: not-allowed; }
+            @media print {
+                .action-controls-bar { display: none !important; }
+                .official-card-container { border: none !important; margin: 0 auto 15mm auto !important; page-break-inside: avoid !important; }
+                .print-page-break-divider { page-break-after: always !important; }
+            }
+        </style>
+        </head>
+        <body>
+            <div class="action-controls-bar">
+                <button class="print-btn" onclick="window.print();">🖨️ Print Cards (Ctrl+P)</button>
+                <button class="image-single-btn" id="save-single-card-trigger">📸 Save Current Card as Image</button>
+                <button class="image-section-btn" id="save-section-cards-trigger">🗂️ Save All Section Cards (ZIP)</button>
             </div>
-            
-            <div class="title-row">
-                <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
-            </div>
-            
-            <div class="banner-row">
-                <div class="doc-type-banner">RESULT CARD</div>
-            </div>
-            
-            <table class="meta-layout-table">
-                <tr>
-                    <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
-                    <td style="width: 15%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id_str}</span></td>
-                    <td style="width: 20%;">Section: <span class="underlined-value-span" style="width: 62%;">{section}</span></td>
-                    <td style="width: 14%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
-                    <td style="width: 13%;">Test: <span class="underlined-value-span" style="width: 60%;">{test_name}</span></td>
-                </tr>
-            </table>
-            <table class="doc-data-table">
-                <thead>
-                    <tr>
-                    <th style="text-align: left; width: 45%; padding-left: 10px;">Subjects</th>
-                    <th style="width: 11%;">Obt. Marks</th>
-                    <th style="width: 11%;">Total Marks</th>
-                    <th style="width: 11%;">Pass Marks</th>
-                    <th style="width: 11%;">Age%</th>
-                    <th style="width: 11%;">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
         """
+        compiled_html = html_header_and_styles
+        DISPLAY_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
         
-        student_failed_any_subject = False
-        has_valid_marks_data = False
+        month_map = {
+            "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
+            "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
+        }
 
-        for sub in subjects_list:
-            sub_clean = sub.upper().strip()
-            match = pd.DataFrame()
-            if not raw_marks.empty:
-                match = raw_marks[raw_marks['subject'] == sub_clean]
-                if match.empty:
-                    match = raw_marks[raw_marks['subject'].str.contains(sub_clean[:4], regex=False, na=False)]
+        # Conversion to Dict format to perform stable record rendering loops
+        students_to_process_list = students_to_print.to_dict('records')
 
-            obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "-", 100, 40, "-", "-"
+        for idx, student_row in enumerate(students_to_process_list):
+            current_id_str = str(student_row['id']).strip()
+            name = str(student_row['name']).upper()
+            section = str(student_row['section']).upper().strip()
+            grade_class = str(student_row['class']).strip()
+            test_name = locals().get('selected_test_label', 'MULTI-TEST REPORT').upper()
             
-            if not match.empty:
-                try:
-                    obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
-                    tot_val = match['total_marks'].iloc[0]
-                    tot_marks_num = int(tot_val) if tot_val else 100
-                    pass_marks_num = int(tot_marks_num * 0.4)
-                    
-                    if obt_val == "NC":
-                        obt_disp, per_disp, status_disp = "NC", "NC", "NC"
-                    elif obt_val in ["A", "ABSENT"]:
-                        obt_disp, per_disp, status_disp = "A", "0%", "Fail"
-                        grand_total_marks += tot_marks_num
-                        student_failed_any_subject = True
-                        has_valid_marks_data = True
-                    elif obt_val.replace('.', '', 1).isdigit():
-                        num_obt = float(obt_val)
-                        obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
-                        per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
-                        grand_obtained_marks += num_obt
-                        grand_total_marks += tot_marks_num
-                        has_valid_marks_data = True
-                        status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
-                        if num_obt < pass_marks_num: student_failed_any_subject = True
-                except Exception: pass
+            # Class configuration layer resolution
+            lookup_class_key = grade_class
+            if "1ST SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 1"
+            elif "2ND SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 2"
+            elif "3RD SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 3"
+            elif "4TH SEMESTER" in grade_class.upper(): lookup_class_key = "Semester 4"
+
+            # Reverse map discipline layout context
+            detected_discipline_key = None
+            for discipline, class_layers in DISCIPLINE_SECTIONS_MAP.items():
+                sections_list = class_layers.get(lookup_class_key, [])
+                if section in [str(s).upper().strip() for s in sections_list]:
+                    detected_discipline_key = discipline
+                    break
+            
+            subject_mapping_key = detected_discipline_key
+            if detected_discipline_key == "ICS (PHYSICS)": subject_mapping_key = "ICS_PHYSICS"
+            elif detected_discipline_key == "ICS (STATS)": subject_mapping_key = "ICS_STATS"
+
+            subjects_list = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(subject_mapping_key, None)
+            if not subjects_list:
+                try: subjects_list = list(CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).values())[0]
+                except Exception: subjects_list = ["English", "Urdu"]
+
+            # 🔄 STEP 4A: SAFE LOCAL DATA SLICING 
+            if not marks_df.empty:
+                # Standardize column comparison to strings
+                student_marks_df = marks_df[marks_df['student_id'].astype(str).str.strip() == current_id_str].copy()
+                if 'subject_name' in student_marks_df.columns:
+                    student_marks_df = student_marks_df.rename(columns={'subject_name': 'subject'})
+                raw_marks = student_marks_df
             else:
-                grand_total_marks += 100
+                raw_marks = pd.DataFrame(columns=['subject', 'marks_obtained', 'total_marks', 'exam_type'])
+
+            if not logs_df.empty:
+                raw_logs_df = logs_df[logs_df['student_id'].astype(str).str.strip() == current_id_str].copy()
+            else:
+                raw_logs_df = pd.DataFrame()
+
+            # 📊 ATTENDANCE MATRIX PROCESSING PIPELINE
+            attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
+
+            if not raw_logs_df.empty:
+                try:
+                    raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"])
+                    for _, log_row in raw_logs_df.iterrows():
+                        log_date = log_row["attendance_date"]
+                        if pd.isna(log_date):
+                            continue
+                        
+                        log_month_int = log_date.month
+                        log_status = str(log_row["att_status"]).strip().upper()
+
+                        matched_month_key = None
+                        for m_name, m_int in month_map.items():
+                            if m_int == log_month_int:
+                                matched_month_key = m_name
+                                break
+
+                        if matched_month_key:
+                            attendance_matrix[matched_month_key]["total"] += 1
+                            if log_status in ["P", "PRESENT"]:
+                                attendance_matrix[matched_month_key]["present"] += 1
+                except Exception:
+                    pass
+
+            att_cells = {}
+            tot_sum, pres_sum = 0, 0
+            
+            for m in DISPLAY_MONTHS:
+                td = attendance_matrix[m]["total"]
+                pd_val = attendance_matrix[m]["present"]
+                tot_sum += td
+                pres_sum += pd_val
+                
+                pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
+                att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
+                
+            overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "0%"
+            att_cells["Over All Att."] = {"td": str(tot_sum), "pd": str(pres_sum), "pct": overall_pct_str}
+
+            # MODULE C: ACADEMIC RENDERING ENGINE
+            logo_base64 = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+            grand_total_marks, grand_obtained_marks = 0.0, 0.0
             
             compiled_html += f"""
-            <tr>
-                <td style="text-align: left; padding-left: 10px;">{sub}</td>
-                <td>{obt_disp}</td>
-                <td>{tot_marks_num}</td>
-                <td>{pass_marks_num}</td>
-                <td>{per_disp}</td>
-                <td style="font-weight: bold;">{status_disp}</td>
-            </tr>
+            <div class="official-card-container" id="card-{current_id_str}" data-student-name="{name.replace(' ', '_')}">
+                <div class="logo-row">
+                    <img class="logo-img" src="{logo_base64}" alt="Logo">
+                </div>
+                <div class="title-row">
+                    <div class="inst-main-header">CONCORDIA COLLEGE KASUR</div>
+                </div>
+                <div class="banner-row">
+                    <div class="doc-type-banner">RESULT CARD</div>
+                </div>
+                <table class="meta-layout-table">
+                    <tr>
+                        <td style="width: 38%;">Name: <span class="underlined-value-span" style="width: 82%;">{name}</span></td>
+                        <td style="width: 15%;">ID: <span class="underlined-value-span" style="width: 70%;">{current_id_str}</span></td>
+                        <td style="width: 20%;">Section: <span class="underlined-value-span" style="width: 62%;">{section}</span></td>
+                        <td style="width: 14%;">Class: <span class="underlined-value-span" style="width: 55%;">{grade_class}</span></td>
+                        <td style="width: 13%;">Test: <span class="underlined-value-span" style="width: 60%;">{test_name}</span></td>
+                    </tr>
+                </table>
+                <table class="doc-data-table">
+                    <thead>
+                        <tr>
+                        <th style="text-align: left; width: 45%; padding-left: 10px;">Subjects</th>
+                        <th style="width: 11%;">Obt. Marks</th>
+                        <th style="width: 11%;">Total Marks</th>
+                        <th style="width: 11%;">Pass Marks</th>
+                        <th style="width: 11%;">Age%</th>
+                        <th style="width: 11%;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
             """
-        
-        grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else "0%"
-        grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else "-"
+            
+            student_failed_any_subject = False
+            has_valid_marks_data = False
 
-        # Compute Remarks Text Strings safely
-        remarks_text = "No academic metrics verified for current exam context."
-        if has_valid_marks_data:
-            if student_failed_any_subject:
-                remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
-            else:
-                grand_percentage = (grand_obtained_marks / grand_total_marks) * 100 if grand_total_marks > 0 else 0
-                if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable progress achievement."
-                elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
-                else: remarks_text = "Fair tracking evaluation. Operational margins exist for improvement."
+            for sub in subjects_list:
+                sub_clean = sub.upper().strip()
+                match = pd.DataFrame()
+                if not raw_marks.empty:
+                    match = raw_marks[raw_marks['subject'].astype(str).str.upper().str.strip() == sub_clean]
+                    if match.empty:
+                        match = raw_marks[raw_marks['subject'].astype(str).str.upper().str.contains(sub_clean[:4], regex=False, na=False)]
 
-        compiled_html += f"""
-                    <tr style="background-color: #fff; font-weight: bold;">
-                        <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
-                        <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
-                        <td>{int(grand_total_marks)}</td>
-                        <td>-</td>
-                        <td>{grand_per_disp}</td>
-                        <td>{grand_status_disp}</td>
-                    </tr>
-                </tbody>
-            </table>
-            
-            <div class="section-header-title" style="border-bottom: 1px dashed #000;">ATTENDANCE REPORT</div>
-            <table class="attendance-matrix-table">
-                <thead>
-                    <tr>
-                        <th style="width: 14%;">Metric</th>
-                        {''.join([f'<th style="width: 6.5%;">{m}</th>' for m in DISPLAY_MONTHS])}
-                        <th style="width: 8%;">Over All Att.</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="row-title-cell">Total Days</td>
-                        {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in DISPLAY_MONTHS])}
-                        <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
-                    </tr>
-                    <tr>
-                        <td class="row-title-cell">Att. Days</td>
-                        {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in DISPLAY_MONTHS])}
-                        <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
-                    </tr>
-                    <tr>
-                        <td class="row-title-cell">Age%</td>
-                        {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in DISPLAY_MONTHS])}
-                        <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
-                    </tr>
-                </tbody>
-            </table>
-            
-            <div style="font-size:14px; margin-top:30px; margin-bottom:15px;">
-                Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 90%; font-style: italic;">{remarks_text}</span>
-            </div>
-            
-            <table style="width:100%; margin-top:40px;">
+                obt_disp, tot_marks_num, pass_marks_num, per_disp, status_disp = "-", 100, 40, "-", "-"
+                
+                if not match.empty:
+                    try:
+                        obt_val = str(match['marks_obtained'].iloc[0]).strip().upper()
+                        tot_val = match['total_marks'].iloc[0]
+                        tot_marks_num = int(tot_val) if tot_val else 100
+                        pass_marks_num = int(tot_marks_num * 0.4)
+                        
+                        if obt_val == "NC":
+                            obt_disp, per_disp, status_disp = "NC", "NC", "NC"
+                        elif obt_val in ["A", "ABSENT"]:
+                            obt_disp, per_disp, status_disp = "A", "0%", "Fail"
+                            grand_total_marks += tot_marks_num
+                            student_failed_any_subject = True
+                            has_valid_marks_data = True
+                        elif obt_val.replace('.', '', 1).isdigit():
+                            num_obt = float(obt_val)
+                            obt_disp = str(int(num_obt)) if num_obt.is_integer() else str(num_obt)
+                            per_disp = f"{int((num_obt / tot_marks_num) * 100)}%"
+                            grand_obtained_marks += num_obt
+                            grand_total_marks += tot_marks_num
+                            has_valid_marks_data = True
+                            status_disp = "Pass" if num_obt >= pass_marks_num else "Fail"
+                            if num_obt < pass_marks_num: student_failed_any_subject = True
+                    except Exception: pass
+                else:
+                    grand_total_marks += 100
+                
+                compiled_html += f"""
                 <tr>
-                    <td style="text-align: left; width: 40%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Class Incharge Signature</td>
-                    <td style="width:30%;"></td>
-                    <td style="text-align: right; width: 30%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Principal</td>
+                    <td style="text-align: left; padding-left: 10px;">{sub}</td>
+                    <td>{obt_disp}</td>
+                    <td>{tot_marks_num}</td>
+                    <td>{pass_marks_num}</td>
+                    <td>{per_disp}</td>
+                    <td style="font-weight: bold;">{status_disp}</td>
                 </tr>
-            </table>
-        </div>
-        <div class="print-page-break-divider"></div>
-        """
+                """
+            
+            grand_per_disp = f"{int((grand_obtained_marks / grand_total_marks) * 100)}%" if has_valid_marks_data and grand_total_marks > 0 else "0%"
+            grand_status_disp = "Fail" if student_failed_any_subject else "Pass" if has_valid_marks_data else "-"
 
-    # --------------------------------------------------------------------------
-    # MODULE D: EXPORT ACTIONS SCRIPT & EXTERNAL UI DISPLAY HOOKS
-    # --------------------------------------------------------------------------
-    compiled_html += """
-    <script>
-        document.getElementById('save-single-card-trigger').addEventListener('click', function() {
-            const targetCard = document.querySelector('.official-card-container');
-            if (!targetCard) return alert("No layout configuration found.");
-            const sName = targetCard.getAttribute('data-student-name') || "student";
-            const sId = targetCard.id || "result";
-            html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
-                const dlLink = document.createElement('a');
-                dlLink.download = `${sId}_${sName}.png`;
-                dlLink.href = canvas.toDataURL('image/png');
-                dlLink.click();
+            remarks_text = "No academic metrics verified for current exam context."
+            if has_valid_marks_data:
+                if student_failed_any_subject:
+                    remarks_text = f"Unsatisfactory academic status for {test_name}. Performance deficiencies detected."
+                else:
+                    grand_percentage = (grand_obtained_marks / grand_total_marks) * 100 if grand_total_marks > 0 else 0
+                    if grand_percentage >= 80: remarks_text = "Excellent work! Highly commendable progress achievement."
+                    elif grand_percentage >= 60: remarks_text = "Good overall score. Capable of higher distinctions with systematic preparation."
+                    else: remarks_text = "Fair tracking evaluation. Operational margins exist for improvement."
+
+            compiled_html += f"""
+                        <tr style="background-color: #fff; font-weight: bold;">
+                            <td style="text-align: left; padding-left: 10px;">GRAND TOTAL</td>
+                            <td>{int(grand_obtained_marks) if grand_obtained_marks.is_integer() else grand_obtained_marks}</td>
+                            <td>{int(grand_total_marks)}</td>
+                            <td>-</td>
+                            <td>{grand_per_disp}</td>
+                            <td>{grand_status_disp}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="section-header-title" style="border-bottom: 1px dashed #000;">ATTENDANCE REPORT</div>
+                <table class="attendance-matrix-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 14%;">Metric</th>
+                            {''.join([f'<th style="width: 6.5%;">{m}</th>' for m in DISPLAY_MONTHS])}
+                            <th style="width: 8%;">Over All Att.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="row-title-cell">Total Days</td>
+                            {''.join([f'<td>{att_cells[m]["td"]}</td>' for m in DISPLAY_MONTHS])}
+                            <td style="font-weight: bold;">{att_cells["Over All Att."]["td"]}</td>
+                        </tr>
+                        <tr>
+                            <td class="row-title-cell">Att. Days</td>
+                            {''.join([f'<td>{att_cells[m]["pd"]}</td>' for m in DISPLAY_MONTHS])}
+                            <td style="font-weight: bold;">{att_cells["Over All Att."]["pd"]}</td>
+                        </tr>
+                        <tr>
+                            <td class="row-title-cell">Age%</td>
+                            {''.join([f'<td>{att_cells[m]["pct"]}</td>' for m in DISPLAY_MONTHS])}
+                            <td style="font-weight: bold;">{att_cells["Over All Att."]["pct"]}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div style="font-size:14px; margin-top:30px; margin-bottom:15px;">
+                    Remarks: <span style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; width: 90%; font-style: italic;">{remarks_text}</span>
+                </div>
+                
+                <table style="width:100%; margin-top:40px;">
+                    <tr>
+                        <td style="text-align: left; width: 40%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Class Incharge Signature</td>
+                        <td style="width:30%;"></td>
+                        <td style="text-align: right; width: 30%; font-weight: bold; border-top:1px solid #000; padding-top:5px;">Principal</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="print-page-break-divider"></div>
+            """
+
+        # --------------------------------------------------------------------------
+        # MODULE D: EXPORT ACTIONS SCRIPT & EXTERNAL UI DISPLAY HOOKS
+        # --------------------------------------------------------------------------
+        compiled_html += """
+        <script>
+            document.getElementById('save-single-card-trigger').addEventListener('click', function() {
+                const targetCard = document.querySelector('.official-card-container');
+                if (!targetCard) return alert("No layout configuration found.");
+                const sName = targetCard.getAttribute('data-student-name') || "student";
+                const sId = targetCard.id || "result";
+                html2canvas(targetCard, { scale: 2, useCORS: true }).then(canvas => {
+                    const dlLink = document.createElement('a');
+                    dlLink.download = `${sId}_${sName}.png`;
+                    dlLink.href = canvas.toDataURL('image/png');
+                    dlLink.click();
+                });
             });
-        });
 
-        document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
-            const allCards = document.querySelectorAll('.official-card-container');
-            if (allCards.length === 0) return alert("No active cards to compile.");
-            const actionBtn = this;
-            const primaryLabel = actionBtn.innerText;
-            actionBtn.innerText = "⏳ Generating Archive Images...";
-            actionBtn.disabled = true;
-            const archiveBundle = new JSZip();
-            try {
-                for(let index = 0; index < allCards.length; index++) {
-                    const currentCard = allCards[index];
-                    const cardIdStr = currentCard.id || `card_${index}`;
-                    const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
-                    const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
-                    const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
-                    archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
+            document.getElementById('save-section-cards-trigger').addEventListener('click', async function() {
+                const allCards = document.querySelectorAll('.official-card-container');
+                if (allCards.length === 0) return alert("No active cards to compile.");
+                const actionBtn = this;
+                const primaryLabel = actionBtn.innerText;
+                actionBtn.innerText = "⏳ Generating Archive Images...";
+                actionBtn.disabled = true;
+                const archiveBundle = new JSZip();
+                try {
+                    for(let index = 0; index < allCards.length; index++) {
+                        const currentCard = allCards[index];
+                        const cardIdStr = currentCard.id || `card_${index}`;
+                        const studentNameStr = currentCard.getAttribute('data-student-name') || "record";
+                        const renderingCanvas = await html2canvas(currentCard, { scale: 2, useCORS: true });
+                        const sanitizedBase64Payload = renderingCanvas.toDataURL('image/png').split(',')[1];
+                        archiveBundle.file(`${cardIdStr}_${studentNameStr}.png`, sanitizedBase64Payload, { base64: true });
+                    }
+                    const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
+                    const dlLink = document.createElement('a');
+                    dlLink.download = "Section_Result_Cards_Archive.zip";
+                    dlLink.href = URL.createObjectURL(compiledZipBlob);
+                    dlLink.click();
+                } catch (error) {
+                    console.error(error);
+                    alert("An error occurred compiling image packages.");
+                } finally {
+                    actionBtn.innerText = primaryLabel;
+                    actionBtn.disabled = false;
                 }
-                const compiledZipBlob = await archiveBundle.generateAsync({ type: 'blob' });
-                const dlLink = document.createElement('a');
-                dlLink.download = "Section_Result_Cards_Archive.zip";
-                dlLink.href = URL.createObjectURL(compiledZipBlob);
-                dlLink.click();
-            } catch (error) {
-                console.error(error);
-                alert("An error occurred compiling image packages.");
-            } finally {
-                actionBtn.innerText = primaryLabel;
-                actionBtn.disabled = false;
-            }
-        });
-    </script>
-    </body>
-    </html>
-    """
-    components.html(compiled_html, height=950, scrolling=True)
+            });
+        </script>
+        </body>
+        </html>
+        """
+        components.html(compiled_html, height=950, scrolling=True)
 
-elif locals().get('submit_execution', False):
-    if print_scope == "👤 Single Student Card":
-        st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
-    else:
-        st.warning(f"⚠️ No active student rows found matching section group: '{active_section}' for {selected_class} ({selected_session}).")
+    elif submit_execution and students_to_print.empty:
+        if print_scope == "👤 Single Student Card":
+            st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
+        else:
+            st.warning(f"⚠️ No active student rows found matching section group: '{active_section}' for {selected_class} ({selected_session}).")
 # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE
 # ==============================================================================
