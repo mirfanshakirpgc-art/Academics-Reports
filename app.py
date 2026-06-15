@@ -2796,7 +2796,7 @@ elif menu_choice == "🪪 Student Result Cards":
         ctive_section = students_to_print.iloc[0]['section']
         selected_class = students_to_print.iloc[0]['class']
         
-        elif print_scope == "👥 Complete Section Cards" and active_section:
+    elif print_scope == "👥 Complete Section Cards" and active_section:
             # Change your SQL query to force trim both sides
             students_to_print = run_query(
             """
