@@ -4422,98 +4422,114 @@ elif menu_choice == "⚙️ Settings":
     # 🛡️ TAB 2: MASTER ACCESS CONTROL & USER RIGHTS PROVISIONING
     # ==============================================================================
     with tab2:
-        st.subheader("🛡️ Master Access Control & User Provisioning")
-        st.markdown("Administrative utility to register institutional accounts and assign role-based access permissions.")
+    st.subheader("🛡️ Master Access Control & User Provisioning")
+    st.markdown("Administrative utility to register institutional accounts and assign role-based access permissions.")
 
-        # --- STEP 1: CREATE NEW USER & ASSIGN RIGHTS ---
-        st.write("### ➕ Create New User Account")
-        with st.form("user_creation_form", clear_on_submit=True):
-            col_u1, col_u2 = st.columns(2)
-            with col_u1:
-                new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip()
-                new_password = st.text_input("Account Password:", type="password", placeholder="Enter secure password")
-            with col_u2:
-                assigned_role = st.selectbox(
-                    "Assign System Rights / Role Level:",
-                    options=["teacher", "controller", "admin"],
-                    help="'admin' has full access. 'controller' handles academic settings. 'teacher' manages marks and attendance."
-                )
-                account_status = st.selectbox("Initial Account Status:", options=["ACTIVE", "DISABLED"])
+    # --- AUTOMATIC TABLE INITIALIZATION (Fixes your missing table bug) ---
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS system_users (
+                    username VARCHAR(100) PRIMARY KEY,
+                    password VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) DEFAULT 'ACTIVE'
+                );
+            """))
+    except Exception as err:
+        st.error(f"⚠️ Could not initialize system_users table: {err}")
 
-            submit_user = st.form_submit_button("🔒 Provision Account & Rights", type="primary")
+    # --- STEP 1: CREATE NEW USER & ASSIGN RIGHTS ---
+    st.write("### ➕ Create New User Account")
+    with st.form("user_creation_form", clear_on_submit=True):
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip()
+            new_password = st.text_input("Account Password:", type="password", placeholder="Enter secure password")
+        with col_u2:
+            assigned_role = st.selectbox(
+                "Assign System Rights / Role Level:",
+                options=["teacher", "controller", "admin"],
+                help="'admin' has full access. 'controller' handles academic settings. 'teacher' manages marks and attendance."
+            )
+            account_status = st.selectbox("Initial Account Status:", options=["ACTIVE", "DISABLED"])
 
-            if submit_user:
-                if not new_username or not new_password:
-                    st.error("❌ Both Username and Password fields are strictly mandatory.")
-                else:
-                    try:
-                        user_check = run_query("SELECT username FROM system_users WHERE UPPER(TRIM(username)) = UPPER(TRIM(:uname))", {"uname": new_username})
-                        if not user_check.empty:
-                            st.error(f"❌ Username '{new_username}' is already taken.")
-                        else:
-                            run_update("""
+        submit_user = st.form_submit_button("🔒 Provision Account & Rights", type="primary")
+
+        if submit_user:
+            if not new_username or not new_password:
+                st.error("❌ Both Username and Password fields are strictly mandatory.")
+            else:
+                try:
+                    user_check = run_query("SELECT username FROM system_users WHERE UPPER(TRIM(username)) = UPPER(TRIM(:uname))", {"uname": new_username})
+                    if not user_check.empty:
+                        st.error(f"❌ Username '{new_username}' is already taken.")
+                    else:
+                        # Fixed: Wrapping text parameter with text() object for execution safety
+                        with engine.begin() as conn:
+                            conn.execute(text("""
                                 INSERT INTO system_users (username, password, role, status)
                                 VALUES (:uname, :pwd, :role, :status)
-                            """, {
+                            """), {
                                 "uname": new_username,
                                 "pwd": new_password,
                                 "role": assigned_role,
                                 "status": account_status
                             })
-                            st.success(f"🎉 Account created successfully! User **{new_username}** has been assigned **{assigned_role}** rights.")
-                            st.rerun()
-                    except Exception as err:
-                        st.error(f"❌ Failed to create user account: {err}")
+                        st.success(f"🎉 Account created successfully! User **{new_username}** has been assigned **{assigned_role}** rights.")
+                        st.rerun()
+                except Exception as err:
+                    st.error(f"❌ Failed to create user account: {err}")
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # --- STEP 2: VIEW & MANAGE EXISTING USER RIGHTS ---
-        st.write("### 👥 Existing User Accounts & Assigned Rights")
-        users_df = pd.DataFrame()
-        try:
-            users_df = run_query('SELECT username as "Username", role as "Assigned Rights/Role", status as "Status" FROM system_users ORDER BY username ASC')
-        except Exception as e:
-            st.error(f"⚠️ Could not load user registry from database: {e}")
+    # --- STEP 2: VIEW & MANAGE EXISTING USER RIGHTS ---
+    st.write("### 👥 Existing User Accounts & Assigned Rights")
+    users_df = pd.DataFrame()
+    try:
+        users_df = run_query('SELECT username as "Username", role as "Assigned Rights/Role", status as "Status" FROM system_users ORDER BY username ASC')
+    except Exception as e:
+        st.error(f"⚠️ Could not load user registry from database: {e}")
 
-        if not users_df.empty:
-            st.dataframe(users_df, use_container_width=True, hide_index=True)
-            st.write("#### 🛠️ Modify or Revoke User Rights")
-            user_list = users_df["Username"].tolist()
-            selected_user = st.selectbox("Select an Account to Modify:", options=user_list, key="mod_user_select")
+    if not users_df.empty:
+        st.dataframe(users_df, use_container_width=True, hide_index=True)
+        st.write("#### 🛠️ Modify or Revoke User Rights")
+        user_list = users_df["Username"].tolist()
+        selected_user = st.selectbox("Select an Account to Modify:", options=user_list, key="mod_user_select")
+        
+        if selected_user:
+            target_user_row = users_df[users_df["Username"] == selected_user].iloc[0]
             
-            if selected_user:
-                target_user_row = users_df[users_df["Username"] == selected_user].iloc[0]
+            with st.form("edit_rights_form"):
+                mod_role = st.selectbox("Update Assigned Rights:", options=["teacher", "controller", "admin"], index=["teacher", "controller", "admin"].index(target_user_row["Assigned Rights/Role"]))
+                mod_status = st.selectbox("Update Status:", options=["ACTIVE", "DISABLED"], index=["ACTIVE", "DISABLED"].index(target_user_row["Status"]))
                 
-                with st.form("edit_rights_form"):
-                    mod_role = st.selectbox("Update Assigned Rights:", options=["teacher", "controller", "admin"], index=["teacher", "controller", "admin"].index(target_user_row["Assigned Rights/Role"]))
-                    mod_status = st.selectbox("Update Status:", options=["ACTIVE", "DISABLED"], index=["ACTIVE", "DISABLED"].index(target_user_row["Status"]))
-                    
-                    col_btn1, col_btn2 = st.columns(2)
-                    with col_btn1:
-                        save_rights = st.form_submit_button("💾 Update User Rights", type="primary", use_container_width=True)
-                    with col_btn2:
-                        confirm_drop = st.checkbox("Confirm Account Deletion", key="del_user_chk")
-                        delete_user = st.form_submit_button("🗑️ Delete User Completely", type="secondary", use_container_width=True)
-                    
-                    if save_rights:
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    save_rights = st.form_submit_button("💾 Update User Rights", type="primary", use_container_width=True)
+                with col_btn2:
+                    confirm_drop = st.checkbox("Confirm Account Deletion", key="del_user_chk")
+                    delete_user = st.form_submit_button("🗑️ Delete User Completely", type="secondary", use_container_width=True)
+                
+                if save_rights:
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE system_users SET role = :role, status = :status WHERE username = :uname"), {"role": mod_role, "status": mod_status, "uname": selected_user})
+                        st.success(f"🎉 Successfully updated rights for user **{selected_user}** to **{mod_role}**!")
+                        st.rerun()
+                    except Exception as err:
+                        st.error(f"❌ Failed to update rights: {err}")
+                        
+                if delete_user:
+                    if not confirm_drop:
+                        st.error("🔒 Please check the 'Confirm Account Deletion' box to delete this user.")
+                    else:
                         try:
                             with engine.begin() as conn:
-                                conn.execute(text("UPDATE system_users SET role = :role, status = :status WHERE username = :uname"), {"role": mod_role, "status": mod_status, "uname": selected_user})
-                            st.success(f"🎉 Successfully updated rights for user **{selected_user}** to **{mod_role}**!")
-                            st.rerun()
+                                conn.execute(text("DELETE FROM system_users WHERE username = :uname"), {"uname": selected_user})
+                            st.success(f"🗑️ Account for **{selected_user}** has been successfully removed.")
+                            st.rerun() # Fixed: Changed from rerun() to st.rerun()
                         except Exception as err:
-                            st.error(f"❌ Failed to update rights: {err}")
-                            
-                    if delete_user:
-                        if not confirm_drop:
-                            st.error("🔒 Please check the 'Confirm Account Deletion' box to delete this user.")
-                        else:
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("DELETE FROM system_users WHERE username = :uname"), {"uname": selected_user})
-                                st.success(f"🗑️ Account for **{selected_user}** has been successfully removed.")
-                                rerun()
-                            except Exception as err:
-                                st.error(f"❌ Failed to delete user: {err}")
-        else:
-            st.info("No user accounts are currently registered in the system database.")
+                            st.error(f"❌ Failed to delete user: {err}")
+    else:
+        st.info("No user accounts are currently registered in the system database.")
