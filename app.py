@@ -86,24 +86,49 @@ if not st.session_state.logged_in:
     st.image("logo.png", width=120) 
     st.title("Concordia College Kasur")
     
-    username_input = st.text_input("Username")
+    # Force lowercase automatically to completely fix case mismatches (like Ms.Neha vs ms.neha)
+    username_input = st.text_input("Username").strip().lower()
     password_input = st.text_input("Password", type="password")
     
     if st.button("Log In"):
-        with engine.connect() as conn:
-            query = text("SELECT role, assigned_subject FROM app_users WHERE username = :u AND password = :p")
-            result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
-            
-            if result:
-                st.session_state.logged_in = True
-                st.session_state.user_role = result[0]         
-                st.session_state.assigned_subject = result[1]    
-                st.success("Access Granted! Loading system...")
-                st.rerun()
-            else:
-                st.error("Incorrect username or password. Please try again.")
-    st.stop() 
-
+        if not username_input or not password_input:
+            st.error("Please fill in both fields.")
+        else:
+            try:
+                import hashlib
+                # Convert the typed plain password into the exact SHA-256 hash stored in the DB
+                hashed_password = hashlib.sha256(password_input.encode()).hexdigest()
+                
+                with engine.connect() as conn:
+                    # FIX: Querying 'system_users' table instead of 'app_users'
+                    query = text("""
+                        SELECT role, status 
+                        FROM system_users 
+                        WHERE username = :u AND password = :p
+                    """)
+                    result = conn.execute(query, {"u": username_input, "p": hashed_password}).fetchone()
+                    
+                    if result:
+                        user_role, user_status = result[0], result[1]
+                        
+                        # Verify the account hasn't been disabled by settings
+                        if str(user_status).upper().strip() in ["ACTIVE", "1"]:
+                            st.session_state.logged_in = True
+                            st.session_state.username = username_input
+                            st.session_state.role = user_role  # Stores the role (Admin, Admission Office, etc.)
+                            
+                            st.success("Access Granted! Loading system...")
+                            import time
+                            time.sleep(1.0)
+                            st.rerun()
+                        else:
+                            st.error("🔒 This user account has been disabled by management.")
+                    else:
+                        st.error("Incorrect username or password. Please try again.")
+            except Exception as login_err:
+                st.error(f"⚠️ Connection bridge failure: {login_err}")
+                
+    st.stop()
 # ==============================================================================
 # --- AUTOMATIC TABLE SETUP ---
 # ==============================================================================
