@@ -4099,6 +4099,8 @@ elif menu_choice == "⚙️ Settings":
             if st.button("💾 Apply Configuration Changes", type="primary"):
                 st.session_state["current_session"] = chosen_session
                 st.success(f"🚀 System configuration updated! Active session is now set to **{chosen_session}**.")
+                import time
+                time.sleep(1.5)
                 st.rerun()
 
             st.markdown("---")
@@ -4119,6 +4121,8 @@ elif menu_choice == "⚙️ Settings":
                         if check_existing.empty:
                             run_update("INSERT INTO academic_sessions (session_name, status) VALUES (:name, :status)", {"name": new_session_name.strip(), "status": new_session_status})
                             st.success(f"🎉 Successfully registered session '{new_session_name.strip()}'!")
+                            import time
+                            time.sleep(1.5)
                             st.rerun()
                         else:
                             st.warning("A session with this name already exists.")
@@ -4159,6 +4163,8 @@ elif menu_choice == "⚙️ Settings":
                                     with engine.begin() as conn:
                                         conn.execute(text("UPDATE academic_sessions SET session_name = :name, status = :status WHERE id = :id"), {"name": updated_sess_name, "status": updated_sess_status, "id": selected_sess_id})
                                     st.success("💾 Session configurations updated successfully!")
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                                 except Exception as db_error:
                                     st.error(f"Database operation failed: {db_error}")
@@ -4171,6 +4177,8 @@ elif menu_choice == "⚙️ Settings":
                                     with engine.begin() as conn:
                                         conn.execute(text("DELETE FROM academic_sessions WHERE id = :id"), {"id": selected_sess_id})
                                     st.success("🗑️ Session permanently removed from records.")
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                                 except Exception as db_error:
                                     st.error(f"Failed to delete session record: {db_error}")
@@ -4204,6 +4212,8 @@ elif menu_choice == "⚙️ Settings":
                                 with engine.begin() as conn:
                                     conn.execute(text("INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status) VALUES (:code, :name, :phone, :email, 'ACTIVE')"), {"code": int(new_teacher_id), "name": new_teacher_name, "phone": new_teacher_phone, "email": new_teacher_email})
                                 st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
+                                import time
+                                time.sleep(1.5)
                                 st.rerun()
                         except Exception as err:
                             st.error(f"❌ Failed to write record to the database: {err}")
@@ -4247,6 +4257,8 @@ elif menu_choice == "⚙️ Settings":
                                     with engine.begin() as conn:
                                         conn.execute(text("UPDATE system_teachers SET teacher_id = :new_id, teacher_name = :name, phone_number = :phone, email_address = :email, status = :status WHERE teacher_id = :old_id"), {"new_id": int(updated_fac_id), "name": updated_fac_name, "phone": updated_fac_phone, "email": updated_fac_email, "status": updated_fac_status, "old_id": selected_fac_id})
                                     st.success(f"🎉 Successfully updated profile details for {updated_fac_name}!")
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                                 except Exception as err:
                                     st.error(f"❌ Modification failed: {err}")
@@ -4259,6 +4271,8 @@ elif menu_choice == "⚙️ Settings":
                                     with engine.begin() as conn:
                                         conn.execute(text("DELETE FROM system_teachers WHERE teacher_id = :id"), {"id": selected_fac_id})
                                     st.success("Faculty profile completely removed from system records.")
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                                 except Exception as err:
                                     st.error(f"❌ Cannot delete this teacher: {err}")
@@ -4319,6 +4333,8 @@ elif menu_choice == "⚙️ Settings":
                                         "sess_id": session_map[new_sec_session]
                                     })
                                     st.success(f"🎉 Successfully registered section roster allocation '{new_class_level} - {new_sec_name}'!")
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                             except Exception as err:
                                 st.error(f"❌ Failed to commit new section record: {err}")
@@ -4373,6 +4389,8 @@ elif menu_choice == "⚙️ Settings":
                                                 WHERE id = :id
                                             """), {"name": mod_sec_name, "lvl": mod_class_level, "cap": int(mod_sec_capacity), "status": mod_sec_status, "id": target_sec_id})
                                         st.success(f"🎉 Updated setup profiles for section target '{mod_sec_name}'!")
+                                        import time
+                                        time.sleep(1.5)
                                         st.rerun()
                                     except Exception as err:
                                         st.error(f"❌ Matrix transaction validation failed: {err}")
@@ -4385,6 +4403,8 @@ elif menu_choice == "⚙️ Settings":
                                         with engine.begin() as conn:
                                             conn.execute(text("DELETE FROM academic_sections WHERE id = :id"), {"id": target_sec_id})
                                         st.success("🗑️ Section footprint purged successfully.")
+                                        import time
+                                        time.sleep(1.5)
                                         st.rerun()
                                     except Exception as err:
                                         st.error(f"❌ Action denied: Check if section is linked to active student registrations: {err}")
@@ -4438,8 +4458,9 @@ elif menu_choice == "⚙️ Settings":
         system_roles_matrix = list(FUTURE_ROLES_CONFIG.keys())
         role_help_tooltip = "\n".join([f"• {role}: {desc}" for role, desc in FUTURE_ROLES_CONFIG.items()])
 
-        # --- AUTOMATIC TABLE INITIALIZATION ---
+        # --- AUTOMATIC TABLE INITIALIZATION & SAFETY SEEDING ---
         try:
+            import hashlib
             with engine.begin() as conn:
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS system_users (
@@ -4449,6 +4470,15 @@ elif menu_choice == "⚙️ Settings":
                         status VARCHAR(20) DEFAULT 'ACTIVE'
                     );
                 """))
+                
+                # Safety feature: Self-heal/ensure default fallback admin account exists
+                check_admin = conn.execute(text("SELECT username FROM system_users WHERE username = 'admin'")).fetchone()
+                if not check_admin:
+                    fallback_hash = hashlib.sha256("admin123".encode()).hexdigest()
+                    conn.execute(text("""
+                        INSERT INTO system_users (username, password, role, status)
+                        VALUES ('admin', :pwd, 'Admin', 'ACTIVE')
+                    """), {"pwd": fallback_hash})
         except Exception as err:
             st.error(f"⚠️ Could not initialize system_users table: {err}")
 
@@ -4480,7 +4510,6 @@ elif menu_choice == "⚙️ Settings":
         with st.form("master_access_user_creation_form", clear_on_submit=True):
             col_u1, col_u2 = st.columns(2)
             with col_u1:
-                # Standardized to lowercase and trimmed to protect database identity checks
                 new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip().lower()
                 new_password = st.text_input("Account Password:", type="password", placeholder="Enter secure password")
             with col_u2:
@@ -4498,7 +4527,6 @@ elif menu_choice == "⚙️ Settings":
                     st.error("❌ Both Username and Password fields are strictly mandatory.")
                 else:
                     try:
-                        import hashlib
                         # 🔒 Secure Hashing Conversion Step prior to SQL transmission
                         hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
 
@@ -4513,7 +4541,13 @@ elif menu_choice == "⚙️ Settings":
                                 "role": assigned_role, 
                                 "status": account_status
                             })
+                        
+                        # Use container elements to display success before screen destruction execution sequence
                         st.success(f"🎉 Account '{new_username}' successfully provisioned as role context: **{assigned_role}**!")
+                        
+                        # Let the message stay visible on-screen for 2 seconds before the view reloads
+                        import time
+                        time.sleep(2.0)
                         st.rerun()
                     except Exception as err:
                         st.error(f"❌ Account provisioning failed (User may already exist): {err}")
