@@ -2293,13 +2293,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
         
         for idx, s in enumerate(students_to_process):
             s_id = s['id']
-            clean_s_id = int(s_id) if str(s_id).isdigit() else str(s_id).strip()
+            # Normalize to string stripped of whitespace to prevent mismatching trailing DB characters
+            clean_s_id = str(s_id).strip()
             key = f"sid_{idx}"
             placeholder_list.append(f":{key}")
             params_dict[key] = clean_s_id
             
         placeholders_str = ", ".join(placeholder_list)
         
+        # Initializing target storage frames safely
         marks_df = pd.DataFrame()
         attendance_df = pd.DataFrame()
 
