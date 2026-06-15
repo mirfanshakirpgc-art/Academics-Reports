@@ -14,17 +14,31 @@ st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- INITIALIZE GLOBAL IMAGES AND LOGOS ---
 logo_filename = "logo.png"
+
+# 1. Always initialize the variable to prevent NameError/UnboundLocalError
 logo_base64 = ""
 
+# 2. Check existence and handle loading
 if os.path.exists(logo_filename):
     try:
         with open(logo_filename, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
+            # Handle extensions correctly
             ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            if ext == "jpg": ext = "jpeg"
-            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
-    except Exception:
-        pass
+            if ext in ["jpg", "jpeg"]: 
+                mime_type = "jpeg"
+            elif ext == "png": 
+                mime_type = "png"
+            else: 
+                mime_type = "png" # Default fallback
+            
+            logo_base64 = f"data:image/{mime_type};base64,{encoded_string}"
+    except Exception as e:
+        # Log the error to your console so you know why the image failed
+        print(f"Error loading logo file: {e}")
+        logo_base64 = ""
+else:
+    print(f"Warning: Logo file '{logo_filename}' not found.")
 
 # --- CORE HELPER FUNCTIONS ---
 def apply_filters(df, tab_key):
