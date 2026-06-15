@@ -2718,6 +2718,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
 # ==============================================================================
 elif menu_choice == "🪪 Student Result Cards":
+# --- DIAGNOSTIC ATTENDANCE FETCH ---
+st.write("DEBUG: Fetching logs for student_id:", int(current_id_str))
+
+# Check exactly what is in the table for this student
+debug_logs = run_query("""
+    SELECT student_id, attendance_date, status 
+    FROM daily_attendance 
+    WHERE student_id = :sid
+""", {"sid": int(current_id_str)})
+
+st.write("DEBUG: Attendance table rows found:", len(debug_logs))
+st.dataframe(debug_logs.head())
     import streamlit.components.v1 as components
     import pandas as pd
     import streamlit as st
