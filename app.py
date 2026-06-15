@@ -2795,34 +2795,43 @@ elif menu_choice == "🪪 Student Result Cards":
     students_to_print = pd.DataFrame()
 
     if submit_execution:
-        # 1. Print current filter context
         st.write(f"Searching for ID: {search_id} | Session: {selected_session}")
     
-    # 2. Execute the fetch
-        students_to_print = run_query(...) 
-    
-    # 3. Add a fallback check
-    if students_to_print.empty:
-        # Check the database for any entries for this ID regardless of filters
-        total_check = run_query("SELECT session, class FROM students WHERE id = :id", {"id": search_id})
-        st.write("Database shows student exists in these sessions:", total_check)
-            
-        # Auto-override active workspace context parameters if record is found
-    if not students_to_print.empty:
-        ctive_section = students_to_print.iloc[0]['section']
-        selected_class = students_to_print.iloc[0]['class']
-        
-    elif print_scope == "👥 Complete Section Cards" and active_section:
-            # Change your SQL query to force trim both sides
-            students_to_print = run_query(
+        if print_scope == "👤 Single Student Card":
+            # 2. Execute the fetch for a single student
+            sql_single = """
+                SELECT id, name, section, class 
+                FROM students 
+                WHERE session = :session 
+                AND id = :sid
             """
-            SELECT id, name, section, class 
-            FROM students 
-            WHERE TRIM(session) = TRIM(:session) 
-            AND id = :sid
-            """,
-            {"session": selected_session.strip(), "sid": int(search_id.strip())}
-            )
+            students_to_print = run_query(sql_single, {"session": selected_session.strip(), "sid": int(search_id.strip())})
+            
+            # 3. Add a fallback check if empty
+            if students_to_print.empty:
+                total_check = run_query("SELECT session, class FROM students WHERE id = :id", {"id": search_id.strip()})
+                st.write("Database shows student exists in these sessions:", total_check)
+            
+            # Auto-override active workspace context parameters if record is found
+            if not students_to_print.empty:
+                active_section = students_to_print.iloc[0]['section']
+                selected_class = students_to_print.iloc[0]['class']
+        
+        elif print_scope == "👥 Complete Section Cards" and active_section:
+            # 2. Execute the fetch for the whole section
+            sql_section = """
+                SELECT id, name, section, class 
+                FROM students 
+                WHERE TRIM(session) = TRIM(:session) 
+                AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
+                AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
+                ORDER BY id ASC
+            """
+            students_to_print = run_query(sql_section, {
+                "session": selected_session.strip(), 
+                "cls": normalized_class_input,
+                "sec": active_section.strip()
+            })
     # ==============================================================================
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # ==============================================================================
