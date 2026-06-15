@@ -4174,32 +4174,11 @@ elif menu_choice == "⚙️ Settings":
                                     st.rerun()
                                 except Exception as db_error:
                                     st.error(f"Failed to delete session record: {db_error}")
-        else:
-            st.info("No academic sessions are currently registered.")
+            else:
+                st.info("No academic sessions are currently registered.")
 
         # ==============================================================================
         # MODULE 2: FACULTY REGISTRATION TRACK
-        # ==============================================================================
-        # ... (Your previous session modification form code is up here) ...
-                        if delete_sess:
-                            if not confirm_sess_del:
-                                st.warning("🔒 Please check the 'Confirm complete deletion' box before deleting.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM academic_sessions WHERE id = :id"), {"id": selected_sess_id})
-                                    st.success("🗑️ Session permanently removed from records.")
-                                    st.rerun()
-                                except Exception as db_error:
-                                    st.error(f"Failed to delete session record: {db_error}")
-        
-        # 🔔 FIX IS HERE: This else belongs to "if not current_sessions.empty:"
-        # It must be indented at 8 spaces (or 2 tabs), NOT aligned with the outer menu!
-        else:
-            st.info("No academic sessions are currently registered.")
-
-        # ==============================================================================
-        # MODULE 2: FACULTY REGISTRATION TRACK (Line 4183 onwards)
         # ==============================================================================
         elif sub_menu == "📝 Faculty Registration":
             st.subheader("➕ Register New Faculty Member")
@@ -4220,14 +4199,6 @@ elif menu_choice == "⚙️ Settings":
                         try:
                             check_id = run_query("SELECT teacher_id FROM system_teachers WHERE teacher_id = :code", {"code": int(new_teacher_id)})
                             if not check_id.empty:
-                                st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
-                            else:
-                                with engine.begin() as conn:
-                                    conn.execute(text("INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status) VALUES (:code, :name, :phone, :email, 'ACTIVE')"), {"code": int(new_teacher_id), "name": new_teacher_name, "phone": new_teacher_phone, "email": new_teacher_email})
-                                st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
-                                st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Failed to write record to the database: {err}")
                                 st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
                             else:
                                 with engine.begin() as conn:
@@ -4526,98 +4497,13 @@ elif menu_choice == "⚙️ Settings":
                     st.error("❌ Both Username and Password fields are strictly mandatory.")
                 else:
                     try:
-                        user_check = run_query("SELECT username FROM system_users WHERE UPPER(TRIM(username)) = UPPER(TRIM(:uname))", {"uname": new_username})
-                        if not user_check.empty:
-                            st.error(f"❌ Username '{new_username}' is already taken.")
-                        else:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO system_users (username, password, role, status)
-                                    VALUES (:uname, :pwd, :role, :status)
-                                """), {
-                                    "uname": new_username,
-                                    "pwd": new_password,
-                                    "role": assigned_role,
-                                    "status": account_status
-                                })
-                            st.success(f"🎉 Account created successfully! User **{new_username}** has been assigned **{assigned_role}** rights.")
-                            st.rerun()
+                        # Core insertion engine transaction
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO system_users (username, password, role, status)
+                                VALUES (:user, :pwd, :role, :status)
+                            """), {"user": new_username, "pwd": new_password, "role": assigned_role, "status": account_status})
+                        st.success(f"🎉 Account '{new_username}' successfully provisioned as role context: **{assigned_role}**!")
+                        st.rerun()
                     except Exception as err:
-                        st.error(f"❌ Failed to create user account: {err}")
-
-        st.markdown("---")
-
-        # --- STEP 2: VIEW & MANAGE EXISTING USER RIGHTS ---
-        st.write("### 👥 Existing User Accounts & Assigned Rights")
-        users_df = pd.DataFrame()
-        try:
-            users_df = run_query('SELECT username as "Username", role as "Assigned Rights/Role", status as "Status" FROM system_users ORDER BY username ASC')
-        except Exception as e:
-            st.error(f"⚠️ Could not load user registry from database: {e}")
-
-        if not users_df.empty:
-            st.dataframe(users_df, use_container_width=True, hide_index=True)
-            st.write("#### 🛠️ Modify or Revoke User Rights")
-            user_list = users_df["Username"].tolist()
-            selected_user = st.selectbox("Select an Account to Modify:", options=user_list, key="mod_user_select")
-            
-            if selected_user:
-                target_user_row = users_df[users_df["Username"] == selected_user].iloc[0]
-                
-                # Dynamic matching layer: ensures lowercase DB artifacts map gracefully into Title Case definitions
-                current_db_role = str(target_user_row["Assigned Rights/Role"]).strip()
-                matched_role = next((r for r in system_roles_matrix if r.lower() == current_db_role.lower()), None)
-                
-                if matched_role in system_roles_matrix:
-                    default_role_index = system_roles_matrix.index(matched_role)
-                else:
-                    default_role_index = 0
-                
-                # Isolated Form Block Workspace
-                with st.container(border=True):
-                    st.markdown(f"⚙️ **Editing System Credentials For:** `{selected_user}`")
-                    
-                    with st.form("edit_rights_form"):
-                        mod_role = st.selectbox(
-                            "Update Assigned Rights:", 
-                            options=system_roles_matrix, 
-                            index=default_role_index,
-                            help=role_help_tooltip
-                        )
-                        mod_status = st.selectbox(
-                            "Update Status:", 
-                            options=["ACTIVE", "DISABLED"], 
-                            index=["ACTIVE", "DISABLED"].index(target_user_row["Status"])
-                        )
-                        
-                        col_btn1, col_btn2 = st.columns(2)
-                        with col_btn1:
-                            save_rights = st.form_submit_button("💾 Update User Rights", type="primary", use_container_width=True)
-                        with col_btn2:
-                            confirm_drop = st.checkbox("Confirm Account Deletion", key="del_user_chk")
-                            delete_user = st.form_submit_button("🗑️ Delete User Completely", type="secondary", use_container_width=True)
-                        
-                        # --- ACTION WORKFLOW A: RECORD UPDATING ---
-                        if save_rights:
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("UPDATE system_users SET role = :role, status = :status WHERE username = :uname"), {"role": mod_role, "status": mod_status, "uname": selected_user})
-                                st.success(f"🎉 Successfully updated rights for user **{selected_user}** to **{mod_role}**!")
-                                st.rerun()
-                            except Exception as err:
-                                st.error(f"❌ Failed to update rights: {err}")
-                                
-                        # --- ACTION WORKFLOW B: RECORD DELETION ---
-                        if delete_user:
-                            if not confirm_drop:
-                                st.error("🔒 Please check the 'Confirm Account Deletion' box to delete this user.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM system_users WHERE username = :uname"), {"uname": selected_user})
-                                    st.success(f"🗑️ Account for **{selected_user}** has been successfully removed.")
-                                    st.rerun()
-                                except Exception as err:
-                                   st.error(f"❌ Failed to delete user: {err}")
-        else:
-            st.info("No user accounts are currently registered in the system database.")
+                        st.error(f"❌ Account provisioning failed (User may already exist): {err}")
