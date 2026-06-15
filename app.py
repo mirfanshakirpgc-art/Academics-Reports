@@ -323,7 +323,6 @@ def execute_db_command(query, params=None):
 # SIDEBAR NAVIGATION MODULE 
 # ==============================================================================
 menu_choice = st.sidebar.radio(
-    menu_choice = st.sidebar.radio(
     "Go To Module:",
     [
         "📊 Home Dashboard", 
