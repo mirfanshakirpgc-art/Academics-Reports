@@ -2881,12 +2881,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     df_marks_raw = run_query(f"SELECT * FROM {exam_table}", params={})
                     if df_marks_raw is not None and not df_marks_raw.empty:
                         df_marks_raw.columns = [c.lower() for c in df_marks_raw.columns]
-                        try:
-            df_marks_raw = run_query(f"SELECT * FROM {exam_table}", params={})
-        except Exception as db_err:
-            st.error("🎯 SQL Diagnostic Engine Catch:")
-            st.code(f"Attempted Table Variable: '{exam_table}'")
-            st.code(f"Raw Database Error: {str(db_err)}")
             st.stop()  # Safely halts execution so you can read the error clearly
                         # Fallback mapping in case columns are named slightly differently
                         id_col = 'student_id' if 'student_id' in df_marks_raw.columns else df_marks_raw.columns[0]
