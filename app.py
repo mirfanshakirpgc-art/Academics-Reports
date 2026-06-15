@@ -5,6 +5,11 @@
 if menu_choice == "📊 Home Dashboard":
     st.title("Concordia College Kasur")
     st.subheader("🏛️ Institutional Dashboard Overview")
+    # Make sure this function call closes its parenthesis safely!
+    st.info("Welcome to the Academic Analytics control room.") 
+
+elif menu_choice == "➕ Add Students":
+    st.title("➕ Student Profile Registration Portal")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students WHERE status='ACTIVE'").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
