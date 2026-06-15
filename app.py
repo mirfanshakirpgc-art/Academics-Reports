@@ -1,10 +1,63 @@
-# ... [Your upper script blocks run down all modules smoothly here] ...
+# ==============================================================================
+# ROUTING CONTROLLER & VIEWPORTS (COMPLETE SECURE HUB)
+# ==============================================================================
+
+if menu_choice == "📊 Home Dashboard":
+    st.title("Concordia College Kasur")
+    st.subheader("🏛️ Institutional Dashboard Overview")
+    # ... [Dashboard code here] ...
+
+elif menu_choice == "➕ Add Students":
+    st.title("➕ Student Profile Registration Portal")
+    # 🧬 DATABASE INTEGRATION LAYER
+    try:
+        db_sessions = run_query("SELECT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
+        db_disciplines = run_query("SELECT discipline_name FROM system_disciplines WHERE status = 'ACTIVE' ORDER BY discipline_name ASC")
+        db_sections = run_query("SELECT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
+        # ... [Rest of your Add Students form & bulk processing code here] ...
+    except Exception as e:
+        st.error(f"⚠️ Failed to bind dynamic settings assets: {e}")
+    
+    # !!! MAKE SURE ALL bulk upload and form code stays inside this block's indentation !!!
+
+elif menu_choice == "📝 Academic Exam Marks Entry":
+    st.title("📝 Academic Exam Marks Entry Workspace")
+
+elif menu_choice == "📅 Attendance Entry Management":
+    st.title("📅 Attendance Entry Management")
+
+elif menu_choice == "📋 Daily Attendance Report":
+    st.title("📋 Daily Attendance Report")
+
+elif menu_choice == "📋 Section Summary Report":
+    st.title("📋 Section Summary Report")
+
+elif menu_choice == "📈 Multi-Test Progress Report":
+    st.title("📈 Multi-Test Progress Report")
+
+elif menu_choice == "🪪 Student Result Cards":
+    st.title("🪪 Student Result Cards — Print Engine")
+    # ... [Your result card generation interface here] ...
+
+elif menu_choice == "👨‍🏫 Teacher Management":
+    st.title("👨‍🏫 Teacher Management & Allocations")
+
+elif menu_choice == "📈 Academic Analysis Reports":
+    st.title("📈 Academic Analysis Reports")
 
 elif menu_choice == "👥 Student Operations Management":
     st.title("👥 Student Operations Management")
 
 elif menu_choice == "⚙️ Settings":
     st.title("⚙️ System Control & Management Settings")
+
+
+# ==============================================================================
+# --- SYSTEM FOOTER METRICS AND SECURITY HOOKS ---
+# ==============================================================================
+# This must sit out here at the absolute bottom, completely flush with the left margin
+st.markdown("<br><hr>", unsafe_allow_html=True)
+st.caption(f"🔒 Logged in safely as: **{st.session_state.get('username', 'Anonymous')}** | Role Context Boundary Level")
 
 
 # ==============================================================================
