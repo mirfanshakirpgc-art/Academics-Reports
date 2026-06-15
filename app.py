@@ -2760,16 +2760,30 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (CLEAN RECORD FETCHING)
+    # PART 3: DATA EXTRACTION ENGINE (CLEAN RECORD FETCHING WITH VISUAL DEBUG)
     # --------------------------------------------------------------------------
     students_to_print = pd.DataFrame()
 
     if submit_execution:
+        # --- DEBUG 1: Show what the UI is sending to the database ---
+        st.info(f"🔍 DEBUG: UI inputs being sent -> Session: '{selected_session}' | Search ID: '{search_id.strip()}' | Class: '{selected_class}' | Section: '{str(active_section).strip()}'")
+
         if print_scope == "👤 Single Student Card" and search_id:
             students_to_print = run_query(
                 "SELECT id, name, section, class FROM students WHERE session = :session AND id = :sid",
                 {"session": selected_session, "sid": search_id.strip()}
             )
+            
+            # If empty, let's look up this student ID without any session filters to see what they have
+            if students_to_print.empty:
+                st.markdown("---")
+                st.error(f"❌ Student ID '{search_id.strip()}' not found for Session '{selected_session}'. Let's check alternative records:")
+                fix_df = run_query("SELECT id, name, section, class, session FROM students WHERE id = :sid", {"sid": search_id.strip()})
+                if not fix_df.empty:
+                    st.write("💡 **Found this student under different parameters in the database:**")
+                    st.dataframe(fix_df)
+                else:
+                    st.write("❌ **This Student ID does not exist anywhere in the 'students' table.**")
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
             students_to_print = run_query(
@@ -2783,6 +2797,16 @@ elif menu_choice == "🪪 Student Result Cards":
                 {"session": selected_session, "class_val": selected_class, "sec_val": str(active_section).strip()}
             )
 
+            # If empty, let's print what sections/classes actually exist for this session
+            if students_to_print.empty:
+                st.markdown("---")
+                st.error(f"❌ No student rows matched for Session: '{selected_session}' | Class: '{selected_class}' | Section: '{active_section}'")
+                st.write("📋 **Here are some real student records from your database for this session:**")
+                sample_df = run_query("SELECT id, name, section, class, session FROM students WHERE session = :session LIMIT 5", {"session": selected_session})
+                if not sample_df.empty:
+                    st.dataframe(sample_df)
+                else:
+                    st.write(f"❌ **The database contains 0 students matching the session name: '{selected_session}'**")
     # ==============================================================================
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # ==============================================================================
