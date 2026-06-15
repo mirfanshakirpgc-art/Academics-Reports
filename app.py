@@ -5,11 +5,8 @@
 if menu_choice == "📊 Home Dashboard":
     st.title("Concordia College Kasur")
     st.subheader("🏛️ Institutional Dashboard Overview")
-    # Make sure this function call closes its parenthesis safely!
-    st.info("Welcome to the Academic Analytics control room.") 
-
-elif menu_choice == "➕ Add Students":
-    st.title("➕ Student Profile Registration Portal")
+    
+    # 📈 FIX: Placed the database metrics back in the Home Dashboard where they belong
     try:
         s_count = run_query("SELECT COUNT(*) FROM students WHERE status='ACTIVE'").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
@@ -203,7 +200,6 @@ elif menu_choice == "➕ Add Students":
 
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
-    # Place your st.data_editor grid management configuration code context here
 
 elif menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management")
@@ -248,7 +244,6 @@ elif menu_choice == "🪪 Student Result Cards":
                     st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
                 else:
                     st.success(f"💯 Found student profile: **{df_res.iloc[0]['name']}** [Section: {df_res.iloc[0]['section']}]. Compiling grades...")
-                    # Insert visual reporting matrices or metrics components here
                     
     else:
         cc1, cc2 = st.columns(2)
