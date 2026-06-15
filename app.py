@@ -4270,8 +4270,133 @@ elif menu_choice == "⚙️ Settings":
         # ==============================================================================
         elif sub_menu == "🗂️ Section Master":
             st.subheader("🗂️ Section Master Management")
-            st.info("Configure, group, and track core physical and virtual sections for course execution rosters here.")
-            # Place your section layout inputs or queries here
+            st.markdown("Configure, group, and track core physical and virtual sections for course execution rosters here.")
+            
+            # 1. READ SESSIONS FOR RELATIONAL DROPDOWN MATCHING
+            session_df = pd.DataFrame()
+            try:
+                session_df = run_query("SELECT id, session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
+            except Exception as e:
+                st.error(f"Could not load active academic sessions: {e}")
+                
+            if session_df.empty:
+                st.warning("⚠️ Please register and activate at least one **Academic Session** before configuring class sections.")
+            else:
+                # Map session names to their respective IDs for form operations
+                session_map = {row['session_name']: row['id'] for _, row in session_df.iterrows()}
+                
+                # --- SECTION REGISTRATION FORM ---
+                st.write("### ➕ Register New Class Section")
+                with st.form("section_reg_form", clear_on_submit=True):
+                    col_sec1, col_sec2 = st.columns(2)
+                    with col_sec1:
+                        new_sec_name = st.text_input("Section Name / Room ID:", placeholder="e.g. Section A, Alpha-2026").strip()
+                        new_class_level = st.selectbox("Target Class / Grade Level:", ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"])
+                    with col_sec2:
+                        new_sec_session = st.selectbox("Link to Academic Session Framework:", options=list(session_map.keys()))
+                        new_sec_capacity = st.number_input("Maximum Student Capacity Limit:", min_value=5, max_value=200, value=40, step=5)
+                        
+                    submit_section = st.form_submit_button("💾 Save Section to Registry", type="primary")
+                    
+                    if submit_section:
+                        if not new_sec_name:
+                            st.error("❌ Section Name/Room Identifier cannot be blank.")
+                        else:
+                            try:
+                                # Quick duplicate validation check
+                                duplicate_check = run_query("""
+                                    SELECT id FROM academic_sections 
+                                    WHERE UPPER(TRIM(section_name)) = UPPER(TRIM(:name)) 
+                                    AND class_level = :lvl AND session_id = :sess_id
+                                """, {"name": new_sec_name, "lvl": new_class_level, "sess_id": session_map[new_sec_session]})
+                                
+                                if not duplicate_check.empty:
+                                    st.error(f"❌ '{new_sec_name}' is already assigned to '{new_class_level}' within this session framework.")
+                                else:
+                                    run_update("""
+                                        INSERT INTO academic_sections (section_name, class_level, max_capacity, session_id, status)
+                                        VALUES (:name, :lvl, :cap, :sess_id, 'ACTIVE')
+                                    """, {
+                                        "name": new_sec_name,
+                                        "lvl": new_class_level,
+                                        "cap": int(new_sec_capacity),
+                                        "sess_id": session_map[new_sec_session]
+                                    })
+                                    st.success(f"🎉 Successfully registered section roster allocation '{new_class_level} - {new_sec_name}'!")
+                                    st.rerun()
+                            except Exception as err:
+                                st.error(f"❌ Failed to commit new section record: {err}")
+                                
+                st.markdown("---")
+                st.write("#### Active Institutional Roster Records")
+                
+                # --- SECTION RECORD VIEWER ---
+                current_sections = pd.DataFrame()
+                try:
+                    current_sections = run_query("""
+                        SELECT s.id as "ID", s.class_level as "Class Level", s.section_name as "Section Name", 
+                               s.max_capacity as "Capacity Limit", a.session_name as "Session Frame", s.status as "Status"
+                        FROM academic_sections s
+                        LEFT JOIN academic_sessions a ON s.session_id = a.id
+                        ORDER BY s.class_level ASC, s.section_name ASC
+                    """)
+                except Exception as e:
+                    st.error(f"⚠️ Failed to retrieve section registers from structural tables: {e}")
+                    
+                if not current_sections.empty:
+                    st.dataframe(current_sections, use_container_width=True, hide_index=True)
+                    
+                    # --- SECTION MODIFICATION FRAMEWORK ---
+                    st.markdown("### 🛠️ Manage Existing Section Registers")
+                    section_options_list = [f"{row['ID']} - {row['Class Level']} ({row['Section Name']})" for _, row in current_sections.iterrows()]
+                    selected_sec_str = st.selectbox("Select a Section Profile to Modify or Delete:", section_options_list, key="manage_sec_select")
+                    
+                    if selected_sec_str:
+                        target_sec_id = int(selected_sec_str.split(" - ")[0])
+                        target_sec_row = current_sections[current_sections['ID'] == target_sec_id].iloc[0]
+                        
+                        with st.form("edit_section_form"):
+                            mod_sec_name = st.text_input("Change Section Name/Room:", value=str(target_sec_row['Section Name'])).strip()
+                            mod_class_level = st.selectbox("Change Class/Grade Level Mapping:", ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"], index=["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"].index(target_sec_row['Class Level']) if target_sec_row['Class Level'] in ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "BS CS", "MS Data Science"] else 0)
+                            mod_sec_capacity = st.number_input("Update Capacity Ceiling:", min_value=5, max_value=200, value=int(target_sec_row['Capacity Limit']), step=5)
+                            mod_sec_status = st.selectbox("Update Operational Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sec_row['Status'] == 'ACTIVE' else 1)
+                            
+                            col_secu, col_secd = st.columns(2)
+                            with col_secu:
+                                save_sec_edit = st.form_submit_button("💾 Save Profile Matrix Changes", type="primary", use_container_width=True)
+                            with col_secd:
+                                confirm_sec_del = st.checkbox("⚠️ Confirm permanent deletion", key="del_sec_chk")
+                                delete_sec_record = st.form_submit_button("🗑️ Delete Section Record", type="secondary", use_container_width=True)
+                                
+                            if save_sec_edit:
+                                if not mod_sec_name:
+                                    st.error("Section Label identifier cannot be blank.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            conn.execute(text("""
+                                                UPDATE academic_sections 
+                                                SET section_name = :name, class_level = :lvl, max_capacity = :cap, status = :status 
+                                                WHERE id = :id
+                                            """), {"name": mod_sec_name, "lvl": mod_class_level, "cap": int(mod_sec_capacity), "status": mod_sec_status, "id": target_sec_id})
+                                        st.success(f"🎉 Updated setup profiles for section target '{mod_sec_name}'!")
+                                        st.rerun()
+                                    except Exception as err:
+                                        st.error(f"❌ Matrix transaction validation failed: {err}")
+                                        
+                            if delete_sec_record:
+                                if not confirm_sec_del:
+                                    st.error("Please explicitly authorize structural drop using the verification check box.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            conn.execute(text("DELETE FROM academic_sections WHERE id = :id"), {"id": target_sec_id})
+                                        st.success("🗑️ Section footprint purged successfully.")
+                                        st.rerun()
+                                    except Exception as err:
+                                        st.error(f"❌ Action denied: Check if section is linked to active student registrations: {err}")
+                else:
+                    st.info("No corporate or institutional class sections are currently logged in database records.")
 
         # ==============================================================================
         # MODULE 4: TEST & EXAM FRAMEWORKS
