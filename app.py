@@ -4421,11 +4421,13 @@ elif menu_choice == "⚙️ Settings":
     # ==============================================================================
     # 🛡️ TAB 2: MASTER ACCESS CONTROL & USER RIGHTS PROVISIONING
     # ==============================================================================
-    with tab2:
+    # Line 4424 - The 'with' statement sits here
+with tab2:
+    # Line 4425 - Pushed inward by 4 spaces!
     st.subheader("🛡️ Master Access Control & User Provisioning")
     st.markdown("Administrative utility to register institutional accounts and assign role-based access permissions.")
 
-    # --- AUTOMATIC TABLE INITIALIZATION (Fixes your missing table bug) ---
+    # --- AUTOMATIC TABLE INITIALIZATION ---
     try:
         with engine.begin() as conn:
             conn.execute(text("""
@@ -4438,6 +4440,47 @@ elif menu_choice == "⚙️ Settings":
             """))
     except Exception as err:
         st.error(f"⚠️ Could not initialize system_users table: {err}")
+
+    # --- STEP 1: CREATE NEW USER & ASSIGN RIGHTS ---
+    st.write("### ➕ Create New User Account")
+    with st.form("user_creation_form", clear_on_submit=True):
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip()
+            new_password = st.text_input("Account Password:", type="password", placeholder="Enter secure password")
+        with col_u2:
+            assigned_role = st.selectbox(
+                "Assign System Rights / Role Level:",
+                options=["teacher", "controller", "admin"],
+                help="'admin' has full access. 'controller' handles academic settings. 'teacher' manages marks and attendance."
+            )
+            account_status = st.selectbox("Initial Account Status:", options=["ACTIVE", "DISABLED"])
+
+        submit_user = st.form_submit_button("🔒 Provision Account & Rights", type="primary")
+
+        if submit_user:
+            if not new_username or not new_password:
+                st.error("❌ Both Username and Password fields are strictly mandatory.")
+            else:
+                try:
+                    user_check = run_query("SELECT username FROM system_users WHERE UPPER(TRIM(username)) = UPPER(TRIM(:uname))", {"uname": new_username})
+                    if not user_check.empty:
+                        st.error(f"❌ Username '{new_username}' is already taken.")
+                    else:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO system_users (username, password, role, status)
+                                VALUES (:uname, :pwd, :role, :status)
+                            """), {
+                                "uname": new_username,
+                                "pwd": new_password,
+                                "role": assigned_role,
+                                "status": account_status
+                            })
+                        st.success(f"🎉 Account created successfully! User **{new_username}** has been assigned **{assigned_role}** rights.")
+                        st.rerun()
+                except Exception as err:
+                    st.error(f"❌ Failed to create user account: {err}")
 
     # --- STEP 1: CREATE NEW USER & ASSIGN RIGHTS ---
     st.write("### ➕ Create New User Account")
