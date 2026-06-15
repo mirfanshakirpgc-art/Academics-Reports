@@ -368,16 +368,39 @@ AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec
 AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
 # ----------------- 📊 HOME DASHBOARD -----------------
+# ==============================================================================
+# ROUTING CONTROLLER & VIEWPORTS
+# ==============================================================================
+
 if menu_choice == "📊 Home Dashboard":
     st.title("Concordia College Kasur")
+    st.subheader("🏛️ Institutional Dashboard Overview")
+    
+    # These metrics will NOW ONLY show up when the user clicks 'Home Dashboard'
     try:
-        s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
+        s_count = run_query("SELECT COUNT(*) FROM students WHERE status='ACTIVE'").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
     except Exception:
         s_count, m_count = 0, 0
+        
     c1, c2 = st.columns(2)
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
+    
+    # You can add dashboard charts/analytics components here safely!
+
+elif menu_choice == "🪪 Student Result Cards":
+    # Everything inside here is isolated strictly to the Result Cards view
+    st.title("🪪 Student Result Cards — Print Engine")
+    
+    # Your result card generation controls and code logic go here...
+    # (e.g., st.selectbox for Session, Class, Test Term, etc.)
+
+elif menu_choice == "📝 Academic Exam Marks Entry":
+    st.title("📝 Academic Exam Marks Entry Workspace")
+    # Marks entry logic goes here...
+
+# Add similar elif blocks for your remaining menu options...
 
 # ==============================================================================
 # ➕ DYNAMIC STUDENT PROFILE REGISTRATION PORTAL
