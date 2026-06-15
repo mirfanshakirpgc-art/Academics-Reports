@@ -6,7 +6,6 @@ if menu_choice == "📊 Home Dashboard":
     st.title("Concordia College Kasur")
     st.subheader("🏛️ Institutional Dashboard Overview")
     
-    # 📈 FIX: Placed the database metrics back in the Home Dashboard where they belong
     try:
         s_count = run_query("SELECT COUNT(*) FROM students WHERE status='ACTIVE'").iloc[0, 0]
         m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
