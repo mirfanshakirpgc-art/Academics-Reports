@@ -323,6 +323,7 @@ def execute_db_command(query, params=None):
 # SIDEBAR NAVIGATION MODULE 
 # ==============================================================================
 menu_choice = st.sidebar.radio(
+    menu_choice = st.sidebar.radio(
     "Go To Module:",
     [
         "📊 Home Dashboard", 
@@ -791,8 +792,10 @@ elif menu_choice == "➕ Add Students":
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
+# --- Change line 762 to match your sidebar list strings exactly ---
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
+    # ... rest of your workspace code
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
