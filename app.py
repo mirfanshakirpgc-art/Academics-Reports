@@ -2760,7 +2760,7 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (FIXED TO MATCH RENDERING ENGINE VARIABLES)
+    # PART 3: DATA EXTRACTION ENGINE (FIXED QUERY SYNTAX)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
@@ -2768,11 +2768,17 @@ elif menu_choice == "🪪 Student Result Cards":
 
     if submit_execution:
         if print_scope == "👤 Single Student Card" and search_id:
-            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{selected_session}' AND id = '{search_id.strip()}'")
+            # Clean up raw user input
+            clean_search_id = str(search_id).strip()
+            
+            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{selected_session}' AND id = '{clean_search_id}'")
+            
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
-                # Fetch marks and logs specifically for this single student
-                id_list_str = f"'{search_id.strip()}'"
+                
+                # Format single ID with clean quotes for SQL IN clause
+                id_list_str = f"'{clean_search_id}'"
+                
                 marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({id_list_str}) AND exam_code = '{selected_test_code}'")
                 logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({id_list_str})")
         
@@ -2784,12 +2790,15 @@ elif menu_choice == "🪪 Student Result Cards":
                 AND UPPER(TRIM(section)) = '{str(active_section).upper().strip()}'
                 ORDER BY id ASC
             """)
+            
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
-                # Fetch marks and logs for all students in the section at once
-                ids = ", ".join([f"'{r['id']}'" for r in students_to_process])
-                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids}) AND exam_code = '{selected_test_code}'")
-                logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids})")
+                
+                # Map student IDs explicitly to comma-separated string literals
+                ids_formatted = ", ".join([f"'{str(r['id']).strip()}'" for r in students_to_process])
+                
+                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{selected_test_code}'")
+                logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
 
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
