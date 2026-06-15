@@ -2798,14 +2798,13 @@ elif menu_choice == "🪪 Student Result Cards":
         st.write(f"Searching for ID: {search_id} | Session: {selected_session}")
     
         if print_scope == "👤 Single Student Card":
-            # 2. Execute the fetch for a single student
+            # Remove the session constraint for single student lookups
             sql_single = """
-                SELECT id, name, section, class 
-                FROM students 
-                WHERE session = :session 
-                AND id = :sid
+                SELECT id, name, section, class, session 
+                FROM students
+                WHERE id = :sid 
             """
-            students_to_print = run_query(sql_single, {"session": selected_session.strip(), "sid": int(search_id.strip())})
+            students_to_print = run_query(sql_single, {"sid": int(search_id.strip())})
             
             # 3. Add a fallback check if empty
             if students_to_print.empty:
