@@ -285,8 +285,8 @@ st.caption(f"🔒 Logged in safely as: **{st.session_state.get('username', 'Anon
 # ==============================================================================
 # ➕ DYNAMIC STUDENT PROFILE REGISTRATION PORTAL
 # ==============================================================================
-elif menu_choice == "➕ Add Students":
-    st.title("➕ Student Profile Registration Portal")
+    elif menu_choice == "➕ Add Students":
+        st.title("➕ Student Profile Registration Portal")
     
     # 🧬 DATABASE INTEGRATION LAYER: Pull real-time configuration vectors
     try:
