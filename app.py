@@ -81,16 +81,20 @@ if "available_sessions" not in st.session_state:
     st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
 
+# --- INITIALIZE STATE ELEMENTS ---
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
     st.image("logo.png", width=120) 
     st.title("Concordia College Kasur")
     
     # Force lowercase automatically to completely fix case mismatches (like Ms.Neha vs ms.neha)
-    username_input = st.text_input("Username").strip().lower()
-    password_input = st.text_input("Password", type="password")
+    username_input = st.text_input("Username", key="login_user_input").strip().lower()
+    password_input = st.text_input("Password", type="password", key="login_pass_input")
     
-    if st.button("Log In"):
+    if st.button("Log In", key="login_submit_btn"):
         if not username_input or not password_input:
             st.error("Please fill in both fields.")
         else:
@@ -100,31 +104,48 @@ if not st.session_state.logged_in:
                 hashed_password = hashlib.sha256(password_input.encode()).hexdigest()
                 
                 with engine.connect() as conn:
-                    # FIX: Querying 'system_users' table instead of 'app_users'
-                    query = text("""
-                        SELECT role, status 
-                        FROM system_users 
-                        WHERE username = :u AND password = :p
-                    """)
-                    result = conn.execute(query, {"u": username_input, "p": hashed_password}).fetchone()
+                    # 🔍 STEP 1: Diagnostic check—does the username even exist?
+                    user_exist_query = text("SELECT username, password, status FROM system_users WHERE username = :u")
+                    user_record = conn.execute(user_exist_query, {"u": username_input}).fetchone()
                     
-                    if result:
-                        user_role, user_status = result[0], result[1]
+                    if not user_record:
+                        st.error(f"❌ Account '{username_input}' not found in database registry. Go to settings and create it.")
                         
-                        # Verify the account hasn't been disabled by settings
-                        if str(user_status).upper().strip() in ["ACTIVE", "1"]:
-                            st.session_state.logged_in = True
-                            st.session_state.username = username_input
-                            st.session_state.role = user_role  # Stores the role (Admin, Admission Office, etc.)
-                            
-                            st.success("Access Granted! Loading system...")
-                            import time
-                            time.sleep(1.0)
-                            st.rerun()
-                        else:
-                            st.error("🔒 This user account has been disabled by management.")
+                        # Show what names actually exist to easily catch hidden spaces/typos
+                        all_users = conn.execute(text("SELECT username FROM system_users")).fetchall()
+                        st.info(f"Registered names currently in DB: {[row[0] for row in all_users]}")
+                    
                     else:
-                        st.error("Incorrect username or password. Please try again.")
+                        # 🔍 STEP 2: Explicit authentication match check
+                        query = text("""
+                            SELECT role, status 
+                            FROM system_users 
+                            WHERE username = :u AND password = :p
+                        """)
+                        result = conn.execute(query, {"u": username_input, "p": hashed_password}).fetchone()
+                        
+                        if result:
+                            user_role, user_status = result[0], result[1]
+                            
+                            # Verify the account hasn't been disabled by settings
+                            if str(user_status).upper().strip() in ["ACTIVE", "1", "NONE", "NULL"]:
+                                # Assigning to BOTH standard session key variations to satisfy dependencies safely
+                                st.session_state.logged_in = True
+                                st.session_state.username = username_input
+                                st.session_state.role = user_role  
+                                st.session_state.user_role = user_role  
+                                
+                                st.success("🎉 Access Granted! Loading system dashboard...")
+                                import time
+                                time.sleep(1.0)
+                                st.rerun()
+                            else:
+                                st.error(f"🔒 Account found, but access is blocked. Status: '{user_status}'")
+                        else:
+                            st.error("❌ Password match failed. The password entered does not match the database records.")
+                            st.text(f"Typed Hash:  {hashed_password}")
+                            st.text(f"Stored Hash: {user_record[1]}")
+                            
             except Exception as login_err:
                 st.error(f"⚠️ Connection bridge failure: {login_err}")
                 
