@@ -619,18 +619,14 @@ elif menu_choice == "➕ Add Students":
                                     st.success("Enrollment status set back to ACTIVE.")
                                     st.rerun()
                                     
-                            with btn_col3:
-                                if st.button("🎓 System Change", use_container_width=True):
-                                    with engine.begin() as conn:
-                                        conn.execute(text("UPDATE students SET system_type = :system_type WHERE id = :id"), {"system_type": mutation_system, "id": student['id']})
-                                    st.success("Academic System Structure Updated!")
-                                    st.rerun()
-                    except Exception as e:
-                        st.error(f"Error executing operation: {e}")
-
-        with right_branch_col:
-            st.markdown("#### 👥 Bulk Actions / Section Promotion")
-            st.info("Your remaining functional block modules connect from here.")
+                           with btn_col3:
+                        if st.button("🎓 System Change", use_container_width=True):
+                            with engine.begin() as conn:
+                                conn.execute(text("UPDATE students SET system_type = :system_type WHERE id = :id"), {"system_type": mutation_system, "id": student['id']})
+                            st.success("Academic System Structure Updated!")
+                            st.rerun()
+            except Exception as e:
+                st.error(f"Error executing operation: {e}")
 
         # ====================================================================================
         # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
