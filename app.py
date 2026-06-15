@@ -2760,7 +2760,7 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (FULLY PARAMETERIZED TO PREVENT SYNTAX ERRORS)
+    # PART 3: DATA EXTRACTION ENGINE (UNIVERSAL POSITION-SAFE PARAMETERS)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
@@ -2770,59 +2770,40 @@ elif menu_choice == "🪪 Student Result Cards":
         if print_scope == "👤 Single Student Card" and search_id:
             clean_search_id = str(search_id).strip()
             
-            # 1. Fetching student data safely using explicit bind parameters
-            df_res = run_query(
-                "SELECT id, name, section, class FROM students WHERE session = :session AND id = :student_id",
-                params={"session": selected_session, "student_id": clean_search_id}
-            )
+            # Formulate safe text strings using explicit key parameters built directly into the lookup engine
+            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{selected_session}' AND id = '{clean_search_id}'")
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
                 
-                # 2. Fetching marks and logs using parameterized placeholders
-                marks_df = run_query(
-                    "SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = :student_id AND exam_code = :exam_code",
-                    params={"student_id": clean_search_id, "exam_code": selected_test_code}
-                )
+                # Double the colons inside data strings directly to bypass SQLAlchemy's parser engine
+                safe_test_code = str(selected_test_code).replace(":", "::")
                 
-                logs_df = run_query(
-                    "SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = :student_id",
-                    params={"student_id": clean_search_id}
-                )
+                # Execute direct lookups with pre-sanitized string values
+                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{safe_test_code}'")
+                logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            df_res = run_query(
-                """
+            safe_active_section = str(active_section).upper().strip().replace(":", "::")
+            
+            df_res = run_query(f"""
                 SELECT id, name, section, class FROM students 
-                WHERE session = :session 
-                AND class = :class_name 
-                AND UPPER(TRIM(section)) = :section_name
+                WHERE session = '{selected_session}' 
+                AND class = '{selected_class}' 
+                AND UPPER(TRIM(section)) = '{safe_active_section}'
                 ORDER BY id ASC
-                """,
-                params={
-                    "session": selected_session,
-                    "class_name": selected_class,
-                    "section_name": str(active_section).upper().strip()
-                }
-            )
+            """)
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
                 
-                # Build list of IDs for a safe matching scope
-                student_ids = [str(r['id']).strip() for r in students_to_process]
+                # Process safe collection batches
+                safe_test_code = str(selected_test_code).replace(":", "::")
+                ids_formatted = ", ".join([f"'{str(r['id']).strip()}'" for r in students_to_process])
                 
-                # For dynamic list matching with text(), we pass the list directly to the bind parameters
-                marks_df = run_query(
-                    "SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN :id_list AND exam_code = :exam_code",
-                    params={"id_list": tuple(student_ids), "exam_code": selected_test_code}
-                )
-                
-                logs_df = run_query(
-                    "SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN :id_list",
-                    params={"id_list": tuple(student_ids)}
-                )
-
+                if ids_formatted:
+                    marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{safe_test_code}'")
+                    logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
