@@ -2760,7 +2760,7 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (DEFENSIVE SCHEMA RECOVERY)
+    # PART 3: DATA EXTRACTION ENGINE (DYNAMIC TABLE RESOLVER)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
@@ -2769,17 +2769,39 @@ elif menu_choice == "🪪 Student Result Cards":
     if submit_execution:
         clean_session = str(selected_session).strip()
         
+        # 1. Dynamically discover the actual table names present in your database
+        # We try standard dialect queries to read the database catalog safely
+        detected_tables = []
+        for meta_query in ["SELECT name FROM sqlite_master WHERE type='table'", 
+                           "SELECT table_name FROM information_schema.tables", 
+                           "SHOW TABLES"]:
+            try:
+                df_tables = run_query(meta_query, params={})
+                if df_tables is not None and not df_tables.empty:
+                    detected_tables = [str(val).lower().strip() for val in df_tables.iloc[:, 0].tolist()]
+                    break
+            except Exception:
+                continue
+
+        # Look for the closest match for your tables or fallback to defaults
+        exam_table = "exam_marks"
+        attendance_table = "attendance_logs"
+        
+        for t in detected_tables:
+            if "exam" in t and "mark" in t:
+                exam_table = t
+            elif "attendance" in t or "log" in t:
+                attendance_table = t
+
+        # 2. Execute Data Extraction using Resolved Table Names
         if print_scope == "👤 Single Student Card" and search_id:
             clean_search_id = str(search_id).strip()
             
-            # Use SELECT * and pass an explicit empty params dict to satisfy line 209's requirement
             df_students_all = run_query("SELECT * FROM students", params={})
             
             if df_students_all is not None and not df_students_all.empty:
-                # Normalize column names to lowercase to prevent casing mismatches (ID vs id)
                 df_students_all.columns = [c.lower() for c in df_students_all.columns]
                 
-                # In-memory evaluation completely independent of database driver quirks
                 df_res = df_students_all[
                     (df_students_all['session'].astype(str).str.strip() == clean_session) & 
                     (df_students_all['id'].astype(str).str.strip() == clean_search_id)
@@ -2788,22 +2810,26 @@ elif menu_choice == "🪪 Student Result Cards":
                 if not df_res.empty:
                     students_to_process = df_res.to_dict(orient='records')
                     
-                    # Pull all marks safely using SELECT * to avoid exact schema spelling crashes
-                    df_marks_raw = run_query("SELECT * FROM exam_marks", params={})
+                    # Query using the dynamically resolved exam table name
+                    df_marks_raw = run_query(f"SELECT * FROM {exam_table}", params={})
                     if df_marks_raw is not None and not df_marks_raw.empty:
                         df_marks_raw.columns = [c.lower() for c in df_marks_raw.columns]
                         
-                        # Dynamically isolate target data using Pandas filtering layers
+                        # Fallback mapping in case columns are named slightly differently
+                        id_col = 'student_id' if 'student_id' in df_marks_raw.columns else df_marks_raw.columns[0]
+                        code_col = 'exam_code' if 'exam_code' in df_marks_raw.columns else 'test_code' if 'test_code' in df_marks_raw.columns else df_marks_raw.columns[-1]
+                        
                         marks_df = df_marks_raw[
-                            (df_marks_raw['student_id'].astype(str).str.strip() == clean_search_id) & 
-                            (df_marks_raw['exam_code'].astype(str).str.strip() == str(selected_test_code).strip())
+                            (df_marks_raw[id_col].astype(str).str.strip() == clean_search_id) & 
+                            (df_marks_raw[code_col].astype(str).str.strip() == str(selected_test_code).strip())
                         ]
                     
-                    # Pull all logs safely
-                    df_logs_raw = run_query("SELECT * FROM attendance_logs", params={})
+                    # Query using the dynamically resolved attendance table name
+                    df_logs_raw = run_query(f"SELECT * FROM {attendance_table}", params={})
                     if df_logs_raw is not None and not df_logs_raw.empty:
                         df_logs_raw.columns = [c.lower() for c in df_logs_raw.columns]
-                        logs_df = df_logs_raw[df_logs_raw['student_id'].astype(str).str.strip() == clean_search_id]
+                        id_col_log = 'student_id' if 'student_id' in df_logs_raw.columns else df_logs_raw.columns[0]
+                        logs_df = df_logs_raw[df_logs_raw[id_col_log].astype(str).str.strip() == clean_search_id]
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
             clean_class = str(selected_class).strip()
@@ -2825,18 +2851,22 @@ elif menu_choice == "🪪 Student Result Cards":
                     students_to_process = df_res.to_dict(orient='records')
                     student_ids = [str(r['id']).strip() for r in students_to_process]
                     
-                    df_marks_raw = run_query("SELECT * FROM exam_marks", params={})
+                    df_marks_raw = run_query(f"SELECT * FROM {exam_table}", params={})
                     if df_marks_raw is not None and not df_marks_raw.empty:
                         df_marks_raw.columns = [c.lower() for c in df_marks_raw.columns]
+                        id_col = 'student_id' if 'student_id' in df_marks_raw.columns else df_marks_raw.columns[0]
+                        code_col = 'exam_code' if 'exam_code' in df_marks_raw.columns else 'test_code' if 'test_code' in df_marks_raw.columns else df_marks_raw.columns[-1]
+                        
                         marks_df = df_marks_raw[
-                            (df_marks_raw['student_id'].astype(str).str.strip().isin(student_ids)) & 
-                            (df_marks_raw['exam_code'].astype(str).str.strip() == str(selected_test_code).strip())
+                            (df_marks_raw[id_col].astype(str).str.strip().isin(student_ids)) & 
+                            (df_marks_raw[code_col].astype(str).str.strip() == str(selected_test_code).strip())
                         ]
                     
-                    df_logs_raw = run_query("SELECT * FROM attendance_logs", params={})
+                    df_logs_raw = run_query(f"SELECT * FROM {attendance_table}", params={})
                     if df_logs_raw is not None and not df_logs_raw.empty:
                         df_logs_raw.columns = [c.lower() for c in df_logs_raw.columns]
-                        logs_df = df_logs_raw[df_logs_raw['student_id'].astype(str).str.strip().isin(student_ids)]
+                        id_col_log = 'student_id' if 'student_id' in df_logs_raw.columns else df_logs_raw.columns[0]
+                        logs_df = df_logs_raw[df_logs_raw[id_col_log].astype(str).str.strip().isin(student_ids)]
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
