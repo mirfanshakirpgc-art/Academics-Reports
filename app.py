@@ -2812,9 +2812,15 @@ elif menu_choice == "🪪 Student Result Cards":
                 st.write("Database shows student exists in these sessions:", total_check)
             
             # Auto-override active workspace context parameters if record is found
-            if not students_to_print.empty:
-                active_section = students_to_print.iloc[0]['section']
-                selected_class = students_to_print.iloc[0]['class']
+        if not students_to_print.empty:
+            active_section = str(students_to_print.iloc[0]['section']).strip()
+            selected_class = str(students_to_print.iloc[0]['class']).strip()
+            
+            # CRITICAL: We must also update the session if it differs
+            # to ensure the subsequent marks/attendance lookups use the correct session
+            selected_session = str(students_to_print.iloc[0]['session']).strip()
+            
+            st.success(f"✅ Found student in session: {selected_session}. Proceeding to generate card...")
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
             # 2. Execute the fetch for the whole section
