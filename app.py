@@ -4491,42 +4491,82 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("🛡️ Master Access Control & User Provisioning")
         st.markdown("Administrative utility to register institutional accounts, assign role-based access permissions, and manage user profiles.")
 
-        # ------------------------------------------------------------------------------
-        # ⚙️ CENTRALIZED PERMISSION MATRIX BLUEPRINT
-        # ------------------------------------------------------------------------------
-        FUTURE_ROLES_CONFIG = {
-            "Admin": "Full Control: Absolute read, write, and drop access across all modules.",
-            "Admission Office": "Attendance Management, Add New Students, and Edit Existing Student Data.",
-            "Teacher": "Just Marks Entry: Limited exclusively to academic test/exam score input.",
-            "Exam Controller": "Add all subjects marks, Edit Marks, and print all institutional reports."
-        }
-        
-        system_roles_matrix = list(FUTURE_ROLES_CONFIG.keys())
-        role_help_tooltip = "\n".join([f"• {role}: {desc}" for role, desc in FUTURE_ROLES_CONFIG.items()])
+        # ==============================================================================
+# 🧭 DYNAMIC SIDEBAR NAVIGATION PORTAL (ROLE-BASED ACCESS CONTROL)
+# ==============================================================================
 
-        # --- AUTOMATIC TABLE INITIALIZATION & SAFETY SEEDING ---
-        try:
-            import hashlib
-            with engine.begin() as conn:
+# 1. Fetch the user's role from the login session state (default to Admission Office if missing)
+user_role = st.session_state.get("role", "Admission Office")
+
+# 2. Hardcode the absolute security map of which roles can click which menus
+# Formatted as: "Menu Item Name": [List of allowed Roles]
+MASTER_PERMISSIONS_ROUTING = {
+    "📊 Dashboard": ["Admin", "Admission Office", "Teacher", "Exam Controller"],
+    "🧑‍🎓 Student Registration": ["Admin", "Admission Office"],
+    "📝 Attendance Sheets": ["Admin", "Admission Office", "Teacher"],
+    "🎯 Entry of Marks": ["Admin", "Teacher", "Exam Controller"],
+    "📜 Institutional Reports": ["Admin", "Exam Controller"],
+    "⚙️ Settings": ["Admin"]  # 🔒 Hard locked: Only "Admin" will ever see this option
+}
+
+# 3. Build a dynamic, clean list of menus the logged-in user is actually authorized to view
+allowed_menu_options = [
+    menu_name for menu_name, allowed_roles in MASTER_PERMISSIONS_ROUTING.items()
+    if user_role in allowed_roles
+]
+
+# 4. Supply only the authorized menu options to the selection sidebar radio
+menu_choice = st.sidebar.radio("Navigation Portal Menu:", options=allowed_menu_options)
+
+# ==============================================================================
+# 🔀 THE ROUTING SYSTEM
+# ==============================================================================
+if menu_choice == "📊 Dashboard":
+    st.title("📊 Institutional Dashboard")
+    st.write(f"Logged in safely as: **{st.session_state.get('username')}** ({user_role})")
+
+elif menu_choice == "🧑‍🎓 Student Registration":
+    st.title("🧑‍🎓 Student Admissions Processing Engine")
+    # Your student registration code goes here...
+
+elif menu_choice == "⚙️ Settings":
+    st.title("⚙️ Global Academic & Core Settings")
+    
+    # ⬇️ PASTE THE DATABASE INITIALIZATION & RULES CODE HERE ⬇️
+    # (Keep your central permission matrix blueprint and table setups right inside this block)
+    FUTURE_ROLES_CONFIG = {
+        "Admin": "Full Control: Absolute read, write, and drop access across all modules.",
+        "Admission Office": "Attendance Management, Add New Students, and Edit Existing Student Data.",
+        "Teacher": "Just Marks Entry: Limited exclusively to academic test/exam score input.",
+        "Exam Controller": "Add all subjects marks, Edit Marks, and print all institutional reports."
+    }
+    
+    system_roles_matrix = list(FUTURE_ROLES_CONFIG.keys())
+    role_help_tooltip = "\n".join([f"• {role}: {desc}" for role, desc in FUTURE_ROLES_CONFIG.items()])
+
+    try:
+        import hashlib
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS system_users (
+                    username VARCHAR(100) PRIMARY KEY,
+                    password VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) DEFAULT 'ACTIVE'
+                );
+            """))
+            
+            check_admin = conn.execute(text("SELECT username FROM system_users WHERE username = 'admin'")).fetchone()
+            if not check_admin:
+                fallback_hash = hashlib.sha256("admin123".encode()).hexdigest()
                 conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS system_users (
-                        username VARCHAR(100) PRIMARY KEY,
-                        password VARCHAR(255) NOT NULL,
-                        role VARCHAR(50) NOT NULL,
-                        status VARCHAR(20) DEFAULT 'ACTIVE'
-                    );
-                """))
-                
-                # Safety feature: Ensure default fallback admin account exists
-                check_admin = conn.execute(text("SELECT username FROM system_users WHERE username = 'admin'")).fetchone()
-                if not check_admin:
-                    fallback_hash = hashlib.sha256("admin123".encode()).hexdigest()
-                    conn.execute(text("""
-                        INSERT INTO system_users (username, password, role, status)
-                        VALUES ('admin', :pwd, 'Admin', 'ACTIVE')
-                    """), {"pwd": fallback_hash})
-        except Exception as err:
-            st.error(f"⚠️ Could not initialize system_users table: {err}")
+                    INSERT INTO system_users (username, password, role, status)
+                    VALUES ('admin', :pwd, 'Admin', 'ACTIVE')
+                """), {"pwd": fallback_hash})
+    except Exception as err:
+        st.error(f"⚠️ Could not initialize system_users table: {err}")
+        
+    # The rest of your settings tabs code goes here...
 
         # --- STEP 1: CREATE OR QUICK-UPDATE USER ---
         st.write("### ➕ Create / Provision User Account")
