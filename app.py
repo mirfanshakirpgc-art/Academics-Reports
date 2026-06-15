@@ -6,25 +6,66 @@ import sqlite3
 import os
 import base64
 import datetime
+import time
+import hashlib
 from sqlalchemy import create_engine, text
 import streamlit.components.v1 as components
 
 # --- STREAMLIT CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
-# --- INITIALIZE GLOBAL IMAGES AND LOGOS ---
-logo_filename = "logo.png"
-logo_base64 = ""
+# --- DATABASE CONNECTION CONFIGURATION ---
+DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
-if os.path.exists(logo_filename):
+@st.cache_resource
+def get_db_engine():
+    return create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
+
+engine = get_db_engine()
+
+# --- DATABASE COMMAND UTILITIES (Moved up so helpers can use them) ---
+def run_query(query, params=None):
+    if params is None:
+        params = {}
+    
+    clean_query = query.replace("[Session Name]", '"Session Name"')
+    
     try:
-        with open(logo_filename, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            if ext == "jpg": ext = "jpeg"
-            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
-    except Exception:
-        pass
+        with engine.connect() as conn:
+            return pd.read_sql_query(text(clean_query), conn, params=params)
+    except Exception as original_error:
+        try:
+            with engine.begin() as txn_conn:
+                try:
+                    txn_conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS academic_sessions (
+                            id SERIAL PRIMARY KEY,
+                            session_name VARCHAR(50) UNIQUE NOT NULL,
+                            status VARCHAR(20) DEFAULT 'ACTIVE'
+                        );
+                    """))
+                except Exception:
+                    pass
+
+                for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
+                    try:
+                        txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                    except Exception:
+                        pass 
+
+            with engine.connect() as retry_conn:
+                return pd.read_sql_query(text(clean_query), retry_conn, params=params)
+        except Exception:
+            raise original_error
+
+def execute_db_command(query, params=None):
+    if params is None:
+        params = {}
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(query), params)
+    except Exception as e:
+        raise RuntimeError(f"Database write execution failed: {str(e)}")
 
 # --- CORE HELPER FUNCTIONS ---
 def apply_filters(df, tab_key):
@@ -48,22 +89,28 @@ def apply_filters(df, tab_key):
 
 @st.cache_data(ttl=600)
 def fetch_analytics_data():
+    # FIXED: Added s.discipline explicitly to the SELECT target string array
     query = """
-        SELECT s.id, s.name, s.section, s.class, s.session, 
+        SELECT s.id, s.name, s.section, s.class, s.session, s.discipline,
                m.subject, m.marks_obtained, m.total_marks, m.exam_type
         FROM students s
         LEFT JOIN marks m ON s.id = m.student_id
     """
     return run_query(query, {})
 
-# --- DATABASE CONNECTION CONFIGURATION ---
-DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+# --- INITIALIZE GLOBAL IMAGES AND LOGOS ---
+logo_filename = "logo.png"
+logo_base64 = ""
 
-@st.cache_resource
-def get_db_engine():
-    return create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
-
-engine = get_db_engine()
+if os.path.exists(logo_filename):
+    try:
+        with open(logo_filename, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
+            if ext == "jpg": ext = "jpeg"
+            logo_base64 = f"data:image/{ext};base64,{encoded_string}"
+    except Exception:
+        pass
 
 # --- SETUP USER LOGIN SESSION MEMORY TRACKING ---
 if "logged_in" not in st.session_state:
@@ -81,16 +128,16 @@ if "available_sessions" not in st.session_state:
     st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
 
-# --- INITIALIZE STATE ELEMENTS ---
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
-    st.image("logo.png", width=120) 
+    # FIXED: Added dynamic fallback validation logic for base64 image streams
+    if logo_base64:
+        st.image(logo_base64, width=120) 
+    else:
+        st.image("logo.png", width=120) if os.path.exists("logo.png") else st.warning("Logo image missing.")
+        
     st.title("Concordia College Kasur")
     
-    # Force lowercase automatically to completely fix case mismatches (like Ms.Neha vs ms.neha)
     username_input = st.text_input("Username", key="login_user_input").strip().lower()
     password_input = st.text_input("Password", type="password", key="login_pass_input")
     
@@ -99,24 +146,17 @@ if not st.session_state.logged_in:
             st.error("Please fill in both fields.")
         else:
             try:
-                import hashlib
-                # Convert the typed plain password into the exact SHA-256 hash stored in the DB
                 hashed_password = hashlib.sha256(password_input.encode()).hexdigest()
                 
                 with engine.connect() as conn:
-                    # 🔍 STEP 1: Diagnostic check—does the username even exist?
                     user_exist_query = text("SELECT username, password, status FROM system_users WHERE username = :u")
                     user_record = conn.execute(user_exist_query, {"u": username_input}).fetchone()
                     
                     if not user_record:
                         st.error(f"❌ Account '{username_input}' not found in database registry. Go to settings and create it.")
-                        
-                        # Show what names actually exist to easily catch hidden spaces/typos
                         all_users = conn.execute(text("SELECT username FROM system_users")).fetchall()
                         st.info(f"Registered names currently in DB: {[row[0] for row in all_users]}")
-                    
                     else:
-                        # 🔍 STEP 2: Explicit authentication match check
                         query = text("""
                             SELECT role, status 
                             FROM system_users 
@@ -127,16 +167,13 @@ if not st.session_state.logged_in:
                         if result:
                             user_role, user_status = result[0], result[1]
                             
-                            # Verify the account hasn't been disabled by settings
                             if str(user_status).upper().strip() in ["ACTIVE", "1", "NONE", "NULL"]:
-                                # Assigning to BOTH standard session key variations to satisfy dependencies safely
                                 st.session_state.logged_in = True
                                 st.session_state.username = username_input
                                 st.session_state.role = user_role  
                                 st.session_state.user_role = user_role  
                                 
                                 st.success("🎉 Access Granted! Loading system dashboard...")
-                                import time
                                 time.sleep(1.0)
                                 st.rerun()
                             else:
@@ -150,12 +187,12 @@ if not st.session_state.logged_in:
                 st.error(f"⚠️ Connection bridge failure: {login_err}")
                 
     st.stop()
+
 # ==============================================================================
 # --- AUTOMATIC TABLE SETUP ---
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Create students table with system_type and discipline tracking columns
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
@@ -169,14 +206,13 @@ def initialize_database():
             );
         """))
         
-        # 2. Safe Patch: Force-inject system_type and discipline columns into existing Supabase tables
         try:
             conn.execute(text("""
                 ALTER TABLE students 
                 ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';
             """))
         except Exception:
-            pass # Skips quietly if the column already exists
+            pass 
 
         try:
             conn.execute(text("""
@@ -184,9 +220,8 @@ def initialize_database():
                 ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);
             """))
         except Exception:
-            pass # Skips quietly if the column already exists
+            pass 
         
-        # 3. Create teachers table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_teachers (
                 teacher_id SERIAL PRIMARY KEY,
@@ -197,7 +232,6 @@ def initialize_database():
             );
         """))
 
-        # 4. Create allocations table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS academic_allocations (
                 allocation_id SERIAL PRIMARY KEY,
@@ -211,7 +245,6 @@ def initialize_database():
             );
         """))
         
-        # 5. Create marks table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS marks (
                 id SERIAL PRIMARY KEY,
@@ -224,7 +257,6 @@ def initialize_database():
             );
         """))
         
-        # 6. Create attendance table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS attendance (
                 id SERIAL PRIMARY KEY,
