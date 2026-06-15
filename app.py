@@ -215,36 +215,24 @@ except Exception as e:
 def run_query(query, params=None):
     if params is None:
         params = {}
+        
+    clean_query = query.replace("[Session Name]", "'Session Name'")
     
-    clean_query = query.replace("[Session Name]", '"Session Name"')
-    
+    # Dynamic database connection resolver
+    global engine
+    if 'engine' not in globals() or engine is None:
+        try:
+            import streamlit as st
+            # Safe Fallback: Resolves native SQL connection strings automatically
+            engine = st.connection("postgresql", type="sql").engine
+        except Exception:
+            pass
+
     try:
+        # Tries your primary engine context block first
         with engine.connect() as conn:
             return pd.read_sql_query(text(clean_query), conn, params=params)
     except Exception as original_error:
-        try:
-            with engine.begin() as txn_conn:
-                try:
-                    txn_conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS academic_sessions (
-                            id SERIAL PRIMARY KEY,
-                            session_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                except Exception:
-                    pass
-
-                for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
-                    try:
-                        txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
-                    except Exception:
-                        pass 
-
-            with engine.connect() as retry_conn:
-                return pd.read_sql_query(text(clean_query), retry_conn, params=params)
-        except Exception:
-            raise original_error
 
 def execute_db_command(query, params=None):
     if params is None:
