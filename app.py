@@ -2969,32 +2969,35 @@ elif menu_choice == "🪪 Student Result Cards":
                 raw_logs_df = pd.DataFrame()
 
             # 📊 ATTENDANCE MATRIX PROCESSING PIPELINE
-            attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
+            # We initialize a clean matrix for every student
+            attendance_matrix = {m: {"total": 0, "present": 0} for m in DISPLAY_MONTHS}
 
             if not raw_logs_df.empty:
                 try:
-                    raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"])
+                    # Ensure date parsing works even with mixed formats
+                    raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"], errors='coerce')
+                    
                     for _, log_row in raw_logs_df.iterrows():
                         log_date = log_row["attendance_date"]
-                        if pd.isna(log_date):
-                            continue
+                        if pd.isna(log_date): continue
                         
-                        log_month_int = log_date.month
+                        # Extract month name directly from the datetime object
+                        month_key = log_date.strftime('%B') # e.g., 'May', 'June'
+                        
+                        # Handle potential naming mismatches (e.g., your display uses "Aug.")
+                        if month_key == "August": month_key = "Aug."
+                        elif month_key == "September": month_key = "Sept."
+                        
                         log_status = str(log_row["att_status"]).strip().upper()
 
-                        matched_month_key = None
-                        for m_name, m_int in month_map.items():
-                            if m_int == log_month_int:
-                                matched_month_key = m_name
-                                break
-
-                        if matched_month_key:
-                            attendance_matrix[matched_month_key]["total"] += 1
+                        if month_key in attendance_matrix:
+                            attendance_matrix[month_key]["total"] += 1
                             if log_status in ["P", "PRESENT"]:
-                                attendance_matrix[matched_month_key]["present"] += 1
-                except Exception:
-                    pass
+                                attendance_matrix[month_key]["present"] += 1
+                except Exception as e:
+                    st.error(f"Log processing error: {e}")
 
+            # Build the display cells
             att_cells = {}
             tot_sum, pres_sum = 0, 0
             
@@ -3004,10 +3007,12 @@ elif menu_choice == "🪪 Student Result Cards":
                 tot_sum += td
                 pres_sum += pd_val
                 
-                pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "0%"
-                att_cells[m] = {"td": str(td), "pd": str(pd_val), "pct": pct}
+                pct = f"{int((pd_val / td) * 100)}%" if td > 0 else "-"
+                att_cells[m] = {"td": str(td) if td > 0 else "-", 
+                                "pd": str(pd_val) if td > 0 else "-", 
+                                "pct": pct}
                 
-            overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "0%"
+            overall_pct_str = f"{int((pres_sum / tot_sum) * 100)}%" if tot_sum > 0 else "-"
             att_cells["Over All Att."] = {"td": str(tot_sum), "pd": str(pres_sum), "pct": overall_pct_str}
 
             # MODULE C: ACADEMIC RENDERING ENGINE
