@@ -2760,84 +2760,100 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (RAW BYPASS METHOD)
+    # PART 3: DATA EXTRACTION ENGINE (SAFE CONNECTION LOOKUP)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
     logs_df = pd.DataFrame()
 
     if submit_execution:
-        # Access the raw DBAPI connection cursor out of your existing conn context
-        # This completely side-steps the broken line 209 in your run_query wrapper
-        try:
-            raw_conn = conn.raw_connection()
-        except AttributeError:
-            # Fallback if using a legacy or custom connection engine object
-            raw_conn = conn.connection if hasattr(conn, 'connection') else conn
-
-        if print_scope == "👤 Single Student Card" and search_id:
-            clean_search_id = str(search_id).strip().replace("'", "''")
-            clean_session = str(selected_session).strip().replace("'", "''")
-            clean_test_code = str(selected_test_code).strip().replace("'", "''")
-            
-            # 1. Fetch Student Info
-            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
-            
-            if not df_res.empty:
-                students_to_process = df_res.to_dict(orient='records')
-                
-                # 2. Fetch Marks using the raw driver cursor (Bypassing line 209 entirely)
-                cursor = raw_conn.cursor()
-                cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{clean_test_code}'")
-                records = cursor.fetchall()
-                cols = [desc[0] for desc in cursor.description]
-                marks_df = pd.DataFrame(records, columns=cols)
-                cursor.close()
-                
-                # 3. Fetch Logs via raw driver cursor
-                cursor = raw_conn.cursor()
-                cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
-                records_logs = cursor.fetchall()
-                cols_logs = [desc[0] for desc in cursor.description]
-                logs_df = pd.DataFrame(records_logs, columns=cols_logs)
-                cursor.close()
+        # Resolve the actual connection object dynamically
+        active_conn = None
         
-        elif print_scope == "👥 Complete Section Cards" and active_section:
-            clean_session = str(selected_session).strip().replace("'", "''")
-            clean_class = str(selected_class).strip().replace("'", "''")
-            clean_section = str(active_section).upper().strip().replace("'", "''")
-            
-            df_res = run_query(f"""
-                SELECT id, name, section, class FROM students 
-                WHERE session = '{clean_session}' 
-                AND class = '{clean_class}' 
-                AND UPPER(TRIM(section)) = '{clean_section}'
-                ORDER BY id ASC
-            """)
-            
-            if not df_res.empty:
-                students_to_process = df_res.to_dict(orient='records')
-                student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
-                ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
+        # 1. Check if 'conn' exists in the global environment
+        if 'conn' in globals():
+            active_conn = globals()['conn']
+        # 2. Check if it's hiding in Streamlit's session state
+        elif 'conn' in st.session_state:
+            active_conn = st.session_state['conn']
+        # 3. If still not found, pull it from Streamlit's connection registry
+        else:
+            try:
+                # This automatically binds to your st.connection("sql") backend
+                active_conn = st.connection("sql")
+            except Exception:
+                st.error("Could not locate your database connection object. Please check your connection variable name at the top of the file.")
+
+        if active_conn:
+            # Safely extract the raw driver connection context
+            try:
+                raw_conn = active_conn.raw_connection()
+            except AttributeError:
+                raw_conn = active_conn.connection if hasattr(active_conn, 'connection') else active_conn
+
+            if print_scope == "👤 Single Student Card" and search_id:
+                clean_search_id = str(search_id).strip().replace("'", "''")
+                clean_session = str(selected_session).strip().replace("'", "''")
+                clean_test_code = str(selected_test_code).strip().replace("'", "''")
                 
-                if ids_formatted:
-                    clean_test_code = str(selected_test_code).strip().replace("'", "''")
+                # Fetch Student Info using your standard utility
+                df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
+                
+                if not df_res.empty:
+                    students_to_process = df_res.to_dict(orient='records')
                     
-                    # Fetch Marks via raw driver cursor
+                    # Fetch Marks bypassing the text() parser completely
                     cursor = raw_conn.cursor()
-                    cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{clean_test_code}'")
+                    cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{clean_test_code}'")
                     records = cursor.fetchall()
                     cols = [desc[0] for desc in cursor.description]
                     marks_df = pd.DataFrame(records, columns=cols)
                     cursor.close()
                     
-                    # Fetch Logs via raw driver cursor
+                    # Fetch Logs via driver cursor
                     cursor = raw_conn.cursor()
-                    cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
+                    cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
                     records_logs = cursor.fetchall()
                     cols_logs = [desc[0] for desc in cursor.description]
                     logs_df = pd.DataFrame(records_logs, columns=cols_logs)
                     cursor.close()
+            
+            elif print_scope == "👥 Complete Section Cards" and active_section:
+                clean_session = str(selected_session).strip().replace("'", "''")
+                clean_class = str(selected_class).strip().replace("'", "''")
+                clean_section = str(active_section).upper().strip().replace("'", "''")
+                
+                df_res = run_query(f"""
+                    SELECT id, name, section, class FROM students 
+                    WHERE session = '{clean_session}' 
+                    AND class = '{clean_class}' 
+                    AND UPPER(TRIM(section)) = '{clean_section}'
+                    ORDER BY id ASC
+                """)
+                
+                if not df_res.empty:
+                    students_to_process = df_res.to_dict(orient='records')
+                    student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
+                    ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
+                    
+                    if ids_formatted:
+                        clean_test_code = str(selected_test_code).strip().replace("'", "''")
+                        
+                        # Fetch Marks via driver cursor
+                        cursor = raw_conn.cursor()
+                        cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{clean_test_code}'")
+                        records = cursor.fetchall()
+                        cols = [desc[0] for desc in cursor.description]
+                        marks_df = pd.DataFrame(records, columns=cols)
+                        cursor.close()
+                        
+                        # Fetch Logs via driver cursor
+                        cursor = raw_conn.cursor()
+                        cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
+                        records_logs = cursor.fetchall()
+                        cols_logs = [desc[0] for desc in cursor.description]
+                        logs_df = pd.DataFrame(records_logs, columns=cols_logs)
+                        cursor.close()
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
