@@ -2843,22 +2843,6 @@ elif menu_choice == "🪪 Student Result Cards":
     if submit_execution and not students_to_print.empty:
         # --- Inside "🪪 Student Result Cards" section ---
     if submit_execution and not students_to_print.empty:
-        
-        # --- PLACE DIAGNOSTIC CODE HERE ---
-        current_id_str = str(students_to_print.iloc[0]['id']).strip()
-        
-        st.write("DEBUG: Fetching logs for student_id:", int(current_id_str))
-        
-        debug_logs = run_query("""
-            SELECT student_id, attendance_date, status 
-            FROM daily_attendance 
-            WHERE student_id = :sid
-        """, {"sid": int(current_id_str)})
-        
-        st.write("DEBUG: Attendance table rows found:", len(debug_logs))
-        st.dataframe(debug_logs.head())
-        # ----------------------------------
-
         # ... then your existing compiled_html generation logic follows ...
         # Safe Fallback Cache Layers: Compile marks and logs frames dynamically if missing
         if 'marks_df' not in locals() or marks_df.empty:
