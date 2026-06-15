@@ -243,12 +243,21 @@ def run_query(query, params=None):
 def execute_db_command(query, params=None):
     if params is None:
         params = {}
+        
+    # Dynamic database connection resolver for write commands
+    global engine
+    if 'engine' not in globals() or engine is None:
+        try:
+            import streamlit as st
+            engine = st.connection("postgresql", type="sql").engine
+        except Exception:
+            pass
+            
     try:
         with engine.begin() as conn:
             conn.execute(text(query), params)
     except Exception as e:
         raise RuntimeError(f"Database write execution failed: {str(e)}")
-
 # ==============================================================================
 # SIDEBAR NAVIGATION MODULE 
 # ==============================================================================
