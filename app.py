@@ -2760,7 +2760,7 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (COLON-STRIPPED WILDCARD ENGINE)
+    # PART 3: DATA EXTRACTION ENGINE (PANDAS IN-MEMORY FILTERING)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
@@ -2768,49 +2768,54 @@ elif menu_choice == "🪪 Student Result Cards":
 
     if submit_execution:
         if print_scope == "👤 Single Student Card" and search_id:
-            # Clean raw variables and completely remove problematic quotes
-            clean_search_id = str(search_id).strip().replace("'", "''")
-            clean_session = str(selected_session).strip().replace("'", "''")
+            clean_search_id = str(search_id).strip()
+            clean_session = str(selected_session).strip()
             
-            # CRITICAL FIX: Extract only the part BEFORE the colon to completely 
-            # eliminate colons from the SQL string, avoiding SQLAlchemy text() tracking.
-            base_test_code = str(selected_test_code).split(":")[0].strip().replace("'", "''")
+            # Fetch students for this session safely
+            df_students_all = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}'")
             
-            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
-            
-            if not df_res.empty:
-                students_to_process = df_res.to_dict(orient='records')
+            if not df_students_all.empty:
+                # Filter student in-memory using Pandas
+                df_res = df_students_all[df_students_all['id'].astype(str) == clean_search_id]
                 
-                # Match using LIKE with a wildcard suffix, completely bypassing colons in the string literal
-                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code LIKE '{base_test_code}%'")
-                logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
+                if not df_res.empty:
+                    students_to_process = df_res.to_dict(orient='records')
+                    
+                    # 1. Fetch ALL marks for this exam code, then filter down in Pandas
+                    df_marks_all = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE exam_code = '{str(selected_test_code).strip()}'")
+                    if not df_marks_all.empty:
+                        marks_df = df_marks_all[df_marks_all['student_id'].astype(str) == clean_search_id]
+                    
+                    # 2. Fetch ALL logs for this student, then let Pandas manage it
+                    df_logs_all = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
+                    logs_df = df_logs_all if not df_logs_all.empty else pd.DataFrame()
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            clean_session = str(selected_session).strip().replace("'", "''")
-            clean_class = str(selected_class).strip().replace("'", "''")
+            clean_session = str(selected_session).strip()
+            clean_class = str(selected_class).strip()
+            clean_section = str(active_section).upper().strip()
             
-            # Clean the section variable of any colons if they exist
-            clean_section = str(active_section).upper().split(":")[0].strip().replace("'", "''")
+            # Grab global section roster 
+            df_students_all = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND class = '{clean_class}'")
             
-            df_res = run_query(f"""
-                SELECT id, name, section, class FROM students 
-                WHERE session = '{clean_session}' 
-                AND class = '{clean_class}' 
-                AND UPPER(TRIM(section)) LIKE '{clean_section}%'
-                ORDER BY id ASC
-            """)
-            
-            if not df_res.empty:
-                students_to_process = df_res.to_dict(orient='records')
-                student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
+            if not df_students_all.empty:
+                # Profile the precise section using safe Pandas vector conditions
+                df_res = df_students_all[df_students_all['section'].astype(str).str.upper().str.strip() == clean_section]
+                df_res = df_res.sort_values(by='id', ascending=True)
                 
-                ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
-                
-                if ids_formatted:
-                    base_test_code = str(selected_test_code).split(":")[0].strip().replace("'", "''")
+                if not df_res.empty:
+                    students_to_process = df_res.to_dict(orient='records')
+                    student_ids_list = [str(r['id']).strip() for r in students_to_process]
                     
-                    marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code LIKE '{base_test_code}%'")
-                    logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
+                    # Fetch exam dataset matching the code, then filter using .isin()
+                    df_marks_all = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE exam_code = '{str(selected_test_code).strip()}'")
+                    if not df_marks_all.empty:
+                        marks_df = df_marks_all[df_marks_all['student_id'].astype(str).isin(student_ids_list)]
+                    
+                    # Fetch global attendance logs, then filter via Pandas
+                    df_logs_all = run_query("SELECT student_id, attendance_date, att_status FROM attendance_logs")
+                    if not df_logs_all.empty:
+                        logs_df = df_logs_all[df_logs_all['student_id'].astype(str).isin(student_ids_list)]
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
