@@ -1,25 +1,17 @@
-# ==============================================================================
-# ROUTING CONTROLLER & VIEWPORTS (COMPLETE SECURE HUB)
-# ==============================================================================
+# ... [Your upper script blocks run down all modules smoothly here] ...
 
-if menu_choice == "📊 Home Dashboard":
-    st.title("Concordia College Kasur")
-    st.subheader("🏛️ Institutional Dashboard Overview")
-    
-    try:
-        s_count = run_query("SELECT COUNT(*) FROM students WHERE status='ACTIVE'").iloc[0, 0]
-        m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
-    except Exception:
-        s_count, m_count = 0, 0
-        
-    c1, c2 = st.columns(2)
-    c1.metric("Total Registered Students", s_count)
-    c2.metric("Total Grade Records Captured", m_count)
-    
-    st.markdown("---")
-    st.info("👋 Welcome to the Academic Analytics control room. Use the left sidebar to navigate between operational modules.")
+elif menu_choice == "👥 Student Operations Management":
+    st.title("👥 Student Operations Management")
 
-elif menu_choice == "➕ Add Students":
+elif menu_choice == "⚙️ Settings":
+    st.title("⚙️ System Control & Management Settings")
+
+
+# ==============================================================================
+# ➕ DYNAMIC STUDENT PROFILE REGISTRATION PORTAL 
+# ==============================================================================
+# FIX: Changed "elif" to "if" because the original chain ended above!
+if menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
     # 🧬 DATABASE INTEGRATION LAYER: Pull real-time configuration vectors
@@ -107,6 +99,9 @@ elif menu_choice == "➕ Add Students":
     )
     st.markdown("---")
 
+    # ====================================================================================
+    # WORKFLOW A: SINGLE STUDENT REGISTRATION
+    # ====================================================================================
     if workflow_mode == "👤 Single Student Registration":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
@@ -135,8 +130,8 @@ elif menu_choice == "➕ Add Students":
                         
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO students (id, name, class, section, session, status, system_type, discipline)
-                                VALUES (:id, :name, :class, :section, :session, :status, :system_type, :discipline)
+                                INSERT INTO students (id, name, class, section, session, status, system_type)
+                                VALUES (:id, :name, :class, :section, :session, :status, :system_type)
                             """), {
                                 "id": clean_id,
                                 "name": clean_name,
@@ -144,141 +139,82 @@ elif menu_choice == "➕ Add Students":
                                 "section": selected_section,
                                 "session": selected_session,
                                 "status": input_status,
-                                "system_type": clean_system_type,
-                                "discipline": selected_discipline if academic_system == "🗓️ Annual System" else "INFORMATION_TECHNOLOGY"
+                                "system_type": clean_system_type
                             })
                         
-                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered under {clean_system_type}.")
+                        st.balloons()
                         st.rerun()
                     except Exception as db_err:
-                        st.error(f"❌ Database PK Conflict: Student ID `{input_roll_number}` already exists. Details: {db_err}")
+                        st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned. Details: {db_err}")
 
+    # ====================================================================================
+    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
+    # ====================================================================================
     elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
         st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
-        st.info("💡 Sheet Guidelines: Columns must contain exact matches for heading names 'ID' and 'Name'.")
-        uploaded_bulk_file = st.file_uploader("Upload spreadsheet matrix", type=["csv", "xlsx"], key="bulk_student_file_uploader")
+        st.info("💡 Important Sheet Guidelines: Your file columns must include exactly **'ID'** and **'Name'** headings.")
+        
+        uploaded_bulk_file = st.file_uploader("Upload roster matrix spreadsheet", type=["csv", "xlsx"], key="bulk_student_file_uploader")
         
         if uploaded_bulk_file is not None:
             try:
-                bulk_df = pd.read_csv(uploaded_bulk_file) if uploaded_bulk_file.name.endswith(".csv") else pd.read_excel(uploaded_bulk_file)
+                if uploaded_bulk_file.name.endswith(".csv"):
+                    bulk_df = pd.read_csv(uploaded_bulk_file)
+                else:
+                    bulk_df = pd.read_excel(uploaded_bulk_file)
+                
                 bulk_df.columns = [str(col).strip().upper() for col in bulk_df.columns]
                 
                 if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
-                    st.error("❌ Validation Error: Spreadsheet layout must match columns 'ID' and 'Name'.")
+                    st.error("❌ Template Validation Error! The upload requires a data structure mapped with clear 'ID' and 'Name' headings.")
                 else:
-                    st.dataframe(bulk_df.head(5), use_container_width=True)
-                    if st.button("🚀 Process & Batch Insert", type="primary", use_container_width=True):
-                        success, errors = 0, 0
+                    st.markdown("##### 📊 Document Sample Row Preview")
+                    st.dataframe(bulk_df.head(8), use_container_width=True)
+                    
+                    if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
+                        success_count = 0
+                        error_count = 0
                         clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                        for _, row in bulk_df.iterrows():
+                        
+                        for index, row in bulk_df.iterrows():
                             raw_id = str(row['ID']).strip().split('.')[0]
                             raw_name = str(row['NAME']).strip().upper()
+                            
                             if raw_id.isdigit() and raw_name != "":
                                 try:
                                     with engine.begin() as conn:
                                         conn.execute(text("""
-                                            INSERT INTO students (id, name, class, section, session, status, system_type, discipline)
-                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE', :system_type, :discipline)
+                                            INSERT INTO students (id, name, class, section, session, status, system_type)
+                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE', :system_type)
                                         """), {
-                                            "id": int(raw_id), "name": raw_name, "class": selected_class,
-                                            "section": selected_section, "session": selected_session, "system_type": clean_system_type,
-                                            "discipline": selected_discipline if academic_system == "🗓️ Annual System" else "INFORMATION_TECHNOLOGY"
+                                            "id": int(raw_id),
+                                            "name": raw_name,
+                                            "class": selected_class,
+                                            "section": selected_section,
+                                            "session": selected_session,
+                                            "system_type": clean_system_type
                                         })
-                                    success += 1
+                                    success_count += 1
                                 except Exception:
-                                    errors += 1
-                        st.success(f"🎉 Imported {success} student metrics successfully.")
-                        if errors > 0: st.warning(f"⚠️ Failed to insert {errors} profiles due to primary key conflicts.")
+                                    error_count += 1
+                            else:
+                                error_count += 1
+                                
+                        st.success(f"🎉 Import complete! Successfully processed and committed {success_count} student records to database under {clean_system_type}.")
+                        if error_count > 0:
+                            st.warning(f"⚠️ Skipped {error_count} row records because of primary key ID duplication conflicts or empty cells.")
+                        st.balloons()
                         st.rerun()
+                        
             except Exception as read_err:
-                st.error(f"❌ File Parsing failure: {read_err}")
+                st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
 
-    else:
-        st.markdown("#### 🛠️ Quick Filter Reference")
-        st.write("Filter system context tracking fields to pinpoint matching student indices.")
-
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry Workspace")
-
-elif menu_choice == "📅 Attendance Entry Management":
-    st.title("📅 Attendance Entry Management")
-
-elif menu_choice == "📋 Daily Attendance Report":
-    st.title("📋 Daily Attendance Report")
-
-elif menu_choice == "📋 Section Summary Report":
-    st.title("📋 Section Summary Report")
-
-elif menu_choice == "📈 Multi-Test Progress Report":
-    st.title("📈 Multi-Test Progress Report")
-
-elif menu_choice == "🪪 Student Result Cards":
-    st.title("🪪 Student Result Cards — Print Engine")
-    
-    # --- DYNAMIC INTERFACE SELECTORS ---
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        sel_session = st.selectbox("📅 Select Session:", AVAILABLE_SESSIONS, key="rc_session")
-    with c2:
-        sel_sys = st.selectbox("⚙️ Select Academic System:", ["Annual System", "Semester System"], key="rc_system")
-    with c3:
-        class_opts = ["11th", "12th"] if sel_sys == "Annual System" else ["Semester 1", "Semester 2", "Semester 3", "Semester 4"]
-        sel_class = st.selectbox("🏠 Select Class:", class_opts, key="rc_class")
-    with c4:
-        sel_exam = st.selectbox("🎯 Select Test Term:", AVAILABLE_EXAMS, key="rc_exam")
-        
-    st.markdown("---")
-    
-    print_scope = st.radio("🖨️ Select Print Scope:", ["👤 Single Student Card", "👥 Complete Section Cards"], horizontal=True, key="rc_scope")
-    
-    if print_scope == "👤 Single Student Card":
-        search_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="rc_search_id").strip()
-        if st.button("🔥 Generate Result Cards", type="primary", key="rc_submit_single"):
-            if not search_id.isdigit():
-                st.error("❌ Validation Failed: Please key in a numeric target Roll Number.")
-            else:
-                q = "SELECT * FROM students WHERE id = :id AND session = :session AND class = :class"
-                df_res = run_query(q, {"id": int(search_id), "session": sel_session, "class": sel_class})
-                if df_res.empty:
-                    st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
-                else:
-                    st.success(f"💯 Found student profile: **{df_res.iloc[0]['name']}** [Section: {df_res.iloc[0]['section']}]. Compiling grades...")
-                    
-    else:
-        cc1, cc2 = st.columns(2)
-        with cc1:
-            sel_disc = st.selectbox("🧬 Select Discipline:", AVAILABLE_DISCIPLINE, key="rc_disc")
-        with cc2:
-            norm_disc = sel_disc.upper().replace(" ", "_").replace("(", "").replace(")", "")
-            if "PHYSIC" in norm_disc: norm_disc = "ICS_PHYSICS"
-            elif "STAT" in norm_disc: norm_disc = "ICS_STATS"
-            
-            sections_list = DISCIPLINE_SECTIONS_MAP.get(norm_disc, {}).get(sel_class, ["A", "B"])
-            sel_sec = st.selectbox("📋 Select Section:", sections_list, key="rc_sec")
-            
-        if st.button("🔥 Generate Result Cards", type="primary", key="rc_submit_bulk"):
-            q = "SELECT * FROM students WHERE session = :session AND class = :class AND section = :section AND status = 'ACTIVE'"
-            df_res = run_query(q, {"session": sel_session, "class": sel_class, "section": sel_sec})
-            if df_res.empty:
-                st.warning(f"⚠️ No active student rows found matching section group: '{sel_sec}' for {sel_class} ({sel_session}).")
-            else:
-                st.success(f"🚀 Found {len(df_res)} target rosters inside Section {sel_sec}. Rendering print payloads...")
-
-elif menu_choice == "👨‍🏫 Teacher Management":
-    st.title("👨‍🏫 Teacher Management & Allocations")
-
-elif menu_choice == "📈 Academic Analysis Reports":
-    st.title("📈 Academic Analysis Reports")
-
-elif menu_choice == "👥 Student Operations Management":
-    st.title("👥 Student Operations Management")
-
-elif menu_choice == "⚙️ Settings":
-    st.title("⚙️ System Control & Management Settings")
 
 # ==============================================================================
 # --- SYSTEM FOOTER METRICS AND SECURITY HOOKS ---
 # ==============================================================================
+# FIX: Moved down here so it wraps the app interface components nicely!
 st.markdown("<br><hr>", unsafe_allow_html=True)
 st.caption(f"🔒 Logged in safely as: **{st.session_state.get('username', 'Anonymous')}** | Role Context Boundary Level")
 # ==============================================================================
