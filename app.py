@@ -4180,6 +4180,27 @@ elif menu_choice == "⚙️ Settings":
         # ==============================================================================
         # MODULE 2: FACULTY REGISTRATION TRACK
         # ==============================================================================
+        # ... (Your previous session modification form code is up here) ...
+                        if delete_sess:
+                            if not confirm_sess_del:
+                                st.warning("🔒 Please check the 'Confirm complete deletion' box before deleting.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("DELETE FROM academic_sessions WHERE id = :id"), {"id": selected_sess_id})
+                                    st.success("🗑️ Session permanently removed from records.")
+                                    st.rerun()
+                                except Exception as db_error:
+                                    st.error(f"Failed to delete session record: {db_error}")
+        
+        # 🔔 FIX IS HERE: This else belongs to "if not current_sessions.empty:"
+        # It must be indented at 8 spaces (or 2 tabs), NOT aligned with the outer menu!
+        else:
+            st.info("No academic sessions are currently registered.")
+
+        # ==============================================================================
+        # MODULE 2: FACULTY REGISTRATION TRACK (Line 4183 onwards)
+        # ==============================================================================
         elif sub_menu == "📝 Faculty Registration":
             st.subheader("➕ Register New Faculty Member")
             with st.form("teacher_reg_form", clear_on_submit=True):
@@ -4199,6 +4220,14 @@ elif menu_choice == "⚙️ Settings":
                         try:
                             check_id = run_query("SELECT teacher_id FROM system_teachers WHERE teacher_id = :code", {"code": int(new_teacher_id)})
                             if not check_id.empty:
+                                st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
+                            else:
+                                with engine.begin() as conn:
+                                    conn.execute(text("INSERT INTO system_teachers (teacher_id, teacher_name, phone_number, email_address, status) VALUES (:code, :name, :phone, :email, 'ACTIVE')"), {"code": int(new_teacher_id), "name": new_teacher_name, "phone": new_teacher_phone, "email": new_teacher_email})
+                                st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
+                                st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Failed to write record to the database: {err}")
                                 st.error(f"❌ A faculty member with the ID '{new_teacher_id}' is already registered.")
                             else:
                                 with engine.begin() as conn:
