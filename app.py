@@ -2760,49 +2760,42 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (SAFE CONNECTION LOOKUP)
+    # PART 3: DATA EXTRACTION ENGINE (INSPECTED ENGINE EXECUTION)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
     logs_df = pd.DataFrame()
 
     if submit_execution:
-        # Resolve the actual connection object dynamically
-        active_conn = None
-        
-        # 1. Check if 'conn' exists in the global environment
-        if 'conn' in globals():
-            active_conn = globals()['conn']
-        # 2. Check if it's hiding in Streamlit's session state
-        elif 'conn' in st.session_state:
-            active_conn = st.session_state['conn']
-        # 3. If still not found, pull it from Streamlit's connection registry
-        else:
-            try:
-                # This automatically binds to your st.connection("sql") backend
-                active_conn = st.connection("sql")
-            except Exception:
-                st.error("Could not locate your database connection object. Please check your connection variable name at the top of the file.")
+        # Step 1: Safely extract the raw DB API connection directly out of your run_query wrapper
+        raw_conn = None
+        try:
+            # We look for 'conn' inside your run_query function's closure/globals dynamically
+            func_globals = run_query.__globals__
+            if 'conn' in func_globals:
+                target_conn = func_globals['conn']
+                try:
+                    raw_conn = target_conn.raw_connection()
+                except AttributeError:
+                    raw_conn = target_conn.connection if hasattr(target_conn, 'connection') else target_conn
+        except Exception:
+            pass
 
-        if active_conn:
-            # Safely extract the raw driver connection context
-            try:
-                raw_conn = active_conn.raw_connection()
-            except AttributeError:
-                raw_conn = active_conn.connection if hasattr(active_conn, 'connection') else active_conn
-
-            if print_scope == "👤 Single Student Card" and search_id:
-                clean_search_id = str(search_id).strip().replace("'", "''")
-                clean_session = str(selected_session).strip().replace("'", "''")
-                clean_test_code = str(selected_test_code).strip().replace("'", "''")
+        # Step 2: Run Data Retrieval
+        if print_scope == "👤 Single Student Card" and search_id:
+            clean_search_id = str(search_id).strip().replace("'", "''")
+            clean_session = str(selected_session).strip().replace("'", "''")
+            clean_test_code = str(selected_test_code).strip().replace("'", "''")
+            
+            # Fetch basic student registry using your standard wrapper
+            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
+            
+            if not df_res.empty:
+                students_to_process = df_res.to_dict(orient='records')
                 
-                # Fetch Student Info using your standard utility
-                df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
-                
-                if not df_res.empty:
-                    students_to_process = df_res.to_dict(orient='records')
-                    
-                    # Fetch Marks bypassing the text() parser completely
+                # If we successfully managed to extract the raw connection bypass driver, use it
+                if raw_conn is not None:
+                    # Fetch Marks via low-level cursor to dodge pandas.io/SQLAlchemy bugs completely
                     cursor = raw_conn.cursor()
                     cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{clean_test_code}'")
                     records = cursor.fetchall()
@@ -2810,36 +2803,45 @@ elif menu_choice == "🪪 Student Result Cards":
                     marks_df = pd.DataFrame(records, columns=cols)
                     cursor.close()
                     
-                    # Fetch Logs via driver cursor
+                    # Fetch Logs via low-level cursor
                     cursor = raw_conn.cursor()
                     cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
                     records_logs = cursor.fetchall()
                     cols_logs = [desc[0] for desc in cursor.description]
                     logs_df = pd.DataFrame(records_logs, columns=cols_logs)
                     cursor.close()
-            
-            elif print_scope == "👥 Complete Section Cards" and active_section:
-                clean_session = str(selected_session).strip().replace("'", "''")
-                clean_class = str(selected_class).strip().replace("'", "''")
-                clean_section = str(active_section).upper().strip().replace("'", "''")
-                
-                df_res = run_query(f"""
-                    SELECT id, name, section, class FROM students 
-                    WHERE session = '{clean_session}' 
-                    AND class = '{clean_class}' 
-                    AND UPPER(TRIM(section)) = '{clean_section}'
-                    ORDER BY id ASC
-                """)
-                
-                if not df_res.empty:
-                    students_to_process = df_res.to_dict(orient='records')
-                    student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
-                    ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
+                else:
+                    # Safe Fallback: If raw connection extraction fails, pull global logs and filter in-memory via Pandas
+                    df_marks_all = run_query("SELECT student_id, subject_name, marks_obtained, total_marks, exam_code FROM exam_marks")
+                    if not df_marks_all.empty:
+                        marks_df = df_marks_all[(df_marks_all['student_id'].astype(str) == clean_search_id) & (df_marks_all['exam_code'].astype(str) == clean_test_code)]
                     
-                    if ids_formatted:
-                        clean_test_code = str(selected_test_code).strip().replace("'", "''")
-                        
-                        # Fetch Marks via driver cursor
+                    df_logs_all = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
+                    logs_df = df_logs_all if not df_logs_all.empty else pd.DataFrame()
+        
+        elif print_scope == "👥 Complete Section Cards" and active_section:
+            clean_session = str(selected_session).strip().replace("'", "''")
+            clean_class = str(selected_class).strip().replace("'", "''")
+            clean_section = str(active_section).upper().strip().replace("'", "''")
+            
+            df_res = run_query(f"""
+                SELECT id, name, section, class FROM students 
+                WHERE session = '{clean_session}' 
+                AND class = '{clean_class}' 
+                AND UPPER(TRIM(section)) = '{clean_section}'
+                ORDER BY id ASC
+            """)
+            
+            if not df_res.empty:
+                students_to_process = df_res.to_dict(orient='records')
+                student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
+                ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
+                
+                if ids_formatted:
+                    clean_test_code = str(selected_test_code).strip().replace("'", "''")
+                    
+                    if raw_conn is not None:
+                        # Fetch section marks using direct engine strings
                         cursor = raw_conn.cursor()
                         cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{clean_test_code}'")
                         records = cursor.fetchall()
@@ -2847,13 +2849,22 @@ elif menu_choice == "🪪 Student Result Cards":
                         marks_df = pd.DataFrame(records, columns=cols)
                         cursor.close()
                         
-                        # Fetch Logs via driver cursor
+                        # Fetch section logs using direct engine strings
                         cursor = raw_conn.cursor()
                         cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
                         records_logs = cursor.fetchall()
                         cols_logs = [desc[0] for desc in cursor.description]
                         logs_df = pd.DataFrame(records_logs, columns=cols_logs)
                         cursor.close()
+                    else:
+                        # Safe Fallback: Fetch dataset matches and isolate inside Pandas engine framework
+                        df_marks_all = run_query("SELECT student_id, subject_name, marks_obtained, total_marks, exam_code FROM exam_marks")
+                        if not df_marks_all.empty:
+                            marks_df = df_marks_all[(df_marks_all['student_id'].astype(str).isin(student_ids)) & (df_marks_all['exam_code'].astype(str) == clean_test_code)]
+                        
+                        df_logs_all = run_query("SELECT student_id, attendance_date, att_status FROM attendance_logs")
+                        if not df_logs_all.empty:
+                            logs_df = df_logs_all[df_logs_all['student_id'].astype(str).isin(student_ids)]
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
