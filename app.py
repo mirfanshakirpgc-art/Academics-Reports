@@ -2760,70 +2760,84 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (FIXED PARAMETER PASSING)
+    # PART 3: DATA EXTRACTION ENGINE (RAW BYPASS METHOD)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
     logs_df = pd.DataFrame()
 
     if submit_execution:
+        # Access the raw DBAPI connection cursor out of your existing conn context
+        # This completely side-steps the broken line 209 in your run_query wrapper
+        try:
+            raw_conn = conn.raw_connection()
+        except AttributeError:
+            # Fallback if using a legacy or custom connection engine object
+            raw_conn = conn.connection if hasattr(conn, 'connection') else conn
+
         if print_scope == "👤 Single Student Card" and search_id:
-            clean_search_id = str(search_id).strip()
-            clean_session = str(selected_session).strip()
+            clean_search_id = str(search_id).strip().replace("'", "''")
+            clean_session = str(selected_session).strip().replace("'", "''")
+            clean_test_code = str(selected_test_code).strip().replace("'", "''")
             
-            # Use safe bind parameters (:variable_name) to hide colons from SQLAlchemy text()
-            df_res = run_query(
-                "SELECT id, name, section, class FROM students WHERE session = :sess_val AND id = :id_val",
-                params={"sess_val": clean_session, "id_val": clean_search_id}
-            )
+            # 1. Fetch Student Info
+            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
                 
-                # Bind the selected_test_code directly to a variable to protect punctuation
-                marks_df = run_query(
-                    "SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = :id_val AND exam_code = :exam_val",
-                    params={"id_val": clean_search_id, "exam_val": str(selected_test_code).strip()}
-                )
+                # 2. Fetch Marks using the raw driver cursor (Bypassing line 209 entirely)
+                cursor = raw_conn.cursor()
+                cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{clean_test_code}'")
+                records = cursor.fetchall()
+                cols = [desc[0] for desc in cursor.description]
+                marks_df = pd.DataFrame(records, columns=cols)
+                cursor.close()
                 
-                logs_df = run_query(
-                    "SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = :id_val",
-                    params={"id_val": clean_search_id}
-                )
+                # 3. Fetch Logs via raw driver cursor
+                cursor = raw_conn.cursor()
+                cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
+                records_logs = cursor.fetchall()
+                cols_logs = [desc[0] for desc in cursor.description]
+                logs_df = pd.DataFrame(records_logs, columns=cols_logs)
+                cursor.close()
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            clean_session = str(selected_session).strip()
-            clean_class = str(selected_class).strip()
-            clean_section = str(active_section).upper().strip()
+            clean_session = str(selected_session).strip().replace("'", "''")
+            clean_class = str(selected_class).strip().replace("'", "''")
+            clean_section = str(active_section).upper().strip().replace("'", "''")
             
-            df_res = run_query(
-                """
+            df_res = run_query(f"""
                 SELECT id, name, section, class FROM students 
-                WHERE session = :sess_val 
-                AND class = :class_val 
-                AND UPPER(TRIM(section)) = :sect_val
+                WHERE session = '{clean_session}' 
+                AND class = '{clean_class}' 
+                AND UPPER(TRIM(section)) = '{clean_section}'
                 ORDER BY id ASC
-                """,
-                params={"sess_val": clean_session, "class_val": clean_class, "sect_val": clean_section}
-            )
+            """)
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
-                student_ids = [str(r['id']).strip() for r in students_to_process]
-                
-                # Safe dynamic string arrays inside an IN clause
+                student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
                 ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
                 
                 if ids_formatted:
-                    # Bind the test code to keep it safe from SQLAlchemy's parameter scanner
-                    marks_df = run_query(
-                        f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = :exam_val",
-                        params={"exam_val": str(selected_test_code).strip()}
-                    )
+                    clean_test_code = str(selected_test_code).strip().replace("'", "''")
                     
-                    logs_df = run_query(
-                        f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})"
-                    )
+                    # Fetch Marks via raw driver cursor
+                    cursor = raw_conn.cursor()
+                    cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{clean_test_code}'")
+                    records = cursor.fetchall()
+                    cols = [desc[0] for desc in cursor.description]
+                    marks_df = pd.DataFrame(records, columns=cols)
+                    cursor.close()
+                    
+                    # Fetch Logs via raw driver cursor
+                    cursor = raw_conn.cursor()
+                    cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
+                    records_logs = cursor.fetchall()
+                    cols_logs = [desc[0] for desc in cursor.description]
+                    logs_df = pd.DataFrame(records_logs, columns=cols_logs)
+                    cursor.close()
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
