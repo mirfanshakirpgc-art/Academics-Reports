@@ -368,7 +368,7 @@ AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec
 AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
 # ==============================================================================
-# ROUTING CONTROLLER & VIEWPORTS (REPLACE YOUR ENTIRE ROUTER WITH THIS)
+# ROUTING CONTROLLER & VIEWPORTS 
 # ==============================================================================
 
 if menu_choice == "📊 Home Dashboard":
@@ -383,47 +383,263 @@ if menu_choice == "📊 Home Dashboard":
     c1, c2 = st.columns(2)
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
-    # <-- Paste any main dashboard charts or analytics components right here!
 
 elif menu_choice == "➕ Add Students":
-    st.title("➕ Student Registration Portal")
-    # <-- Paste your entire single/bulk student addition UI and database insertion code here!
+    st.title("➕ Student Profile Registration Portal")
+    
+    try:
+        db_sessions = run_query("SELECT session_name FROM academic_sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
+        db_disciplines = run_query("SELECT discipline_name FROM system_disciplines WHERE status = 'ACTIVE' ORDER BY discipline_name ASC")
+        db_sections = run_query("SELECT section_name FROM system_sections WHERE status = 'ACTIVE' ORDER BY section_name ASC")
+        
+        session_options = db_sessions["session_name"].tolist() if not db_sessions.empty else ["2024-26", "2025-27", "2026-28", "2027-29"]
+        discipline_options = db_disciplines["discipline_name"].tolist() if not db_disciplines.empty else ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+        all_sections = db_sections["section_name"].tolist() if not db_sections.empty else ["A", "B", "C"]
+    except Exception as e:
+        st.error(f"⚠️ Failed to bind dynamic settings assets: {e}")
+        session_options = ["2024-26", "2025-27", "2026-28", "2027-29"]
+        discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+        all_sections = ["A", "B", "C"]
+
+    active_session = st.session_state.get("current_session", "2026-28")
+    default_index = session_options.index(active_session) if active_session in session_options else 0
+        
+    c1, c2 = st.columns(2)
+    with c1: 
+        selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=default_index, key="add_stu_sess")
+    with c2: 
+        academic_system = st.radio("🏫 Select Academic System Structure:", ["🗓️ Annual System", "🎓 Semester System"], horizontal=True, key="add_stu_system_type")
+
+    st.markdown("---")
+
+    if academic_system == "🗓️ Annual System":
+        c3, c4, c5 = st.columns(3)
+        with c3: 
+            selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
+        with c4: 
+            selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
+            
+        with c5:
+            normalized_discipline = (
+                str(selected_discipline).upper()
+                .replace(" ", "_")
+                .replace("(", "")
+                .replace(")", "")
+            )
+            
+            if "PHYSIC" in normalized_discipline:
+                normalized_discipline = "ICS_PHYSICS"
+            elif "STAT" in normalized_discipline:
+                normalized_discipline = "ICS_STATS"
+
+            if 'DISCIPLINE_SECTIONS_MAP' in globals():
+                available_sections = DISCIPLINE_SECTIONS_MAP.get(normalized_discipline, {}).get(selected_class, [])
+                cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
+            else:
+                cleaned_sections = all_sections
+            
+            if cleaned_sections:
+                selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
+            else:
+                selected_section = st.selectbox("📋 4. Select Target Section:", all_sections, key="add_stu_sec_annual_fallback")
+    
+    else:
+        c3, c4 = st.columns(2)
+        with c3: 
+            selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
+        
+        selected_discipline = "INFORMATION_TECHNOLOGY"
+        if 'DISCIPLINE_SECTIONS_MAP' in globals():
+            available_sections = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(selected_class, [])
+            cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
+        else:
+            cleaned_sections = [sec for sec in all_sections if "DIT" in sec or sec in all_sections]
+        
+        with c4:
+            if cleaned_sections:
+                selected_section = st.selectbox("📋 3. Select Target Section:", cleaned_sections, key="add_stu_sec_semester")
+            else:
+                selected_section = st.selectbox("📋 3. Select Target Section:", all_sections, key="add_stu_sec_semester_fallback")
+
+    st.markdown("---")
+    
+    workflow_mode = st.radio(
+        "⚙️ Select Registration Workflow Mode:", 
+        ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)", "🛠️ Manage Existing Students (Edit/Delete)"], 
+        horizontal=True, 
+        key="add_stu_workflow_choice"
+    )
+    st.markdown("---")
+
+    if workflow_mode == "👤 Single Student Registration":
+        st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
+        
+        with st.form("interactive_student_addition_form", clear_on_submit=True):
+            form_row1_left, form_row1_right = st.columns(2)
+            with form_row1_left:
+                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
+            with form_row1_right:
+                input_student_name = st.text_input("👤 Student Name Full Identity*")
+                
+            input_status = st.selectbox("📌 Enrollment Registration Status:", ["ACTIVE", "PENDING", "LEAVE"])
+                
+            st.markdown("##")
+            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
+            
+            if submit_registration_btn:
+                if not input_roll_number.strip() or not input_student_name.strip():
+                    st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
+                elif not input_roll_number.strip().isdigit():
+                    st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+                else:
+                    try:
+                        clean_id = int(input_roll_number.strip())
+                        clean_name = input_student_name.strip().upper()
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO students (id, name, class, section, session, status, system_type, discipline)
+                                VALUES (:id, :name, :class, :section, :session, :status, :system_type, :discipline)
+                            """), {
+                                "id": clean_id,
+                                "name": clean_name,
+                                "class": selected_class,
+                                "section": selected_section,
+                                "session": selected_session,
+                                "status": input_status,
+                                "system_type": clean_system_type,
+                                "discipline": selected_discipline if academic_system == "🗓️ Annual System" else "INFORMATION_TECHNOLOGY"
+                            })
+                        
+                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered under {clean_system_type}.")
+                        st.balloons()
+                        st.rerun()
+                    except Exception as db_err:
+                        st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned. Details: {db_err}")
+
+    elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
+        st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
+        st.info("💡 Important Sheet Guidelines: Your file columns must include exactly **'ID'** and **'Name'** headings.")
+        
+        uploaded_bulk_file = st.file_uploader("Upload roster matrix spreadsheet", type=["csv", "xlsx"], key="bulk_student_file_uploader")
+        
+        if uploaded_bulk_file is not None:
+            try:
+                if uploaded_bulk_file.name.endswith(".csv"):
+                    bulk_df = pd.read_csv(uploaded_bulk_file)
+                else:
+                    bulk_df = pd.read_excel(uploaded_bulk_file)
+                
+                bulk_df.columns = [str(col).strip().upper() for col in bulk_df.columns]
+                
+                if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
+                    st.error("❌ Template Validation Error! The upload requires a data structure mapped with clear 'ID' and 'Name' headings.")
+                else:
+                    st.markdown("##### 📊 Document Sample Row Preview")
+                    st.dataframe(bulk_df.head(8), use_container_width=True)
+                    
+                    if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
+                        success_count = 0
+                        error_count = 0
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
+                        for index, row in bulk_df.iterrows():
+                            raw_id = str(row['ID']).strip().split('.')[0]
+                            raw_name = str(row['NAME']).strip().upper()
+                            
+                            if raw_id.isdigit() and raw_name != "":
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO students (id, name, class, section, session, status, system_type, discipline)
+                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE', :system_type, :discipline)
+                                        """), {
+                                            "id": int(raw_id),
+                                            "name": raw_name,
+                                            "class": selected_class,
+                                            "section": selected_section,
+                                            "session": selected_session,
+                                            "system_type": clean_system_type,
+                                            "discipline": selected_discipline if academic_system == "🗓️ Annual System" else "INFORMATION_TECHNOLOGY"
+                                        })
+                                    success_count += 1
+                                except Exception:
+                                    error_count += 1
+                            else:
+                                error_count += 1
+                                
+                        st.success(f"🎉 Import complete! Successfully processed and committed {success_count} student records to database under {clean_system_type}.")
+                        if error_count > 0:
+                            st.warning(f"⚠️ Skipped {error_count} row records because of primary key ID duplication conflicts or empty cells.")
+                        st.balloons()
+                        st.rerun()
+                        
+            except Exception as read_err:
+                st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
+
+    else:
+        st.markdown("### 🛠️ Student Records Administrative Hub")
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            global_session = st.selectbox("1️⃣ Select Operational Session:", session_options)
+        with col_g2:
+            global_system = st.selectbox("2️⃣ Select Academic System:", ["🗓️ Annual System", "🎓 Semester System"])
+            clean_global_system = global_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+
+        st.markdown("---")
+        left_branch_col, right_branch_col = st.columns([1.1, 0.9])
+        
+        with left_branch_col:
+            st.markdown("#### 👤 Single Student Operations")
+            search_id = st.text_input("🔍 Search Student by Unique ID:", key="single_search_id_input").strip()
+            
+            if search_id:
+                if not search_id.isdigit():
+                    st.error("❌ Invalid Format: Student ID entries must be numbers only.")
+                else:
+                    try:
+                        with engine.connect() as connection:
+                            stu_query = text("""
+                                SELECT id, name, class, section, session, status, system_type 
+                                FROM students WHERE id = :id
+                            """)
+                            stu_df = pd.read_sql(stu_query, connection, params={"id": int(search_id)})
+                        
+                        if stu_df.empty:
+                            st.warning(f"⚠️ No active profile record found matching Student ID: {search_id}")
+                        else:
+                            student = stu_df.iloc[0]
+                            st.markdown(f"**Name:** {student['name']} | **Class:** {student['class']} | **Section:** {student['section']}")
+                    except Exception as e:
+                        st.error(f"Error querying student: {e}")
 
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
-    # <-- Paste your selectboxes for exam entry and your st.data_editor grid code here! (Make sure to remove the extra whitespace bug if it's here!)
 
 elif menu_choice == "📅 Attendance Entry Management":
     st.title("📅 Attendance Entry Management")
-    # <-- Paste your monthly attendance marking sheet code here!
 
 elif menu_choice == "📋 Daily Attendance Report":
     st.title("📋 Daily Attendance Report")
-    # <-- Paste your daily attendance view codes here!
 
 elif menu_choice == "📋 Section Summary Report":
     st.title("📋 Section Summary Report")
-    # <-- Paste your section breakdown summary logic here!
 
 elif menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Report")
-    # <-- Paste your multi-test student progress charts code here!
 
 elif menu_choice == "🪪 Student Result Cards":
     st.title("🪪 Student Result Cards — Print Engine")
-    # <-- Paste your session dropdowns, single/complete section radio buttons, and PDF generation loops here!
 
 elif menu_choice == "👨‍🏫 Teacher Management":
     st.title("👨‍🏫 Teacher Management & Allocations")
-    # <-- Paste your teacher profiles and subject routing allocations code here!
 
 elif menu_choice == "📈 Academic Analysis Reports":
     st.title("📈 Academic Analysis Reports")
-    # <-- Paste your advanced visual failure/pass ratio charts here!
 
 elif menu_choice == "👥 Student Operations Management":
     st.title("👥 Student Operations Management")
-    # <-- Paste your student status (Active/Withdrawn) editing tools here!
 
 elif menu_choice == "⚙️ Settings":
     st.title("⚙️ System Control & Management Settings")
