@@ -213,31 +213,46 @@ except Exception as e:
 # --- DATABASE COMMAND UTILITIES ---
 # ==============================================================================
 def run_query(query, params=None):
+    """
+    Safely executes a read query. 
+    Handles cases where query might be passed as a tuple due to calling errors.
+    """
     if params is None:
         params = {}
-    
+
+    # 1. Defensive check: If query is a tuple, extract the string
+    if isinstance(query, tuple):
+        # Assuming the first element is the string query and second is params
+        # This handles cases where you accidentally passed (query, params)
+        if len(query) >= 2 and isinstance(query[0], str):
+            params = query[1]
+            query = query[0]
+        else:
+            query = str(query[0])
+
+    # 2. Proceed with string operations safely
     clean_query = query.replace("[Session Name]", '"Session Name"')
     
     try:
         with engine.connect() as conn:
             return pd.read_sql_query(text(clean_query), conn, params=params)
     except Exception as original_error:
+        # Retry logic: Attempt to repair missing columns/tables
         try:
             with engine.begin() as txn_conn:
-                try:
-                    txn_conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS academic_sessions (
-                            id SERIAL PRIMARY KEY,
-                            session_name VARCHAR(50) UNIQUE NOT NULL,
-                            status VARCHAR(20) DEFAULT 'ACTIVE'
-                        );
-                    """))
-                except Exception:
-                    pass
-
+                # Ensure base tables exist
+                txn_conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS academic_sessions (
+                        id SERIAL PRIMARY KEY,
+                        session_name VARCHAR(50) UNIQUE NOT NULL,
+                        status VARCHAR(20) DEFAULT 'ACTIVE'
+                    );
+                """))
+                
+                # Patch columns if they are missing
                 for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
                     try:
-                        txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                        txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';"))
                     except Exception:
                         pass 
 
@@ -247,6 +262,7 @@ def run_query(query, params=None):
             raise original_error
 
 def execute_db_command(query, params=None):
+    """Safely executes write operations."""
     if params is None:
         params = {}
     try:
