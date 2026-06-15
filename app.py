@@ -619,10 +619,10 @@ elif menu_choice == "➕ Add Students":
                                     st.success("Enrollment status set back to ACTIVE.")
                                     st.rerun()
                                     
-                           with btn_col3:
+                        with btn_col3:
                             if st.button("🎓 System Change", use_container_width=True):
                                 with engine.begin() as conn:
-                                conn.execute(text("UPDATE students SET system_type = :system_type WHERE id = :id"), {"system_type": mutation_system, "id": student['id']})
+                                    conn.execute(text("UPDATE students SET system_type = :system_type WHERE id = :id"), {"system_type": mutation_system, "id": student['id']})
                             st.success("Academic System Structure Updated!")
                             st.rerun()
             except Exception as e:
