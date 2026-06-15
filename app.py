@@ -2760,7 +2760,7 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (FIXED QUERY SYNTAX)
+    # PART 3: DATA EXTRACTION ENGINE (FIXED BIND-PARAMETER COLON ISSUE)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
@@ -2768,18 +2768,19 @@ elif menu_choice == "🪪 Student Result Cards":
 
     if submit_execution:
         if print_scope == "👤 Single Student Card" and search_id:
-            # Clean up raw user input
             clean_search_id = str(search_id).strip()
+            
+            # Escape colons in the query string by doubling them (::) so SQLAlchemy text() ignores them
+            safe_test_code = str(selected_test_code).replace(":", "::")
             
             df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{selected_session}' AND id = '{clean_search_id}'")
             
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
-                
-                # Format single ID with clean quotes for SQL IN clause
                 id_list_str = f"'{clean_search_id}'"
                 
-                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({id_list_str}) AND exam_code = '{selected_test_code}'")
+                # Executing queries with escaped strings
+                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({id_list_str}) AND exam_code = '{safe_test_code}'")
                 logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({id_list_str})")
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
@@ -2794,10 +2795,11 @@ elif menu_choice == "🪪 Student Result Cards":
             if not df_res.empty:
                 students_to_process = df_res.to_dict(orient='records')
                 
-                # Map student IDs explicitly to comma-separated string literals
+                # Escape colons for bulk matching too
+                safe_test_code = str(selected_test_code).replace(":", "::")
                 ids_formatted = ", ".join([f"'{str(r['id']).strip()}'" for r in students_to_process])
                 
-                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{selected_test_code}'")
+                marks_df = run_query(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{safe_test_code}'")
                 logs_df = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
 
     # --------------------------------------------------------------------------
