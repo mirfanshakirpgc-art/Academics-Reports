@@ -2760,111 +2760,83 @@ elif menu_choice == "🪪 Student Result Cards":
     submit_execution = st.button("🚀 Generate Result Cards", type="primary", use_container_width=True)
 
     # --------------------------------------------------------------------------
-    # PART 3: DATA EXTRACTION ENGINE (INSPECTED ENGINE EXECUTION)
+    # PART 3: DATA EXTRACTION ENGINE (DEFENSIVE SCHEMA RECOVERY)
     # --------------------------------------------------------------------------
     students_to_process = []
     marks_df = pd.DataFrame()
     logs_df = pd.DataFrame()
 
     if submit_execution:
-        # Step 1: Safely extract the raw DB API connection directly out of your run_query wrapper
-        raw_conn = None
-        try:
-            # We look for 'conn' inside your run_query function's closure/globals dynamically
-            func_globals = run_query.__globals__
-            if 'conn' in func_globals:
-                target_conn = func_globals['conn']
-                try:
-                    raw_conn = target_conn.raw_connection()
-                except AttributeError:
-                    raw_conn = target_conn.connection if hasattr(target_conn, 'connection') else target_conn
-        except Exception:
-            pass
-
-        # Step 2: Run Data Retrieval
+        clean_session = str(selected_session).strip()
+        
         if print_scope == "👤 Single Student Card" and search_id:
-            clean_search_id = str(search_id).strip().replace("'", "''")
-            clean_session = str(selected_session).strip().replace("'", "''")
-            clean_test_code = str(selected_test_code).strip().replace("'", "''")
+            clean_search_id = str(search_id).strip()
             
-            # Fetch basic student registry using your standard wrapper
-            df_res = run_query(f"SELECT id, name, section, class FROM students WHERE session = '{clean_session}' AND id = '{clean_search_id}'")
+            # Use SELECT * and pass an explicit empty params dict to satisfy line 209's requirement
+            df_students_all = run_query("SELECT * FROM students", params={})
             
-            if not df_res.empty:
-                students_to_process = df_res.to_dict(orient='records')
+            if df_students_all is not None and not df_students_all.empty:
+                # Normalize column names to lowercase to prevent casing mismatches (ID vs id)
+                df_students_all.columns = [c.lower() for c in df_students_all.columns]
                 
-                # If we successfully managed to extract the raw connection bypass driver, use it
-                if raw_conn is not None:
-                    # Fetch Marks via low-level cursor to dodge pandas.io/SQLAlchemy bugs completely
-                    cursor = raw_conn.cursor()
-                    cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id = '{clean_search_id}' AND exam_code = '{clean_test_code}'")
-                    records = cursor.fetchall()
-                    cols = [desc[0] for desc in cursor.description]
-                    marks_df = pd.DataFrame(records, columns=cols)
-                    cursor.close()
+                # In-memory evaluation completely independent of database driver quirks
+                df_res = df_students_all[
+                    (df_students_all['session'].astype(str).str.strip() == clean_session) & 
+                    (df_students_all['id'].astype(str).str.strip() == clean_search_id)
+                ]
+                
+                if not df_res.empty:
+                    students_to_process = df_res.to_dict(orient='records')
                     
-                    # Fetch Logs via low-level cursor
-                    cursor = raw_conn.cursor()
-                    cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
-                    records_logs = cursor.fetchall()
-                    cols_logs = [desc[0] for desc in cursor.description]
-                    logs_df = pd.DataFrame(records_logs, columns=cols_logs)
-                    cursor.close()
-                else:
-                    # Safe Fallback: If raw connection extraction fails, pull global logs and filter in-memory via Pandas
-                    df_marks_all = run_query("SELECT student_id, subject_name, marks_obtained, total_marks, exam_code FROM exam_marks")
-                    if not df_marks_all.empty:
-                        marks_df = df_marks_all[(df_marks_all['student_id'].astype(str) == clean_search_id) & (df_marks_all['exam_code'].astype(str) == clean_test_code)]
+                    # Pull all marks safely using SELECT * to avoid exact schema spelling crashes
+                    df_marks_raw = run_query("SELECT * FROM exam_marks", params={})
+                    if df_marks_raw is not None and not df_marks_raw.empty:
+                        df_marks_raw.columns = [c.lower() for c in df_marks_raw.columns]
+                        
+                        # Dynamically isolate target data using Pandas filtering layers
+                        marks_df = df_marks_raw[
+                            (df_marks_raw['student_id'].astype(str).str.strip() == clean_search_id) & 
+                            (df_marks_raw['exam_code'].astype(str).str.strip() == str(selected_test_code).strip())
+                        ]
                     
-                    df_logs_all = run_query(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id = '{clean_search_id}'")
-                    logs_df = df_logs_all if not df_logs_all.empty else pd.DataFrame()
+                    # Pull all logs safely
+                    df_logs_raw = run_query("SELECT * FROM attendance_logs", params={})
+                    if df_logs_raw is not None and not df_logs_raw.empty:
+                        df_logs_raw.columns = [c.lower() for c in df_logs_raw.columns]
+                        logs_df = df_logs_raw[df_logs_raw['student_id'].astype(str).str.strip() == clean_search_id]
         
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            clean_session = str(selected_session).strip().replace("'", "''")
-            clean_class = str(selected_class).strip().replace("'", "''")
-            clean_section = str(active_section).upper().strip().replace("'", "''")
+            clean_class = str(selected_class).strip()
+            clean_section = str(active_section).upper().strip()
             
-            df_res = run_query(f"""
-                SELECT id, name, section, class FROM students 
-                WHERE session = '{clean_session}' 
-                AND class = '{clean_class}' 
-                AND UPPER(TRIM(section)) = '{clean_section}'
-                ORDER BY id ASC
-            """)
+            df_students_all = run_query("SELECT * FROM students", params={})
             
-            if not df_res.empty:
-                students_to_process = df_res.to_dict(orient='records')
-                student_ids = [str(r['id']).strip().replace("'", "''") for r in students_to_process]
-                ids_formatted = ", ".join([f"'{uid}'" for uid in student_ids])
+            if df_students_all is not None and not df_students_all.empty:
+                df_students_all.columns = [c.lower() for c in df_students_all.columns]
                 
-                if ids_formatted:
-                    clean_test_code = str(selected_test_code).strip().replace("'", "''")
+                df_res = df_students_all[
+                    (df_students_all['session'].astype(str).str.strip() == clean_session) & 
+                    (df_students_all['class'].astype(str).str.strip() == clean_class) & 
+                    (df_students_all['section'].astype(str).str.upper().str.strip() == clean_section)
+                ]
+                df_res = df_res.sort_values(by='id', ascending=True)
+                
+                if not df_res.empty:
+                    students_to_process = df_res.to_dict(orient='records')
+                    student_ids = [str(r['id']).strip() for r in students_to_process]
                     
-                    if raw_conn is not None:
-                        # Fetch section marks using direct engine strings
-                        cursor = raw_conn.cursor()
-                        cursor.execute(f"SELECT student_id, subject_name, marks_obtained, total_marks FROM exam_marks WHERE student_id IN ({ids_formatted}) AND exam_code = '{clean_test_code}'")
-                        records = cursor.fetchall()
-                        cols = [desc[0] for desc in cursor.description]
-                        marks_df = pd.DataFrame(records, columns=cols)
-                        cursor.close()
-                        
-                        # Fetch section logs using direct engine strings
-                        cursor = raw_conn.cursor()
-                        cursor.execute(f"SELECT student_id, attendance_date, att_status FROM attendance_logs WHERE student_id IN ({ids_formatted})")
-                        records_logs = cursor.fetchall()
-                        cols_logs = [desc[0] for desc in cursor.description]
-                        logs_df = pd.DataFrame(records_logs, columns=cols_logs)
-                        cursor.close()
-                    else:
-                        # Safe Fallback: Fetch dataset matches and isolate inside Pandas engine framework
-                        df_marks_all = run_query("SELECT student_id, subject_name, marks_obtained, total_marks, exam_code FROM exam_marks")
-                        if not df_marks_all.empty:
-                            marks_df = df_marks_all[(df_marks_all['student_id'].astype(str).isin(student_ids)) & (df_marks_all['exam_code'].astype(str) == clean_test_code)]
-                        
-                        df_logs_all = run_query("SELECT student_id, attendance_date, att_status FROM attendance_logs")
-                        if not df_logs_all.empty:
-                            logs_df = df_logs_all[df_logs_all['student_id'].astype(str).isin(student_ids)]
+                    df_marks_raw = run_query("SELECT * FROM exam_marks", params={})
+                    if df_marks_raw is not None and not df_marks_raw.empty:
+                        df_marks_raw.columns = [c.lower() for c in df_marks_raw.columns]
+                        marks_df = df_marks_raw[
+                            (df_marks_raw['student_id'].astype(str).str.strip().isin(student_ids)) & 
+                            (df_marks_raw['exam_code'].astype(str).str.strip() == str(selected_test_code).strip())
+                        ]
+                    
+                    df_logs_raw = run_query("SELECT * FROM attendance_logs", params={})
+                    if df_logs_raw is not None and not df_logs_raw.empty:
+                        df_logs_raw.columns = [c.lower() for c in df_logs_raw.columns]
+                        logs_df = df_logs_raw[df_logs_raw['student_id'].astype(str).str.strip().isin(student_ids)]
     # --------------------------------------------------------------------------
     # PART 4: COMPILATION LOOP & RENDERING ENGINE
     # --------------------------------------------------------------------------
