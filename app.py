@@ -4480,7 +4480,8 @@ elif menu_choice == "⚙️ Settings":
         with st.form("master_access_user_creation_form", clear_on_submit=True):
             col_u1, col_u2 = st.columns(2)
             with col_u1:
-                new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip()
+                # Standardized to lowercase and trimmed to protect database identity checks
+                new_username = st.text_input("Account Username:", placeholder="e.g. jsmith").strip().lower()
                 new_password = st.text_input("Account Password:", type="password", placeholder="Enter secure password")
             with col_u2:
                 assigned_role = st.selectbox(
@@ -4497,12 +4498,21 @@ elif menu_choice == "⚙️ Settings":
                     st.error("❌ Both Username and Password fields are strictly mandatory.")
                 else:
                     try:
+                        import hashlib
+                        # 🔒 Secure Hashing Conversion Step prior to SQL transmission
+                        hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
+
                         # Core insertion engine transaction
                         with engine.begin() as conn:
                             conn.execute(text("""
                                 INSERT INTO system_users (username, password, role, status)
                                 VALUES (:user, :pwd, :role, :status)
-                            """), {"user": new_username, "pwd": new_password, "role": assigned_role, "status": account_status})
+                            """), {
+                                "user": new_username, 
+                                "pwd": hashed_password, 
+                                "role": assigned_role, 
+                                "status": account_status
+                            })
                         st.success(f"🎉 Account '{new_username}' successfully provisioned as role context: **{assigned_role}**!")
                         st.rerun()
                     except Exception as err:
