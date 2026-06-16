@@ -404,8 +404,7 @@ elif menu_choice == "➕ Add Students":
                 input_father_name = st.text_input("👨‍👧 Father's Name")
                 input_c1 = st.text_input("📞 Contact Number 1")
             with col3:
-                # REPLACED: Enrollment Status with Section Dropdown
-                # Note: 'cleaned_sections' should be defined from your logic above this block
+                # Use the 'cleaned_sections' variable from your main logic
                 input_section = st.selectbox("📋 Select Section:", cleaned_sections if 'cleaned_sections' in locals() else ["A", "B"])
                 input_c2 = st.text_input("📞 Contact Number 2")
             
@@ -427,31 +426,6 @@ elif menu_choice == "➕ Add Students":
                     st.success("🎉 Profile registered successfully.")
                 except Exception as e:
                     st.error(f"❌ Database error: {e}")
-
-        # 2. Bulk Upload Section
-        st.markdown("---")
-        st.subheader("📤 Bulk Upload (Excel/CSV)")
-        sample_df = pd.DataFrame({"ID": [19801], "NAME": ["NAME"], "FATHER_NAME": ["NAME"], "WHATSAPP": ["0300"], "CONTACT_1": ["0300"], "CONTACT_2": ["0300"]})
-        st.download_button("📥 Download Sample CSV Template", data=sample_df.to_csv(index=False).encode('utf-8'), file_name="student_template.csv", mime="text/csv")
-        
-        uploaded_file = st.file_uploader("Upload roster file", type=["csv", "xlsx"])
-        if uploaded_file and st.button("🚀 Process Bulk Upload"):
-            try:
-                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
-                df.columns = [c.upper() for c in df.columns]
-                for _, row in df.iterrows():
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            INSERT INTO students (id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2) 
-                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :wa, :c1, :c2)
-                        """), {
-                            "id": int(row['ID']), "name": row['NAME'], "fname": row['FATHER_NAME'],
-                            "class": selected_class, "section": selected_section, "session": selected_session,
-                            "wa": str(row.get('WHATSAPP', '')), "c1": str(row.get('CONTACT_1', '')), "c2": str(row.get('CONTACT_2', ''))
-                        })
-                st.success("🎉 Bulk upload complete!")
-            except Exception as e:
-                st.error(f"Error processing file: {e}")
     # --- TAB 2: SINGLE STUDENT OPERATIONS ---
     with tab2:
         st.subheader("🔍 Single Student Operations")
