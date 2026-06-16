@@ -383,18 +383,17 @@ if menu_choice == "📊 Home Dashboard":
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
 
-# ----------------- ➕ ADD STUDENTS (Consolidated Central Module) -----------------
+# ----------------- ➕ ADD STUDENTS (Complete Consolidated Module) -----------------
 elif menu_choice == "➕ Add Students":
     st.title("👤 Student Records Central")
     
-    # 1. Unified Tabbed Interface
     tab1, tab2, tab3 = st.tabs(["➕ Registration", "🛠️ Manage & Edit", "🚀 Batch Promotion"])
 
     # --- TAB 1: REGISTRATION ---
     with tab1:
-        st.subheader("👤 New Student Registration")
+        st.subheader("👤 Single Student Registration")
         
-        # --- THE REGISTRATION FORM ---
+        # 1. Registration Form
         with st.form("interactive_student_addition_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -402,76 +401,57 @@ elif menu_choice == "➕ Add Students":
                 input_wa = st.text_input("📱 WhatsApp Number")
             with col2:
                 input_student_name = st.text_input("👤 Student Name Full Identity*")
-                input_c1 = st.text_input("📞 Contact Number 1")
-                input_c2 = st.text_input("📞 Contact Number 2")
-                
-            with col3:
                 input_father_name = st.text_input("👨‍👧 Father's Name")
-                input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
-                
+                input_c1 = st.text_input("📞 Contact Number 1")
+            with col3:
+                # REPLACED: Enrollment Status with Section Dropdown
+                # Note: 'cleaned_sections' should be defined from your logic above this block
+                input_section = st.selectbox("📋 Select Section:", cleaned_sections if 'cleaned_sections' in locals() else ["A", "B"])
+                input_c2 = st.text_input("📞 Contact Number 2")
             
             submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
             
             if submit_registration_btn:
-                # [Your INSERT logic here...]
-                pass
-    with tab1:
-        st.subheader("👤 Section Registration")
-        # ... [Keep your existing registration form code here] ...
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2)
+                        """), {
+                            "id": int(input_roll_number.strip()), "name": input_student_name.strip().upper(),
+                            "fname": input_father_name.strip().upper(), "class": selected_class,
+                            "section": input_section, "session": selected_session,
+                            "system_type": academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip(),
+                            "wa": input_wa.strip(), "c1": input_c1.strip(), "c2": input_c2.strip()
+                        })
+                    st.success("🎉 Profile registered successfully.")
+                except Exception as e:
+                    st.error(f"❌ Database error: {e}")
 
+        # 2. Bulk Upload Section
         st.markdown("---")
         st.subheader("📤 Bulk Upload (Excel/CSV)")
+        sample_df = pd.DataFrame({"ID": [19801], "NAME": ["NAME"], "FATHER_NAME": ["NAME"], "WHATSAPP": ["0300"], "CONTACT_1": ["0300"], "CONTACT_2": ["0300"]})
+        st.download_button("📥 Download Sample CSV Template", data=sample_df.to_csv(index=False).encode('utf-8'), file_name="student_template.csv", mime="text/csv")
         
-        # 1. Download Sample File Option
-        # Create a sample DataFrame
-        sample_data = pd.DataFrame({
-            "ID": [19801, 19802],
-            "NAME": ["JOHN DOE", "JANE SMITH"],
-            "FATHER_NAME": ["FATHER NAME 1", "FATHER NAME 2"],
-            "WHATSAPP": ["0300-1234567", "0300-7654321"],
-            "CONTACT_1": ["0300-1111111", "0300-2222222"],
-            "CONTACT_2": ["0300-3333333", "0300-4444444"]
-        })
-        
-        # Convert to CSV for download
-        csv = sample_data.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Download Sample CSV Template",
-            data=csv,
-            file_name="student_template.csv",
-            mime="text/csv"
-        )
-
-        # 2. File Uploader
-        uploaded_file = st.file_uploader("Upload your roster file (CSV/Excel)", type=["csv", "xlsx"])
-        
-        if uploaded_file:
-            if st.button("🚀 Process Bulk Upload"):
-                try:
-                    # Parse based on extension
-                    if uploaded_file.name.endswith(".csv"):
-                        df = pd.read_csv(uploaded_file)
-                    else:
-                        df = pd.read_excel(uploaded_file)
-                    
-                    df.columns = [c.upper() for c in df.columns]
-                    
-                    # Logic to insert into DB
-                    for _, row in df.iterrows():
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
-                                VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2)
-                            """), {
-                                "id": int(row['ID']), "name": row['NAME'], "fname": row['FATHER_NAME'],
-                                "class": selected_class, "section": selected_section, "session": selected_session,
-                                "system_type": academic_system.replace("🗓️ ", "").strip(),
-                                "wa": str(row.get('WHATSAPP', '')), "c1": str(row.get('CONTACT_1', '')), 
-                                "c2": str(row.get('CONTACT_2', ''))
-                            })
-                    st.success("🎉 Bulk upload complete!")
-                except Exception as e:
-                    st.error(f"Error processing file: {e}")
+        uploaded_file = st.file_uploader("Upload roster file", type=["csv", "xlsx"])
+        if uploaded_file and st.button("🚀 Process Bulk Upload"):
+            try:
+                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                df.columns = [c.upper() for c in df.columns]
+                for _, row in df.iterrows():
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO students (id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2) 
+                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :wa, :c1, :c2)
+                        """), {
+                            "id": int(row['ID']), "name": row['NAME'], "fname": row['FATHER_NAME'],
+                            "class": selected_class, "section": selected_section, "session": selected_session,
+                            "wa": str(row.get('WHATSAPP', '')), "c1": str(row.get('CONTACT_1', '')), "c2": str(row.get('CONTACT_2', ''))
+                        })
+                st.success("🎉 Bulk upload complete!")
+            except Exception as e:
+                st.error(f"Error processing file: {e}")
     # --- TAB 2: SINGLE STUDENT OPERATIONS ---
     with tab2:
         st.subheader("🔍 Single Student Operations")
