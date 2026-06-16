@@ -490,66 +490,42 @@ if workflow_mode == "👤 Single Student Registration":
             # register_student_to_db(engine, student_data)
             st.success("Record added successfully!")
 
-    # ====================================================================================
-    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
-    # ====================================================================================
-    elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
-        st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
-        st.info("💡 Important Sheet Guidelines: Your file columns must include exactly **'ID'** and **'Name'** headings.")
-        
-        uploaded_bulk_file = st.file_uploader("Upload roster matrix spreadsheet", type=["csv", "xlsx"], key="bulk_student_file_uploader")
-        
-        if uploaded_bulk_file is not None:
-            try:
-                if uploaded_bulk_file.name.endswith(".csv"):
-                    bulk_df = pd.read_csv(uploaded_bulk_file)
-                else:
-                    bulk_df = pd.read_excel(uploaded_bulk_file)
-                
-                bulk_df.columns = [str(col).strip().upper() for col in bulk_df.columns]
-                
-                if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
-                    st.error("❌ Template Validation Error! The upload requires a data structure mapped with clear 'ID' and 'Name' headings.")
-                else:
-                    st.markdown("##### 📊 Document Sample Row Preview")
-                    st.dataframe(bulk_df.head(8), use_container_width=True)
-                    
-                    if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
-                        success_count = 0
-                        error_count = 0
-                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                        
-                        for index, row in bulk_df.iterrows():
-                            raw_id = str(row['ID']).strip().split('.')[0]
-                            raw_name = str(row['NAME']).strip().upper()
-                            
-                            if raw_id.isdigit() and raw_name != "":
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            INSERT INTO students (id, name, class, section, session, status, system_type)
-                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE', :system_type)
-                                        """), {
-                                            "id": int(raw_id),
-                                            "name": raw_name,
-                                            "class": selected_class,
-                                            "section": selected_section,
-                                            "session": selected_session,
-                                            "system_type": clean_system_type
-                                        })
-                                    success_count += 1
-                                except Exception:
-                                    error_count += 1
-                            else:
-                                error_count += 1
-                                
-                        st.success(f"🎉 Import complete! Successfully processed and committed {success_count} student records to database under {clean_system_type}.")
-                        if error_count > 0:
-                            st.warning(f"⚠️ Skipped {error_count} row records because of primary key ID duplication conflicts or empty cells.")
-                        st.balloons()
-                        
-            except Exception as read_err:
-                st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
+    import pandas as pd
+import streamlit as st
+
+# ====================================================================================
+# WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
+# ====================================================================================
+elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
+    st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
+    
+    # 1. Define Template
+    template_data = {
+        "ID": [101, 102],
+        "NAME": ["ALI AHMED", "SARA KHAN"],
+        "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
+        "WHATSAPP": ["0300-1234567", "0300-7654321"],
+        "CONTACT_1": ["0300-1234567", "0300-7654321"],
+        "CONTACT_2": ["0300-0000000", "0300-0000000"]
+    }
+    template_df = pd.DataFrame(template_data)
+    
+    # 2. Add Download Button
+    csv_template = template_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Blank Roster Template (.csv)",
+        data=csv_template,
+        file_name="student_roster_template.csv",
+        mime="text/csv"
+    )
+    
+    st.info("💡 Use the template above to ensure your file columns match the system requirements.")
+    
+    # 3. File Uploader
+    uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
+    
+    if uploaded_bulk_file is not None:
+        # ... (Insert the processing logic provided in the previous turn here) ...
 
     # ====================================================================================
     # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB
