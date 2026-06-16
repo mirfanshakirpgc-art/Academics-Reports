@@ -123,7 +123,7 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Create students table with system_type and discipline tracking columns
+        # 1. Create students table with all columns
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
@@ -133,26 +133,29 @@ def initialize_database():
                 session VARCHAR(50),
                 discipline VARCHAR(100),
                 status VARCHAR(50) DEFAULT 'ACTIVE',
-                system_type VARCHAR(50) DEFAULT 'Annual System'
+                system_type VARCHAR(50) DEFAULT 'Annual System',
+                whatsapp_number VARCHAR(20),
+                contact_1 VARCHAR(20),
+                contact_2 VARCHAR(20)
             );
         """))
         
-        # 2. Safe Patch: Force-inject system_type and discipline columns into existing Supabase tables
-        try:
-            conn.execute(text("""
-                ALTER TABLE students 
-                ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';
-            """))
-        except Exception:
-            pass # Skips quietly if the column already exists
-
-        try:
-            conn.execute(text("""
-                ALTER TABLE students 
-                ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);
-            """))
-        except Exception:
-            pass # Skips quietly if the column already exists
+        # 2. Safe Patch: Inject columns if they are missing from an older table version
+        patches = [
+            "system_type VARCHAR(50) DEFAULT 'Annual System'",
+            "discipline VARCHAR(100)",
+            "whatsapp_number VARCHAR(20)",
+            "contact_1 VARCHAR(20)",
+            "contact_2 VARCHAR(20)"
+        ]
+        
+        for patch in patches:
+            try:
+                # Extracts the column name from the patch string to check existence
+                col_name = patch.split(' ')[0]
+                conn.execute(text(f"ALTER TABLE students ADD COLUMN IF NOT EXISTS {col_name} {patch.replace(col_name, '').strip()};"))
+            except Exception:
+                pass 
         
         # 3. Create teachers table
         conn.execute(text("""
@@ -459,13 +462,20 @@ elif menu_choice == "➕ Add Students":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
         with st.form("interactive_student_addition_form", clear_on_submit=True):
-            form_row1_left, form_row1_right = st.columns(2)
-            with form_row1_left:
+            # Layout: 3 columns to accommodate the new fields cleanly
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
                 input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
-            with form_row1_right:
+                input_wa = st.text_input("📱 WhatsApp Number")
+            
+            with col2:
                 input_student_name = st.text_input("👤 Student Name Full Identity*")
+                input_c1 = st.text_input("📞 Contact Number 1")
                 
-            input_status = st.selectbox("📌 Enrollment Registration Status:", ["ACTIVE", "PENDING", "LEAVE"])
+            with col3:
+                input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
+                input_c2 = st.text_input("📞 Contact Number 2")
                 
             st.markdown("##")
             submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
@@ -482,9 +492,10 @@ elif menu_choice == "➕ Add Students":
                         clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
                         
                         with engine.begin() as conn:
+                            # Note: Added the 3 new columns to the INSERT statement
                             conn.execute(text("""
-                                INSERT INTO students (id, name, class, section, session, status, system_type)
-                                VALUES (:id, :name, :class, :section, :session, :status, :system_type)
+                                INSERT INTO students (id, name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                                VALUES (:id, :name, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
                             """), {
                                 "id": clean_id,
                                 "name": clean_name,
@@ -492,13 +503,16 @@ elif menu_choice == "➕ Add Students":
                                 "section": selected_section,
                                 "session": selected_session,
                                 "status": input_status,
-                                "system_type": clean_system_type
+                                "system_type": clean_system_type,
+                                "wa": input_wa.strip(),
+                                "c1": input_c1.strip(),
+                                "c2": input_c2.strip()
                             })
                         
-                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered under {clean_system_type}.")
+                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
                     except Exception as db_err:
-                        st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned. Details: {db_err}")
+                        st.error(f"❌ Database Exception Triggered: {db_err}")
 
     # ====================================================================================
     # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
@@ -3501,13 +3515,65 @@ elif menu_choice == "📈 Academic Analysis Reports":
     else:
         st.info("No data available to analyze inside database.")
 
-# ====================================================================================
+# ==============================================================================
 # UNIFIED CENTRAL MODULE: 👥 STUDENT OPERATIONS MANAGEMENT
-# ====================================================================================
+# ==============================================================================
 elif menu_choice == "👥 Student Operations Management":
     st.title("👥 Student Operations Management Console")
     st.markdown("Centralized workflow for profile records, status adjustments, audit trails, and batch promotions.")
     st.markdown("---")
+    
+    # [KEEP YOUR local_engine_query AND local_engine_update FUNCTIONS HERE]
+
+    st.markdown("### 🌐 Step 1 & 2: Global Configuration Parameters")
+    # ... (Keep your global session/system/term selectors exactly as they are) ...
+
+    # --- BRANCH A: SINGLE STUDENT WORKSPACE ---
+    if workspace_mode == "🔍 Single Student Records Hub":
+        st.markdown("### 👤 Single Student Operations Workspace")
+        search_id = st.text_input("🔍 Search Student by ID:", key="single_search_id_input").strip()
+        
+        if search_id:
+            if not search_id.isdigit():
+                st.error("❌ Invalid Format: Student ID must contain numbers only.")
+            else:
+                # UPDATED QUERY: Added the 3 new contact columns here
+                stu_df = local_engine_query("""
+                    SELECT id, name, class, section, session, status, system_type, 
+                           whatsapp_number, contact_1, contact_2 
+                    FROM students 
+                    WHERE id = :id AND session = :sess
+                """, {"id": int(search_id), "sess": global_session})
+                
+                if stu_df.empty:
+                    st.warning(f"⚠️ No active profile found matching ID '{search_id}'.")
+                else:
+                    student = stu_df.iloc[0]
+                    s_id = int(student['id'])
+                    
+                    st.info(f"📂 **Active:** {str(student['name']).upper()} | **{student['class']} - {student['section']}**")
+                    
+                    # --- NEW EDIT FORM INTEGRATION ---
+                    with st.form("edit_student_details"):
+                        st.subheader("✏️ Edit Student Information")
+                        c_e1, c_e2 = st.columns(2)
+                        with c_e1:
+                            edit_name = st.text_input("Name", value=student['name'])
+                            edit_wa = st.text_input("WhatsApp", value=student.get('whatsapp_number') or '')
+                        with c_e2:
+                            edit_c1 = st.text_input("Contact 1", value=student.get('contact_1') or '')
+                            edit_c2 = st.text_input("Contact 2", value=student.get('contact_2') or '')
+                        
+                        if st.form_submit_button("💾 Update Contact Details", type="primary"):
+                            local_engine_update("""
+                                UPDATE students 
+                                SET name = :name, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2 
+                                WHERE id = :id
+                            """, {"name": edit_name, "wa": edit_wa, "c1": edit_c1, "c2": edit_c2, "id": s_id})
+                            st.success("Record Updated!")
+                            st.rerun()
+
+                    # ... (Continue with your other existing sub-modules: Session Change, Section Change, etc.) ...
     
     # --------------------------------------------------------------------------------
     # NATIVE SQLALCHEMY EXECUTOR ENGINE (Bypasses st.connection requirements)
