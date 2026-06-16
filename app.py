@@ -426,6 +426,57 @@ elif menu_choice == "➕ Add Students":
                     st.success("🎉 Profile registered successfully.")
                 except Exception as e:
                     st.error(f"❌ Database error: {e}")
+
+        # 2. Bulk Upload Section
+        st.markdown("---")
+        st.subheader("📤 Bulk Upload (Excel/CSV)")
+        sample_df = pd.DataFrame({"ID": [19801], "NAME": ["NAME"], "FATHER_NAME": ["NAME"], "WHATSAPP": ["0300"], "CONTACT_1": ["0300"], "CONTACT_2": ["0300"]})
+        st.download_button("📥 Download Sample CSV Template", data=sample_df.to_csv(index=False).encode('utf-8'), file_name="student_template.csv", mime="text/csv")
+        
+        uploaded_file = st.file_uploader("Upload roster file", type=["csv", "xlsx"])
+        if uploaded_file and st.button("🚀 Process Bulk Upload"):
+            try:
+                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                df.columns = [c.upper() for c in df.columns]
+                for _, row in df.iterrows():
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2) 
+                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :sys, :wa, :c1, :c2)
+                        """), {
+                            "id": int(row['ID']), "name": row['NAME'], "fname": row['FATHER_NAME'],
+                            "class": selected_class, "section": selected_section, "session": selected_session,
+                            "sys": academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip(),
+                            "wa": str(row.get('WHATSAPP', '')), "c1": str(row.get('CONTACT_1', '')), "c2": str(row.get('CONTACT_2', ''))
+                        })
+                st.success("🎉 Bulk upload complete!")
+            except Exception as e:
+                st.error(f"Error processing file: {e}")
+
+    # --- TAB 2: MANAGE & EDIT ---
+    with tab2:
+        st.subheader("🛠️ Single Student Operations")
+        search_id = st.text_input("🔍 Search Student by ID:", key="single_search_id_input").strip()
+        if search_id and search_id.isdigit():
+            stu_df = run_query("SELECT * FROM students WHERE id = :id", {"id": int(search_id)})
+            if not stu_df.empty:
+                student = stu_df.iloc[0]
+                with st.form("edit_student_details"):
+                    st.write(f"Editing: {student['name']} (ID: {student['id']})")
+                    c_e1, c_e2 = st.columns(2)
+                    with c_e1:
+                        edit_name = st.text_input("Name", value=student['name'])
+                        edit_fname = st.text_input("Father's Name", value=student.get('father_name') or '')
+                        edit_wa = st.text_input("WhatsApp", value=student.get('whatsapp_number') or '')
+                    with c_e2:
+                        edit_c1 = st.text_input("Contact 1", value=student.get('contact_1') or '')
+                        edit_c2 = st.text_input("Contact 2", value=student.get('contact_2') or '')
+                    if st.form_submit_button("💾 Update Records"):
+                        execute_db_command("UPDATE students SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2 WHERE id = :id", 
+                                           {"name": edit_name, "fname": edit_fname, "wa": edit_wa, "c1": edit_c1, "c2": edit_c2, "id": int(search_id)})
+                        st.success("Record Updated!")
+                        st.rerun()
+                # Deletion logic...
     # --- TAB 2: SINGLE STUDENT OPERATIONS ---
     with tab2:
         st.subheader("🔍 Single Student Operations")
