@@ -546,16 +546,6 @@ elif menu_choice == "➕ Add Students":
                 input_c1 = st.text_input("📞 5. Contact Number 1")
             with r2_col3:
                 input_c2 = st.text_input("📞 6. Contact Number 2")
-
-            r3_col1, r3_col2, r3_col3 = st.columns(3)
-            with r3_col1:
-                input_status = st.selectbox("📌 7. Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
-            with r3_col2:
-                st.caption("🏫 Target Class Segment")
-                st.info(f"**{selected_class}**")
-            with r3_col3:
-                st.caption("📐 Target Allocation Segment")
-                st.info(f"**{selected_section}**")
             
             submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
             
