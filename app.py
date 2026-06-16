@@ -461,16 +461,16 @@ elif menu_choice == "➕ Add Students":
     if workflow_mode == "👤 Single Student Registration":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
-        with st.form("interactive_student_addition_form", clear_on_submit=True):
+with st.form("interactive_student_addition_form", clear_on_submit=True):
     col1, col2, col3 = st.columns(3)
-        with col1:
+    with col1:
         input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
         input_wa = st.text_input("📱 WhatsApp Number")
-        with col2:
+    with col2:
         input_student_name = st.text_input("👤 Student Name Full Identity*")
         input_father_name = st.text_input("👨‍👧 Father's Name") # NEW FIELD
         input_c1 = st.text_input("📞 Contact Number 1")
-        with col3:
+     with col3:
         input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
         input_c2 = st.text_input("📞 Contact Number 2")
     
