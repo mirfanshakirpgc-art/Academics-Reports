@@ -383,7 +383,9 @@ if menu_choice == "📊 Home Dashboard":
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
 
-# ----------------- ➕ ADD STUDENTS -----------------
+# ------------------------------------------------------------------------------------
+# ➕ ADD STUDENTS MANAGEMENT SYSTEM SECTION
+# ------------------------------------------------------------------------------------
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
@@ -433,7 +435,7 @@ elif menu_choice == "➕ Add Students":
     else:
         c3, c4 = st.columns(2)
         with c3: 
-            selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
+            selected_class = st.selectbox("⏳ 2. Select Semester Level:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
         
         selected_discipline = "INFORMATION_TECHNOLOGY"
         available_sections = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(selected_class, ["DIT_B", "DIT_G"])
@@ -456,28 +458,44 @@ elif menu_choice == "➕ Add Students":
     st.markdown("---")
 
     # ====================================================================================
-    # WORKFLOW A: SINGLE STUDENT REGISTRATION
+    # WORKFLOW A: SINGLE STUDENT REGISTRATION (SEQUENTIAL NUMBERING DESIGN)
     # ====================================================================================
     if workflow_mode == "👤 Single Student Registration":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
         with st.form("interactive_student_addition_form", clear_on_submit=True):
-            # Layout: 3 columns to match the 1, 2, 3 vertical layout from your screenshot
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
-                input_wa = st.text_input("📱 WhatsApp Number")
-            
-            with col2:
-                input_student_name = st.text_input("👤 Student Name Full Identity*")
-                input_father_name = st.text_input("👨‍👧 Father's Name")
-                input_c1 = st.text_input("📞 Contact Number 1")
-            
-            with col3:
-                # Status moved to the top right slot
-                input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
-                input_c2 = st.text_input("📞 Contact Number 2")
+            # Row 1: Core Identification Metrics
+            r1_col1, r1_col2, r1_col3 = st.columns(3)
+            with r1_col1:
+                input_roll_number = st.text_input("🆔 1. Class Roll Number / Student ID*")
+            with r1_col2:
+                input_student_name = st.text_input("👤 2. Student Name Full Identity*")
+            with r1_col3:
+                input_father_name = st.text_input("👨‍👧 3. Father's Name")
+
+            st.markdown("<br>", unsafe_allow_html=True) 
+
+            # Row 2: Communication Channels & Operational Status
+            r2_col1, r2_col2, r2_col3 = st.columns(3)
+            with r2_col1:
+                input_wa = st.text_input("📱 4. WhatsApp Number")
+            with r2_col2:
+                input_c1 = st.text_input("📞 5. Contact Number 1")
+            with r2_col3:
+                input_c2 = st.text_input("📞 6. Contact Number 2")
+
+            st.markdown("---")
+
+            # Row 3: Status Tracking Matrix Placement
+            r3_col1, r3_col2, r3_col3 = st.columns(3)
+            with r3_col1:
+                input_status = st.selectbox("📌 7. Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
+            with r3_col2:
+                st.caption("🏫 Target Class Segment")
+                st.info(f"**{selected_class}**")
+            with r3_col3:
+                st.caption("📐 Target Allocation Segment")
+                st.info(f"**{selected_section}**")
             
             st.markdown("##")
             submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
@@ -515,12 +533,13 @@ elif menu_choice == "➕ Add Students":
                         st.balloons()
                     except Exception as db_err:
                         st.error(f"❌ Database Exception Triggered: {db_err}")
+
     # ====================================================================================
-    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
+    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE (UPGRADED SCHEMATICS)
     # ====================================================================================
     elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
         st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
-        st.info("💡 Important Sheet Guidelines: Your file columns must include exactly **'ID'** and **'Name'** headings.")
+        st.info("💡 Sheet Layout Guidelines: Your file must contain at least **'ID'** and **'Name'** columns. Optional columns include: 'Father Name', 'WhatsApp', 'Contact 1', 'Contact 2'.")
         
         uploaded_bulk_file = st.file_uploader("Upload roster matrix spreadsheet", type=["csv", "xlsx"], key="bulk_student_file_uploader")
         
@@ -531,10 +550,12 @@ elif menu_choice == "➕ Add Students":
                 else:
                     bulk_df = pd.read_excel(uploaded_bulk_file)
                 
-                bulk_df.columns = [str(col).strip().upper() for col in bulk_df.columns]
+                # Standardize column headers for reliable database indexing
+                original_columns = list(bulk_df.columns)
+                bulk_df.columns = [str(col).strip().upper().replace(" ", "_").replace("'", "") for col in bulk_df.columns]
                 
                 if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
-                    st.error("❌ Template Validation Error! The upload requires a data structure mapped with clear 'ID' and 'Name' headings.")
+                    st.error("❌ Template Validation Error! The uploaded file is missing 'ID' or 'Name' structural columns.")
                 else:
                     st.markdown("##### 📊 Document Sample Row Preview")
                     st.dataframe(bulk_df.head(8), use_container_width=True)
@@ -548,19 +569,40 @@ elif menu_choice == "➕ Add Students":
                             raw_id = str(row['ID']).strip().split('.')[0]
                             raw_name = str(row['NAME']).strip().upper()
                             
+                            # Safe Extraction Layer: Handle optional profile items elegantly
+                            raw_fname = str(row['FATHER_NAME']).strip().upper() if 'FATHER_NAME' in bulk_df.columns and pd.notna(row['FATHER_NAME']) else ""
+                            if raw_fname == "" and "FATHER_S_NAME" in bulk_df.columns and pd.notna(row["FATHER_S_NAME"]):
+                                raw_fname = str(row["FATHER_S_NAME"]).strip().upper()
+                                
+                            raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
+                            if raw_wa == "" and 'WHATSAPP_NUMBER' in bulk_df.columns and pd.notna(row['WHATSAPP_NUMBER']):
+                                raw_wa = str(row['WHATSAPP_NUMBER']).strip().split('.')[0]
+                                
+                            raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
+                            if raw_c1 == "" and 'CONTACT_NUMBER_1' in bulk_df.columns and pd.notna(row['CONTACT_NUMBER_1']):
+                                raw_c1 = str(row['CONTACT_NUMBER_1']).strip().split('.')[0]
+                                
+                            raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
+                            if raw_c2 == "" and 'CONTACT_NUMBER_2' in bulk_df.columns and pd.notna(row['CONTACT_NUMBER_2']):
+                                raw_c2 = str(row['CONTACT_NUMBER_2']).strip().split('.')[0]
+
                             if raw_id.isdigit() and raw_name != "":
                                 try:
                                     with engine.begin() as conn:
                                         conn.execute(text("""
-                                            INSERT INTO students (id, name, class, section, session, status, system_type)
-                                            VALUES (:id, :name, :class, :section, :session, 'ACTIVE', :system_type)
+                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2)
                                         """), {
                                             "id": int(raw_id),
                                             "name": raw_name,
+                                            "fname": raw_fname,
                                             "class": selected_class,
                                             "section": selected_section,
                                             "session": selected_session,
-                                            "system_type": clean_system_type
+                                            "system_type": clean_system_type,
+                                            "wa": raw_wa,
+                                            "c1": raw_c1,
+                                            "c2": raw_c2
                                         })
                                     success_count += 1
                                 except Exception:
@@ -568,13 +610,13 @@ elif menu_choice == "➕ Add Students":
                             else:
                                 error_count += 1
                                 
-                        st.success(f"🎉 Import complete! Successfully processed and committed {success_count} student records to database under {clean_system_type}.")
+                        st.success(f"🎉 Import complete! Successfully registered {success_count} records into the system.")
                         if error_count > 0:
-                            st.warning(f"⚠️ Skipped {error_count} row records because of primary key ID duplication conflicts or empty cells.")
+                            st.warning(f"⚠️ Skipped {error_count} lines due to duplicate IDs or invalid data formatting.")
                         st.balloons()
                         
             except Exception as read_err:
-                st.error(f"❌ Failed to parse data file payload accurately: {read_err}")
+                st.error(f"❌ Failed to parse data file payload: {read_err}")
 
     # ====================================================================================
     # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB
@@ -673,17 +715,12 @@ elif menu_choice == "➕ Add Students":
                     except Exception as e:
                         st.error(f"Error executing operation: {e}")
 
-        with right_branch_col:
-            st.markdown("#### 👥 Bulk Actions / Section Promotion")
-            st.info("Your remaining functional block modules connect from here.")
-
         # ====================================================================================
         # RIGHT OPERATIONS BRANCH: SECTION SECTIONING & PROMOTION BATCH RUNNER
         # ====================================================================================
         with right_branch_col:
             st.markdown("#### 🏢 Section-Based Batch Promotion")
             
-            # Query sections conditionally based on the global top-tier controls
             try:
                 with engine.connect() as connection:
                     sec_query = text("""
@@ -718,7 +755,7 @@ elif menu_choice == "➕ Add Students":
                     
                     col_p1, col_p2 = st.columns(2)
                     with col_p1:
-                        promo_target_class = st.selectbox("🎓 Promoted To Class:", target_classes_list, index=11)  # Default index points directly to class 12th
+                        promo_target_class = st.selectbox("🎓 Promoted To Class:", target_classes_list, index=11)  
                     with col_p2:
                         try:
                             with engine.connect() as conn:
@@ -746,7 +783,6 @@ elif menu_choice == "➕ Add Students":
                             st.rerun()
                         except Exception as promo_err:
                             st.error(f"Batch execution exception: {promo_err}")
-
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
