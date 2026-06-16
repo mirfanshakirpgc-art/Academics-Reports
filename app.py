@@ -462,7 +462,7 @@ elif menu_choice == "➕ Add Students":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
         with st.form("interactive_student_addition_form", clear_on_submit=True):
-            # Layout: 3 columns to accommodate the new fields
+            # Layout: 3 columns to match the 1, 2, 3 vertical layout from your screenshot
             col1, col2, col3 = st.columns(3)
             
             with col1:
@@ -475,6 +475,7 @@ elif menu_choice == "➕ Add Students":
                 input_c1 = st.text_input("📞 Contact Number 1")
             
             with col3:
+                # Status moved to the top right slot
                 input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
                 input_c2 = st.text_input("📞 Contact Number 2")
             
@@ -482,7 +483,6 @@ elif menu_choice == "➕ Add Students":
             submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
             
             if submit_registration_btn:
-                # Validation logic remains the same
                 if not input_roll_number.strip() or not input_student_name.strip():
                     st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
                 elif not input_roll_number.strip().isdigit():
