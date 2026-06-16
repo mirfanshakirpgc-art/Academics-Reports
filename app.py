@@ -461,7 +461,7 @@ elif menu_choice == "➕ Add Students":
     if workflow_mode == "👤 Single Student Registration":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
-        with st.form("interactive_student_addition_form", clear_on_submit=True):
+    with st.form("interactive_student_addition_form", clear_on_submit=True):
     col1, col2, col3 = st.columns(3)
     with col1:
         input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
