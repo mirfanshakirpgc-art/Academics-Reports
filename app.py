@@ -430,7 +430,7 @@ elif menu_choice == "➕ Add Students":
     else:
         c3, c4 = st.columns(2)
         with c3: 
-            selected_class = st.selectbox("⏳ 2. Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
+            selected_class = st.selectbox("⏳ 2. Select Semester Level:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
         
         selected_discipline = "INFORMATION_TECHNOLOGY"
         available_sections = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(selected_class, ["DIT_B", "DIT_G"])
@@ -452,80 +452,178 @@ elif menu_choice == "➕ Add Students":
     )
     st.markdown("---")
 
-    # --- Single Student Registration Form ---
-if workflow_mode == "👤 Single Student Registration":
-    st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
-    
-    with st.form("interactive_student_addition_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            input_roll_number = st.text_input("🆔 Class Roll Number / ID*")
-            input_student_name = st.text_input("👤 Student Name*")
-            input_whatsapp = st.text_input("💬 WhatsApp Number")
-        with col2:
-            input_father_name = st.text_input("👨 Father's Name")
-            input_contact_1 = st.text_input("📞 Contact Number 1")
-            input_contact_2 = st.text_input("📞 Contact Number 2")
-            
-        # Optional: Keep the section as a selection if it can be changed, 
-        # or use the pre-selected 'selected_section' variable.
-        input_section = st.selectbox("🏫 Section", ["A", "B", "C"], index=0)
-        input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
-
-        submit_btn = st.form_submit_button("💾 Commit to Database", type="primary", use_container_width=True)
+    # ====================================================================================
+    # WORKFLOW A: SINGLE STUDENT REGISTRATION (SEQUENTIAL NUMBERING DESIGN)
+    # ====================================================================================
+    if workflow_mode == "👤 Single Student Registration":
+        st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
-        if submit_btn:
-            # Add validation for new fields as needed
-            student_data = {
-                "id": input_roll_number,
-                "name": input_student_name.upper(),
-                "father_name": input_father_name.upper(),
-                "whatsapp": input_whatsapp,
-                "contact_1": input_contact_1,
-                "contact_2": input_contact_2,
-                "section": input_section,
-                "status": input_status
-            }
-            # Pass this dictionary to your database function
-            # register_student_to_db(engine, student_data)
-            st.success("Record added successfully!")
+        with st.form("interactive_student_addition_form", clear_on_submit=True):
+            # Row 1: Core Identification Metrics
+            r1_col1, r1_col2, r1_col3 = st.columns(3)
+            with r1_col1:
+                input_roll_number = st.text_input("🆔 1. Class Roll Number / Student ID*")
+            with r1_col2:
+                input_student_name = st.text_input("👤 2. Student Name Full Identity*")
+            with r1_col3:
+                input_father_name = st.text_input("👨‍👧 3. Father's Name")
 
-    import pandas as pd
-import streamlit as st
+            st.markdown("<br>", unsafe_allow_html=True) 
 
-# ====================================================================================
-# WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
-# ====================================================================================
-elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
-    st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
-    
-    # 1. Define Template
-    template_data = {
-        "ID": [101, 102],
-        "NAME": ["ALI AHMED", "SARA KHAN"],
-        "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
-        "WHATSAPP": ["0300-1234567", "0300-7654321"],
-        "CONTACT_1": ["0300-1234567", "0300-7654321"],
-        "CONTACT_2": ["0300-0000000", "0300-0000000"]
-    }
-    template_df = pd.DataFrame(template_data)
-    
-    # 2. Add Download Button
-    csv_template = template_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Blank Roster Template (.csv)",
-        data=csv_template,
-        file_name="student_roster_template.csv",
-        mime="text/csv"
-    )
-    
-    st.info("💡 Use the template above to ensure your file columns match the system requirements.")
-    
-    # 3. File Uploader
-    uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
-    
-    if uploaded_bulk_file is not None:
-        # ... (Insert the processing logic provided in the previous turn here) ...
+            # Row 2: Communication Channels
+            r2_col1, r2_col2, r2_col3 = st.columns(3)
+            with r2_col1:
+                input_wa = st.text_input("📱 4. WhatsApp Number")
+            with r2_col2:
+                input_c1 = st.text_input("📞 5. Contact Number 1")
+            with r2_col3:
+                input_c2 = st.text_input("📞 6. Contact Number 2")
+
+            st.markdown("---")
+
+            # Row 3: Status Tracking & Dynamic Selection Layout Reference
+            r3_col1, r3_col2, r3_col3 = st.columns(3)
+            with r3_col1:
+                input_status = st.selectbox("📌 7. Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
+            with r3_col2:
+                st.caption("🏫 Target Class Segment")
+                st.info(f"**{selected_class}**")
+            with r3_col3:
+                st.caption("📐 Target Allocation Segment")
+                st.info(f"**{selected_section}**")
+            
+            st.markdown("##")
+            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
+            
+            if submit_registration_btn:
+                if not input_roll_number.strip() or not input_student_name.strip():
+                    st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
+                elif not input_roll_number.strip().isdigit():
+                    st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+                else:
+                    try:
+                        clean_id = int(input_roll_number.strip())
+                        clean_name = input_student_name.strip().upper()
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                                VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
+                            """), {
+                                "id": clean_id,
+                                "name": clean_name,
+                                "fname": input_father_name.strip().upper(),
+                                "class": selected_class,
+                                "section": selected_section,
+                                "session": selected_session,
+                                "status": input_status,
+                                "system_type": clean_system_type,
+                                "wa": input_wa.strip(),
+                                "c1": input_c1.strip(),
+                                "c2": input_c2.strip()
+                            })
+                        
+                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                        st.balloons()
+                    except Exception as db_err:
+                        st.error(f"❌ Database Exception Triggered: {db_err}")
+
+    # ====================================================================================
+    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
+    # ====================================================================================
+    elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
+        st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
+        
+        # 1. Define Template with all available column parameters
+        template_data = {
+            "ID": [101, 102],
+            "NAME": ["ALI AHMED", "SARA KHAN"],
+            "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
+            "WHATSAPP": ["03001234567", "03007654321"],
+            "CONTACT_1": ["03001234567", "03007654321"],
+            "CONTACT_2": ["03020000000", "03050000000"]
+        }
+        template_df = pd.DataFrame(template_data)
+        
+        # 2. Add Download Button
+        csv_template = template_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Blank Roster Template (.csv)",
+            data=csv_template,
+            file_name="student_roster_template.csv",
+            mime="text/csv"
+        )
+        
+        st.info("💡 Use the template above to ensure your file columns match the advanced database schematic requirements seamlessly.")
+        
+        # 3. File Uploader and Processing Logic
+        uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
+        
+        if uploaded_bulk_file is not None:
+            try:
+                if uploaded_bulk_file.name.endswith(".csv"):
+                    bulk_df = pd.read_csv(uploaded_bulk_file)
+                else:
+                    bulk_df = pd.read_excel(uploaded_bulk_file)
+                
+                bulk_df.columns = [str(col).strip().upper().replace(" ", "_").replace("'", "") for col in bulk_df.columns]
+                
+                if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
+                    st.error("❌ Template Validation Error! The uploaded file is missing critical 'ID' or 'Name' structural columns.")
+                else:
+                    st.markdown("##### 📊 Document Sample Row Preview")
+                    st.dataframe(bulk_df.head(8), use_container_width=True)
+                    
+                    if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
+                        success_count = 0
+                        error_count = 0
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
+                        for index, row in bulk_df.iterrows():
+                            raw_id = str(row['ID']).strip().split('.')[0]
+                            raw_name = str(row['NAME']).strip().upper()
+                            
+                            # Extraction logic for expanded payload options
+                            raw_fname = str(row['FATHER_NAME']).strip().upper() if 'FATHER_NAME' in bulk_df.columns and pd.notna(row['FATHER_NAME']) else ""
+                            if raw_fname == "" and "FATHER_S_NAME" in bulk_df.columns and pd.notna(row["FATHER_S_NAME"]):
+                                raw_fname = str(row["FATHER_S_NAME"]).strip().upper()
+                                
+                            raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
+                            raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
+                            raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
+
+                            if raw_id.isdigit() and raw_name != "":
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2)
+                                        """), {
+                                            "id": int(raw_id),
+                                            "name": raw_name,
+                                            "fname": raw_fname,
+                                            "class": selected_class,
+                                            "section": selected_section,
+                                            "session": selected_session,
+                                            "system_type": clean_system_type,
+                                            "wa": raw_wa,
+                                            "c1": raw_c1,
+                                            "c2": raw_c2
+                                        })
+                                    success_count += 1
+                                except Exception:
+                                    error_count += 1
+                            else:
+                                error_count += 1
+                                
+                        st.success(f"🎉 Import complete! Successfully registered {success_count} records into the system.")
+                        if error_count > 0:
+                            st.warning(f"⚠️ Skipped {error_count} lines due to database conflicts or empty data rows.")
+                        st.balloons()
+                        
+            except Exception as read_err:
+                st.error(f"❌ Failed to parse data file payload correctly: {read_err}")
 
     # ====================================================================================
     # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB
