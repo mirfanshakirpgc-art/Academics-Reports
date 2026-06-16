@@ -461,42 +461,60 @@ elif menu_choice == "➕ Add Students":
     if workflow_mode == "👤 Single Student Registration":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
-with st.form("interactive_student_addition_form", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
-        input_wa = st.text_input("📱 WhatsApp Number")
-    with col2:
-        input_student_name = st.text_input("👤 Student Name Full Identity*")
-        input_father_name = st.text_input("👨‍👧 Father's Name") # NEW FIELD
-        input_c1 = st.text_input("📞 Contact Number 1")
-     with col3:
-        input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
-        input_c2 = st.text_input("📞 Contact Number 2")
-    
-    # ... inside your INSERT logic ...
-    conn.execute(text("""
-        INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
-        VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
-    """), {
-        "id": clean_id,
-        "name": clean_name,
-        "fname": input_father_name.strip().upper(), # Add this parameter
-        "class": selected_class,
-        "section": selected_section,
-        "session": selected_session,
-        "status": input_status,
-        "system_type": clean_system_type,
-        "wa": input_wa.strip(),
-        "c1": input_c1.strip(),
-        "c2": input_c2.strip()
-    })
+        with st.form("interactive_student_addition_form", clear_on_submit=True):
+            # Layout: 3 columns to accommodate the new fields
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
+                input_wa = st.text_input("📱 WhatsApp Number")
+            
+            with col2:
+                input_student_name = st.text_input("👤 Student Name Full Identity*")
+                input_father_name = st.text_input("👨‍👧 Father's Name")
+                input_c1 = st.text_input("📞 Contact Number 1")
+            
+            with col3:
+                input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
+                input_c2 = st.text_input("📞 Contact Number 2")
+            
+            st.markdown("##")
+            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
+            
+            if submit_registration_btn:
+                # Validation logic remains the same
+                if not input_roll_number.strip() or not input_student_name.strip():
+                    st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
+                elif not input_roll_number.strip().isdigit():
+                    st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+                else:
+                    try:
+                        clean_id = int(input_roll_number.strip())
+                        clean_name = input_student_name.strip().upper()
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                                VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
+                            """), {
+                                "id": clean_id,
+                                "name": clean_name,
+                                "fname": input_father_name.strip().upper(),
+                                "class": selected_class,
+                                "section": selected_section,
+                                "session": selected_session,
+                                "status": input_status,
+                                "system_type": clean_system_type,
+                                "wa": input_wa.strip(),
+                                "c1": input_c1.strip(),
+                                "c2": input_c2.strip()
+                            })
                         
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
                     except Exception as db_err:
                         st.error(f"❌ Database Exception Triggered: {db_err}")
-
     # ====================================================================================
     # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
     # ====================================================================================
