@@ -380,7 +380,9 @@ if menu_choice == "📊 Home Dashboard":
     c1.metric("Total Registered Students", s_count)
     c2.metric("Total Grade Records Captured", m_count)
 
-# ----------------- ➕ ADD STUDENTS -----------------
+# ------------------------------------------------------------------------------------
+# ➕ ADD STUDENTS MANAGEMENT SYSTEM SECTION
+# ------------------------------------------------------------------------------------
 elif menu_choice == "➕ Add Students":
     st.title("➕ Student Profile Registration Portal")
     
@@ -444,7 +446,6 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
     
-    # Ensure this radio selector is indented exactly 4 spaces inside the menu_choice block
     workflow_mode = st.radio(
         "⚙️ Select Registration Workflow Mode:", 
         ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)", "🛠️ Manage Existing Students (Edit/Delete)"], 
@@ -454,13 +455,13 @@ elif menu_choice == "➕ Add Students":
     st.markdown("---")
 
     # ====================================================================================
-    # WORKFLOW A: SINGLE STUDENT REGISTRATION (INDENTED EXACTLY 4 SPACES)
+    # WORKFLOW A: SINGLE STUDENT REGISTRATION (INDENTED 4 SPACES INSIDE ELIF)
     # ====================================================================================
     if workflow_mode == "👤 Single Student Registration":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
         with st.form("interactive_student_addition_form", clear_on_submit=True):
-            # Row 1: Core Identification Metrics
+            # Row 1: Core Identification Metrics (3 Columns Layout)
             r1_col1, r1_col2, r1_col3 = st.columns(3)
             with r1_col1:
                 input_roll_number = st.text_input("🆔 1. Class Roll Number / Student ID*")
@@ -482,7 +483,7 @@ elif menu_choice == "➕ Add Students":
 
             st.markdown("---")
 
-            # Row 3: Status Tracking
+            # Row 3: Tracking & Segment Information Displays
             r3_col1, r3_col2, r3_col3 = st.columns(3)
             with r3_col1:
                 input_status = st.selectbox("📌 7. Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
@@ -531,7 +532,7 @@ elif menu_choice == "➕ Add Students":
                         st.error(f"❌ Database Exception Triggered: {db_err}")
 
     # ====================================================================================
-    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE (ALIGNED PERFECTLY WITH WORKFLOW A's IF)
+    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE (PROPERLY INDENTED ALONGSIDE WORKFLOW A)
     # ====================================================================================
     elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
         st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
@@ -621,7 +622,6 @@ elif menu_choice == "➕ Add Students":
                         
             except Exception as read_err:
                 st.error(f"❌ Failed to parse data file payload correctly: {read_err}")
-
     # ====================================================================================
     # WORKFLOW C: UNIFIED MANAGE & PROMOTION HUB
     # ====================================================================================
