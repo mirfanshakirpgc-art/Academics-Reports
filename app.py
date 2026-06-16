@@ -444,6 +444,7 @@ elif menu_choice == "➕ Add Students":
 
     st.markdown("---")
     
+    # Ensure this radio selector is indented exactly 4 spaces inside the menu_choice block
     workflow_mode = st.radio(
         "⚙️ Select Registration Workflow Mode:", 
         ["👤 Single Student Registration", "📤 Bulk Upload (Excel/CSV)", "🛠️ Manage Existing Students (Edit/Delete)"], 
@@ -453,7 +454,7 @@ elif menu_choice == "➕ Add Students":
     st.markdown("---")
 
     # ====================================================================================
-    # WORKFLOW A: SINGLE STUDENT REGISTRATION (SEQUENTIAL NUMBERING DESIGN)
+    # WORKFLOW A: SINGLE STUDENT REGISTRATION (INDENTED EXACTLY 4 SPACES)
     # ====================================================================================
     if workflow_mode == "👤 Single Student Registration":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
@@ -481,7 +482,7 @@ elif menu_choice == "➕ Add Students":
 
             st.markdown("---")
 
-            # Row 3: Status Tracking & Dynamic Selection Layout Reference
+            # Row 3: Status Tracking
             r3_col1, r3_col2, r3_col3 = st.columns(3)
             with r3_col1:
                 input_status = st.selectbox("📌 7. Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
@@ -530,12 +531,11 @@ elif menu_choice == "➕ Add Students":
                         st.error(f"❌ Database Exception Triggered: {db_err}")
 
     # ====================================================================================
-    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
+    # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE (ALIGNED PERFECTLY WITH WORKFLOW A's IF)
     # ====================================================================================
     elif workflow_mode == "📤 Bulk Upload (Excel/CSV)":
         st.subheader(f"📤 Bulk Import Rosters — Section ({selected_section})")
         
-        # 1. Define Template with all available column parameters
         template_data = {
             "ID": [101, 102],
             "NAME": ["ALI AHMED", "SARA KHAN"],
@@ -546,7 +546,6 @@ elif menu_choice == "➕ Add Students":
         }
         template_df = pd.DataFrame(template_data)
         
-        # 2. Add Download Button
         csv_template = template_df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Download Blank Roster Template (.csv)",
@@ -557,7 +556,6 @@ elif menu_choice == "➕ Add Students":
         
         st.info("💡 Use the template above to ensure your file columns match the advanced database schematic requirements seamlessly.")
         
-        # 3. File Uploader and Processing Logic
         uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
         
         if uploaded_bulk_file is not None:
@@ -584,7 +582,6 @@ elif menu_choice == "➕ Add Students":
                             raw_id = str(row['ID']).strip().split('.')[0]
                             raw_name = str(row['NAME']).strip().upper()
                             
-                            # Extraction logic for expanded payload options
                             raw_fname = str(row['FATHER_NAME']).strip().upper() if 'FATHER_NAME' in bulk_df.columns and pd.notna(row['FATHER_NAME']) else ""
                             if raw_fname == "" and "FATHER_S_NAME" in bulk_df.columns and pd.notna(row["FATHER_S_NAME"]):
                                 raw_fname = str(row["FATHER_S_NAME"]).strip().upper()
