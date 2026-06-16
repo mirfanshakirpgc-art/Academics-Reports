@@ -3555,26 +3555,36 @@ elif menu_choice == "👥 Student Operations Management":
                     st.info(f"📂 **Active:** {str(student['name']).upper()} | **{student['class']} - {student['section']}**")
                     
                     # --- NEW EDIT FORM INTEGRATION ---
-                    with st.form("edit_student_details"):
-    st.subheader("✏️ Edit Student Information")
-    c_e1, c_e2 = st.columns(2)
-    with c_e1:
-        edit_name = st.text_input("Name", value=student['name'])
-        edit_fname = st.text_input("Father's Name", value=student.get('father_name') or '') # NEW
-        edit_wa = st.text_input("WhatsApp", value=student.get('whatsapp_number') or '')
-    with c_e2:
-        edit_c1 = st.text_input("Contact 1", value=student.get('contact_1') or '')
-        edit_c2 = st.text_input("Contact 2", value=student.get('contact_2') or '')
-    
-    if st.form_submit_button("💾 Update Records"):
-        execute_db_command("""
-            UPDATE students 
-            SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2 
-            WHERE id = :id
-        """, {
-            "name": edit_name, "fname": edit_fname, "wa": edit_wa, 
-            "c1": edit_c1, "c2": edit_c2, "id": int(search_id)
-        })
+                    # ... inside your 'else' block where stu_df is not empty ...
+                student = stu_df.iloc[0]
+                
+                # 1. Start the form (Line 3558)
+                with st.form("edit_student_details"):
+                    # 2. Every line below MUST be indented further right
+                    st.subheader("✏️ Edit Student Information")
+                    
+                    c_e1, c_e2 = st.columns(2)
+                    with c_e1:
+                        edit_name = st.text_input("Name", value=student['name'])
+                        edit_wa = st.text_input("WhatsApp", value=student.get('whatsapp_number') or '')
+                    with c_e2:
+                        edit_c1 = st.text_input("Contact 1", value=student.get('contact_1') or '')
+                        edit_c2 = st.text_input("Contact 2", value=student.get('contact_2') or '')
+                    
+                    if st.form_submit_button("💾 Update Records"):
+                        execute_db_command("""
+                            UPDATE students 
+                            SET name = :name, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2 
+                            WHERE id = :id
+                        """, {
+                            "name": edit_name, 
+                            "wa": edit_wa, 
+                            "c1": edit_c1, 
+                            "c2": edit_c2, 
+                            "id": int(search_id)
+                        })
+                        st.success("Record Updated!")
+                        st.rerun()
         st.success("Record Updated!")
         st.rerun()
 
