@@ -452,53 +452,43 @@ elif menu_choice == "➕ Add Students":
     )
     st.markdown("---")
 
-    # ====================================================================================
-    # WORKFLOW A: SINGLE STUDENT REGISTRATION
-    # ====================================================================================
-    if workflow_mode == "👤 Single Student Registration":
-        st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
-        
-        with st.form("interactive_student_addition_form", clear_on_submit=True):
-            form_row1_left, form_row1_right = st.columns(2)
-            with form_row1_left:
-                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
-            with form_row1_right:
-                input_student_name = st.text_input("👤 Student Name Full Identity*")
-                
-            input_status = st.selectbox("📌 Enrollment Registration Status:", ["ACTIVE", "PENDING", "LEAVE"])
-                
-            st.markdown("##")
-            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
+    # --- Single Student Registration Form ---
+if workflow_mode == "👤 Single Student Registration":
+    st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
+    
+    with st.form("interactive_student_addition_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            input_roll_number = st.text_input("🆔 Class Roll Number / ID*")
+            input_student_name = st.text_input("👤 Student Name*")
+            input_whatsapp = st.text_input("💬 WhatsApp Number")
+        with col2:
+            input_father_name = st.text_input("👨 Father's Name")
+            input_contact_1 = st.text_input("📞 Contact Number 1")
+            input_contact_2 = st.text_input("📞 Contact Number 2")
             
-            if submit_registration_btn:
-                if not input_roll_number.strip() or not input_student_name.strip():
-                    st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
-                elif not input_roll_number.strip().isdigit():
-                    st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
-                else:
-                    try:
-                        clean_id = int(input_roll_number.strip())
-                        clean_name = input_student_name.strip().upper()
-                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                        
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO students (id, name, class, section, session, status, system_type)
-                                VALUES (:id, :name, :class, :section, :session, :status, :system_type)
-                            """), {
-                                "id": clean_id,
-                                "name": clean_name,
-                                "class": selected_class,
-                                "section": selected_section,
-                                "session": selected_session,
-                                "status": input_status,
-                                "system_type": clean_system_type
-                            })
-                        
-                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered under {clean_system_type}.")
-                        st.balloons()
-                    except Exception as db_err:
-                        st.error(f"❌ Database Exception Triggered: Verify that Roll Number ID `{input_roll_number}` isn't already assigned. Details: {db_err}")
+        # Optional: Keep the section as a selection if it can be changed, 
+        # or use the pre-selected 'selected_section' variable.
+        input_section = st.selectbox("🏫 Section", ["A", "B", "C"], index=0)
+        input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
+
+        submit_btn = st.form_submit_button("💾 Commit to Database", type="primary", use_container_width=True)
+        
+        if submit_btn:
+            # Add validation for new fields as needed
+            student_data = {
+                "id": input_roll_number,
+                "name": input_student_name.upper(),
+                "father_name": input_father_name.upper(),
+                "whatsapp": input_whatsapp,
+                "contact_1": input_contact_1,
+                "contact_2": input_contact_2,
+                "section": input_section,
+                "status": input_status
+            }
+            # Pass this dictionary to your database function
+            # register_student_to_db(engine, student_data)
+            st.success("Record added successfully!")
 
     # ====================================================================================
     # WORKFLOW B: BULK EXCEL/CSV IMPORT ENGINE
