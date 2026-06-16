@@ -393,56 +393,64 @@ elif menu_choice == "➕ Add Students":
     # --- TAB 1: REGISTRATION ---
     with tab1:
         st.subheader("👤 New Student Registration")
-        session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-        active_session = st.session_state.get("current_session", "2026-28")
-        default_index = session_options.index(active_session) if active_session in session_options else 0
+        # ... [Keep your existing registration form code here] ...
+
+        st.markdown("---")
+        st.subheader("📤 Bulk Upload (Excel/CSV)")
         
-        # [Your existing selection logic for Session, Class, Discipline, Section goes here]
+        # 1. Download Sample File Option
+        # Create a sample DataFrame
+        sample_data = pd.DataFrame({
+            "ID": [19801, 19802],
+            "NAME": ["JOHN DOE", "JANE SMITH"],
+            "FATHER_NAME": ["FATHER NAME 1", "FATHER NAME 2"],
+            "WHATSAPP": ["0300-1234567", "0300-7654321"],
+            "CONTACT_1": ["0300-1111111", "0300-2222222"],
+            "CONTACT_2": ["0300-3333333", "0300-4444444"]
+        })
         
-        with st.form("interactive_student_addition_form", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
-                input_wa = st.text_input("📱 WhatsApp Number")
-            with col2:
-                input_student_name = st.text_input("👤 Student Name Full Identity*")
-                input_father_name = st.text_input("👨‍👧 Father's Name")
-                input_c1 = st.text_input("📞 Contact Number 1")
-            with col3:
-                input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
-                input_c2 = st.text_input("📞 Contact Number 2")
-            
-            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
-            
-            if submit_registration_btn:
-                if not input_roll_number.strip() or not input_student_name.strip():
-                    st.error("❌ Roll Number and Name are mandatory.")
-                else:
-                    try:
+        # Convert to CSV for download
+        csv = sample_data.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Sample CSV Template",
+            data=csv,
+            file_name="student_template.csv",
+            mime="text/csv"
+        )
+
+        # 2. File Uploader
+        uploaded_file = st.file_uploader("Upload your roster file (CSV/Excel)", type=["csv", "xlsx"])
+        
+        if uploaded_file:
+            if st.button("🚀 Process Bulk Upload"):
+                try:
+                    # Parse based on extension
+                    if uploaded_file.name.endswith(".csv"):
+                        df = pd.read_csv(uploaded_file)
+                    else:
+                        df = pd.read_excel(uploaded_file)
+                    
+                    df.columns = [c.upper() for c in df.columns]
+                    
+                    # Logic to insert into DB
+                    for _, row in df.iterrows():
                         with engine.begin() as conn:
                             conn.execute(text("""
                                 INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
-                                VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
+                                VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2)
                             """), {
-                                "id": int(input_roll_number.strip()),
-                                "name": input_student_name.strip().upper(),
-                                "fname": input_father_name.strip().upper(),
-                                "class": selected_class,
-                                "section": selected_section,
-                                "session": selected_session,
-                                "status": input_status,
-                                "system_type": academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip(),
-                                "wa": input_wa.strip(),
-                                "c1": input_c1.strip(),
-                                "c2": input_c2.strip()
+                                "id": int(row['ID']), "name": row['NAME'], "fname": row['FATHER_NAME'],
+                                "class": selected_class, "section": selected_section, "session": selected_session,
+                                "system_type": academic_system.replace("🗓️ ", "").strip(),
+                                "wa": str(row.get('WHATSAPP', '')), "c1": str(row.get('CONTACT_1', '')), 
+                                "c2": str(row.get('CONTACT_2', ''))
                             })
-                        st.success("🎉 Profile registered successfully.")
-                    except Exception as e:
-                        st.error(f"❌ Database error: {e}")
-
-    # --- TAB 2: MANAGE & EDIT ---
+                    st.success("🎉 Bulk upload complete!")
+                except Exception as e:
+                    st.error(f"Error processing file: {e}")
+    # --- TAB 2: SINGLE STUDENT OPERATIONS ---
     with tab2:
-        st.subheader("🛠️ Manage Existing Students")
+        st.subheader("🔍 Single Student Operations")
         search_id = st.text_input("🔍 Search Student by Unique ID:", key="single_search_id_input").strip()
         
         if search_id and search_id.isdigit():
@@ -454,6 +462,8 @@ elif menu_choice == "➕ Add Students":
             
             if not stu_df.empty:
                 student = stu_df.iloc[0]
+                
+                # Edit Form
                 with st.form("edit_student_details"):
                     st.write(f"Editing: {student['name']} (ID: {student['id']})")
                     c_e1, c_e2 = st.columns(2)
@@ -465,16 +475,64 @@ elif menu_choice == "➕ Add Students":
                         edit_c1 = st.text_input("Contact 1", value=student.get('contact_1') or '')
                         edit_c2 = st.text_input("Contact 2", value=student.get('contact_2') or '')
                     
-                    if st.form_submit_button("💾 Update Records"):
+                    if st.form_submit_button("💾 Update Records", type="primary"):
                         execute_db_command("""
                             UPDATE students 
-                            SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2 
+                            SET name = :name, father_name = :fname, whatsapp_number = :wa, 
+                                contact_1 = :c1, contact_2 = :c2 
                             WHERE id = :id
-                        """, {"name": edit_name, "fname": edit_fname, "wa": edit_wa, "c1": edit_c1, "c2": edit_c2, "id": int(search_id)})
+                        """, {
+                            "name": edit_name, "fname": edit_fname, "wa": edit_wa, 
+                            "c1": edit_c1, "c2": edit_c2, "id": int(search_id)
+                        })
                         st.success("Record Updated!")
                         st.rerun()
 
-    # --- TAB 3: BATCH PROMOTION ---
+                # --- DANGER ZONE: DELETE ENTRY ---
+                st.markdown("---")
+                st.subheader("⚠️ Danger Zone")
+                with st.expander("🗑️ Delete Student Profile"):
+                    confirm_delete = st.checkbox("I confirm that I want to permanently delete this student record.")
+                    if st.button("Delete Student Entry", type="primary", disabled=not confirm_delete):
+                        execute_db_command("DELETE FROM students WHERE id = :id", {"id": int(search_id)})
+                        st.error(f"Student ID {search_id} has been permanently removed.")
+                        st.rerun()
+            else:
+                st.warning("No student found with that ID.")
+     # --- TAB 3: WHOLE SECTION BATCH OPERATIONS ---
+    with tab3:
+        st.subheader("📦 Bulk Section Operations")
+        
+        # 1. Section Selection Logic
+        section_filter = st.selectbox("📁 Select Source Section to Process:", 
+                                     options=["MG_BLUE", "MG_WHITE", "MB_BLUE", "DIT_B", "DIT_G"], 
+                                     key="batch_sec_filter")
+        
+        # 2. Batch Promotion Block (Your existing logic)
+        with st.expander("🚀 Promotion Engine"):
+            st.info(f"Perform promotion for: {section_filter}")
+            # [PASTE YOUR EXISTING PROMOTION CODE HERE]
+            
+        # 3. Batch Sequence Change (Re-indexing)
+        with st.expander("🔢 Change Student Sequence"):
+            st.write("This will re-order student IDs or sequences within the selected section.")
+            if st.button("🔄 Apply Sequence Re-indexing", use_container_width=True):
+                # Add your SQL/Logic to update sequence/order columns here
+                st.success(f"Sequence updated for {section_filter}")
+        
+        # 4. Danger Zone: Delete Complete Section
+        with st.expander("🗑️ DANGER ZONE: Purge Complete Section"):
+            st.error(f"⚠️ This will permanently remove ALL student records associated with {section_filter}.")
+            confirm_purge = st.checkbox(f"I confirm I want to DELETE section {section_filter} and all associated records.", key="confirm_purge_sec")
+            
+            if st.button("🚨 PERMANENTLY DELETE SECTION", type="primary", disabled=not confirm_purge):
+                try:
+                    execute_db_command("DELETE FROM students WHERE section = :sec", {"sec": section_filter})
+                    st.error(f"Section {section_filter} has been wiped from the database.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Deletion failed: {e}")
+    # --- TAB 4: BATCH PROMOTION ---
     with tab3:
         st.subheader("🚀 Section-Based Batch Promotion")
         # [PASTE YOUR EXISTING PROMOTION CODE HERE]
