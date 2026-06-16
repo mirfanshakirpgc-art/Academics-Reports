@@ -123,11 +123,11 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Create students table with all columns
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
+                father_name VARCHAR(255),  -- NEW COLUMN
                 section VARCHAR(100),
                 class VARCHAR(100),
                 session VARCHAR(50),
@@ -140,8 +140,9 @@ def initialize_database():
             );
         """))
         
-        # 2. Safe Patch: Inject columns if they are missing from an older table version
+        # Patch for existing tables
         patches = [
+            "father_name VARCHAR(255)",
             "system_type VARCHAR(50) DEFAULT 'Annual System'",
             "discipline VARCHAR(100)",
             "whatsapp_number VARCHAR(20)",
@@ -151,11 +152,10 @@ def initialize_database():
         
         for patch in patches:
             try:
-                # Extracts the column name from the patch string to check existence
                 col_name = patch.split(' ')[0]
                 conn.execute(text(f"ALTER TABLE students ADD COLUMN IF NOT EXISTS {col_name} {patch.replace(col_name, '').strip()};"))
             except Exception:
-                pass 
+                pass
         
         # 3. Create teachers table
         conn.execute(text("""
@@ -462,52 +462,35 @@ elif menu_choice == "➕ Add Students":
         st.subheader(f"👤 Enter Student Profile Particulars — Section ({selected_section})")
         
         with st.form("interactive_student_addition_form", clear_on_submit=True):
-            # Layout: 3 columns to accommodate the new fields cleanly
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
-                input_wa = st.text_input("📱 WhatsApp Number")
-            
-            with col2:
-                input_student_name = st.text_input("👤 Student Name Full Identity*")
-                input_c1 = st.text_input("📞 Contact Number 1")
-                
-            with col3:
-                input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
-                input_c2 = st.text_input("📞 Contact Number 2")
-                
-            st.markdown("##")
-            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Institutional Database Ledger", type="primary", use_container_width=True)
-            
-            if submit_registration_btn:
-                if not input_roll_number.strip() or not input_student_name.strip():
-                    st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
-                elif not input_roll_number.strip().isdigit():
-                    st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
-                else:
-                    try:
-                        clean_id = int(input_roll_number.strip())
-                        clean_name = input_student_name.strip().upper()
-                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                        
-                        with engine.begin() as conn:
-                            # Note: Added the 3 new columns to the INSERT statement
-                            conn.execute(text("""
-                                INSERT INTO students (id, name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
-                                VALUES (:id, :name, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
-                            """), {
-                                "id": clean_id,
-                                "name": clean_name,
-                                "class": selected_class,
-                                "section": selected_section,
-                                "session": selected_session,
-                                "status": input_status,
-                                "system_type": clean_system_type,
-                                "wa": input_wa.strip(),
-                                "c1": input_c1.strip(),
-                                "c2": input_c2.strip()
-                            })
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
+        input_wa = st.text_input("📱 WhatsApp Number")
+    with col2:
+        input_student_name = st.text_input("👤 Student Name Full Identity*")
+        input_father_name = st.text_input("👨‍👧 Father's Name") # NEW FIELD
+        input_c1 = st.text_input("📞 Contact Number 1")
+    with col3:
+        input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
+        input_c2 = st.text_input("📞 Contact Number 2")
+    
+    # ... inside your INSERT logic ...
+    conn.execute(text("""
+        INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+        VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
+    """), {
+        "id": clean_id,
+        "name": clean_name,
+        "fname": input_father_name.strip().upper(), # Add this parameter
+        "class": selected_class,
+        "section": selected_section,
+        "session": selected_session,
+        "status": input_status,
+        "system_type": clean_system_type,
+        "wa": input_wa.strip(),
+        "c1": input_c1.strip(),
+        "c2": input_c2.strip()
+    })
                         
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
@@ -3555,23 +3538,27 @@ elif menu_choice == "👥 Student Operations Management":
                     
                     # --- NEW EDIT FORM INTEGRATION ---
                     with st.form("edit_student_details"):
-                        st.subheader("✏️ Edit Student Information")
-                        c_e1, c_e2 = st.columns(2)
-                        with c_e1:
-                            edit_name = st.text_input("Name", value=student['name'])
-                            edit_wa = st.text_input("WhatsApp", value=student.get('whatsapp_number') or '')
-                        with c_e2:
-                            edit_c1 = st.text_input("Contact 1", value=student.get('contact_1') or '')
-                            edit_c2 = st.text_input("Contact 2", value=student.get('contact_2') or '')
-                        
-                        if st.form_submit_button("💾 Update Contact Details", type="primary"):
-                            local_engine_update("""
-                                UPDATE students 
-                                SET name = :name, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2 
-                                WHERE id = :id
-                            """, {"name": edit_name, "wa": edit_wa, "c1": edit_c1, "c2": edit_c2, "id": s_id})
-                            st.success("Record Updated!")
-                            st.rerun()
+    st.subheader("✏️ Edit Student Information")
+    c_e1, c_e2 = st.columns(2)
+    with c_e1:
+        edit_name = st.text_input("Name", value=student['name'])
+        edit_fname = st.text_input("Father's Name", value=student.get('father_name') or '') # NEW
+        edit_wa = st.text_input("WhatsApp", value=student.get('whatsapp_number') or '')
+    with c_e2:
+        edit_c1 = st.text_input("Contact 1", value=student.get('contact_1') or '')
+        edit_c2 = st.text_input("Contact 2", value=student.get('contact_2') or '')
+    
+    if st.form_submit_button("💾 Update Records"):
+        execute_db_command("""
+            UPDATE students 
+            SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2 
+            WHERE id = :id
+        """, {
+            "name": edit_name, "fname": edit_fname, "wa": edit_wa, 
+            "c1": edit_c1, "c2": edit_c2, "id": int(search_id)
+        })
+        st.success("Record Updated!")
+        st.rerun()
 
                     # ... (Continue with your other existing sub-modules: Session Change, Section Change, etc.) ...
     
