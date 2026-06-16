@@ -393,6 +393,28 @@ elif menu_choice == "➕ Add Students":
     # --- TAB 1: REGISTRATION ---
     with tab1:
         st.subheader("👤 New Student Registration")
+        
+        # --- THE REGISTRATION FORM ---
+        with st.form("interactive_student_addition_form", clear_on_submit=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                input_roll_number = st.text_input("🆔 Class Roll Number / Student ID*")
+                input_wa = st.text_input("📱 WhatsApp Number")
+            with col2:
+                input_student_name = st.text_input("👤 Student Name Full Identity*")
+                input_father_name = st.text_input("👨‍👧 Father's Name")
+                input_c1 = st.text_input("📞 Contact Number 1")
+            with col3:
+                input_status = st.selectbox("📌 Enrollment Status:", ["ACTIVE", "PENDING", "LEAVE"])
+                input_c2 = st.text_input("📞 Contact Number 2")
+            
+            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
+            
+            if submit_registration_btn:
+                # [Your INSERT logic here...]
+                pass
+    with tab1:
+        st.subheader("👤 Section Registration")
         # ... [Keep your existing registration form code here] ...
 
         st.markdown("---")
