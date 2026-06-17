@@ -533,7 +533,7 @@ elif menu_choice == "➕ Add Students":
     with intake_tab2:
         st.subheader(f"Manual Profile Entry — Section ({selected_section})")
         with st.form("interactive_student_addition_form", clear_on_submit=True):
-            # Row 1: Core Identification Elements
+            # 📐 Row 1: Core Identification Elements (3 Columns)
             r1_col1, r1_col2, r1_col3 = st.columns(3)
             with r1_col1:
                 input_roll_number = st.text_input("🆔 1. Class Roll Number / Student ID*")
@@ -542,7 +542,7 @@ elif menu_choice == "➕ Add Students":
             with r1_col3:
                 input_father_name = st.text_input("👨‍👧 3. Father's Name")
 
-            # Row 2: Communication Infrastructure Telephony
+            # 📱 Row 2: Communication Infrastructure Telephony (3 Columns)
             r2_col1, r2_col2, r2_col3 = st.columns(3)
             with r2_col1:
                 input_wa = st.text_input("📱 4. WhatsApp Number")
@@ -551,10 +551,28 @@ elif menu_choice == "➕ Add Students":
             with r2_col3:
                 input_c2 = st.text_input("📞 6. Contact Number 2")
             
-            # Row 3: Physical Address Residential Context Block
-            r3_col1 = st.columns(1)[0]
+            # 📍 Row 3: Demographics & Layout Class Categorizations (3 Columns to match image schema)
+            r3_col1, r3_col2, r3_col3 = st.columns(3)
             with r3_col1:
-                input_address = st.text_input("📍 7. Residential Full Address Context")
+                input_address = st.text_input("📞 7. Address")
+            with r3_col2:
+                manual_select_class = st.selectbox("🔰 8. Select Class Level:", options=all_classes, index=all_classes.index(selected_class) if selected_class in all_classes else 0)
+            with r3_col3:
+                # Dynamically uses keys from your DISCIPLINE_SECTIONS_MAP if available, otherwise safe fallback array
+                discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["MEDICAL", "ENGINEERING", "ARTS", "COMMERCE"]
+                manual_select_discipline = st.selectbox("🔬 9. Select Discipline:", options=discipline_options)
+            
+            # 📋 Row 4: Subsection Allocation Framework mapping
+            r4_col1, r4_col2, r4_col3 = st.columns(3)
+            with r4_col2: # Centers the element cleanly below selection row options
+                mapped_sections_options = []
+                if 'DISCIPLINE_SECTIONS_MAP' in globals() and manual_select_discipline in DISCIPLINE_SECTIONS_MAP:
+                    mapped_sections_options = DISCIPLINE_SECTIONS_MAP[manual_select_discipline].get(manual_select_class, [])
+                
+                if not mapped_sections_options:
+                    mapped_sections_options = [selected_section] if selected_section else ["A"]
+                    
+                manual_select_section = st.selectbox("📋 10. Select Target Section:", options=mapped_sections_options)
             
             submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
             
@@ -575,10 +593,18 @@ elif menu_choice == "➕ Add Students":
                                 INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
                                 VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2, :address)
                             """), {
-                                "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
-                                "class": selected_class, "section": selected_section, "session": selected_session,
-                                "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
-                                "c1": input_c1.strip(), "c2": input_c2.strip(), "address": clean_address
+                                "id": clean_id, 
+                                "name": clean_name, 
+                                "fname": input_father_name.strip().upper(),
+                                "class": manual_select_class, 
+                                "section": manual_select_section, 
+                                "session": selected_session,
+                                "status": "ACTIVE",  # Fixed the undefined variable bug safely here
+                                "system_type": clean_system_type, 
+                                "wa": input_wa.strip(),
+                                "c1": input_c1.strip(), 
+                                "c2": input_c2.strip(), 
+                                "address": clean_address
                             })
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
