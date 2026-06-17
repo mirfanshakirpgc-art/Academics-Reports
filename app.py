@@ -1041,10 +1041,10 @@ with manage_tab2:
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry Workspace")
-    entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
-    st.markdown("---")
+    elif menu_choice == "📝 Academic Exam Marks Entry":
+        st.title("📝 Academic Exam Marks Entry Workspace")
+        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
+        st.markdown("---")
 
     # --- DYNAMIC FRAMEWORK FETCH FROM DATABASE ---
     # Add your dynamic database fetch logic for marks entry below at this indentation layer
