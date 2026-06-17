@@ -688,89 +688,116 @@ elif menu_choice == "➕ Add Students":
                                 key="ind_sec_pick"
                             )
 
+                        # Meta Parameters for Validation Tracking
+                        import datetime
+                        col_meta1, col_meta2 = st.columns([1, 2])
+                        with col_meta1:
+                            ind_action_date = st.date_input("📆 Execution Date Target:", value=datetime.date.today(), key="ind_action_date")
+                        with col_meta2:
+                            ind_action_remarks = st.text_input("💬 Operational Processing Remarks / Notes:", placeholder="Provide single-profile alteration context", key="ind_action_remarks")
+
+                        st.markdown(" ") # Spacer
+
                         # Action Buttons Row
                         btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
 
                         with btn_col1:
                             if st.button("🔀 Execute Base Relocations", use_container_width=True):
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET session = :sess, class = :cls, section = :sec
-                                            WHERE id = :id
-                                        """), {
-                                            "sess": str(ind_dest_session), 
-                                            "cls": str(ind_dest_class), 
-                                            "sec": str(ind_dest_section).strip().upper(), 
-                                            "id": student_native_id
-                                        })
-                                    st.success(f"🚀 Student {student_native_id} relocated successfully!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
-                                    
+                                if not ind_action_remarks.strip():
+                                    st.warning("⚠️ Action Blocked: Please enter remarks before executing a relocation.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            conn.execute(text("""
+                                                UPDATE students 
+                                                SET session = :sess, class = :cls, section = :sec
+                                                WHERE id = :id
+                                            """), {
+                                                "sess": str(ind_dest_session), 
+                                                "cls": str(ind_dest_class), 
+                                                "sec": str(ind_dest_section).strip().upper(), 
+                                                "id": student_native_id
+                                            })
+                                        st.success(f"🚀 Student {student_native_id} relocated successfully on {ind_action_date}!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Execution Error: {e}")
+                                        
                         with btn_col2:
                             if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
-                                try:
-                                    next_class = "12th" if current_class == "11th" else "Graduated"
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET class = :cls
-                                            WHERE id = :id
-                                        """), {
-                                            "cls": next_class, 
-                                            "id": student_native_id
-                                        })
-                                    st.success(f"🎉 Student promoted to {next_class}!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
+                                if not ind_action_remarks.strip():
+                                    st.warning("⚠️ Action Blocked: Please enter remarks before executing a promotion.")
+                                else:
+                                    try:
+                                        next_class = "12th" if current_class == "11th" else "Graduated"
+                                        with engine.begin() as conn:
+                                            conn.execute(text("""
+                                                UPDATE students 
+                                                SET class = :cls
+                                                WHERE id = :id
+                                            """), {
+                                                "cls": next_class, 
+                                                "id": student_native_id
+                                            })
+                                        st.success(f"🎉 Student promoted to {next_class} on {ind_action_date}!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Execution Error: {e}")
 
                         with btn_col3:
                             if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET status = 'LEFT'
-                                            WHERE id = :id
-                                        """), {
-                                            "id": student_native_id
-                                        })
-                                    st.warning(f"📉 Student {student_native_id} status altered to LEFT.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
+                                if not ind_action_remarks.strip():
+                                    st.warning("⚠️ Action Blocked: Please enter remarks before setting profile status to LEFT.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            conn.execute(text("""
+                                                UPDATE students 
+                                                SET status = 'LEFT'
+                                                WHERE id = :id
+                                            """), {
+                                                "id": student_native_id
+                                            })
+                                        st.warning(f"📉 Student {student_native_id} status altered to LEFT on {ind_action_date}.")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Execution Error: {e}")
 
                         with btn_col4:
                             if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET status = 'ACTIVE'
-                                            WHERE id = :id
-                                        """), {
-                                            "id": student_native_id
-                                        })
-                                    st.success(f"🍏 Student {student_native_id} status altered to ACTIVE.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
-                                    
+                                if not ind_action_remarks.strip():
+                                    st.warning("⚠️ Action Blocked: Please enter remarks before setting profile status to ACTIVE.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            conn.execute(text("""
+                                                UPDATE students 
+                                                SET status = 'ACTIVE'
+                                                WHERE id = :id
+                                            """), {
+                                                "id": student_native_id
+                                            })
+                                        st.success(f"🍏 Student {student_native_id} status altered to ACTIVE on {ind_action_date}.")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Execution Error: {e}")
+                                        
                         # Destructive section
                         st.markdown("---")
                         if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                                    conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                                st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Execution Error: {e}")
+                            if not ind_action_remarks.strip():
+                                st.warning("⚠️ Action Blocked: Please enter remarks to justify this permanent deletion.")
+                            elif ind_action_remarks.strip().upper() != "CONFIRM DELETE":
+                                st.error("❌ Safety Lockout: Type 'CONFIRM DELETE' in the remarks field to execute profile purge.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
+                                        conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+                                    st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged on {ind_action_date}.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
 
                 except Exception as db_err:
                     st.error(f"Database Subsystem Error: {db_err}")
