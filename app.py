@@ -630,105 +630,125 @@ elif menu_choice == "➕ Add Students":
                         st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {current_class} | Section: {current_section} | Session: {current_session} | Status: `{student['status']}`")
                         
                         # --------------------------------------------------------------------------------
-                        # TARGETED INDIVIDUAL OPERATIONS CONTROL BOARD
-                        # --------------------------------------------------------------------------------
-                        st.markdown("##### ⚙️ Action Processing Control Board")
-                        
-                        col_i1, col_i2, col_i3 = st.columns(3)
-                        with col_i1:
-                            ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
-                        with col_i2:
-                            ind_dest_class = st.selectbox("📚 Target Class Level:", all_classes, index=all_classes.index(current_class) if current_class in all_classes else 0, key="ind_cls_pick")
-                        with col_i3:
-                            ind_dest_section = st.text_input("📐 Target Section:", value=current_section, key="ind_sec_pick")
-                        
-                        # Action Buttons Row
-                        btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
-                        
-                        with btn_col1:
-                            if st.button("🔀 Execute Base Relocations", use_container_width=True):
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET session = :sess, class = :cls, section = :sec
-                                            WHERE id = :id
-                                        """), {
-                                            "sess": str(ind_dest_session), 
-                                            "cls": str(ind_dest_class), 
-                                            "sec": str(ind_dest_section).strip().upper(), 
-                                            "id": student_native_id
-                                        })
-                                    st.success(f"🚀 Student {student_native_id} relocated successfully!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
-                                    
-                        with btn_col2:
-                            if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
-                                try:
-                                    next_class = "12th" if current_class == "11th" else "Graduated"
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET class = :cls
-                                            WHERE id = :id
-                                        """), {
-                                            "cls": next_class, 
-                                            "id": student_native_id
-                                        })
-                                    st.success(f"🎉 Student promoted to {next_class}!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
+# TARGETED INDIVIDUAL OPERATIONS CONTROL BOARD
+# --------------------------------------------------------------------------------
+st.markdown("##### ⚙️ Action Processing Control Board")
 
-                        with btn_col3:
-                            if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET status = 'LEFT'
-                                            WHERE id = :id
-                                        """), {
-                                            "id": student_native_id
-                                        })
-                                    st.warning(f"📉 Student {student_native_id} status altered to LEFT.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
+# Query all unique section identities present across the system configuration
+try:
+    with engine.connect() as connection:
+        sections_query = text("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != '' ORDER BY section ASC")
+        all_existing_sections = [str(r[0]).strip().upper() for r in connection.execute(sections_query).fetchall()]
+except Exception:
+    all_existing_sections = []
 
-                        with btn_col4:
-                            if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students 
-                                            SET status = 'ACTIVE'
-                                            WHERE id = :id
-                                        """), {
-                                            "id": student_native_id
-                                        })
-                                    st.success(f"🍏 Student {student_native_id} status altered to ACTIVE.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
-                                    
-                        # Destructive section
-                        st.markdown("---")
-                        if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                                    conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                                st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Execution Error: {e}")
-                except Exception as db_err:
-                    st.error(f"Database Subsystem Error: {db_err}")
-        else:
-            st.write("💡 *Awaiting entry processing parameters to target workspace variables.*")
+# Fail-safe structural array fallback 
+if not all_existing_sections:
+    all_existing_sections = ["A", "B", "C"]
+
+# Guarantee current configuration value inclusion to prevent Streamlit API internal index errors
+current_student_section = str(student['section']).strip().upper()
+if current_student_section not in all_existing_sections:
+    all_existing_sections.append(current_student_section)
+    all_existing_sections.sort()
+
+col_i1, col_i2, col_i3 = st.columns(3)
+with col_i1:
+    ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
+with col_i2:
+    ind_dest_class = st.selectbox("📚 Target Class Level:", all_classes, index=all_classes.index(current_class) if current_class in all_classes else 0, key="ind_cls_pick")
+with col_i3:
+    # UPDATED: Swapped text_input for a drop-down list tracking valid options
+    ind_dest_section = st.selectbox(
+        "📐 Target Section:", 
+        options=all_existing_sections,
+        index=all_existing_sections.index(current_student_section) if current_student_section in all_existing_sections else 0,
+        key="ind_sec_pick"
+    )
+
+# Action Buttons Row
+btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+
+with btn_col1:
+    if st.button("🔀 Execute Base Relocations", use_container_width=True):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE students 
+                    SET session = :sess, class = :cls, section = :sec
+                    WHERE id = :id
+                """), {
+                    "sess": str(ind_dest_session), 
+                    "cls": str(ind_dest_class), 
+                    "sec": str(ind_dest_section).strip().upper(), 
+                    "id": student_native_id
+                })
+            st.success(f"🚀 Student {student_native_id} relocated successfully!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Execution Error: {e}")
+            
+with btn_col2:
+    if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
+        try:
+            next_class = "12th" if current_class == "11th" else "Graduated"
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE students 
+                    SET class = :cls
+                    WHERE id = :id
+                """), {
+                    "cls": next_class, 
+                    "id": student_native_id
+                })
+            st.success(f"🎉 Student promoted to {next_class}!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Execution Error: {e}")
+
+with btn_col3:
+    if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE students 
+                    SET status = 'LEFT'
+                    WHERE id = :id
+                """), {
+                    "id": student_native_id
+                })
+            st.warning(f"📉 Student {student_native_id} status altered to LEFT.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Execution Error: {e}")
+
+with btn_col4:
+    if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE students 
+                    SET status = 'ACTIVE'
+                    WHERE id = :id
+                """), {
+                    "id": student_native_id
+                })
+            st.success(f"🍏 Student {student_native_id} status altered to ACTIVE.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Execution Error: {e}")
+            
+# Destructive section
+st.markdown("---")
+if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
+            conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+        st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged.")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Execution Error: {e}")
 
     # --------------------------------------------------------------------------------
     # SCOPE B: COMPLETE SECTION BULK MASS-TARGETING SUITE
