@@ -620,6 +620,8 @@ elif menu_choice == "➕ Add Students":
                         st.warning(f"⚠️ No matching profile record found for Student ID: {search_id}")
                     else:
                         student = stu_df.iloc[0]
+                        # Safe type conversion to native Python types to prevent psycopg2 adaptation errors
+                        student_native_id = int(student['id'])
                         
                         st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {student['class']} | Section: {student['section']} | Session: {student['session']} | Status: `{student['status']}`")
                         
@@ -642,26 +644,26 @@ elif menu_choice == "➕ Add Students":
                                     conn.execute(text("""
                                         UPDATE students SET session = :sess, class = :cls, section = :sec 
                                         WHERE id = :id
-                                    """), {"sess": mut_session, "cls": mut_class, "sec": mut_section, "id": student['id']})
+                                    """), {"sess": mut_session, "cls": mut_class, "sec": mut_section, "id": student_native_id})
                                 st.success("🎯 Base metrics updated successfully!"); st.rerun()
                                 
                         with b_col2:
                             if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
                                 next_class = "12th" if student['class'] == "11th" else "Graduated"
                                 with engine.begin() as conn:
-                                    conn.execute(text("UPDATE students SET class = :cls WHERE id = :id"), {"cls": next_class, "id": student['id']})
+                                    conn.execute(text("UPDATE students SET class = :cls WHERE id = :id"), {"cls": next_class, "id": student_native_id})
                                 st.success(f"🎉 Promoted to {next_class}!"); st.rerun()
                                 
                         with b_col3:
                             if st.button("🟢 Set Active / Restore", use_container_width=True):
                                 with engine.begin() as conn:
-                                    conn.execute(text("UPDATE students SET status = 'ACTIVE' WHERE id = :id"), {"id": student['id']})
+                                    conn.execute(text("UPDATE students SET status = 'ACTIVE' WHERE id = :id"), {"id": student_native_id})
                                 st.success("Profile restored to active framework!"); st.rerun()
                                 
                         with b_col4:
                             if st.button("🗑️ Delete Profile Entry", use_container_width=True, type="secondary"):
                                 with engine.begin() as conn:
-                                    conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student['id']})
+                                    conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
                                 st.error("❌ Record deleted from system permanently."); st.rerun()
                         
                         # Inline Edit Sub-Form Layer
@@ -682,7 +684,7 @@ elif menu_choice == "➕ Add Students":
                                         WHERE id = :id
                                     """), {
                                         "name": edit_name.strip().upper(), "fname": edit_fname.strip().upper(),
-                                        "wa": edit_wa.strip(), "c1": edit_c1.strip(), "c2": edit_c2.strip(), "id": student['id']
+                                        "wa": edit_wa.strip(), "c1": edit_c1.strip(), "c2": edit_c2.strip(), "id": student_native_id
                                     })
                                 st.success("🎉 Student bio registry payload altered successfully!"); st.rerun()
                                 
@@ -750,7 +752,6 @@ elif menu_choice == "➕ Add Students":
                 with c_btn2:
                     if st.button("🚀 Group Mass Promotion", use_container_width=True, type="primary", key="bulk_promo_btn"):
                         with engine.begin() as conn:
-                            # Context auto promotion baseline query setup
                             conn.execute(text("""
                                 UPDATE students 
                                 SET class = CASE WHEN class = '11th' THEN '12th' ELSE 'Graduated' END
@@ -798,7 +799,7 @@ elif menu_choice == "➕ Add Students":
                                 """), {
                                     "name": str(r['name']).strip().upper(), "fname": str(r['father_name']).strip().upper(),
                                     "wa": str(r['whatsapp_number']).strip(), "c1": str(r['contact_1']).strip(),
-                                    "c2": str(r['contact_2']).strip(), "id": int(r['id'])
+                                    "c2": str(r['contact_2']).strip(), "id": int(r['id']) # Strict typecast to native Python int
                                 })
                         st.success("🎉 Complete batch modifications integrated into persistent data layers flawlessly!"); st.rerun()
                     except Exception as grid_save_err:
