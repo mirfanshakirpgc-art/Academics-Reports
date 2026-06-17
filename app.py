@@ -636,20 +636,13 @@ elif menu_choice == "➕ Add Students":
 
                         col_i1, col_i2, col_i3 = st.columns(3)
                         with col_i1:
-                            ind_dest_session = st.selectbox(
-                                "🔄 Target Session:", 
-                                all_sessions, 
-                                index=all_sessions.index(current_session) if current_session in all_sessions else 0, 
-                                key="ind_sess_pick"
-                            )
+                            ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
 
                         # SESSION ENFORCEMENT RULES FOR CLASSES DROPDOWN LIST
                         if ind_dest_session == "2025-27":
                             filtered_classes = ["12th"]
                         elif ind_dest_session == "2026-28":
-                            filtered_classes = [c for c in all_classes if c == "11th" or "Semester" in str(c)]
-                            if not filtered_classes:
-                                filtered_classes = ["11th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
+                            filtered_classes = [c for c in all_classes if c == "11th" or "Semester" in c]
                         else:
                             filtered_classes = all_classes
 
