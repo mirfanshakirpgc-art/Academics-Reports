@@ -663,8 +663,8 @@ elif menu_choice == "➕ Add Students":
                         with b_col4:
                             if st.button("🗑️ Delete Profile Entry", use_container_width=True, type="secondary"):
                                 with engine.begin() as conn:
-                                    conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                                st.error("❌ Record deleted from system permanently."); st.rerun()
+                                    conn.execute(text("UPDATE students SET status = 'DELETED' WHERE id = :id"), {"id": student_native_id})
+                                st.warning("⚠️ Profile status altered to 'DELETED'. Historical attendance records preserved."); st.rerun()
                         
                         # Inline Edit Sub-Form Layer
                         st.markdown("---")
