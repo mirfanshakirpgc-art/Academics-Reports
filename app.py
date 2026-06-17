@@ -1050,7 +1050,7 @@ elif menu_choice == "➕ Add Students":
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
     
-    elif menu_choice == "📝 Academic Exam Marks Entry":
+elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
     
     # --- STEP 3: ROLE-BASED DATA LOCK DOWN ---
