@@ -445,602 +445,543 @@ elif menu_choice == "➕ Add Students":
                 selected_section = st.text_input("📋 3. Enter Target Section Manually:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
 
     # ====================================================================================
-# 🧱 PART 1: NEW REGISTRATION SUITE (BULK + SINGLE UPLOAD)
-# ====================================================================================
-st.markdown("## 📤 Part 1: New Student Intake Options")
+    # 🧱 PART 1: NEW REGISTRATION SUITE (BULK + SINGLE UPLOAD)
+    # ====================================================================================
+    st.markdown("## 📤 Part 1: New Student Intake Options")
     
-# We use Streamlit tabs within Part 1 to clean up the intake workflow options
-intake_tab1, intake_tab2 = st.tabs(["📋 Bulk Upload (Excel/CSV)", "👤 Single Student Manual Form"])
+    # We use Streamlit tabs within Part 1 to clean up the intake workflow options
+    intake_tab1, intake_tab2 = st.tabs(["📋 Bulk Upload (Excel/CSV)", "👤 Single Student Manual Form"])
     
-with intake_tab1:
-    st.subheader(f"Bulk Import Rosters — Section ({selected_section if 'selected_section' in locals() or 'selected_section' in globals() else 'Default'})")
+    with intake_tab1:
+        st.subheader(f"Bulk Import Rosters — Section ({selected_section})")
         
-    template_data = {
-        "ID": [101, 102],
-        "NAME": ["ALI AHMED", "SARA KHAN"],
-        "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
-        "WHATSAPP": ["03001234567", "03007654321"],
-        "CONTACT_1": ["03001234567", "03007654321"],
-        "CONTACT_2": ["03020000000", "03050000000"],
-        "ADDRESS": ["123 MAIN STREET, SECTOR A", "456 OAK AVENUE, SECTOR B"]
-    }
-    template_df = pd.DataFrame(template_data)
-    csv_template = template_df.to_csv(index=False).encode('utf-8')
+        template_data = {
+            "ID": [101, 102],
+            "NAME": ["ALI AHMED", "SARA KHAN"],
+            "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
+            "WHATSAPP": ["03001234567", "03007654321"],
+            "CONTACT_1": ["03001234567", "03007654321"],
+            "CONTACT_2": ["03020000000", "03050000000"]
+        }
+        template_df = pd.DataFrame(template_data)
+        csv_template = template_df.to_csv(index=False).encode('utf-8')
         
-    st.download_button(
-        label="📥 Download Blank Roster Template (.csv)",
-        data=csv_template,
-        file_name="student_roster_template.csv",
-        mime="text/csv"
-    )
+        st.download_button(
+            label="📥 Download Blank Roster Template (.csv)",
+            data=csv_template,
+            file_name="student_roster_template.csv",
+            mime="text/csv"
+        )
         
-    st.info("💡 Use the template above to ensure your file columns match the database schematic requirements.")
-    uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
+        st.info("💡 Use the template above to ensure your file columns match the database schematic requirements.")
+        uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
         
-    if uploaded_bulk_file is not None:
-        try:
-            if uploaded_bulk_file.name.endswith(".csv"):
-                bulk_df = pd.read_csv(uploaded_bulk_file)
-            else:
-                bulk_df = pd.read_excel(uploaded_bulk_file)
+        if uploaded_bulk_file is not None:
+            try:
+                if uploaded_bulk_file.name.endswith(".csv"):
+                    bulk_df = pd.read_csv(uploaded_bulk_file)
+                else:
+                    bulk_df = pd.read_excel(uploaded_bulk_file)
                 
-            bulk_df.columns = [str(col).strip().upper().replace(" ", "_").replace("'", "") for col in bulk_df.columns]
+                bulk_df.columns = [str(col).strip().upper().replace(" ", "_").replace("'", "") for col in bulk_df.columns]
                 
-            if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
-                st.error("❌ Template Validation Error! Missing critical 'ID' or 'Name' structural columns.")
-            else:
-                st.markdown("##### 📊 Document Sample Row Preview")
-                st.dataframe(bulk_df.head(5), use_container_width=True)
+                if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
+                    st.error("❌ Template Validation Error! Missing critical 'ID' or 'Name' structural columns.")
+                else:
+                    st.markdown("##### 📊 Document Sample Row Preview")
+                    st.dataframe(bulk_df.head(5), use_container_width=True)
                     
-                if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
-                    success_count = 0
-                    error_count = 0
-                    
-                    # Safe runtime verification for academic_system string
-                    safe_sys_base = academic_system if 'academic_system' in locals() or 'academic_system' in globals() else "Annual System"
-                    clean_system_type = safe_sys_base.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                    
-                    # Safe runtime verification for selected layouts
-                    safe_cls = selected_class if 'selected_class' in locals() or 'selected_class' in globals() else "Unassigned"
-                    safe_sec = selected_section if 'selected_section' in locals() or 'selected_section' in globals() else "A"
+                    if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
+                        success_count = 0
+                        error_count = 0
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
                         
-                    for index, row in bulk_df.iterrows():
-                        raw_id = str(row['ID']).strip().split('.')[0]
-                        raw_name = str(row['NAME']).strip().upper()
-                        raw_fname = str(row['FATHER_NAME']).strip().upper() if 'FATHER_NAME' in bulk_df.columns and pd.notna(row['FATHER_NAME']) else ""
-                        raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
-                        raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
-                        raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
-                        raw_address = str(row['ADDRESS']).strip().upper() if 'ADDRESS' in bulk_df.columns and pd.notna(row['ADDRESS']) else ""
+                        for index, row in bulk_df.iterrows():
+                            raw_id = str(row['ID']).strip().split('.')[0]
+                            raw_name = str(row['NAME']).strip().upper()
+                            raw_fname = str(row['FATHER_NAME']).strip().upper() if 'FATHER_NAME' in bulk_df.columns and pd.notna(row['FATHER_NAME']) else ""
+                            raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
+                            raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
+                            raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
 
-                        if raw_id.isdigit() and raw_name != "":
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                                        VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
-                                    """), {
-                                        "id": int(raw_id), "name": raw_name, "fname": raw_fname, "class": safe_cls,
-                                        "section": safe_sec, "session": safe_sec, "system_type": clean_system_type,
-                                        "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "address": raw_address
-                                    })
-                                success_count += 1
-                            except Exception:
+                            if raw_id.isdigit() and raw_name != "":
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2)
+                                        """), {
+                                            "id": int(raw_id), "name": raw_name, "fname": raw_fname, "class": selected_class,
+                                            "section": selected_section, "session": selected_session, "system_type": clean_system_type,
+                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2
+                                        })
+                                    success_count += 1
+                                except Exception:
+                                    error_count += 1
+                            else:
                                 error_count += 1
-                        else:
-                            error_count += 1
                                 
-                    st.success(f"🎉 Import complete! Successfully registered {success_count} records.")
-                    if error_count > 0:
-                        st.warning(f"⚠️ Skipped {error_count} lines due to database structural anomalies.")
-                    st.balloons()
-        except Exception as read_err:
-            st.error(f"❌ Failed to parse data payload: {read_err}")
+                        st.success(f"🎉 Import complete! Successfully registered {success_count} records.")
+                        if error_count > 0:
+                            st.warning(f"⚠️ Skipped {error_count} lines due to database structural anomalies.")
+                        st.balloons()
+            except Exception as read_err:
+                st.error(f"❌ Failed to parse data payload: {read_err}")
 
-with intake_tab2:
-    st.subheader(f"Manual Profile Entry — Section ({selected_section if 'selected_section' in locals() or 'selected_section' in globals() else 'Default'})")
-    with st.form("interactive_student_addition_form", clear_on_submit=True):
-        # 📐 Row 1: Core Identification Elements (3 Columns)
-        r1_col1, r1_col2, r1_col3 = st.columns(3)
-        with r1_col1:
-            input_roll_number = st.text_input("🆔 1. Class Roll Number / Student ID*")
-        with r1_col2:
-            input_student_name = st.text_input("👤 2. Student Name Full Identity*")
-        with r1_col3:
-            input_father_name = st.text_input("👨‍👧 3. Father's Name")
+    with intake_tab2:
+        st.subheader(f"Manual Profile Entry — Section ({selected_section})")
+        with st.form("interactive_student_addition_form", clear_on_submit=True):
+            r1_col1, r1_col2, r1_col3 = st.columns(3)
+            with r1_col1:
+                input_roll_number = st.text_input("🆔 1. Class Roll Number / Student ID*")
+            with r1_col2:
+                input_student_name = st.text_input("👤 2. Student Name Full Identity*")
+            with r1_col3:
+                input_father_name = st.text_input("👨‍👧 3. Father's Name")
 
-        # 📱 Row 2: Communication Infrastructure Telephony (3 Columns)
-        r2_col1, r2_col2, r2_col3 = st.columns(3)
-        with r2_col1:
-            input_wa = st.text_input("📱 4. WhatsApp Number")
-        with r2_col2:
-            input_c1 = st.text_input("📞 5. Contact Number 1")
-        with r2_col3:
-            input_c2 = st.text_input("📞 6. Contact Number 2")
+            r2_col1, r2_col2, r2_col3 = st.columns(3)
+            with r2_col1:
+                input_wa = st.text_input("📱 4. WhatsApp Number")
+            with r2_col2:
+                input_c1 = st.text_input("📞 5. Contact Number 1")
+            with r2_col3:
+                input_c2 = st.text_input("📞 6. Contact Number 2")
             
-        # 📍 Row 3: Demographics & Layout Class Categorizations (3 Columns to match image layout)
-        r3_col1, r3_col2, r3_col3 = st.columns(3)
-        with r3_col1:
-            input_address = st.text_input("📍 7. Address")
-        with r3_col2:
-            # 🛠️ SAFE REPAIR: Dynamic array compilation checking to prevent index target crashes
-            class_options = all_classes if 'all_classes' in globals() or 'all_classes' in locals() else ["11th", "12th", "9th", "10th"]
+            submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
             
-            default_index = 0
-            if 'selected_class' in locals() or 'selected_class' in globals():
-                if selected_class in class_options:
-                    default_index = class_options.index(selected_class)
-                    
-            manual_select_class = st.selectbox("🔰 8. Select Class Level:", options=class_options, index=default_index)
-        with r3_col3:
-            discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["MEDICAL", "ENGINEERING", "ARTS", "COMMERCE"]
-            manual_select_discipline = st.selectbox("🔬 9. Select Discipline:", options=discipline_options)
-            
-        # 📋 Row 4: Subsection Allocation Framework mapping (Centered element placement)
-        r4_col1, r4_col2, r4_col3 = st.columns(3)
-        with r4_col2: 
-            mapped_sections_options = []
-            if 'DISCIPLINE_SECTIONS_MAP' in globals() and manual_select_discipline in DISCIPLINE_SECTIONS_MAP:
-                # Type safe checks against target index lists
-                current_map = DISCIPLINE_SECTIONS_MAP[manual_select_discipline]
-                if isinstance(current_map, dict):
-                    mapped_sections_options = current_map.get(manual_select_class, [])
-                
-            safe_section_var = selected_section if ('selected_section' in locals() or 'selected_section' in globals()) else "A"
-            if not mapped_sections_options:
-                mapped_sections_options = [safe_section_var] if safe_section_var else ["A"]
-                    
-            manual_select_section = st.selectbox("📋 10. Select Target Section:", options=mapped_sections_options)
-            
-        # This button is completely isolated outside variable logic bounds so it always renders perfectly
-        submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
-            
-        if submit_registration_btn:
-            if not input_roll_number.strip() or not input_student_name.strip():
-                st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
-            elif not input_roll_number.strip().isdigit():
-                st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+            if submit_registration_btn:
+                if not input_roll_number.strip() or not input_student_name.strip():
+                    st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
+                elif not input_roll_number.strip().isdigit():
+                    st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+                else:
+                    try:
+                        clean_id = int(input_roll_number.strip())
+                        clean_name = input_student_name.strip().upper()
+                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
+                                VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
+                            """), {
+                                "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
+                                "class": selected_class, "section": selected_section, "session": selected_session,
+                                "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
+                                "c1": input_c1.strip(), "c2": input_c2.strip()
+                            })
+                        st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                        st.balloons()
+                    except Exception as db_err:
+                        st.error(f"❌ Database Exception Triggered: {db_err}")
+
+    # ====================================================================================
+    # 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
+    # ====================================================================================
+    st.markdown("---")
+    st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
+    
+    # Global state selectors for contextual operations
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        global_session = st.selectbox("1️⃣ Base Session Scope:", ["2024-26", "2025-27", "2026-28", "2027-29"], key="g_sess")
+    with col_g2:
+        global_system = st.selectbox("2️⃣ Base Academic System Scope:", ["🗓️ Annual System", "🎓 Semester System"], key="g_syst")
+        clean_global_system = global_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Bifurcate management operations into user requested scopes
+    manage_tab1, manage_tab2 = st.tabs(["👤 Single Student Options", "🏢 Complete Section Options"])
+    
+    all_sessions = ["2024-26", "2025-27", "2026-28", "2027-29"]
+    all_classes = ["11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4", "Graduated"]
+
+    # --------------------------------------------------------------------------------
+    # SCOPE A: SINGLE STUDENT TARGETING SUITE
+    # --------------------------------------------------------------------------------
+    with manage_tab1:
+        st.markdown("#### 🔍 Targeted Individual Operations")
+        search_id = st.text_input("🔑 Enter Unique Student Roll Number / ID:", key="single_uid_search").strip()
+        
+        if search_id:
+            if not search_id.isdigit():
+                st.error("❌ Invalid Format: Student ID entry must be digits only.")
             else:
                 try:
-                    clean_id = int(input_roll_number.strip())
-                    clean_name = input_student_name.strip().upper()
-                    clean_address = input_address.strip().upper()
-                        
-                    safe_session_str = selected_session if ('selected_session' in locals() or 'selected_session' in globals()) else "2026"
-                    safe_sys_base = academic_system if 'academic_system' in locals() or 'academic_system' in globals() else "Annual"
-                    clean_system_type = safe_sys_base.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                        
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                            VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2, :address)
-                        """), {
-                            "id": clean_id, 
-                            "name": clean_name, 
-                            "fname": input_father_name.strip().upper(),
-                            "class": manual_select_class, 
-                            "section": manual_select_section, 
-                            "session": safe_session_str,
-                            "status": "ACTIVE",  # Bypasses undefined 'input_status' lookup crashes 
-                            "system_type": clean_system_type, 
-                            "wa": input_wa.strip(),
-                            "c1": input_c1.strip(), 
-                            "c2": input_c2.strip(), 
-                            "address": clean_address
-                        })
-                    st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
-                    st.balloons()
-                except Exception as db_err:
-                    st.error(f"❌ Database Exception Triggered: {db_err}")
-
-# ====================================================================================
-# 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
-# ====================================================================================
-st.markdown("---")
-st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
-
-col_g1, col_g2 = st.columns(2)
-with col_g1:
-    # Optional layout elements can be rendered here safely
-    pass
-with col_g2:
-    global_system = st.selectbox("2️⃣ Base Academic System Scope:", ["🗓️ Annual System", "🎓 Semester System"], key="g_syst")
-    clean_global_system = global_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Bifurcate management operations into user requested scopes
-manage_tab1, manage_tab2 = st.tabs(["👤 Single Student Options", "🏢 Complete Section Options"])
-
-all_sessions = ["2024-26", "2025-27", "2026-28", "2027-29"]
-all_classes = ["11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4", "Graduated"]
-
-# --------------------------------------------------------------------------------
-# SCOPE A: SINGLE STUDENT TARGETING SUITE
-# --------------------------------------------------------------------------------
-with manage_tab1:
-    st.markdown("#### 🔍 Targeted Individual Operations")
-    search_id = st.text_input("🔑 Enter Unique Student Roll Number / ID:", key="single_uid_search").strip()
-    
-    if search_id:
-        if not search_id.isdigit():
-            st.error("❌ Invalid Format: Student ID entry must be digits only.")
-        else:
-            try:
-                with engine.connect() as connection:
-                    stu_query = text("""
-                        SELECT id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2 
-                        FROM students WHERE id = :id
-                    """)
-                    stu_df = pd.read_sql(stu_query, connection, params={"id": int(search_id)})
-                
-                if stu_df.empty:
-                    st.warning(f"⚠️ No matching profile record found for Student ID: {search_id}")
-                else:
-                    student = stu_df.iloc[0]
+                    with engine.connect() as connection:
+                        stu_query = text("""
+                            SELECT id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2 
+                            FROM students WHERE id = :id
+                        """)
+                        stu_df = pd.read_sql(stu_query, connection, params={"id": int(search_id)})
                     
-                    # Safe type conversion to native Python primitives to prevent numpy type errors
-                    student_native_id = int(student['id'])
-                    current_session = str(student['session'])
-                    current_class = str(student['class'])
-                    current_section = str(student['section'])
-                    
-                    st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {current_class} | Section: {current_section} | Session: {current_session} | Status: `{student['status']}`")
-                    
-                    # --------------------------------------------------------------------------------
-                    # TARGETED INDIVIDUAL OPERATIONS CONTROL BOARD
-                    # --------------------------------------------------------------------------------
-                    st.markdown("##### ⚙️ Action Processing Control Board")
-
-                    col_i1, col_i2, col_i3 = st.columns(3)
-                    with col_i1:
-                        ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
-
-                    # SESSION ENFORCEMENT RULES FOR CLASSES DROPDOWN LIST
-                    if ind_dest_session == "2025-27":
-                        filtered_classes = ["12th"]
-                    elif ind_dest_session == "2026-28":
-                        filtered_classes = [c for c in all_classes if c == "11th" or "Semester" in c]
+                    if stu_df.empty:
+                        st.warning(f"⚠️ No matching profile record found for Student ID: {search_id}")
                     else:
-                        filtered_classes = all_classes
+                        student = stu_df.iloc[0]
+                        
+                        # Safe type conversion to native Python primitives to prevent numpy type errors
+                        student_native_id = int(student['id'])
+                        current_session = str(student['session'])
+                        current_class = str(student['class'])
+                        current_section = str(student['section'])
+                        
+                        st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {current_class} | Section: {current_section} | Session: {current_session} | Status: `{student['status']}`")
+                        
+                        # --------------------------------------------------------------------------------
+                        # TARGETED INDIVIDUAL OPERATIONS CONTROL BOARD
+                        # --------------------------------------------------------------------------------
+                        st.markdown("##### ⚙️ Action Processing Control Board")
 
-                    with col_i2:
-                        ind_dest_class = st.selectbox(
-                            "📚 Target Class Level:", 
-                            options=filtered_classes, 
-                            index=filtered_classes.index(current_class) if current_class in filtered_classes else 0, 
-                            key="ind_cls_pick"
-                        )
+                        col_i1, col_i2, col_i3 = st.columns(3)
+                        with col_i1:
+                            ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
 
-                    # DYNAMIC CONTEXTUAL FILTERING FOR SECTIONS
-                    all_existing_sections = []
-                    if 'DISCIPLINE_SECTIONS_MAP' in globals():
+                        # SESSION ENFORCEMENT RULES FOR CLASSES DROPDOWN LIST
+                        if ind_dest_session == "2025-27":
+                            filtered_classes = ["12th"]
+                        elif ind_dest_session == "2026-28":
+                            filtered_classes = [c for c in all_classes if c == "11th" or "Semester" in c]
+                        else:
+                            filtered_classes = all_classes
+
+                        with col_i2:
+                            ind_dest_class = st.selectbox(
+                                "📚 Target Class Level:", 
+                                options=filtered_classes, 
+                                index=filtered_classes.index(current_class) if current_class in filtered_classes else 0, 
+                                key="ind_cls_pick"
+                            )
+
+                        # DYNAMIC CONTEXTUAL FILTERING FOR SECTIONS
+                        all_existing_sections = []
                         for discipline, classes_dict in DISCIPLINE_SECTIONS_MAP.items():
                             if ind_dest_class in classes_dict:
                                 for sec in classes_dict[ind_dest_class]:
                                     if sec not in all_existing_sections:
                                         all_existing_sections.append(sec)
 
-                    all_existing_sections.sort()
-
-                    # Fail-safe structural default array fallback
-                    if not all_existing_sections:
-                        all_existing_sections = ["A", "B", "C"]
-
-                    # Guarantee current student section value inclusion to prevent Streamlit internal index errors
-                    current_student_section = str(student['section']).strip().upper()
-                    if current_student_section not in all_existing_sections:
-                        all_existing_sections.append(current_student_section)
                         all_existing_sections.sort()
 
-                    with col_i3:
-                        ind_dest_section = st.selectbox(
-                            "📐 Target Section:", 
-                            options=all_existing_sections,
-                            index=all_existing_sections.index(current_student_section) if current_student_section in all_existing_sections else 0,
-                            key="ind_sec_pick"
-                        )
+                        # Fail-safe structural default array fallback
+                        if not all_existing_sections:
+                            all_existing_sections = ["A", "B", "C"]
 
-                    # Action Buttons Row
-                    btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+                        # Guarantee current student section value inclusion to prevent Streamlit internal index errors
+                        current_student_section = str(student['section']).strip().upper()
+                        if current_student_section not in all_existing_sections:
+                            all_existing_sections.append(current_student_section)
+                            all_existing_sections.sort()
 
-                    with btn_col1:
-                        if st.button("🔀 Execute Base Relocations", use_container_width=True):
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        UPDATE students 
-                                        SET session = :sess, class = :cls, section = :sec
-                                        WHERE id = :id
-                                    """), {
-                                        "sess": str(ind_dest_session), 
-                                        "cls": str(ind_dest_class), 
-                                        "sec": str(ind_dest_section).strip().upper(), 
-                                        "id": student_native_id
-                                    })
-                                st.success(f"🚀 Student {student_native_id} relocated successfully!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Execution Error: {e}")
-                                
-                    with btn_col2:
-                        if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
-                            try:
-                                next_class = "12th" if current_class == "11th" else "Graduated"
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        UPDATE students 
-                                        SET class = :cls
-                                        WHERE id = :id
-                                    """), {
-                                        "cls": next_class, 
-                                        "id": student_native_id
-                                    })
-                                st.success(f"🎉 Student promoted to {next_class}!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Execution Error: {e}")
+                        with col_i3:
+                            ind_dest_section = st.selectbox(
+                                "📐 Target Section:", 
+                                options=all_existing_sections,
+                                index=all_existing_sections.index(current_student_section) if current_student_section in all_existing_sections else 0,
+                                key="ind_sec_pick"
+                            )
 
-                    with btn_col3:
-                        if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        UPDATE students 
-                                        SET status = 'LEFT'
-                                        WHERE id = :id
-                                    """), {"id": student_native_id})
-                                st.warning(f"📉 Student {student_native_id} status altered to LEFT.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Execution Error: {e}")
+                        # Action Buttons Row
+                        btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
 
-                    with btn_col4:
-                        if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        UPDATE students 
-                                        SET status = 'ACTIVE'
-                                        WHERE id = :id
-                                    """), {"id": student_native_id})
-                                st.success(f"🍏 Student {student_native_id} status altered to ACTIVE.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Execution Error: {e}")
+                        with btn_col1:
+                            if st.button("🔀 Execute Base Relocations", use_container_width=True):
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET session = :sess, class = :cls, section = :sec
+                                            WHERE id = :id
+                                        """), {
+                                            "sess": str(ind_dest_session), 
+                                            "cls": str(ind_dest_class), 
+                                            "sec": str(ind_dest_section).strip().upper(), 
+                                            "id": student_native_id
+                                        })
+                                    st.success(f"🚀 Student {student_native_id} relocated successfully!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
                                     
-                    # Destructive section
-                    st.markdown("---")
-                    if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                                conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                            st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Execution Error: {e}")
+                        with btn_col2:
+                            if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
+                                try:
+                                    next_class = "12th" if current_class == "11th" else "Graduated"
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET class = :cls
+                                            WHERE id = :id
+                                        """), {
+                                            "cls": next_class, 
+                                            "id": student_native_id
+                                        })
+                                    st.success(f"🎉 Student promoted to {next_class}!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
 
-            except Exception as db_err:
-                st.error(f"Database Subsystem Error: {db_err}")
-    else:
-        st.write("💡 *Awaiting entry processing parameters to target workspace variables.*")
+                        with btn_col3:
+                            if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET status = 'LEFT'
+                                            WHERE id = :id
+                                        """), {
+                                            "id": student_native_id
+                                        })
+                                    st.warning(f"📉 Student {student_native_id} status altered to LEFT.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
 
-# --------------------------------------------------------------------------------
-# SCOPE B: COMPLETE SECTION BULK MASS-TARGETING SUITE
-# --------------------------------------------------------------------------------
-with manage_tab2:
-    st.markdown("#### 🏢 Bulk Group Operations")
-    st.write("Temporary placeholder to test syntax")
+                        with btn_col4:
+                            if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET status = 'ACTIVE'
+                                            WHERE id = :id
+                                        """), {
+                                            "id": student_native_id
+                                        })
+                                    st.success(f"🍏 Student {student_native_id} status altered to ACTIVE.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
+                                    
+                        # Destructive section
+                        st.markdown("---")
+                        if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
+                                    conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+                                st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Execution Error: {e}")
 
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry Workspace")
-    
-    bulk_manage_sections = []
-    try:
-        with engine.connect() as connection:
-            sec_query = text("""
-                SELECT DISTINCT section FROM students 
-                WHERE session = :sess 
-                AND system_type = :syst 
-                AND UPPER(status) = 'ACTIVE'
-            """)
-            bulk_manage_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
-    except Exception:
+                except Exception as db_err:
+                    st.error(f"Database Subsystem Error: {db_err}")
+        else:
+            st.write("💡 *Awaiting entry processing parameters to target workspace variables.*")
+
+    # --------------------------------------------------------------------------------
+    # SCOPE B: COMPLETE SECTION BULK MASS-TARGETING SUITE
+    # --------------------------------------------------------------------------------
+    with manage_tab2:
+        st.markdown("#### 🏢 Bulk Group Operations")
+        
         bulk_manage_sections = []
-        
-    if not bulk_manage_sections:
-        st.info(f"ℹ️ No active cohort sections detected matching global parameters (Session: {global_session}, System: {clean_global_system}).")
-    else:
-        source_section = st.selectbox("📁 Target Operational Source Section Layer:", bulk_manage_sections, key="bulk_src_sec_pick")
-        
         try:
             with engine.connect() as connection:
-                count_res = connection.execute(text("""
-                    SELECT COUNT(*) FROM students 
+                sec_query = text("""
+                    SELECT DISTINCT section FROM students 
                     WHERE session = :sess 
                     AND system_type = :syst 
-                    AND section = :sec 
                     AND UPPER(status) = 'ACTIVE'
-                """), {"sess": global_session, "syst": clean_global_system, "sec": source_section}).fetchone()
-                batch_count = count_res[0] if count_res else 0
+                """)
+                bulk_manage_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
         except Exception:
-            batch_count = 0
+            bulk_manage_sections = []
             
-        st.metric(label="👥 Tracked Group Volume:", value=f"{batch_count} Active Profiles Stored")
-        
-        if batch_count > 0:
-            st.markdown("##### ⚙️ Section-Wide Modification Processing Parameters")
+        if not bulk_manage_sections:
+            st.info(f"ℹ️ No active cohort sections detected matching global parameters (Session: {global_session}, System: {clean_global_system}).")
+        else:
+            source_section = st.selectbox("📁 Target Operational Source Section Layer:", bulk_manage_sections, key="bulk_src_sec_pick")
             
-            # Mass Transformation Inputs
-            col_b1, col_b2, col_b3 = st.columns(3)
-            with col_b1:
-                batch_dest_session = st.selectbox("🔄 Batch Session Reallocation:", all_sessions, index=all_sessions.index(global_session), key="b_dest_sess")
-            with col_b2:
-                batch_dest_class = st.selectbox("📚 Batch Class Reallocation:", all_classes, key="b_dest_cls")
-            with col_b3:
-                batch_dest_section = st.selectbox(
-                    "📐 Batch Section Designation Mutation:", 
-                    bulk_manage_sections, 
-                    index=bulk_manage_sections.index(source_section) if source_section in bulk_manage_sections else 0,
-                    key="b_dest_sec"
-                )
+            try:
+                with engine.connect() as connection:
+                    count_res = connection.execute(text("""
+                        SELECT COUNT(*) FROM students 
+                        WHERE session = :sess 
+                        AND system_type = :syst 
+                        AND section = :sec 
+                        AND UPPER(status) = 'ACTIVE'
+                    """), {"sess": global_session, "syst": clean_global_system, "sec": source_section}).fetchone()
+                    batch_count = count_res[0] if count_res else 0
+            except Exception:
+                batch_count = 0
+                
+            st.metric(label="👥 Tracked Group Volume:", value=f"{batch_count} Active Profiles Stored")
             
-            # Mass Execution Pipelines
-            c_btn1, c_btn2, c_btn3 = st.columns(3)
-            
-            with c_btn1:
-                if st.button("🔄 Execute Mass Relocations", use_container_width=True, help="Updates Session, Class, and Section indicators across the target segment group", key="bulk_relo_btn"):
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            UPDATE students 
-                            SET session = :dest_sess, class = :dest_cls, section = :dest_sec
-                            WHERE session = :src_sess 
-                            AND system_type = :src_syst 
-                            AND section = :src_sec 
-                            AND UPPER(status) = 'ACTIVE'
-                        """), {
-                            "dest_sess": str(batch_dest_session), "dest_cls": str(batch_dest_class), "dest_sec": str(batch_dest_section),
-                            "src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section
-                        })
-                    st.success(f"⚡ Batch shifting processing executed on {batch_count} profiles.")
-                    st.rerun()
-                    
-            with c_btn2:
-                if st.button("🚀 Group Mass Promotion", use_container_width=True, type="primary", key="bulk_promo_btn"):
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            UPDATE students 
-                            SET class = CASE WHEN class = '11th' THEN '12th' ELSE 'Graduated' END
-                            WHERE session = :src_sess 
-                            AND system_type = :src_syst 
-                            AND section = :src_sec 
-                            AND UPPER(status) = 'ACTIVE'
-                        """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                    st.success("🎉 Complete group advancement framework successfully processed!")
-                    st.balloons()
-                    st.rerun()
-                    
-            with c_btn3:
-                if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
-                    try:
+            if batch_count > 0:
+                st.markdown("##### ⚙️ Section-Wide Modification Processing Parameters")
+                
+                # Mass Transformation Inputs
+                col_b1, col_b2, col_b3 = st.columns(3)
+                with col_b1:
+                    batch_dest_session = st.selectbox("🔄 Batch Session Reallocation:", all_sessions, index=all_sessions.index(global_session), key="b_dest_sess")
+                with col_b2:
+                    batch_dest_class = st.selectbox("📚 Batch Class Reallocation:", all_classes, key="b_dest_cls")
+                with col_b3:
+                    batch_dest_section = st.selectbox(
+                        "📐 Batch Section Designation Mutation:", 
+                        bulk_manage_sections, 
+                        index=bulk_manage_sections.index(source_section) if source_section in bulk_manage_sections else 0,
+                        key="b_dest_sec"
+                    )
+                
+                # Mass Execution Pipelines
+                c_btn1, c_btn2, c_btn3 = st.columns(3)
+                
+                with c_btn1:
+                    if st.button("🔄 Execute Mass Relocations", use_container_width=True, help="Updates Session, Class, and Section indicators across the target segment group", key="bulk_relo_btn"):
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                DELETE FROM daily_attendance 
-                                WHERE student_id IN (
-                                    SELECT id FROM students 
-                                    WHERE session = :src_sess 
-                                    AND system_type = :src_syst 
-                                    AND section = :src_sec 
-                                    AND UPPER(status) = 'ACTIVE'
-                                )
-                            """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                            
+                                UPDATE students 
+                                SET session = :dest_sess, class = :dest_cls, section = :dest_sec
+                                WHERE session = :src_sess 
+                                AND system_type = :src_syst 
+                                AND section = :src_sec 
+                                AND UPPER(status) = 'ACTIVE'
+                            """), {
+                                "dest_sess": str(batch_dest_session), "dest_cls": str(batch_dest_class), "dest_sec": str(batch_dest_section),
+                                "src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section
+                            })
+                        st.success(f"⚡ Batch shifting processing executed on {batch_count} profiles.")
+                        st.rerun()
+                        
+                with c_btn2:
+                    if st.button("🚀 Group Mass Promotion", use_container_width=True, type="primary", key="bulk_promo_btn"):
+                        with engine.begin() as conn:
                             conn.execute(text("""
-                                DELETE FROM students 
+                                UPDATE students 
+                                SET class = CASE WHEN class = '11th' THEN '12th' ELSE 'Graduated' END
                                 WHERE session = :src_sess 
                                 AND system_type = :src_syst 
                                 AND section = :src_sec 
                                 AND UPPER(status) = 'ACTIVE'
                             """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                            
-                        st.error(f"💥 Complete Purge Success! Section '{source_section}' and all associated attendance histories were entirely deleted.")
+                        st.success("🎉 Complete group advancement framework successfully processed!")
+                        st.balloons()
                         st.rerun()
-                    except Exception as batch_del_err:
-                        st.error(f"❌ Failed to drop section database records: {batch_del_err}")
+                        
+                with c_btn3:
+                    if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    DELETE FROM daily_attendance 
+                                    WHERE student_id IN (
+                                        SELECT id FROM students 
+                                        WHERE session = :src_sess 
+                                        AND system_type = :src_syst 
+                                        AND section = :src_sec 
+                                        AND UPPER(status) = 'ACTIVE'
+                                    )
+                                """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                                
+                                conn.execute(text("""
+                                    DELETE FROM students 
+                                    WHERE session = :src_sess 
+                                    AND system_type = :src_syst 
+                                    AND section = :src_sec 
+                                    AND UPPER(status) = 'ACTIVE'
+                                """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                                
+                            st.error(f"💥 Complete Purge Success! Section '{source_section}' and all associated attendance histories were entirely deleted.")
+                            st.rerun()
+                        except Exception as batch_del_err:
+                            st.error(f"❌ Failed to drop section database records: {batch_del_err}")
 
-            # Complete Section Inline Data Grid Editing Mechanism
-            st.markdown("---")
-            st.markdown("##### 📝 Edit Student Data Records Matrix Grid")
-            
-            sort_option = st.selectbox(
-                "🔀 Base Sorting Layout Engine Sequence:",
-                ["✍️ Custom Manual Sequence Numbers (Low to High)",
-                 "🔢 Student Roll Number / ID (Ascending)", 
-                 "🔤 Student Name (A-Z)", 
-                 "👨‍👦 Father's Name (A-Z)"],
-                key="grid_sequence_sort_config_v2"
-            )
-            
-            if "grid_custom_order_dict" not in st.session_state:
-                st.session_state.grid_custom_order_dict = {}
+                # Complete Section Inline Data Grid Editing Mechanism
+                st.markdown("---")
+                st.markdown("##### 📝 Edit Student Data Records Matrix Grid")
+                
+                sort_option = st.selectbox(
+                    "🔀 Base Sorting Layout Engine Sequence:",
+                    ["✍️ Custom Manual Sequence Numbers (Low to High)",
+                     "🔢 Student Roll Number / ID (Ascending)", 
+                     "🔤 Student Name (A-Z)", 
+                     "👨‍👦 Father's Name (A-Z)"],
+                    key="grid_sequence_sort_config_v2"
+                )
+                
+                if "grid_custom_order_dict" not in st.session_state:
+                    st.session_state.grid_custom_order_dict = {}
 
-            if "Student Name" in sort_option:
-                sql_order_clause = "ORDER BY name ASC"
-            elif "Father's Name" in sort_option:
-                sql_order_clause = "ORDER BY father_name ASC"
-            else:
-                sql_order_clause = "ORDER BY id ASC"
+                if "Student Name" in sort_option:
+                    sql_order_clause = "ORDER BY name ASC"
+                elif "Father's Name" in sort_option:
+                    sql_order_clause = "ORDER BY father_name ASC"
+                else:
+                    sql_order_clause = "ORDER BY id ASC"
 
-            st.info("💡 Edit the numbers in the **'Sequence Order No'** column. Rows will automatically re-arrange while keeping your exact numbers intact!")
-            
-            with engine.connect() as connection:
-                raw_grid_query = text(f"""
-                    SELECT id, name, father_name, whatsapp_number, contact_1, contact_2 
-                    FROM students 
-                    WHERE session = :sess 
-                    AND system_type = :syst 
-                    AND section = :sec 
-                    AND UPPER(status) = 'ACTIVE'
-                    {sql_order_clause}
-                """)
-                grid_df = pd.read_sql(raw_grid_query, connection, params={"sess": global_session, "syst": clean_global_system, "sec": source_section})
-            
-            custom_seq_list = []
-            for idx, row in grid_df.iterrows():
-                student_id_key = str(row['id'])
-                if student_id_key not in st.session_state.grid_custom_order_dict:
-                    st.session_state.grid_custom_order_dict[student_id_key] = int(idx + 1)
-                custom_seq_list.append(st.session_state.grid_custom_order_dict[student_id_key])
-            
-            grid_df.insert(0, "Sequence Order No", custom_seq_list)
-            
-            if "Custom Manual Sequence" in sort_option:
-                grid_df = grid_df.sort_values(by="Sequence Order No", ascending=True).reset_index(drop=True)
+                st.info("💡 Edit the numbers in the **'Sequence Order No'** column. Rows will automatically re-arrange while keeping your exact numbers intact!")
+                
+                with engine.connect() as connection:
+                    raw_grid_query = text(f"""
+                        SELECT id, name, father_name, whatsapp_number, contact_1, contact_2 
+                        FROM students 
+                        WHERE session = :sess 
+                        AND system_type = :syst 
+                        AND section = :sec 
+                        AND UPPER(status) = 'ACTIVE'
+                        {sql_order_clause}
+                    """)
+                    grid_df = pd.read_sql(raw_grid_query, connection, params={"sess": global_session, "syst": clean_global_system, "sec": source_section})
+                
+                custom_seq_list = []
+                for idx, row in grid_df.iterrows():
+                    student_id_key = str(row['id'])
+                    if student_id_key not in st.session_state.grid_custom_order_dict:
+                        st.session_state.grid_custom_order_dict[student_id_key] = int(idx + 1)
+                    custom_seq_list.append(st.session_state.grid_custom_order_dict[student_id_key])
+                
+                grid_df.insert(0, "Sequence Order No", custom_seq_list)
+                
+                if "Custom Manual Sequence" in sort_option:
+                    grid_df = grid_df.sort_values(by="Sequence Order No", ascending=True).reset_index(drop=True)
 
-            if "section_data_mass_editor_grid_v2" in st.session_state:
-                grid_changes = st.session_state["section_data_mass_editor_grid_v2"]
-                if grid_changes.get("edited_rows"):
-                    has_sequence_updates = False
-                    
-                    for string_row_idx, modified_values in grid_changes["edited_rows"].items():
-                        target_row_num = int(string_row_idx)
-                        if "Sequence Order No" in modified_values:
-                            actual_stu_id = str(grid_df.loc[target_row_num, "id"])
-                            new_seq_val = int(modified_values["Sequence Order No"])
-                            st.session_state.grid_custom_order_dict[actual_stu_id] = new_seq_val
-                            has_sequence_updates = True
-                    
-                    if has_sequence_updates:
+                if "section_data_mass_editor_grid_v2" in st.session_state:
+                    grid_changes = st.session_state["section_data_mass_editor_grid_v2"]
+                    if grid_changes.get("edited_rows"):
+                        has_sequence_updates = False
+                        
+                        for string_row_idx, modified_values in grid_changes["edited_rows"].items():
+                            target_row_num = int(string_row_idx)
+                            if "Sequence Order No" in modified_values:
+                                actual_stu_id = str(grid_df.loc[target_row_num, "id"])
+                                new_seq_val = int(modified_values["Sequence Order No"])
+                                st.session_state.grid_custom_order_dict[actual_stu_id] = new_seq_val
+                                has_sequence_updates = True
+                        
+                        if has_sequence_updates:
+                            st.rerun()
+
+                edited_grid_df = st.data_editor(
+                    grid_df, 
+                    disabled=["id"], 
+                    key="section_data_mass_editor_grid_v2", 
+                    use_container_width=True
+                )
+                
+                if st.button("💾 Commit Global Grid Data Updates", use_container_width=True, type="primary"):
+                    try:
+                        with engine.begin() as conn:
+                            for _, r in edited_grid_df.iterrows():
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2
+                                    WHERE id = :id
+                                """), {
+                                    "name": str(r['name']).strip().upper(), 
+                                    "fname": str(r['father_name']).strip().upper(),
+                                    "wa": str(r['whatsapp_number']).strip(), 
+                                    "c1": str(r['contact_1']).strip(),
+                                    "c2": str(r['contact_2']).strip(), 
+                                    "id": int(r['id'])
+                                })
+                        st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
                         st.rerun()
-
-            edited_grid_df = st.data_editor(
-                grid_df, 
-                disabled=["id"], 
-                key="section_data_mass_editor_grid_v2", 
-                use_container_width=True
-            )
-            
-            if st.button("💾 Commit Global Grid Data Updates", use_container_width=True, type="primary"):
-                try:
-                    with engine.begin() as conn:
-                        for _, r in edited_grid_df.iterrows():
-                            conn.execute(text("""
-                                UPDATE students 
-                                SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2
-                                WHERE id = :id
-                            """), {
-                                "name": str(r['name']).strip().upper(), 
-                                "fname": str(r['father_name']).strip().upper(),
-                                "wa": str(r['whatsapp_number']).strip(), 
-                                "c1": str(r['contact_1']).strip(),
-                                "c2": str(r['contact_2']).strip(), 
-                                "id": int(r['id'])
-                            })
-                    st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
-                    st.rerun()
-                except Exception as grid_save_err:
-                    st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
+                    except Exception as grid_save_err:
+                        st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
 
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
@@ -1051,7 +992,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     st.markdown("---")
 
     # --- DYNAMIC FRAMEWORK FETCH FROM DATABASE ---
-    # Add your dynamic database fetch logic for marks entry below at this indentation layer
     try:
         active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
         all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
