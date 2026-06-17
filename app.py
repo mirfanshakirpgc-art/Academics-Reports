@@ -574,45 +574,45 @@ with intake_tab2:
             
         submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
         
+        # ... [Inside intake_tab2 and inside st.form] ...
         if submit_registration_btn:
             if not input_roll_number.strip() or not input_student_name.strip():
                 st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
             elif not input_roll_number.strip().isdigit():
                 st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
             else:
-                # ... [Your Form Processing Block] ...
-                        try:
-                            clean_id = int(input_roll_number.strip())
-                            clean_name = input_student_name.strip().upper()
-                            clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                            
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                                    VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2, :address)
-                                """), {
-                                    "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
-                                    "class": manual_select_class, "section": manual_select_section, "session": selected_session,
-                                    "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
-                                    "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
-                                })
-                            st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
-                            st.balloons()
-                        except Exception as db_err:
-                            st.error(f"❌ Database Exception Triggered: {db_err}")
+                try:
+                    clean_id = int(input_roll_number.strip())
+                    clean_name = input_student_name.strip().upper()
+                    clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                    
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
+                            VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2, :address)
+                        """), {
+                            "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
+                            "class": manual_select_class, "section": manual_select_section, "session": selected_session,
+                            "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
+                            "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
+                        })
+                    st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                    st.balloons()
+                except Exception as db_err:
+                    st.error(f"❌ Database Exception Triggered: {db_err}")
 
 # ====================================================================================
 # 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
 # ====================================================================================
-# Ensure Part 2 is shifted completely back to the left margin matching Part 1.
-# It MUST exit 'with intake_tab2:' and 'with st.form(...):' blocks entirely.
+# IMPORTANT: Pull Part 2 out to the same baseline indentation level as Part 1!
+# It MUST exit 'with intake_tab2:' and 'with st.form(...):' completely.
 
-# ... [Your Part 2 Code logic here] ...
+st.markdown("## ⚙️ Part 2: Administrative Record Adjustments")
+# ... [Your Part 2 block code layout goes here] ...
 
 
-# At the very end of your current menu choice section, make sure the indentation matches your elif:
+# This line must perfectly align under the initial 'if menu_choice == ...' matching the left margin indentation rule
 elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.markdown("---")
     st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
     
     # Global state selectors for contextual operations
