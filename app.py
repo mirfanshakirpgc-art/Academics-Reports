@@ -754,7 +754,12 @@ elif menu_choice == "➕ Add Students":
                 with col_b2:
                     batch_dest_class = st.selectbox("📚 Batch Class Reallocation:", all_classes, key="b_dest_cls")
                 with col_b3:
-                    batch_dest_section = st.text_input("📐 Batch Section Designation Mutation:", value=source_section, key="b_dest_sec").strip().upper()
+                    batch_dest_section = st.selectbox(
+                        "📐 Batch Section Designation Mutation:", 
+                        bulk_manage_sections, 
+                        index=bulk_manage_sections.index(source_section) if source_section in bulk_manage_sections else 0,
+                        key="b_dest_sec"
+                    )
                 
                 # Mass Execution Pipelines
                 c_btn1, c_btn2, c_btn3 = st.columns(3)
@@ -795,7 +800,6 @@ elif menu_choice == "➕ Add Students":
                     if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
                         try:
                             with engine.begin() as conn:
-                                # Step 1: Cascading deletion of attendance entries tracking this group subset matching criteria
                                 conn.execute(text("""
                                     DELETE FROM daily_attendance 
                                     WHERE student_id IN (
@@ -807,7 +811,6 @@ elif menu_choice == "➕ Add Students":
                                     )
                                 """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
                                 
-                                # Step 2: Clear out master records
                                 conn.execute(text("""
                                     DELETE FROM students 
                                     WHERE session = :src_sess 
@@ -824,16 +827,36 @@ elif menu_choice == "➕ Add Students":
                 # Complete Section Inline Data Grid Editing Mechanism
                 st.markdown("---")
                 st.markdown("##### 📝 Edit Student Data Records Matrix Grid")
+                
+                # ADDED: Sequence Layout Control option dropdown
+                sort_option = st.selectbox(
+                    "🔀 Sort Student Sequence Layout By:",
+                    ["🔢 Student Roll Number / ID (Ascending)", 
+                     "🔤 Student Name (A-Z)", 
+                     "👨‍👦 Father's Name (A-Z)"],
+                    key="grid_sequence_sort_config"
+                )
+                
+                # Map selected sequence option to corresponding SQL ORDER BY strings
+                if "Student Name" in sort_option:
+                    sql_order_clause = "ORDER BY name ASC"
+                elif "Father's Name" in sort_option:
+                    sql_order_clause = "ORDER BY father_name ASC"
+                else:
+                    sql_order_clause = "ORDER BY id ASC"
+
                 st.warning("⚠️ Manual shifts below rewrite data profiles independently. Modify carefully.")
                 
                 with engine.connect() as connection:
-                    raw_grid_query = text("""
+                    # UPDATED: Injected dynamically generated sql_order_clause into query
+                    raw_grid_query = text(f"""
                         SELECT id, name, father_name, whatsapp_number, contact_1, contact_2 
                         FROM students 
                         WHERE session = :sess 
                         AND system_type = :syst 
                         AND section = :sec 
                         AND UPPER(status) = 'ACTIVE'
+                        {sql_order_clause}
                     """)
                     grid_df = pd.read_sql(raw_grid_query, connection, params={"sess": global_session, "syst": clean_global_system, "sec": source_section})
                 
