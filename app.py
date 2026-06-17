@@ -580,32 +580,38 @@ with intake_tab2:
             elif not input_roll_number.strip().isdigit():
                 st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
             else:
-                try:
-                    clean_id = int(input_roll_number.strip())
-                    clean_name = input_student_name.strip().upper()
-                    clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
-                    
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                            VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2, :address)
-                        """), {
-                            "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
-                            "class": manual_select_class, "section": manual_select_section, "session": selected_session,
-                            "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
-                            "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
-                        })
-                    # ... [Form logic ends here] ...
-                    st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
-                    st.balloons()
-                except Exception as db_err:
-                    st.error(f"❌ Database Exception Triggered: {db_err}")
+                # ... [Your Form Processing Block] ...
+                        try:
+                            clean_id = int(input_roll_number.strip())
+                            clean_name = input_student_name.strip().upper()
+                            clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                            
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
+                                    VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2, :address)
+                                """), {
+                                    "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
+                                    "class": manual_select_class, "section": manual_select_section, "session": selected_session,
+                                    "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
+                                    "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
+                                })
+                            st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                            st.balloons()
+                        except Exception as db_err:
+                            st.error(f"❌ Database Exception Triggered: {db_err}")
 
 # ====================================================================================
 # 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
 # ====================================================================================
-# Ensure this section matches the identical outer indentation of PART 1 
-# and doesn't sit inside 'with intake_tab2:' unless explicitly intended.
+# Ensure Part 2 is shifted completely back to the left margin matching Part 1.
+# It MUST exit 'with intake_tab2:' and 'with st.form(...):' blocks entirely.
+
+# ... [Your Part 2 Code logic here] ...
+
+
+# At the very end of your current menu choice section, make sure the indentation matches your elif:
+elif menu_choice == "📝 Academic Exam Marks Entry":
     st.markdown("---")
     st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
     
