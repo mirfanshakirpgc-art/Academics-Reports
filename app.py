@@ -61,14 +61,25 @@ def apply_filters(df, tab_key):
     return f_df
 
 @st.cache_data(ttl=600)
+@st.cache_data(ttl=600)
 def fetch_analytics_data():
+    # 1. Base query structure
     query = """
         SELECT s.id, s.name, s.section, s.class, s.session, 
                m.subject, m.marks_obtained, m.total_marks, m.exam_type
         FROM students s
         LEFT JOIN marks m ON s.id = m.student_id
+        WHERE 1=1
     """
-    return run_query(query, {})
+    params = {}
+
+    # 2. If the current user is a Teacher, forcefully append the filter constraint
+    if "user_role" in st.session_state and st.session_state.user_role == "Teacher":
+        query += " AND m.subject = :teacher_sub"
+        params["teacher_sub"] = st.session_state.assigned_subject
+
+    # 3. Safely pass both the query and parameters to your helper function
+    return run_query(query, params)
 
 # --- DATABASE CONNECTION CONFIGURATION ---
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
@@ -272,12 +283,12 @@ def execute_db_command(query, params=None):
         raise RuntimeError(f"Database write execution failed: {str(e)}")
 
 # ==============================================================================
-# SIDEBAR NAVIGATION MODULE 
+# SIDEBAR NAVIGATION MODULE (ROLE-BASED ACCESS CONTROL)
 # ==============================================================================
-menu_choice = st.sidebar.radio(
-    "Go To Module:",
-    [
-        "📊 Home Dashboard", 
+allowed_menus = ["📊 Home Dashboard"]
+
+if st.session_state.user_role == "Admin":
+    allowed_menus += [
         "➕ Add Students", 
         "📝 Academic Exam Marks Entry",      
         "📅 Attendance Entry Management",    
@@ -290,7 +301,24 @@ menu_choice = st.sidebar.radio(
         "👥 Student Operations Management",
         "⚙️ Settings"
     ]
-)
+elif st.session_state.user_role == "Teacher":
+    allowed_menus += [
+        "📝 Academic Exam Marks Entry",      
+        "📅 Attendance Entry Management",    
+        "📋 Daily Attendance Report",
+        "📈 Multi-Test Progress Report", 
+        "🪪 Student Result Cards"
+    ]
+elif st.session_state.user_role == "Viewer":
+    allowed_menus += [
+        "📋 Daily Attendance Report",
+        "📋 Section Summary Report", 
+        "📈 Multi-Test Progress Report",
+        "📈 Academic Analysis Reports"
+    ]
+
+# This renders the radio buttons with your customized, restricted menu list!
+menu_choice = st.sidebar.radio("Go To Module:", allowed_menus)
 
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
@@ -1021,9 +1049,24 @@ elif menu_choice == "➕ Add Students":
 # ====================================================================================
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
+    
+    elif menu_choice == "📝 Academic Exam Marks Entry":
+    st.title("📝 Academic Exam Marks Entry Workspace")
+    
+    # --- STEP 3: ROLE-BASED DATA LOCK DOWN ---
+    if st.session_state.user_role == "Teacher":
+        # Automatically capture and lock the subject assigned to this teacher in the database
+        selected_subject = st.session_state.assigned_subject
+        st.info(f"🔒 Account Locked Subject Profile: **{selected_subject}**")
+    else:
+        # Admins get full clearance to select any subject from a dropdown menu
+        all_subjects = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Mathematics"]
+        selected_subject = st.selectbox("🎯 Select Target Subject:", all_subjects)
+
+    # Keep your original entry workflow selection below the subject filter
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
-
+    
     # --- DYNAMIC FRAMEWORK FETCH FROM DATABASE ---
     try:
         active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
