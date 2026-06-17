@@ -1128,10 +1128,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # WORKFLOW MODE C: BULK EXCEL/CSV IMPORT
     # ====================================================================================
     #  GOOD: Perfect alignment
-if entry_mode == "📋 By Complete Section":
-    st.write("Mode A")
-elif entry_mode == "📤 Bulk Excel/CSV Import":  # 👈 Aligned perfectly
-    st.write("Mode C")
+    if entry_mode == "📋 By Complete Section":
+        st.write("Mode A")
+    elif entry_mode == "📤 Bulk Excel/CSV Import":  # 👈 Aligned perfectly
+        st.write("Mode C")
         
         # --- SAFE STATE ACCESS EXTRACTOR ---
         current_role = st.session_state.get('user_role', st.session_state.get('role', 'Admin'))
