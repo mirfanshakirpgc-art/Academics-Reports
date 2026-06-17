@@ -662,9 +662,21 @@ elif menu_choice == "➕ Add Students":
                                 
                         with b_col4:
                             if st.button("🗑️ Delete Profile Entry", use_container_width=True, type="secondary"):
+                    try:
                                 with engine.begin() as conn:
-                                    conn.execute(text("UPDATE students SET status = 'DELETED' WHERE id = :id"), {"id": student_native_id})
-                                st.warning("⚠️ Profile status altered to 'DELETED'. Historical attendance records preserved."); st.rerun()
+                # Step 1: Wipe historical attendance dependencies first
+                                conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
+                
+                # Step 2: Delete any exam mark references if they exist
+                # conn.execute(text("DELETE FROM exam_marks WHERE student_id = :id"), {"id": student_native_id})
+                
+                # Step 3: Permanently erase the primary student profile record
+                                conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+                
+                        st.error(f"💥 Success! Roll Number {student_native_id} has been completely erased from the system.")
+                        st.rerun()
+                        except Exception as delete_err:
+                        st.error(f"❌ Failed to purge student: {delete_err}")
                         
                         # Inline Edit Sub-Form Layer
                         st.markdown("---")
