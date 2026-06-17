@@ -638,12 +638,15 @@ with intake_tab2:
 # ====================================================================================
 st.markdown("---")
 st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
-    
-    # Global state selectors for contextual operations
-    col_g1, col_g2 = st.columns(2)
-    with col_g1:
-        global_session = st.selectbox("1️⃣ Base Session Scope:", ["2024-26", "2025-27", "2026-28", "2027-29"], key="g_sess")
-    with col_g2:
+
+# Make sure this block uses the exact same number of leading spaces as the markdown headings above!
+col_g1, col_g2 = st.columns(2)
+with col_g1:
+    # Your column 1 contents...
+    pass
+with col_g2:
+    # Your column 2 contents...
+    pass
         global_system = st.selectbox("2️⃣ Base Academic System Scope:", ["🗓️ Annual System", "🎓 Semester System"], key="g_syst")
         clean_global_system = global_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
 
