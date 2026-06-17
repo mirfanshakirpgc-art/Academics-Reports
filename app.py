@@ -938,7 +938,7 @@ with manage_tab2:
                                 AND system_type = :src_syst 
                                 AND section = :src_sec 
                                 AND UPPER(status) = 'ACTIVE'
-                                """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                            """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
                             
                         st.error(f"💥 Complete Purge Success! Section '{source_section}' and all associated attendance histories were entirely deleted.")
                         st.rerun()
@@ -1033,10 +1033,10 @@ with manage_tab2:
                                 "c2": str(r['contact_2']).strip(), 
                                 "id": int(r['id'])
                             })
-    st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
-    st.rerun()
-except Exception as grid_save_err:
-    st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
+                    st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
+                    st.rerun()
+                except Exception as grid_save_err:
+                    st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
 
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
