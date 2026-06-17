@@ -938,7 +938,7 @@ with manage_tab2:
                                 AND system_type = :src_syst 
                                 AND section = :src_sec 
                                 AND UPPER(status) = 'ACTIVE'
-                            """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                                """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
                             
                         st.error(f"💥 Complete Purge Success! Section '{source_section}' and all associated attendance histories were entirely deleted.")
                         st.rerun()
@@ -1036,15 +1036,18 @@ with manage_tab2:
                     st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
                     st.rerun()
                 except Exception as grid_save_err:
-                        st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
+                    st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
 
-    # === Exactly 4 spaces of indentation ===
-    elif menu_choice == "📝 Academic Exam Marks Entry":
-        st.title("📝 Academic Exam Marks Entry Workspace")
+# ====================================================================================
+# MODULE 1: ACADEMIC EXAM MARKS ENTRY
+# ====================================================================================
+elif menu_choice == "📝 Academic Exam Marks Entry":
+    st.title("📝 Academic Exam Marks Entry Workspace")
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
     # --- DYNAMIC FRAMEWORK FETCH FROM DATABASE ---
+    # Add your dynamic database fetch logic for marks entry below at this indentation layer
     try:
         active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
         all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
