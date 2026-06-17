@@ -831,6 +831,10 @@ with manage_tab1:
 # --------------------------------------------------------------------------------
 with manage_tab2:
     st.markdown("#### 🏢 Bulk Group Operations")
+    st.write("Temporary placeholder to test syntax")
+
+elif menu_choice == "📝 Academic Exam Marks Entry":
+    st.title("📝 Academic Exam Marks Entry Workspace")
     
     bulk_manage_sections = []
     try:
