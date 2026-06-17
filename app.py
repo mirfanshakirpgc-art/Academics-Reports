@@ -680,7 +680,8 @@ with manage_tab1:
                                 st.success(f"🎉 Student promoted to {next_class}!")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Execution Error: {e}")
+                                r_err = e
+                                st.error(f"Execution Error: {r_err}")
 
                     with btn_col3:
                         if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
@@ -719,17 +720,16 @@ with manage_tab1:
                     if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
                         try:
                             with engine.begin() as conn:
-                                # Drop secondary attendance constraints first
                                 conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                                # Drop core profile record
                                 conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
                             st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged.")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Execution Error: {e}")
-            except Exception as e:
-                st.error(f"Database Error: {e}")
-
+            except Exception as db_err:
+                st.error(f"Database Subsystem Error: {db_err}")
+    else:
+        st.write("💡 *Awaiting entry processing parameters to target workspace variables.*")
     # --------------------------------------------------------------------------------
     # SCOPE B: COMPLETE SECTION BULK MASS-TARGETING SUITE
     # --------------------------------------------------------------------------------
@@ -956,10 +956,10 @@ with manage_tab1:
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
-    elif menu_choice == "📝 Academic Exam Marks Entry":
-        st.title("📝 Academic Exam Marks Entry Workspace")
-        entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
-        st.markdown("---")
+elif menu_choice == "📝 Academic Exam Marks Entry":
+    st.title("📝 Academic Exam Marks Entry Workspace")
+    entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
+    st.markdown("---")
 
     # --- DYNAMIC FRAMEWORK FETCH FROM DATABASE ---
     try:
