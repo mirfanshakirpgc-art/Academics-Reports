@@ -1036,13 +1036,11 @@ with manage_tab2:
                     st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
                     st.rerun()
                 except Exception as grid_save_err:
-                    st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
+                        st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
 
-# ====================================================================================
-# MODULE 1: ACADEMIC EXAM MARKS ENTRY
-# ====================================================================================
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry Workspace")
+    # === Exactly 4 spaces of indentation ===
+    elif menu_choice == "📝 Academic Exam Marks Entry":
+        st.title("📝 Academic Exam Marks Entry Workspace")
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
