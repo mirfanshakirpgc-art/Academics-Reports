@@ -849,7 +849,7 @@ elif menu_choice == "➕ Add Students":
                 else:
                     sql_order_clause = "ORDER BY id ASC"
 
-                st.info("💡 Edit the numbers in the **'Sequence Order No'** column. The rows will re-arrange themselves automatically!")
+                st.info("💡 Edit the numbers in the **'Sequence Order No'** column. The list will auto-sort and normalize back from 1 to the end automatically!")
                 
                 with engine.connect() as connection:
                     raw_grid_query = text(f"""
@@ -883,18 +883,26 @@ elif menu_choice == "➕ Add Students":
                     grid_changes = st.session_state["section_data_mass_editor_grid_v2"]
                     if grid_changes.get("edited_rows"):
                         has_sequence_updates = False
+                        
+                        # Apply live changes onto the active workspace dataframe
                         for string_row_idx, modified_values in grid_changes["edited_rows"].items():
+                            target_row_num = int(string_row_idx)
                             if "Sequence Order No" in modified_values:
-                                target_row_num = int(string_row_idx)
-                                # Fetch actual database student unique ID mapping
-                                actual_stu_id = str(grid_df.loc[target_row_num, "id"])
-                                new_seq_val = int(modified_values["Sequence Order No"])
-                                # Push new rank sequence directly into tracking dictionary state
-                                st.session_state.grid_custom_order_dict[actual_stu_id] = new_seq_val
+                                grid_df.loc[target_row_num, "Sequence Order No"] = float(modified_values["Sequence Order No"])
                                 has_sequence_updates = True
                         
-                        # If a number changed, recalculate dataset parameters and rerun page instantly
                         if has_sequence_updates:
+                            # Step 1: Re-arrange according to the modified inputs
+                            grid_df = grid_df.sort_values(by="Sequence Order No", ascending=True).reset_index(drop=True)
+                            
+                            # Step 2: Recalculate cleanly from 1 to total student capacity length count
+                            for clean_idx, row in grid_df.iterrows():
+                                actual_stu_id = str(row["id"])
+                                normalized_rank = int(clean_idx + 1)
+                                # Overwrite both dataframe view and session storage with clean sequential order
+                                grid_df.loc[clean_idx, "Sequence Order No"] = normalized_rank
+                                st.session_state.grid_custom_order_dict[actual_stu_id] = normalized_rank
+                                
                             st.rerun()
 
                 # Render editable data frame matrix grid layout view
@@ -908,8 +916,8 @@ elif menu_choice == "➕ Add Students":
                 if st.button("💾 Commit Global Grid Data Updates", use_container_width=True, type="primary"):
                     try:
                         # Ensure manual sequence state stays synchronized
-                        for _, r in edited_grid_df.iterrows():
-                            st.session_state.grid_custom_order_dict[str(r['id'])] = int(r['Sequence Order No'])
+                        for clean_idx, r in edited_grid_df.iterrows():
+                            st.session_state.grid_custom_order_dict[str(r['id'])] = int(clean_idx + 1)
                             
                         with engine.begin() as conn:
                             for _, r in edited_grid_df.iterrows():
