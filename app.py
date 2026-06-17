@@ -625,82 +625,107 @@ elif menu_choice == "➕ Add Students":
                         
                         st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {student['class']} | Section: {student['section']} | Session: {student['session']} | Status: `{student['status']}`")
                         
-                        st.markdown("##### ⚙️ Action Processing Control Board")
-                        
-                        # Layout inputs for Mutation Tasks (Section, Session, Class changes)
-                        col_s1, col_s2, col_s3 = st.columns(3)
-                        with col_s1:
-                            mut_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(student['session']) if student['session'] in all_sessions else 0, key="s_mut_sess")
-                        with col_s2:
-                            mut_class = st.selectbox("📚 Target Class Level:", all_classes, index=all_classes.index(student['class']) if student['class'] in all_classes else 0, key="s_mut_class")
-                        with col_s3:
-                            mut_section = st.text_input("📐 Target Section:", value=student['section'], key="s_mut_sec").strip().upper()
-                        
-                        # Command buttons panel
-                        b_col1, b_col2, b_col3, b_col4 = st.columns(4)
-                        with b_col1:
-                            if st.button("🔄 Execute Base Relocations", use_container_width=True, help="Applies Session, Class, and Section adjustments"):
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        UPDATE students SET session = :sess, class = :cls, section = :sec 
-                                        WHERE id = :id
-                                    """), {"sess": mut_session, "cls": mut_class, "sec": mut_section, "id": student_native_id})
-                                st.success("🎯 Base metrics updated successfully!")
-                                st.rerun()
-                                
-                        with b_col2:
-                            if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
-                                next_class = "12th" if student['class'] == "11th" else "Graduated"
-                                with engine.begin() as conn:
-                                    conn.execute(text("UPDATE students SET class = :cls WHERE id = :id"), {"cls": next_class, "id": student_native_id})
-                                st.success(f"🎉 Promoted to {next_class}!")
-                                st.rerun()
-                                
-                        with b_col3:
-                            if st.button("🟢 Set Active / Restore", use_container_width=True):
-                                with engine.begin() as conn:
-                                    conn.execute(text("UPDATE students SET status = 'ACTIVE' WHERE id = :id"), {"id": student_native_id})
-                                st.success("Profile restored to active framework!")
-                                st.rerun()
-                                
-                        with b_col4:
-                            if st.button("🗑️ Delete Profile Entry", use_container_width=True, type="secondary"):
-                                try:
-                                    with engine.begin() as conn:
-                                        # Clear historical child attendance log dependencies first
-                                        conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                                        # Permanently erase the student profile record
-                                        conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                                    st.error(f"💥 Success! Roll Number {student_native_id} has been completely erased from the system.")
-                                    st.rerun()
-                                except Exception as delete_err:
-                                    st.error(f"❌ Failed to purge student database entries: {delete_err}")
-                        
-                        # Inline Edit Sub-Form Layer
-                        st.markdown("---")
-                        st.markdown("##### 📝 Edit Student Core Bio Data Fields")
-                        with st.form("single_bio_edit_form"):
-                            edit_name = st.text_input("Edit Full Name Identity:", value=student['name'])
-                            edit_fname = st.text_input("Edit Father's Name Particular:", value=student['father_name'])
-                            edit_wa = st.text_input("Edit WhatsApp Channel Mapping:", value=student['whatsapp_number'])
-                            edit_c1 = st.text_input("Edit Contact Line 1:", value=student['contact_1'])
-                            edit_c2 = st.text_input("Edit Contact Line 2:", value=student['contact_2'])
+                        # --------------------------------------------------------------------------------
+                # TARGETED INDIVIDUAL OPERATIONS CONTROL BOARD
+                # --------------------------------------------------------------------------------
+                st.markdown("##### ⚙️ Action Processing Control Board")
+                
+                col_i1, col_i2, col_i3 = st.columns(3)
+                with col_i1:
+                    ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
+                with col_i2:
+                    ind_dest_class = st.selectbox("📚 Target Class Level:", all_classes, index=all_classes.index(current_class) if current_class in all_classes else 0, key="ind_cls_pick")
+                with col_i3:
+                    ind_dest_section = st.text_input("📐 Target Section:", value=current_section, key="ind_sec_pick")
+                
+                # Action Buttons Row
+                btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+                
+                with btn_col1:
+                    if st.button("🔀 Execute Base Relocations", use_container_width=True):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET session = :sess, class = :cls, section = :sec
+                                    WHERE id = :id
+                                """), {
+                                    "sess": str(ind_dest_session), 
+                                    "cls": str(ind_dest_class), 
+                                    "sec": str(ind_dest_section).strip().upper(), 
+                                    "id": int(target_roll)  # Fixed numpy.int64 type error
+                                })
+                            st.success(f"🚀 Student {target_roll} relocated successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Execution Error: {e}")
                             
-                            if st.form_submit_button("💾 Commit Profile Bio Field Modifications", use_container_width=True):
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        UPDATE students 
-                                        SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2
-                                        WHERE id = :id
-                                    """), {
-                                        "name": edit_name.strip().upper(), "fname": edit_fname.strip().upper(),
-                                        "wa": edit_wa.strip(), "c1": edit_c1.strip(), "c2": edit_c2.strip(), "id": student_native_id
-                                    })
-                                st.success("🎉 Student bio registry payload altered successfully!")
-                                st.rerun()
-                                
-                except Exception as single_err:
-                    st.error(f"Execution Error: {single_err}")
+                with btn_col2:
+                    if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
+                        try:
+                            next_class = "12th" if current_class == "11th" else "Graduated"
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET class = :cls
+                                    WHERE id = :id
+                                """), {
+                                    "cls": next_class, 
+                                    "id": int(target_roll)  # Fixed numpy.int64 type error
+                                })
+                            st.success(f"🎉 Student promoted to {next_class}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Execution Error: {e}")
+
+                # NEW SPLIT IMPLEMENTATION HERE
+                with btn_col3:
+                    # Created separate left state status trigger
+                    if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET status = 'LEFT'
+                                    WHERE id = :id
+                                """), {
+                                    "id": int(target_roll)  # Fixed numpy.int64 type error
+                                })
+                            st.warning(f"📉 Student {target_roll} status altered to LEFT.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Execution Error: {e}")
+
+                with btn_col4:
+                    # Created separate active state status trigger
+                    if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE students 
+                                    SET status = 'ACTIVE'
+                                    WHERE id = :id
+                                """), {
+                                    "id": int(target_roll)  # Fixed numpy.int64 type error
+                                })
+                            st.success(f"🍏 Student {target_roll} status altered to ACTIVE.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Execution Error: {e}")
+                            
+                # Secondary standalone row for destructive complete profile deletion
+                st.markdown("---")
+                if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
+                    try:
+                        with engine.begin() as conn:
+                            # Drop secondary attendance constraints first
+                            conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": int(target_roll)})
+                            # Drop core profile record
+                            conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": int(target_roll)})
+                        st.error(f"💥 Profile record corresponding to ID {target_roll} was permanently purged.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Execution Error: {e}")
 
     # --------------------------------------------------------------------------------
     # SCOPE B: COMPLETE SECTION BULK MASS-TARGETING SUITE
