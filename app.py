@@ -1131,23 +1131,31 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
         st.subheader("📤 Bulk Marks Upload Processor")
         
+        # --- SAFE STATE ACCESS EXTRACTOR ---
+        current_role = st.session_state.get('user_role', st.session_state.get('role', 'Admin'))
+        secured_subject = selected_subject if 'selected_subject' in locals() or 'selected_subject' in globals() else "NOT_ASSIGNED"
+        
         # Guide banner based on current role permissions
-        if st.session_state.user_role == "Teacher":
-            st.info(f"🔒 **Teacher Import Mode Active**: Your upload will automatically map entirely to your assigned course profile: **{selected_subject}**")
+        if current_role == "Teacher":
+            st.info(f"🔒 **Teacher Import Mode Active**: Your upload will automatically map entirely to your assigned course profile: **{secured_subject}**")
         else:
             st.warning("⚡ **Administrative Import Mode Active**: Ensure your uploaded spreadsheet explicitly contains a **'SUBJECT'** column or choose a uniform fallback pattern.")
 
         # Shared setups
         bc1, bc2 = st.columns(2)
-        with bc1: bulk_exam_sel = st.selectbox("Select Target Exam Cycle:", all_frameworks, index=1, key="bulk_upload_exam_cycle")
-        with bc2: bulk_total_marks = st.number_input("Set Shared Maximum Scale Total Marks:", min_value=1, max_value=2000, value=100, step=1, key="bulk_upload_total_limit")
+        with bc1: 
+            # Safe checking for fallback frameworks lists
+            valid_frameworks = all_frameworks if 'all_frameworks' in locals() or 'all_frameworks' in globals() else ["MID_TERM", "FINAL_TERM"]
+            bulk_exam_sel = st.selectbox("Select Target Exam Cycle:", valid_frameworks, index=0, key="bulk_upload_exam_cycle")
+        with bc2: 
+            bulk_total_marks = st.number_input("Set Shared Maximum Scale Total Marks:", min_value=1, max_value=2000, value=100, step=1, key="bulk_upload_total_limit")
         
         st.markdown("---")
         
         # Downloadable Template Blueprint Link
         st.markdown("##### 📥 Downloader Reference Template Formulation Structure")
         template_cols = ["STUDENT_ID", "MARKS_OBTAINED"]
-        if st.session_state.user_role != "Teacher":
+        if current_role != "Teacher":
             template_cols.append("SUBJECT")
             
         template_df = pd.DataFrame(columns=template_cols)
@@ -1169,12 +1177,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 # Standardize data framing names uppercase safely
                 raw_uploaded_df.columns = [str(col).strip().upper() for col in raw_uploaded_df.columns]
                 
-                st.markdown("##### 👀 Uploaded Stream Data Preview Matrix Matrix")
+                st.markdown("##### 👀 Uploaded Stream Data Preview Matrix")
                 st.dataframe(raw_uploaded_df.head(10), use_container_width=True)
                 
                 # Structural check conditions rule validator
                 required_headers = ["STUDENT_ID", "MARKS_OBTAINED"]
-                if st.session_state.user_role != "Teacher":
+                if current_role != "Teacher":
                     required_headers.append("SUBJECT")
                     
                 missing_headers = [req for req in required_headers if req not in raw_uploaded_df.columns]
@@ -1192,15 +1200,18 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         total_rows = len(raw_uploaded_df)
                         
                         for index, row in raw_uploaded_df.iterrows():
-                            # Row parsing data extractions
-                            row_student_id = str(row['STUDENT_ID']).strip().split('.')[0] # drop float decimal points
+                            if pd.isna(row['STUDENT_ID']) or pd.isna(row['MARKS_OBTAINED']):
+                                continue
+                                
+                            # Row parsing data extractions with decimal drop handling
+                            row_student_id = str(row['STUDENT_ID']).strip().split('.')[0] 
                             row_score = str(row['MARKS_OBTAINED']).strip().upper()
                             
                             # Decide destination course slug name based on authorization status role profile
-                            if st.session_state.user_role == "Teacher":
-                                row_subject_slug = str(selected_subject).strip().upper().replace(" ", "_")
+                            if current_role == "Teacher":
+                                row_subject_slug = str(secured_subject).strip().upper().replace(" ", "_")
                             else:
-                                row_subject_slug = str(row['SUBJECT']).strip().upper().replace(" ", "_")
+                                row_subject_slug = str(row['SUBJECT']).strip().upper().replace(" ", "_") if pd.notna(row['SUBJECT']) else "UNKNOWN"
                                 
                             if row_student_id.isdigit() and row_score != "":
                                 # Clean existing rows to avoid primary integrity conflicts 
