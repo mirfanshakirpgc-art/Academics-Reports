@@ -461,7 +461,8 @@ elif menu_choice == "➕ Add Students":
             "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
             "WHATSAPP": ["03001234567", "03007654321"],
             "CONTACT_1": ["03001234567", "03007654321"],
-            "CONTACT_2": ["03020000000", "03050000000"]
+            "CONTACT_2": ["03020000000", "03050000000"],
+            "ADDRESS": ["House 123, Street 4, Lahore", "Sector G-9/1, Islamabad"]
         }
         template_df = pd.DataFrame(template_data)
         csv_template = template_df.to_csv(index=False).encode('utf-8')
@@ -503,17 +504,18 @@ elif menu_choice == "➕ Add Students":
                             raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
                             raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
                             raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
+                            raw_address = str(row['ADDRESS']).strip().upper() if 'ADDRESS' in bulk_df.columns and pd.notna(row['ADDRESS']) else ""
 
                             if raw_id.isdigit() and raw_name != "":
                                 try:
                                     with engine.begin() as conn:
                                         conn.execute(text("""
-                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
-                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2)
+                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
+                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
                                         """), {
                                             "id": int(raw_id), "name": raw_name, "fname": raw_fname, "class": selected_class,
                                             "section": selected_section, "session": selected_session, "system_type": clean_system_type,
-                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2
+                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "address": raw_address
                                         })
                                     success_count += 1
                                 except Exception:
@@ -547,6 +549,10 @@ elif menu_choice == "➕ Add Students":
             with r2_col3:
                 input_c2 = st.text_input("📞 6. Contact Number 2")
             
+            # Address Row Selection Suite
+            st.markdown("---")
+            input_address = st.text_input("🏠 7. Residential Address", help="Provide the complete home physical address mapping.")
+            
             submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
             
             if submit_registration_btn:
@@ -562,13 +568,13 @@ elif menu_choice == "➕ Add Students":
                         
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2)
-                                VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2)
+                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
+                                VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
                             """), {
                                 "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
                                 "class": selected_class, "section": selected_section, "session": selected_session,
-                                "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
-                                "c1": input_c1.strip(), "c2": input_c2.strip()
+                                "system_type": clean_system_type, "wa": input_wa.strip(),
+                                "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
                             })
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
