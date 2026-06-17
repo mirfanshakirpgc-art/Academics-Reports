@@ -830,18 +830,18 @@ elif menu_choice == "➕ Add Students":
                 
                 sort_option = st.selectbox(
                     "🔀 Base Sorting Layout Engine Sequence:",
-                    ["🔢 Student Roll Number / ID (Ascending)", 
+                    ["✍️ Custom Manual Sequence Numbers (Low to High)",
+                     "🔢 Student Roll Number / ID (Ascending)", 
                      "🔤 Student Name (A-Z)", 
-                     "👨‍👦 Father's Name (A-Z)",
-                     "✍️ Custom Manual Sequence Numbers (Low to High)"],
+                     "👨‍👦 Father's Name (A-Z)"],
                     key="grid_sequence_sort_config_v2"
                 )
                 
-                # Manage temporary or persistent state variable for custom order assignments
+                # State dictionary to remember custom manual arrangements
                 if "grid_custom_order_dict" not in st.session_state:
                     st.session_state.grid_custom_order_dict = {}
 
-                # Setup default baseline base database sequencing sort parameters
+                # Setup SQL fallback queries
                 if "Student Name" in sort_option:
                     sql_order_clause = "ORDER BY name ASC"
                 elif "Father's Name" in sort_option:
@@ -849,7 +849,7 @@ elif menu_choice == "➕ Add Students":
                 else:
                     sql_order_clause = "ORDER BY id ASC"
 
-                st.warning("💡 To change the manual sequence, edit the numbers in the **'Sequence Order No'** column. Then select the 'Custom Manual Sequence' option above to see them rearrange!")
+                st.info("💡 Edit the numbers in the **'Sequence Order No'** column. The rows will re-arrange themselves automatically!")
                 
                 with engine.connect() as connection:
                     raw_grid_query = text(f"""
@@ -863,23 +863,41 @@ elif menu_choice == "➕ Add Students":
                     """)
                     grid_df = pd.read_sql(raw_grid_query, connection, params={"sess": global_session, "syst": clean_global_system, "sec": source_section})
                 
-                # Build an editable custom column based on saved layout session states
+                # Build custom sequence row alignments matching local state maps
                 custom_seq_list = []
                 for idx, row in grid_df.iterrows():
                     student_id_key = str(row['id'])
-                    # Fallback to the current index position if no manual number has been saved yet
                     if student_id_key not in st.session_state.grid_custom_order_dict:
                         st.session_state.grid_custom_order_dict[student_id_key] = int(idx + 1)
                     custom_seq_list.append(st.session_state.grid_custom_order_dict[student_id_key])
                 
-                # Insert the manually editable column at the beginning of the dataframe
+                # Add manual sequence numbers into dataset
                 grid_df.insert(0, "Sequence Order No", custom_seq_list)
                 
-                # If the user chooses custom manual sequence sorting, rearrange the dataframe rows right now before rendering
+                # Always sort on Custom Sequence if selected
                 if "Custom Manual Sequence" in sort_option:
-                    grid_df = grid_df.sort_values(by="Sequence Order No", ascending=True)
+                    grid_df = grid_df.sort_values(by="Sequence Order No", ascending=True).reset_index(drop=True)
 
-                # Render editable data frame matrix grid layout
+                # INTERCEPT HANDLER: Check if data editor sent live updates before rendering grid view
+                if "section_data_mass_editor_grid_v2" in st.session_state:
+                    grid_changes = st.session_state["section_data_mass_editor_grid_v2"]
+                    if grid_changes.get("edited_rows"):
+                        has_sequence_updates = False
+                        for string_row_idx, modified_values in grid_changes["edited_rows"].items():
+                            if "Sequence Order No" in modified_values:
+                                target_row_num = int(string_row_idx)
+                                # Fetch actual database student unique ID mapping
+                                actual_stu_id = str(grid_df.loc[target_row_num, "id"])
+                                new_seq_val = int(modified_values["Sequence Order No"])
+                                # Push new rank sequence directly into tracking dictionary state
+                                st.session_state.grid_custom_order_dict[actual_stu_id] = new_seq_val
+                                has_sequence_updates = True
+                        
+                        # If a number changed, recalculate dataset parameters and rerun page instantly
+                        if has_sequence_updates:
+                            st.rerun()
+
+                # Render editable data frame matrix grid layout view
                 edited_grid_df = st.data_editor(
                     grid_df, 
                     disabled=["id"], 
@@ -889,7 +907,7 @@ elif menu_choice == "➕ Add Students":
                 
                 if st.button("💾 Commit Global Grid Data Updates", use_container_width=True, type="primary"):
                     try:
-                        # First save the updated layout sequence structure into our session memory array map
+                        # Ensure manual sequence state stays synchronized
                         for _, r in edited_grid_df.iterrows():
                             st.session_state.grid_custom_order_dict[str(r['id'])] = int(r['Sequence Order No'])
                             
