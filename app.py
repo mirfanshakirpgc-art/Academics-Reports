@@ -445,109 +445,199 @@ elif menu_choice == "➕ Add Students":
                 selected_section = st.text_input("📋 3. Enter Target Section Manually:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
 
     # ====================================================================================
-    # 🧱 PART 1: NEW REGISTRATION SUITE (BULK + SINGLE UPLOAD)
-    # ====================================================================================
-    st.markdown("## 📤 Part 1: New Student Intake Options")
+# 🧱 PART 1: NEW REGISTRATION SUITE (BULK + SINGLE UPLOAD)
+# ====================================================================================
+st.markdown("## 📤 Part 1: New Student Intake Options")
     
-    # We use Streamlit tabs within Part 1 to clean up the intake workflow options
-    intake_tab1, intake_tab2 = st.tabs(["📋 Bulk Upload (Excel/CSV)", "👤 Single Student Manual Form"])
+# We use Streamlit tabs within Part 1 to clean up the intake workflow options
+intake_tab1, intake_tab2 = st.tabs(["📋 Bulk Upload (Excel/CSV)", "👤 Single Student Manual Form"])
     
-    with intake_tab1:
-        st.subheader(f"Bulk Import Rosters — Section ({selected_section})")
+with intake_tab1:
+    st.subheader(f"Bulk Import Rosters — Section ({selected_section if 'selected_section' in locals() or 'selected_section' in globals() else 'Default'})")
         
-        template_data = {
-            "ID": [101, 102],
-            "NAME": ["ALI AHMED", "SARA KHAN"],
-            "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
-            "WHATSAPP": ["03001234567", "03007654321"],
-            "CONTACT_1": ["03001234567", "03007654321"],
-            "CONTACT_2": ["03020000000", "03050000000"],
-            "ADDRESS": ["123 MAIN STREET, SECTOR A", "456 OAK AVENUE, SECTOR B"]
-        }
-        template_df = pd.DataFrame(template_data)
-        csv_template = template_df.to_csv(index=False).encode('utf-8')
+    template_data = {
+        "ID": [101, 102],
+        "NAME": ["ALI AHMED", "SARA KHAN"],
+        "FATHER_NAME": ["AHMED HASSAN", "KHAN MUHAMMAD"],
+        "WHATSAPP": ["03001234567", "03007654321"],
+        "CONTACT_1": ["03001234567", "03007654321"],
+        "CONTACT_2": ["03020000000", "03050000000"],
+        "ADDRESS": ["123 MAIN STREET, SECTOR A", "456 OAK AVENUE, SECTOR B"]
+    }
+    template_df = pd.DataFrame(template_data)
+    csv_template = template_df.to_csv(index=False).encode('utf-8')
         
-        st.download_button(
-            label="📥 Download Blank Roster Template (.csv)",
-            data=csv_template,
-            file_name="student_roster_template.csv",
-            mime="text/csv"
-        )
+    st.download_button(
+        label="📥 Download Blank Roster Template (.csv)",
+        data=csv_template,
+        file_name="student_roster_template.csv",
+        mime="text/csv"
+    )
         
-        st.info("💡 Use the template above to ensure your file columns match the database schematic requirements.")
-        uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
+    st.info("💡 Use the template above to ensure your file columns match the database schematic requirements.")
+    uploaded_bulk_file = st.file_uploader("Upload filled roster", type=["csv", "xlsx"], key="bulk_student_file_uploader")
         
-        if uploaded_bulk_file is not None:
-            try:
-                if uploaded_bulk_file.name.endswith(".csv"):
-                    bulk_df = pd.read_csv(uploaded_bulk_file)
-                else:
-                    bulk_df = pd.read_excel(uploaded_bulk_file)
+    if uploaded_bulk_file is not None:
+        try:
+            if uploaded_bulk_file.name.endswith(".csv"):
+                bulk_df = pd.read_csv(uploaded_bulk_file)
+            else:
+                bulk_df = pd.read_excel(uploaded_bulk_file)
                 
-                bulk_df.columns = [str(col).strip().upper().replace(" ", "_").replace("'", "") for col in bulk_df.columns]
+            bulk_df.columns = [str(col).strip().upper().replace(" ", "_").replace("'", "") for col in bulk_df.columns]
                 
-                if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
-                    st.error("❌ Template Validation Error! Missing critical 'ID' or 'Name' structural columns.")
-                else:
-                    st.markdown("##### 📊 Document Sample Row Preview")
-                    st.dataframe(bulk_df.head(5), use_container_width=True)
+            if 'ID' not in bulk_df.columns or 'NAME' not in bulk_df.columns:
+                st.error("❌ Template Validation Error! Missing critical 'ID' or 'Name' structural columns.")
+            else:
+                st.markdown("##### 📊 Document Sample Row Preview")
+                st.dataframe(bulk_df.head(5), use_container_width=True)
                     
-                    if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
-                        success_count = 0
-                        error_count = 0
-                        clean_system_type = academic_system.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                if st.button("🚀 Process & Batch Insert System Records", type="primary", use_container_width=True):
+                    success_count = 0
+                    error_count = 0
+                    
+                    # Safe runtime verification for academic_system string
+                    safe_sys_base = academic_system if 'academic_system' in locals() or 'academic_system' in globals() else "Annual System"
+                    clean_system_type = safe_sys_base.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                    
+                    # Safe runtime verification for selected layouts
+                    safe_cls = selected_class if 'selected_class' in locals() or 'selected_class' in globals() else "Unassigned"
+                    safe_sec = selected_section if 'selected_section' in locals() or 'selected_section' in globals() else "A"
                         
-                        for index, row in bulk_df.iterrows():
-                            raw_id = str(row['ID']).strip().split('.')[0]
-                            raw_name = str(row['NAME']).strip().upper()
-                            raw_fname = str(row['FATHER_NAME']).strip().upper() if 'FATHER_NAME' in bulk_df.columns and pd.notna(row['FATHER_NAME']) else ""
-                            raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
-                            raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
-                            raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
-                            raw_address = str(row['ADDRESS']).strip().upper() if 'ADDRESS' in bulk_df.columns and pd.notna(row['ADDRESS']) else ""
+                    for index, row in bulk_df.iterrows():
+                        raw_id = str(row['ID']).strip().split('.')[0]
+                        raw_name = str(row['NAME']).strip().upper()
+                        raw_fname = str(row['FATHER_NAME']).strip().upper() if 'FATHER_NAME' in bulk_df.columns and pd.notna(row['FATHER_NAME']) else ""
+                        raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
+                        raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
+                        raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
+                        raw_address = str(row['ADDRESS']).strip().upper() if 'ADDRESS' in bulk_df.columns and pd.notna(row['ADDRESS']) else ""
 
-                            if raw_id.isdigit() and raw_name != "":
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
-                                        """), {
-                                            "id": int(raw_id), "name": raw_name, "fname": raw_fname, "class": selected_class,
-                                            "section": selected_section, "session": selected_session, "system_type": clean_system_type,
-                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "address": raw_address
-                                        })
-                                    success_count += 1
-                                except Exception:
-                                    error_count += 1
-                            else:
+                        if raw_id.isdigit() and raw_name != "":
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
+                                        VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
+                                    """), {
+                                        "id": int(raw_id), "name": raw_name, "fname": raw_fname, "class": safe_cls,
+                                        "section": safe_sec, "session": safe_sec, "system_type": clean_system_type,
+                                        "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "address": raw_address
+                                    })
+                                success_count += 1
+                            except Exception:
                                 error_count += 1
+                        else:
+                            error_count += 1
                                 
-                        st.success(f"🎉 Import complete! Successfully registered {success_count} records.")
-                        if error_count > 0:
-                            st.warning(f"⚠️ Skipped {error_count} lines due to database structural anomalies.")
-                        st.balloons()
-            except Exception as read_err:
-                st.error(f"❌ Failed to parse data payload: {read_err}")
+                    st.success(f"🎉 Import complete! Successfully registered {success_count} records.")
+                    if error_count > 0:
+                        st.warning(f"⚠️ Skipped {error_count} lines due to database structural anomalies.")
+                    st.balloons()
+        except Exception as read_err:
+            st.error(f"❌ Failed to parse data payload: {read_err}")
 
-    Missing Submit Button
+with intake_tab2:
+    st.subheader(f"Manual Profile Entry — Section ({selected_section if 'selected_section' in locals() or 'selected_section' in globals() else 'Default'})")
+    with st.form("interactive_student_addition_form", clear_on_submit=True):
+        # 📐 Row 1: Core Identification Elements (3 Columns)
+        r1_col1, r1_col2, r1_col3 = st.columns(3)
+        with r1_col1:
+            input_roll_number = st.text_input("🆔 1. Class Roll Number / Student ID*")
+        with r1_col2:
+            input_student_name = st.text_input("👤 2. Student Name Full Identity*")
+        with r1_col3:
+            input_father_name = st.text_input("👨‍👧 3. Father's Name")
 
-This form has no submit button, which means that user interactions will never be sent to your Streamlit app.
+        # 📱 Row 2: Communication Infrastructure Telephony (3 Columns)
+        r2_col1, r2_col2, r2_col3 = st.columns(3)
+        with r2_col1:
+            input_wa = st.text_input("📱 4. WhatsApp Number")
+        with r2_col2:
+            input_c1 = st.text_input("📞 5. Contact Number 1")
+        with r2_col3:
+            input_c2 = st.text_input("📞 6. Contact Number 2")
+            
+        # 📍 Row 3: Demographics & Layout Class Categorizations (3 Columns to match image layout)
+        r3_col1, r3_col2, r3_col3 = st.columns(3)
+        with r3_col1:
+            input_address = st.text_input("📍 7. Address")
+        with r3_col2:
+            # 🛠️ SAFE REPAIR: Dynamic array compilation checking to prevent index target crashes
+            class_options = all_classes if 'all_classes' in globals() or 'all_classes' in locals() else ["11th", "12th", "9th", "10th"]
+            
+            default_index = 0
+            if 'selected_class' in locals() or 'selected_class' in globals():
+                if selected_class in class_options:
+                    default_index = class_options.index(selected_class)
+                    
+            manual_select_class = st.selectbox("🔰 8. Select Class Level:", options=class_options, index=default_index)
+        with r3_col3:
+            discipline_options = list(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in globals() else ["MEDICAL", "ENGINEERING", "ARTS", "COMMERCE"]
+            manual_select_discipline = st.selectbox("🔬 9. Select Discipline:", options=discipline_options)
+            
+        # 📋 Row 4: Subsection Allocation Framework mapping (Centered element placement)
+        r4_col1, r4_col2, r4_col3 = st.columns(3)
+        with r4_col2: 
+            mapped_sections_options = []
+            if 'DISCIPLINE_SECTIONS_MAP' in globals() and manual_select_discipline in DISCIPLINE_SECTIONS_MAP:
+                # Type safe checks against target index lists
+                current_map = DISCIPLINE_SECTIONS_MAP[manual_select_discipline]
+                if isinstance(current_map, dict):
+                    mapped_sections_options = current_map.get(manual_select_class, [])
+                
+            safe_section_var = selected_section if ('selected_section' in locals() or 'selected_section' in globals()) else "A"
+            if not mapped_sections_options:
+                mapped_sections_options = [safe_section_var] if safe_section_var else ["A"]
+                    
+            manual_select_section = st.selectbox("📋 10. Select Target Section:", options=mapped_sections_options)
+            
+        # This button is completely isolated outside variable logic bounds so it always renders perfectly
+        submit_registration_btn = st.form_submit_button("💾 Commit Profile to Database", type="primary", use_container_width=True)
+            
+        if submit_registration_btn:
+            if not input_roll_number.strip() or not input_student_name.strip():
+                st.error("❌ Processing Blocked: Roll Number and Student Name cannot be left blank.")
+            elif not input_roll_number.strip().isdigit():
+                st.error("❌ Validation Failed: Roll Number / Student ID must be numerical digits only.")
+            else:
+                try:
+                    clean_id = int(input_roll_number.strip())
+                    clean_name = input_student_name.strip().upper()
+                    clean_address = input_address.strip().upper()
+                        
+                    safe_session_str = selected_session if ('selected_session' in locals() or 'selected_session' in globals()) else "2026"
+                    safe_sys_base = academic_system if 'academic_system' in locals() or 'academic_system' in globals() else "Annual"
+                    clean_system_type = safe_sys_base.replace("🗓️ ", "").replace("🎓 ", "").strip()
+                        
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
+                            VALUES (:id, :name, :fname, :class, :section, :session, :status, :system_type, :wa, :c1, :c2, :address)
+                        """), {
+                            "id": clean_id, 
+                            "name": clean_name, 
+                            "fname": input_father_name.strip().upper(),
+                            "class": manual_select_class, 
+                            "section": manual_select_section, 
+                            "session": safe_session_str,
+                            "status": "ACTIVE",  # Bypasses undefined 'input_status' lookup crashes 
+                            "system_type": clean_system_type, 
+                            "wa": input_wa.strip(),
+                            "c1": input_c1.strip(), 
+                            "c2": input_c2.strip(), 
+                            "address": clean_address
+                        })
+                    st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
+                    st.balloons()
+                except Exception as db_err:
+                    st.error(f"❌ Database Exception Triggered: {db_err}")
 
-To create a submit button, use the st.form_submit_button() function.
-
-For more information, refer to the documentation for forms.
-
-NameError: This app has encountered an error. The original error message is redacted to prevent data leaks. Full error details have been recorded in the logs (if you're on Streamlit Cloud, click on 'Manage app' in the lower right of your app).
-Traceback:
-File "/mount/src/academics-reports/app.py", line 559, in <module>
-    manual_select_class = st.selectbox("🔰 8. Select Class Level:", options=all_classes, index=all_classes.index(selected_class) if selected_class in all_classes else 0)
-                                                                            ^^^^^^^^^^^
-    # ====================================================================================
-    # 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
-    # ====================================================================================
-    st.markdown("---")
-    st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
+# ====================================================================================
+# 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
+# ====================================================================================
+st.markdown("---")
+st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
     
     # Global state selectors for contextual operations
     col_g1, col_g2 = st.columns(2)
