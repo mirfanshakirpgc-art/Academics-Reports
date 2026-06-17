@@ -612,8 +612,8 @@ st.markdown("## ⚙️ Part 2: Administrative Record Adjustments")
 
 
 # This line must perfectly align under the initial 'if menu_choice == ...' matching the left margin indentation rule
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
+    elif menu_choice == "📝 Academic Exam Marks Entry":
+        st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
     
     # Global state selectors for contextual operations
     col_g1, col_g2 = st.columns(2)
