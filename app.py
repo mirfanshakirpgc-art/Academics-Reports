@@ -1415,20 +1415,26 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
                 
-                allocated_subjects_df = run_query("""
-                    SELECT DISTINCT subject_title FROM academic_allocations 
-                    WHERE UPPER(TRIM(class_level)) = :cls AND UPPER(TRIM(section_name)) = :sec ORDER BY subject_title ASC
-                """, {"cls": s_class, "sec": s_section})
-
-                if allocated_subjects_df.empty or len(allocated_subjects_df) < 3:
-                    if s_system == "Annual System":
-                        year_suffix = "12TH" if "12" in str(s_class) else "11TH"
-                        subjects_list = DISCIPLINE_SUBJECTS_MAP.get(f"{detected_discipline.upper()}_{year_suffix}", ["English", "Urdu", "Physics"])
-                    else:
-                        if "1ST" in s_class: subjects_list = ["Information Technology", "Office Automation", "Networking"]
-                        else: subjects_list = ["English", "Urdu", "Mathematics"]
+                # --- ROLE-BASED SUBJECT RESTRICTION TUNNEL ---
+                if st.session_state.user_role == "Teacher":
+                    # Force the roster form to only show the single subject assigned to this teacher
+                    subjects_list = [selected_subject]
                 else:
-                    subjects_list = allocated_subjects_df['subject_title'].tolist()
+                    # Admins get the full sequence framework tracking lookup arrays
+                    allocated_subjects_df = run_query("""
+                        SELECT DISTINCT subject_title FROM academic_allocations 
+                        WHERE UPPER(TRIM(class_level)) = :cls AND UPPER(TRIM(section_name)) = :sec ORDER BY subject_title ASC
+                    """, {"cls": s_class, "sec": s_section})
+
+                    if allocated_subjects_df.empty or len(allocated_subjects_df) < 3:
+                        if s_system == "Annual System":
+                            year_suffix = "12TH" if "12" in str(s_class) else "11TH"
+                            subjects_list = DISCIPLINE_SUBJECTS_MAP.get(f"{detected_discipline.upper()}_{year_suffix}", ["English", "Urdu", "Physics"])
+                        else:
+                            if "1ST" in s_class: subjects_list = ["Information Technology", "Office Automation", "Networking"]
+                            else: subjects_list = ["English", "Urdu", "Mathematics"]
+                    else:
+                        subjects_list = allocated_subjects_df['subject_title'].tolist()
 
                 single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
                 total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
@@ -1496,7 +1502,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         
                         with st.container():
                             s_cols = st.columns([4.0, 3.0, 1.0, 1.0])
-                            
                             s_cols[0].markdown(f"<div class='vertical-align-center'><b>📖 {subject_name}</b></div>", unsafe_allow_html=True)
                             
                             with s_cols[1]:
@@ -1533,12 +1538,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         st.success(f"🎉 Performance matrix for Roll Number {single_id} saved successfully!")
                         time.sleep(1.2)
                         st.rerun()
-        # This belongs inside the 'Single Entry' block (indented 8 spaces)
         st.markdown('</div>', unsafe_allow_html=True)
-
-    elif entry_mode == "📊 Bulk Excel/CSV Import":
-        st.subheader("📊 Bulk Marks Import Portal")
-        # Your bulk import code continues here...
 # ==============================================================================
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
