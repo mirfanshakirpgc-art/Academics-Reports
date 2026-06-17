@@ -595,6 +595,7 @@ with intake_tab2:
                             "status": input_status, "system_type": clean_system_type, "wa": input_wa.strip(),
                             "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
                         })
+                    # ... [Form logic ends here] ...
                     st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                     st.balloons()
                 except Exception as db_err:
@@ -603,6 +604,8 @@ with intake_tab2:
 # ====================================================================================
 # 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
 # ====================================================================================
+# Ensure this section matches the identical outer indentation of PART 1 
+# and doesn't sit inside 'with intake_tab2:' unless explicitly intended.
     st.markdown("---")
     st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
     
