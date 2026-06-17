@@ -620,7 +620,7 @@ elif menu_choice == "➕ Add Students":
                         st.warning(f"⚠️ No matching profile record found for Student ID: {search_id}")
                     else:
                         student = stu_df.iloc[0]
-                        # Safe type conversion to native Python types to prevent psycopg2 adaptation errors
+                        # Safe type conversion to native Python types to prevent numpy type errors
                         student_native_id = int(student['id'])
                         
                         st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {student['class']} | Section: {student['section']} | Session: {student['session']} | Status: `{student['status']}`")
@@ -667,15 +667,10 @@ elif menu_choice == "➕ Add Students":
                             if st.button("🗑️ Delete Profile Entry", use_container_width=True, type="secondary"):
                                 try:
                                     with engine.begin() as conn:
-                                        # Step 1: Wipe historical attendance dependencies first
+                                        # Clear historical child attendance log dependencies first
                                         conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                                        
-                                        # Step 2: Delete any exam mark references if they exist
-                                        # conn.execute(text("DELETE FROM exam_marks WHERE student_id = :id"), {"id": student_native_id})
-                                        
-                                        # Step 3: Permanently erase the primary student profile record
+                                        # Permanently erase the student profile record
                                         conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                                        
                                     st.error(f"💥 Success! Roll Number {student_native_id} has been completely erased from the system.")
                                     st.rerun()
                                 except Exception as delete_err:
@@ -713,18 +708,18 @@ elif menu_choice == "➕ Add Students":
     with manage_tab2:
         st.markdown("#### 🏢 Bulk Group Operations")
         
-        # ISOLATED VARIABLE: Changed from available_sections to bulk_manage_sections
+        # Isolated name block to prevent variable pollution across parts
         bulk_manage_sections = []
         
         try:
             with engine.connect() as connection:
+                # Using UPPER() evaluation logic to stay safe against mixed cases ('Active' vs 'ACTIVE')
                 sec_query = text("""
                     SELECT DISTINCT section FROM students 
                     WHERE session = :sess 
                     AND system_type = :syst 
                     AND UPPER(status) = 'ACTIVE'
                 """)
-                # Store strictly inside our isolated list
                 bulk_manage_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
         except Exception:
             bulk_manage_sections = []
@@ -732,7 +727,6 @@ elif menu_choice == "➕ Add Students":
         if not bulk_manage_sections:
             st.info(f"ℹ️ No active cohort sections detected matching global parameters (Session: {global_session}, System: {clean_global_system}).")
         else:
-            # FIXED: Pointing selectbox to use our isolated bulk_manage_sections list
             source_section = st.selectbox("📁 Target Operational Source Section Layer:", bulk_manage_sections, key="bulk_src_sec_pick")
             
             try:
@@ -801,6 +795,7 @@ elif menu_choice == "➕ Add Students":
                     if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
                         try:
                             with engine.begin() as conn:
+                                # Step 1: Cascading deletion of attendance entries tracking this group subset matching criteria
                                 conn.execute(text("""
                                     DELETE FROM daily_attendance 
                                     WHERE student_id IN (
@@ -812,6 +807,7 @@ elif menu_choice == "➕ Add Students":
                                     )
                                 """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
                                 
+                                # Step 2: Clear out master records
                                 conn.execute(text("""
                                     DELETE FROM students 
                                     WHERE session = :src_sess 
@@ -841,6 +837,7 @@ elif menu_choice == "➕ Add Students":
                     """)
                     grid_df = pd.read_sql(raw_grid_query, connection, params={"sess": global_session, "syst": clean_global_system, "sec": source_section})
                 
+                # Render editable data frame using native Streamlit component logic
                 edited_grid_df = st.data_editor(grid_df, disabled=["id"], key="section_data_mass_editor_grid", use_container_width=True)
                 
                 if st.button("💾 Commit Global Grid Data Updates", use_container_width=True, type="primary"):
