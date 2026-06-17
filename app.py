@@ -634,11 +634,28 @@ elif menu_choice == "➕ Add Students":
                         # --------------------------------------------------------------------------------
                         st.markdown("##### ⚙️ Action Processing Control Board")
 
-                        # Query all unique section identities present across the system configuration
+                        col_i1, col_i2, col_i3 = st.columns(3)
+                        with col_i1:
+                            ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
+                        with col_i2:
+                            ind_dest_class = st.selectbox("📚 Target Class Level:", all_classes, index=all_classes.index(current_class) if current_class in all_classes else 0, key="ind_cls_pick")
+
+                        # DYNAMIC CONTEXTUAL FILTER QUERY: Fetch sections only for the selected Session and Class
                         try:
                             with engine.connect() as connection:
-                                sections_query = text("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != '' ORDER BY section ASC")
-                                all_existing_sections = [str(r[0]).strip().upper() for r in connection.execute(sections_query).fetchall()]
+                                sections_query = text("""
+                                    SELECT DISTINCT section 
+                                    FROM students 
+                                    WHERE session = :sess 
+                                      AND class = :cls 
+                                      AND section IS NOT NULL 
+                                      AND section != '' 
+                                    ORDER BY section ASC
+                                """)
+                                all_existing_sections = [
+                                    str(r[0]).strip().upper() 
+                                    for r in connection.execute(sections_query, {"sess": str(ind_dest_session), "cls": str(ind_dest_class)}).fetchall()
+                                ]
                         except Exception:
                             all_existing_sections = []
 
@@ -648,17 +665,13 @@ elif menu_choice == "➕ Add Students":
 
                         # Guarantee current configuration value inclusion to prevent Streamlit API internal index errors
                         current_student_section = str(student['section']).strip().upper()
-                        if current_student_section not in all_existing_sections:
-                            all_existing_sections.append(current_student_section)
-                            all_existing_sections.sort()
+                        if ind_dest_class == current_class and ind_dest_session == current_session:
+                            if current_student_section not in all_existing_sections:
+                                all_existing_sections.append(current_student_section)
+                                all_existing_sections.sort()
 
-                        col_i1, col_i2, col_i3 = st.columns(3)
-                        with col_i1:
-                            ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
-                        with col_i2:
-                            ind_dest_class = st.selectbox("📚 Target Class Level:", all_classes, index=all_classes.index(current_class) if current_class in all_classes else 0, key="ind_cls_pick")
                         with col_i3:
-                            # UPDATED: Swapped text_input for a drop-down list tracking valid options
+                            # UPDATED: Dropdown now uses dynamically filtered choices
                             ind_dest_section = st.selectbox(
                                 "📐 Target Section:", 
                                 options=all_existing_sections,
