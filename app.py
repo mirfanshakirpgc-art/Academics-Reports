@@ -727,7 +727,6 @@ elif menu_choice == "➕ Add Students":
         if not bulk_manage_sections:
             st.info(f"ℹ️ No active cohort sections detected matching global parameters (Session: {global_session}, System: {clean_global_system}).")
         else:
-            # FIXED LINE HERE: Properly formed selectbox without dangling syntax
             source_section = st.selectbox("📁 Target Operational Source Section Layer:", bulk_manage_sections, key="bulk_src_sec_pick")
             
             try:
@@ -776,7 +775,7 @@ elif menu_choice == "➕ Add Students":
                                 AND section = :src_sec 
                                 AND UPPER(status) = 'ACTIVE'
                             """), {
-                                "dest_sess": batch_dest_session, "dest_cls": batch_dest_class, "dest_sec": batch_dest_section,
+                                "dest_sess": str(batch_dest_session), "dest_cls": str(batch_dest_class), "dest_sec": str(batch_dest_section),
                                 "src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section
                             })
                         st.success(f"⚡ Batch shifting processing executed on {batch_count} profiles.")
@@ -909,14 +908,18 @@ elif menu_choice == "➕ Add Students":
                     try:
                         with engine.begin() as conn:
                             for _, r in edited_grid_df.iterrows():
+                                # FIX: Wrapped in explicit int() / str() casts to bypass numpy.int64 adapt errors
                                 conn.execute(text("""
                                     UPDATE students 
                                     SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2
                                     WHERE id = :id
                                 """), {
-                                    "name": str(r['name']).strip().upper(), "fname": str(r['father_name']).strip().upper(),
-                                    "wa": str(r['whatsapp_number']).strip(), "c1": str(r['contact_1']).strip(),
-                                    "c2": str(r['contact_2']).strip(), "id": int(r['id'])
+                                    "name": str(r['name']).strip().upper(), 
+                                    "fname": str(r['father_name']).strip().upper(),
+                                    "wa": str(r['whatsapp_number']).strip(), 
+                                    "c1": str(r['contact_1']).strip(),
+                                    "c2": str(r['contact_2']).strip(), 
+                                    "id": int(r['id'])
                                 })
                         st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
                         st.rerun()
