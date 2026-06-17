@@ -645,38 +645,41 @@ elif menu_choice == "➕ Add Students":
                                         UPDATE students SET session = :sess, class = :cls, section = :sec 
                                         WHERE id = :id
                                     """), {"sess": mut_session, "cls": mut_class, "sec": mut_section, "id": student_native_id})
-                                st.success("🎯 Base metrics updated successfully!"); st.rerun()
+                                st.success("🎯 Base metrics updated successfully!")
+                                st.rerun()
                                 
                         with b_col2:
                             if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
                                 next_class = "12th" if student['class'] == "11th" else "Graduated"
                                 with engine.begin() as conn:
                                     conn.execute(text("UPDATE students SET class = :cls WHERE id = :id"), {"cls": next_class, "id": student_native_id})
-                                st.success(f"🎉 Promoted to {next_class}!"); st.rerun()
+                                st.success(f"🎉 Promoted to {next_class}!")
+                                st.rerun()
                                 
                         with b_col3:
                             if st.button("🟢 Set Active / Restore", use_container_width=True):
                                 with engine.begin() as conn:
                                     conn.execute(text("UPDATE students SET status = 'ACTIVE' WHERE id = :id"), {"id": student_native_id})
-                                st.success("Profile restored to active framework!"); st.rerun()
+                                st.success("Profile restored to active framework!")
+                                st.rerun()
                                 
                         with b_col4:
                             if st.button("🗑️ Delete Profile Entry", use_container_width=True, type="secondary"):
-                    try:
-                                with engine.begin() as conn:
-                # Step 1: Wipe historical attendance dependencies first
-                                conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                
-                # Step 2: Delete any exam mark references if they exist
-                # conn.execute(text("DELETE FROM exam_marks WHERE student_id = :id"), {"id": student_native_id})
-                
-                # Step 3: Permanently erase the primary student profile record
-                                conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                
-                        st.error(f"💥 Success! Roll Number {student_native_id} has been completely erased from the system.")
-                        st.rerun()
-                        except Exception as delete_err:
-                        st.error(f"❌ Failed to purge student: {delete_err}")
+                                try:
+                                    with engine.begin() as conn:
+                                        # Step 1: Wipe historical attendance dependencies first
+                                        conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
+                                        
+                                        # Step 2: Delete any exam mark references if they exist
+                                        # conn.execute(text("DELETE FROM exam_marks WHERE student_id = :id"), {"id": student_native_id})
+                                        
+                                        # Step 3: Permanently erase the primary student profile record
+                                        conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+                                        
+                                    st.error(f"💥 Success! Roll Number {student_native_id} has been completely erased from the system.")
+                                    st.rerun()
+                                except Exception as delete_err:
+                                    st.error(f"❌ Failed to purge student database entries: {delete_err}")
                         
                         # Inline Edit Sub-Form Layer
                         st.markdown("---")
@@ -698,7 +701,8 @@ elif menu_choice == "➕ Add Students":
                                         "name": edit_name.strip().upper(), "fname": edit_fname.strip().upper(),
                                         "wa": edit_wa.strip(), "c1": edit_c1.strip(), "c2": edit_c2.strip(), "id": student_native_id
                                     })
-                                st.success("🎉 Student bio registry payload altered successfully!"); st.rerun()
+                                st.success("🎉 Student bio registry payload altered successfully!")
+                                st.rerun()
                                 
                 except Exception as single_err:
                     st.error(f"Execution Error: {single_err}")
