@@ -680,8 +680,7 @@ with manage_tab1:
                                 st.success(f"🎉 Student promoted to {next_class}!")
                                 st.rerun()
                             except Exception as e:
-                                r_err = e
-                                st.error(f"Execution Error: {r_err}")
+                                st.error(f"Execution Error: {e}")
 
                     with btn_col3:
                         if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
@@ -715,7 +714,7 @@ with manage_tab1:
                             except Exception as e:
                                 st.error(f"Execution Error: {e}")
                                 
-                    # Secondary standalone row for destructive complete profile deletion
+                    # Destructive section
                     st.markdown("---")
                     if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
                         try:
@@ -729,7 +728,7 @@ with manage_tab1:
             except Exception as db_err:
                 st.error(f"Database Subsystem Error: {db_err}")
     else:
-        st.write("💡 *Awaiting entry processing parameters to target workspace variables.*")
+        st.write("💡 *Awaiting input parameters inside workspace workspace view.*")
     # --------------------------------------------------------------------------------
     # SCOPE B: COMPLETE SECTION BULK MASS-TARGETING SUITE
     # --------------------------------------------------------------------------------
