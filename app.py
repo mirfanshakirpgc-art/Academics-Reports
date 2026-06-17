@@ -713,27 +713,30 @@ elif menu_choice == "➕ Add Students":
     with manage_tab2:
         st.markdown("#### 🏢 Bulk Group Operations")
         
+        # ISOLATED VARIABLE: Changed from available_sections to bulk_manage_sections
+        bulk_manage_sections = []
+        
         try:
             with engine.connect() as connection:
-                # FIXED: Using UPPER(status) so it catches 'Active', 'ACTIVE', or 'active'
                 sec_query = text("""
                     SELECT DISTINCT section FROM students 
                     WHERE session = :sess 
                     AND system_type = :syst 
                     AND UPPER(status) = 'ACTIVE'
                 """)
-                available_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
+                # Store strictly inside our isolated list
+                bulk_manage_sections = [r[0] for r in connection.execute(sec_query, {"sess": global_session, "syst": clean_global_system}).fetchall()]
         except Exception:
-            available_sections = []
+            bulk_manage_sections = []
             
-        if not available_sections:
+        if not bulk_manage_sections:
             st.info(f"ℹ️ No active cohort sections detected matching global parameters (Session: {global_session}, System: {clean_global_system}).")
         else:
-            source_section = st.selectbox("📁 Target Operational Source Section Layer:", available_sections, key="bulk_src_sec_pick")
+            # FIXED: Pointing selectbox to use our isolated bulk_manage_sections list
+            source_section = st.selectbox("📁 Target Operational Source Section Layer:", bulk_manage_sections, key="bulk_src_sec_pick")
             
             try:
                 with engine.connect() as connection:
-                    # FIXED: Added UPPER(status) here as well to properly count the group size
                     count_res = connection.execute(text("""
                         SELECT COUNT(*) FROM students 
                         WHERE session = :sess 
@@ -765,7 +768,6 @@ elif menu_choice == "➕ Add Students":
                 with c_btn1:
                     if st.button("🔄 Execute Mass Relocations", use_container_width=True, help="Updates Session, Class, and Section indicators across the target segment group", key="bulk_relo_btn"):
                         with engine.begin() as conn:
-                            # FIXED: Adjusted WHERE clause targeting to catch any variation of 'Active'
                             conn.execute(text("""
                                 UPDATE students 
                                 SET session = :dest_sess, class = :dest_cls, section = :dest_sec
@@ -783,7 +785,6 @@ elif menu_choice == "➕ Add Students":
                 with c_btn2:
                     if st.button("🚀 Group Mass Promotion", use_container_width=True, type="primary", key="bulk_promo_btn"):
                         with engine.begin() as conn:
-                            # FIXED: Adjusted WHERE clause targeting
                             conn.execute(text("""
                                 UPDATE students 
                                 SET class = CASE WHEN class = '11th' THEN '12th' ELSE 'Graduated' END
@@ -800,7 +801,6 @@ elif menu_choice == "➕ Add Students":
                     if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
                         try:
                             with engine.begin() as conn:
-                                # FIXED: Adjusted nested subquery filter strings for attendance deletion
                                 conn.execute(text("""
                                     DELETE FROM daily_attendance 
                                     WHERE student_id IN (
@@ -812,7 +812,6 @@ elif menu_choice == "➕ Add Students":
                                     )
                                 """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
                                 
-                                # FIXED: Adjusted master cleanup execution step
                                 conn.execute(text("""
                                     DELETE FROM students 
                                     WHERE session = :src_sess 
@@ -832,7 +831,6 @@ elif menu_choice == "➕ Add Students":
                 st.warning("⚠️ Manual shifts below rewrite data profiles independently. Modify carefully.")
                 
                 with engine.connect() as connection:
-                    # FIXED: Adjusted preview retrieval filters
                     raw_grid_query = text("""
                         SELECT id, name, father_name, whatsapp_number, contact_1, contact_2 
                         FROM students 
@@ -843,7 +841,6 @@ elif menu_choice == "➕ Add Students":
                     """)
                     grid_df = pd.read_sql(raw_grid_query, connection, params={"sess": global_session, "syst": clean_global_system, "sec": source_section})
                 
-                # Render editable data frame using native Streamlit component logic
                 edited_grid_df = st.data_editor(grid_df, disabled=["id"], key="section_data_mass_editor_grid", use_container_width=True)
                 
                 if st.button("💾 Commit Global Grid Data Updates", use_container_width=True, type="primary"):
