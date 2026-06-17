@@ -643,7 +643,6 @@ elif menu_choice == "➕ Add Students":
                         # DYNAMIC CONTEXTUAL FILTERING BASED ON SESSION RULES
                         all_existing_sections = []
                         
-                        # Flatten all section values out of your map reference dictionary
                         for discipline, classes_dict in DISCIPLINE_SECTIONS_MAP.items():
                             for class_level, sections_list in classes_dict.items():
                                 for sec in sections_list:
@@ -664,21 +663,19 @@ elif menu_choice == "➕ Add Students":
                                         if sec not in all_existing_sections:
                                             all_existing_sections.append(sec)
 
-                        # Sort alphabetical list layout 
                         all_existing_sections.sort()
 
-                        # Fail-safe structural default array fallback if filters yield empty sets
+                        # Fail-safe fallback if filtered set is empty
                         if not all_existing_sections:
                             all_existing_sections = ["A", "B", "C"]
 
-                        # Guarantee loaded entry profile data index consistency
+                        # Guarantee current configuration value inclusion to prevent Streamlit internal index errors
                         current_student_section = str(student['section']).strip().upper()
                         if current_student_section not in all_existing_sections:
                             all_existing_sections.append(current_student_section)
                             all_existing_sections.sort()
 
                         with col_i3:
-                            # Context-Filtered Target Dropdown List Selection Workspace
                             ind_dest_section = st.selectbox(
                                 "📐 Target Section:", 
                                 options=all_existing_sections,
@@ -707,6 +704,74 @@ elif menu_choice == "➕ Add Students":
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Execution Error: {e}")
+                                    
+                        with btn_col2:
+                            if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
+                                try:
+                                    next_class = "12th" if current_class == "11th" else "Graduated"
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET class = :cls
+                                            WHERE id = :id
+                                        """), {
+                                            "cls": next_class, 
+                                            "id": student_native_id
+                                        })
+                                    st.success(f"🎉 Student promoted to {next_class}!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
+
+                        with btn_col3:
+                            if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET status = 'LEFT'
+                                            WHERE id = :id
+                                        """), {
+                                            "id": student_native_id
+                                        })
+                                    st.warning(f"📉 Student {student_native_id} status altered to LEFT.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
+
+                        with btn_col4:
+                            if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET status = 'ACTIVE'
+                                            WHERE id = :id
+                                        """), {
+                                            "id": student_native_id
+                                        })
+                                    st.success(f"🍏 Student {student_native_id} status altered to ACTIVE.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Execution Error: {e}")
+                                    
+                        # Destructive section
+                        st.markdown("---")
+                        if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
+                                    conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+                                st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Execution Error: {e}")
+
+                except Exception as db_err:
+                    st.error(f"Database Subsystem Error: {db_err}")
+        else:
+            st.write("💡 *Awaiting entry processing parameters to target workspace variables.*")
+
     # --------------------------------------------------------------------------------
     # SCOPE B: COMPLETE SECTION BULK MASS-TARGETING SUITE
     # --------------------------------------------------------------------------------
