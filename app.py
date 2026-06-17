@@ -750,7 +750,7 @@ elif menu_choice == "➕ Add Students":
                     batch_dest_section = st.text_input("📐 Batch Section Designation Mutation:", value=source_section, key="b_dest_sec").strip().upper()
                 
                 # Mass Execution Pipelines
-                c_btn1, c_btn2, c_btn3, c_btn4 = st.columns(4)
+                c_btn1, c_btn2, c_btn3 = st.columns(3)
                 
                 with c_btn1:
                     if st.button("🔄 Execute Mass Relocations", use_container_width=True, help="Updates Session, Class, and Section indicators across the target segment group", key="bulk_relo_btn"):
@@ -763,7 +763,8 @@ elif menu_choice == "➕ Add Students":
                                 "dest_sess": batch_dest_session, "dest_cls": batch_dest_class, "dest_sec": batch_dest_section,
                                 "src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section
                             })
-                        st.success(f"⚡ Batch shifting processing executed on {batch_count} profiles."); st.rerun()
+                        st.success(f"⚡ Batch shifting processing executed on {batch_count} profiles.")
+                        st.rerun()
                         
                 with c_btn2:
                     if st.button("🚀 Group Mass Promotion", use_container_width=True, type="primary", key="bulk_promo_btn"):
@@ -773,20 +774,35 @@ elif menu_choice == "➕ Add Students":
                                 SET class = CASE WHEN class = '11th' THEN '12th' ELSE 'Graduated' END
                                 WHERE session = :src_sess AND system_type = :src_syst AND section = :src_sec AND status = 'ACTIVE'
                             """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                        st.success("🎉 Complete group advancement framework successfully processed!"); st.balloons(); st.rerun()
+                        st.success("🎉 Complete group advancement framework successfully processed!")
+                        st.balloons()
+                        st.rerun()
                         
                 with c_btn3:
-                    if st.button("🗑️ Purge Complete Group", use_container_width=True, type="secondary", key="bulk_del_btn", help="Deletes entire section registry"):
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                DELETE FROM students 
-                                WHERE session = :src_sess AND system_type = :src_syst AND section = :src_sec AND status = 'ACTIVE'
-                            """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                        st.error("❌ Target subset configuration purged entirely from ledger storage matrices."); st.rerun()
-                
-                with c_btn4:
-                    st.caption("💡 Operational Hint")
-                    st.info("Promotions scale classes automatically.")
+                    if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
+                        try:
+                            with engine.begin() as conn:
+                                # Step 1: Wipe attendance entries for everyone nested in this section criteria to satisfy foreign keys
+                                conn.execute(text("""
+                                    DELETE FROM daily_attendance 
+                                    WHERE student_id IN (
+                                        SELECT id FROM students 
+                                        WHERE session = :src_sess AND system_type = :src_syst AND section = :src_sec AND status = 'ACTIVE'
+                                    )
+                                """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                                
+                                # Step 2: Clear any other extra relational tables here if needed (e.g. exam_marks)
+                                
+                                # Step 3: Permanently remove the master student profiles themselves
+                                conn.execute(text("""
+                                    DELETE FROM students 
+                                    WHERE session = :src_sess AND system_type = :src_syst AND section = :src_sec AND status = 'ACTIVE'
+                                """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                                
+                            st.error(f"💥 Complete Purge Success! Section '{source_section}' and all associated attendance histories were entirely deleted.")
+                            st.rerun()
+                        except Exception as batch_del_err:
+                            st.error(f"❌ Failed to drop section database records: {batch_del_err}")
 
                 # Complete Section Inline Data Grid Editing Mechanism
                 st.markdown("---")
@@ -815,9 +831,10 @@ elif menu_choice == "➕ Add Students":
                                 """), {
                                     "name": str(r['name']).strip().upper(), "fname": str(r['father_name']).strip().upper(),
                                     "wa": str(r['whatsapp_number']).strip(), "c1": str(r['contact_1']).strip(),
-                                    "c2": str(r['contact_2']).strip(), "id": int(r['id']) # Strict typecast to native Python int
+                                    "c2": str(r['contact_2']).strip(), "id": int(r['id'])
                                 })
-                        st.success("🎉 Complete batch modifications integrated into persistent data layers flawlessly!"); st.rerun()
+                        st.success("🎉 Complete batch modifications integrated into persistent data layers flawlessly!")
+                        st.rerun()
                     except Exception as grid_save_err:
                         st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
 # ====================================================================================
