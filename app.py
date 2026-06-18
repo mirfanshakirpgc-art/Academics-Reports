@@ -1062,7 +1062,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         st.info(f"🔒 Account Locked Subject Profile: **{selected_subject}**")
     else:
         # Admins get full clearance to select any subject from a dropdown menu
-        all_subjects = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Mathematics"]
+        all_subjects = ["English", "Urdu", "Physics", "Chemistry", "Biology", "Mathematics", "Computer Science", "Statistics"]
         selected_subject = st.selectbox("🎯 Select Target Subject:", all_subjects)
 
     # Keep your original entry workflow selection below the subject filter
@@ -1130,7 +1130,134 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # WORKFLOW MODE A: BY COMPLETE SECTION
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
-        st.write("Mode A")
+        st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
+        st.subheader("📋 Section-Wide Performance Evaluation Roster")
+        
+        # Grid Controls for locating the targeted section
+        sec_col1, sec_col2, sec_col3, sec_col4 = st.columns(4)
+        with sec_col1:
+            chosen_session = st.selectbox("Academic Session:", session_options, key="section_workflow_session")
+        with sec_col2:
+            chosen_class = st.selectbox("Class Level:", ["11th", "12th"], key="section_workflow_class")
+        with sec_col3:
+            chosen_section = st.text_input("Section ID:", placeholder="e.g., A, B, MED-G1", key="section_workflow_sec_name").strip().upper()
+        with sec_col4:
+            chosen_exam = st.selectbox("Exam / Test Cycle:", all_frameworks, key="section_workflow_exam_cycle")
+            
+        marks_col1, marks_col2 = st.columns(2)
+        with marks_col1:
+            section_max_marks = st.number_input("Maximum Score Scale Limit:", min_value=1, max_value=2000, value=100, step=1, key="section_workflow_max_scale")
+            
+        if chosen_section:
+            # Query active student array assigned within this clear context framework 
+            roster_students = run_query("""
+                SELECT id, name, status FROM students 
+                WHERE UPPER(TRIM(session)) = :sess 
+                  AND UPPER(TRIM(class)) = :cls 
+                  AND UPPER(TRIM(section)) = :sec 
+                  AND status = 'ACTIVE'
+                ORDER BY id ASC
+            """, {"sess": chosen_session.strip().upper(), "cls": chosen_class.strip().upper(), "sec": chosen_section})
+            
+            if roster_students.empty:
+                st.warning(f"⚠️ No active matching profile records found for Class {chosen_class} | Section {chosen_section} ({chosen_session}).")
+            else:
+                st.info(f"📋 Found **{len(roster_students)}** active students inside section framework ledger. Input marks for **{selected_subject.upper()}** below.")
+                
+                target_exam_slug = str(chosen_exam).strip().upper()
+                sub_slug = str(selected_subject).strip().upper().replace(" ", "_")
+                
+                with st.form(key=f"section_bulk_evaluation_form_{chosen_section}_{target_exam_slug}"):
+                    # Roster Header Formatting
+                    h_cols = st.columns([1.5, 3.5, 2.5, 1.2, 1.2])
+                    h_cols[0].caption("🆔 **Roll Number**")
+                    h_cols[1].caption("👤 **Student Name**")
+                    h_cols[2].caption("🔢 **Marks Obtained**")
+                    h_cols[3].caption("❌ **Absent**")
+                    h_cols[4].caption("➖ **NC**")
+                    st.markdown("<hr style='margin:2px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
+                    # Generate dynamic collection storage row trackers
+                    form_input_trackers = []
+                    
+                    for idx, row in roster_students.iterrows():
+                        stu_id = int(row['id'])
+                        stu_name = str(row['name']).upper()
+                        
+                        # Verify existing database logs
+                        existing_mark_df = run_query("""
+                            SELECT marks_obtained FROM marks 
+                            WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam
+                        """, {"s_id": stu_id, "sub": sub_slug, "exam": target_exam_slug})
+                        
+                        db_score = str(existing_mark_df.iloc[0]['marks_obtained']).strip().upper() if not existing_mark_df.empty else ""
+                        
+                        # Generate structured context keys
+                        r_abs_key = f"sec_abs_{stu_id}_{sub_slug}_{target_exam_slug}"
+                        r_nc_key = f"sec_nc_{stu_id}_{sub_slug}_{target_exam_slug}"
+                        r_mark_key = f"sec_mark_in_{stu_id}_{sub_slug}_{target_exam_slug}"
+                        
+                        if r_abs_key not in st.session_state:
+                            st.session_state[r_abs_key] = (db_score in ['A', 'ABSENT'])
+                        if r_nc_key not in st.session_state:
+                            st.session_state[r_nc_key] = (db_score == 'NC')
+                            
+                        chk_abs = st.session_state[r_abs_key]
+                        chk_nc = st.session_state[r_nc_key]
+                        is_dis = chk_abs or chk_nc
+                        display_val = "A" if chk_abs else ("NC" if chk_nc else ("" if db_score in ['A', 'ABSENT', 'NC'] else db_score))
+                        
+                        with st.container():
+                            r_cols = st.columns([1.5, 3.5, 2.5, 1.2, 1.2])
+                            r_cols[0].markdown(f"<div class='vertical-align-center'><code>{stu_id}</code></div>", unsafe_allow_html=True)
+                            r_cols[1].markdown(f"<div class='vertical-align-center'><b>{stu_name}</b></div>", unsafe_allow_html=True)
+                            
+                            with r_cols[2]:
+                                st.text_input(f"m_field_{stu_id}", value=display_val, key=r_mark_key, label_visibility="collapsed", disabled=is_dis, placeholder="Score")
+                            with r_cols[3]:
+                                st.checkbox("ABS", key=r_abs_key, label_visibility="collapsed")
+                            with r_cols[4]:
+                                st.checkbox("NC", key=r_nc_key, label_visibility="collapsed")
+                                
+                        form_input_trackers.append({"id": stu_id, "mark_key": r_mark_key, "abs_key": r_abs_key, "nc_key": r_nc_key})
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    submit_section_roster = st.form_submit_button("💾 Commit Section Performance Ledger Updates", type="primary", use_container_width=True)
+                    
+                    if submit_section_roster:
+                        success_count = 0
+                        for tracker in form_input_trackers:
+                            s_id = tracker["id"]
+                            is_a = st.session_state.get(tracker["abs_key"], False)
+                            is_nc = st.session_state.get(tracker["nc_key"], False)
+                            raw_score = st.session_state.get(tracker["mark_key"], "").strip().upper()
+                            
+                            final_score = "A" if is_a else ("NC" if is_nc else raw_score)
+                            
+                            execute_db_command("""
+                                DELETE FROM marks 
+                                WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam
+                            """, {"s_id": s_id, "sub": sub_slug, "exam": target_exam_slug})
+                            
+                            if final_score != "":
+                                execute_db_command("""
+                                    INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                    VALUES (:s_id, :sub, :exam, :score, :total)
+                                """, {
+                                    "s_id": s_id,
+                                    "sub": sub_slug,
+                                    "exam": target_exam_slug,
+                                    "score": final_score,
+                                    "total": float(section_max_marks)
+                                })
+                                success_count += 1
+                                
+                        st.success(f"🎉 Roster committed! Saved performance evaluations for {success_count} students inside database tracking layers.")
+                        import time
+                        time.sleep(1.2)
+                        st.rerun()
+                        
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ====================================================================================
     # WORKFLOW MODE C: BULK EXCEL/CSV IMPORT
