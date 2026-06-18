@@ -1533,10 +1533,107 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         st.rerun()
         # This belongs inside the 'Single Entry' block (indented 8 spaces)
         st.markdown('</div>', unsafe_allow_html=True)
+    # ====================================================================================
+    # WORKFLOW MODE C: BULK EXCEL / CSV LEDGER IMPORT
+    # ====================================================================================
+    elif entry_mode == "📤 Bulk Excel/CSV Import":
+        st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
+        st.subheader("📤 Dynamic Bulk Marks Sheet Processor")
+        st.markdown("""
+        Upload a structured spreadsheet file containing system records to overwrite marks metrics simultaneously.
+        """)
+        
+        # Guide documentation to help avoid data formatting errors
+        with st.expander("📋 View Expected Spreadsheet Format Blueprint", expanded=False):
+            st.info("💡 **Important:** Your file must contain exactly these header names:")
+            sample_blueprint = pd.DataFrame([{
+                "student_id": 1001,
+                "subject": "ENGLISH",
+                "exam_type": "MT_1",
+                "marks_obtained": "85",
+                "total_marks": 100
+            }])
+            st.dataframe(sample_blueprint)
+            st.caption("⚠️ Note: For absent records use **'A'**, for Not Cleared use **'NC'** inside marks_obtained column.")
 
-    elif entry_mode == "📊 Bulk Excel/CSV Import":
-        st.subheader("📊 Bulk Marks Import Portal")
-        # Your bulk import code continues here...
+        # File Intake Widget
+        uploaded_file = st.file_uploader(
+            "Choose a spreadsheet file to upload (.csv or .xlsx)", 
+            type=["csv", "xlsx"], 
+            key="bulk_marks_importer_widget"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Parse data cleanly using Pandas matching upload extension type
+                if uploaded_file.name.endswith('.csv'):
+                    bulk_df = pd.read_csv(uploaded_file)
+                else:
+                    bulk_df = pd.read_excel(uploaded_file)
+                
+                # Sanitize text spacing headers
+                bulk_df.columns = [str(col).strip().lower() for col in bulk_df.columns]
+                
+                st.markdown("### 🔍 Uploaded Data Ledger Preview")
+                st.dataframe(bulk_df.head(10), use_container_width=True)
+                
+                # Structural columns validation check matching database logic schema
+                required_cols = ["student_id", "subject", "exam_type", "marks_obtained", "total_marks"]
+                missing_cols = [col for col in required_cols if col not in bulk_df.columns]
+                
+                if missing_cols:
+                    st.error(f"❌ Structural Rejection: Missing necessary system metrics: {missing_cols}")
+                else:
+                    col_act1, col_act2 = st.columns([4, 1])
+                    with col_act1:
+                        st.warning("⚠️ Warning: Executing this batch will overwrite existing records for matching IDs, Subjects, and Exam Types.")
+                    
+                    if st.button("🚀 Execute Massive Data Injection", use_container_width=True, type="primary"):
+                        import time
+                        success_row_count = 0
+                        error_row_count = 0
+                        
+                        # Loop through and upsert individual record structures
+                        for idx, row in bulk_df.iterrows():
+                            try:
+                                s_id = int(row["student_id"])
+                                sub_slug = str(row["subject"]).strip().upper().replace(" ", "_")
+                                exam_slug = str(row["exam_type"]).strip().upper()
+                                score_raw = str(row["marks_obtained"]).strip().upper()
+                                total_m = float(row["total_marks"])
+                                
+                                # 1. Clean existing record match to prevent unique violation
+                                execute_db_command("""
+                                    DELETE FROM marks 
+                                    WHERE student_id = :s_id 
+                                      AND UPPER(TRIM(subject)) = :sub 
+                                      AND UPPER(TRIM(exam_type)) = :exam
+                                """, {"s_id": s_id, "sub": sub_slug, "exam": exam_slug})
+                                
+                                # 2. Insert sanitized payload rows if not empty
+                                if score_raw != "":
+                                    execute_db_command("""
+                                        INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                        VALUES (:s_id, :sub, :exam, :score, :total)
+                                    """, {"s_id": s_id, "sub": sub_slug, "exam": exam_slug, "score": score_raw, "total": total_m})
+                                
+                                success_row_count += 1
+                            except Exception as row_error:
+                                error_row_count += 1
+                                continue
+                        
+                        if success_row_count > 0:
+                            st.success(f"🎉 Success! {success_row_count} student grade tracks synchronized completely.")
+                        if error_row_count > 0:
+                            st.error(f"⚠️ Warning: {error_row_count} row data parsing configurations encountered failures.")
+                            
+                        time.sleep(1.5)
+                        st.rerun()
+                        
+            except Exception as system_parse_err:
+                st.error(f"❌ Internal Processing Fault: File parsing failed due to unexpected structural issue. Details: {system_parse_err}")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 # ==============================================================================
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
