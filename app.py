@@ -5035,14 +5035,15 @@ elif menu_choice == "⚙️ Settings":
         except Exception as e:
             st.warning(f"Could not sync with Teacher Management profiles table: {e}")
 
-        # Compute dynamic subject pool
-        computed_subject_pool = ["Global (All Subjects)"]
+        # Compute dynamic subject pool (excluding the "Global" placeholder for cleaner multi-select)
+        computed_subject_pool = []
         if 'CLASS_SUBJECTS_MASTER_MAP' in locals() or 'CLASS_SUBJECTS_MASTER_MAP' in globals():
             for class_key, discipline_map in CLASS_SUBJECTS_MASTER_MAP.items():
                 for disc_key, subject_list in discipline_map.items():
                     for subject in subject_list:
                         if subject not in computed_subject_pool:
                             computed_subject_pool.append(subject)
+        computed_subject_pool.sort()
         
         try:
             users_df = run_query("""
@@ -5057,10 +5058,12 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("### 📋 System Profiles & Active Access Permissions")
         if not users_df.empty:
             view_df = users_df.copy()
+            # Fallback formatting for visual presentation
+            view_df['assigned_subject'] = view_df['assigned_subject'].fillna("Global (All Subjects)")
             for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_enter_marks', 'can_edit_marks']:
                 view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) or str(x) in ['1', 'True', 'true'] else "❌ Denied")
             
-            view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role", "Subject Allotment", "Class Incharge Scope",
+            view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role", "Subject Allotment(s)", "Class Incharge Scope",
                                "User Control", "System Configuration", "Faculty Management", "Grades Entry", "Grades Override/Edit"]
             st.dataframe(view_df, use_container_width=True, hide_index=True)
 
@@ -5081,10 +5084,10 @@ elif menu_choice == "⚙️ Settings":
             with c_col2:
                 new_role = st.selectbox("🏷️ Core Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], key="c_role_sel")
                 if new_role == "Faculty":
-                    new_subject = st.selectbox("📚 Allot Subject Scope:", computed_subject_pool, key="c_sub_sel")
+                    new_subjects_list = st.multiselect("📚 Allot Subject Scope (Select Multiple):", options=computed_subject_pool, key="c_sub_sel")
                     new_class = st.selectbox("🏢 Assign Class Incharge Role:", ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="c_class_sel")
                 else:
-                    new_subject = "Global (All Subjects)"
+                    new_subjects_list = []
                     new_class = "None"
                     st.text_input("📚 Subject Scope:", value="Global (All Subjects)", disabled=True, key="c_sub_dis")
                     st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="c_class_dis")
@@ -5103,7 +5106,8 @@ elif menu_choice == "⚙️ Settings":
                     st.warning(f"⚠️ A profile configuration for '{new_username}' already exists. Go to the 'Edit User & System Rights' tab if you want to modify their permissions.")
                 else:
                     try:
-                        clean_sub = None if new_subject == "Global (All Subjects)" else new_subject
+                        # Pack list into a cleanly formatted comma separated string or remain NULL for global scope
+                        clean_sub = ", ".join(new_subjects_list) if (new_role == "Faculty" and new_subjects_list) else None
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
@@ -5142,17 +5146,21 @@ elif menu_choice == "⚙️ Settings":
                     edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
                     
                     if edit_role == "Faculty":
-                        current_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
-                        try: current_sub_idx = computed_subject_pool.index(current_sub)
-                        except ValueError: current_sub_idx = 0
-                        edit_subject = st.selectbox("📚 Course Scope Visibility:", computed_subject_pool, index=current_sub_idx, key="e_sub_sel")
+                        # Unpack CSV string from DB back into a proper python list matching multi-select components
+                        db_sub_val = meta_row['assigned_subject']
+                        if db_sub_val:
+                            default_selected_subjects = [s.strip() for s in db_sub_val.split(",") if s.strip() in computed_subject_pool]
+                        else:
+                            default_selected_subjects = []
+                            
+                        edit_subjects_list = st.multiselect("📚 Course Scope Visibility:", options=computed_subject_pool, default=default_selected_subjects, key="e_sub_sel")
                         
                         class_opts = ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
                         current_cls = meta_row['assigned_class'] if meta_row['assigned_class'] else "None"
                         current_cls_idx = class_opts.index(current_cls) if current_cls in class_opts else 0
                         edit_class = st.selectbox("🏢 Change Class Incharge Duty:", class_opts, index=current_cls_idx, key="e_class_sel")
                     else:
-                        edit_subject = "Global (All Subjects)"
+                        edit_subjects_list = []
                         edit_class = "None"
                         st.text_input("📚 Course Scope:", value="Global (All Subjects)", disabled=True, key="e_sub_dis")
                         st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="e_class_dis")
@@ -5169,7 +5177,6 @@ elif menu_choice == "⚙️ Settings":
                     e_m_mrk = st.checkbox("Can Edit/Modify Existing Marks", value=bool(has_edt_priv), key="e_p4_edt")
 
                 if st.button("💾 Save Updated Profile Configurations", type="primary", use_container_width=True):
-                    # 🛡️ DUP CHECK ON EDIT: Ensure the name isn't already taken by ANOTHER profile ID
                     conflicting_user = users_df[(users_df["username"] == edit_username) & (users_df["id"] != int(meta_row['id']))]
                     
                     if not edit_username or not edit_password:
@@ -5178,7 +5185,8 @@ elif menu_choice == "⚙️ Settings":
                         st.warning(f"⚠️ Cannot update profile. The username '{edit_username}' is already linked to a different login profile ID.")
                     else:
                         try:
-                            clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
+                            # Re-pack updating multi-select fields down to string format
+                            clean_sub = ", ".join(edit_subjects_list) if (edit_role == "Faculty" and edit_subjects_list) else None
                             clean_cls = None if edit_class == "None" else edit_class
                             
                             with engine.begin() as conn:
