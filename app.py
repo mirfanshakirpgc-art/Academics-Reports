@@ -4091,15 +4091,16 @@ elif menu_choice == "⚙️ Settings":
     current_user = st.session_state.get('username', 'admin')
     current_role = st.session_state.get('role', 'controller') 
     
-    # Enforce role-based structural routing arrays (Appended new modules)
-    if current_role == 'controller':
+    # Enforce role-based structural routing arrays (Appended user control terminal)
+    if current_role == 'controller' or current_role == 'Admin':
         settings_options = [
             "📝 Faculty Registration", 
             "📅 Sessions & Terms", 
             "🗂️ Section Master", 
             "📑 Test & Exam Frameworks",
             "🧬 Add Disciplines",
-            "📚 Add Subject Mapping"
+            "📚 Add Subject Mapping",
+            "👥 User Access Control"  # 👈 Added module to the view list
         ]
     else:
         settings_options = [
@@ -4108,7 +4109,8 @@ elif menu_choice == "⚙️ Settings":
             "🗂️ Section Master", 
             "📑 Test & Exam Frameworks",
             "🧬 Add Disciplines",
-            "📚 Add Subject Mapping"
+            "📚 Add Subject Mapping",
+            "👥 User Access Control"  # 👈 Added module to fallback views as well
         ]
         
     sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
@@ -4150,6 +4152,9 @@ elif menu_choice == "⚙️ Settings":
         pass
 
     elif sub_menu == "📚 Add Subject Mapping":
+        pass
+
+    elif sub_menu == "👥 User Access Control":  # 👈 Added Router Link here
         pass
 
     # ==============================================================================
@@ -4877,3 +4882,73 @@ elif menu_choice == "⚙️ Settings":
                             st.error(f"❌ Deletion process failure: {err}")
         else:
             st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
+    # ==============================================================================
+    # 👥 SUB-MODULE 6: MASTER USER ACCESS TERMINAL (SUPABASE)
+    # ==============================================================================
+    elif sub_menu == "👥 User Access Control":
+        st.subheader("👥 System User Access Console")
+        st.markdown("Manage system access accounts, passwords, and permissions profiles directly below.")
+        
+        # 1. Fetch current live users from Supabase/Database
+        try:
+            users_df = run_query("SELECT id, username, password, role, assigned_subject FROM app_users ORDER BY id ASC")
+            st.subheader("📋 Current Active System Accounts")
+            st.dataframe(users_df, use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.error(f"Failed to fetch users database: {e}")
+            users_df = None
+
+        # 2. Tabs to Add or Delete accounts
+        tab1, tab2 = st.tabs(["➕ Create New User Account", "❌ Terminate User Account"])
+        
+        with tab1:
+            st.markdown("##### Account Authorization Blueprint")
+            uc1, uc2 = st.columns(2)
+            with uc1:
+                new_user = st.text_input("👤 Desired Username:", key="new_username_input").strip()
+                new_role = st.selectbox("🎯 Assign System Role:", ["Admin", "Teacher", "Viewer"], key="new_role_select")
+            with uc2:
+                new_pass = st.text_input("🔑 Assign Secure Password:", key="new_password_input").strip()
+                all_subjects = ["NULL", "Physics", "Chemistry", "English", "Mathematics"]
+                
+                if new_role == "Teacher":
+                    new_sub = st.selectbox("📚 Link Assigned Subject Profile:", all_subjects[1:], key="new_sub_select")
+                else:
+                    new_sub = "NULL"
+                    st.caption("ℹ️ Admin/Viewer profiles retain omnibus global visibility across all courses.")
+                    
+            if st.button("🚀 Register System Credential Record", type="primary", use_container_width=True):
+                if not new_user or not new_pass:
+                    st.warning("⚠️ Username and Password parameters cannot be left blank.")
+                else:
+                    try:
+                        db_subject = None if new_sub == "NULL" else new_sub
+                        execute_db_command("""
+                            INSERT INTO app_users (username, password, role, assigned_subject)
+                            VALUES (:usr, :pwd, :role, :sub)
+                        """, {"usr": new_user, "pwd": new_pass, "role": new_role, "sub": db_subject})
+                        st.success(f"🎉 Account '{new_user}' successfully generated!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Database insertion engine error: {e}")
+
+        with tab2:
+            st.markdown("##### Remove Security Credentials")
+            if users_df is not None and not users_df.empty:
+                user_list = users_df['username'].tolist()
+                user_to_delete = st.selectbox("🚨 Select Account to Delete:", user_list, key="delete_user_select")
+                confirm_delete = st.checkbox(f"⚠️ I confirm I want to completely delete account: {user_to_delete}")
+                
+                if st.button("🗑️ Permanently Delete User Profile", type="secondary", use_container_width=True):
+                    if confirm_delete:
+                        if user_to_delete == current_user:
+                            st.error("❌ Deletion aborted: You cannot delete your own active running session account!")
+                        else:
+                            try:
+                                execute_db_command("DELETE FROM app_users WHERE username = :usr", {"usr": user_to_delete})
+                                st.success(f"💥 Account '{user_to_delete}' has been cleanly removed.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Database engine deletion failure: {e}")
+                    else:
+                        st.info("💡 Please check the confirmation checkbox above to proceed.")
