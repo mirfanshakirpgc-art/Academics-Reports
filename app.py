@@ -5336,58 +5336,15 @@ elif menu_choice == "⚙️ Settings":
                 e_col1, e_col2, e_col3 = st.columns(3)
                 with e_col1:
                     if registered_teachers_list:
-                        try: current_teacher_idx = registered_teachers_list.index(meta_row['username'])
-                        catch ValueError: current_teacher_idx = 0
+                        try: 
+                            current_teacher_idx = registered_teachers_list.index(meta_row['username'])
+                        except ValueError: 
+                            current_teacher_idx = 0
                         edit_username = st.selectbox("👤 Link Login Username To:", options=registered_teachers_list, index=current_teacher_idx, key="e_user_in")
                     else:
                         edit_username = st.text_input("👤 Login Username:", value=str(meta_row['username']), key="e_user_in_fb").strip()
                         
                     edit_password = st.text_input("🔑 Password:", value=str(meta_row['password']), type="password", key="e_pass_in").strip()
-                with e_col2:
-                    current_role_idx = ["Admin", "Faculty", "Co-Ordinator"].index(meta_row['role']) if meta_row['role'] in ["Admin", "Faculty", "Co-Ordinator"] else 0
-                    edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
-                    
-                    if edit_role == "Faculty":
-                        current_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
-                        try: current_sub_idx = computed_subject_pool.index(current_sub)
-                        except ValueError: current_sub_idx = 0
-                        edit_subject = st.selectbox("📚 Course Scope Visibility:", computed_subject_pool, index=current_sub_idx, key="e_sub_sel")
-                        
-                        class_opts = ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
-                        current_cls = meta_row['assigned_class'] if meta_row['assigned_class'] else "None"
-                        current_cls_idx = class_opts.index(current_cls) if current_cls in class_opts else 0
-                        edit_class = st.selectbox("🏢 Change Class Incharge Duty:", class_opts, index=current_cls_idx, key="e_class_sel")
-                    else:
-                        edit_subject = "Global (All Subjects)"
-                        edit_class = "None"
-                        st.text_input("📚 Course Scope:", value="Global (All Subjects)", disabled=True, key="e_sub_dis")
-                        st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="e_class_dis")
-                with e_col3:
-                    st.markdown("**Rights Controls:**")
-                    e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
-                    e_m_set = st.checkbox("Can Access Settings", value=bool(meta_row['can_manage_settings']), key="e_p2")
-                    e_m_fac = st.checkbox("Can Manage Faculty", value=bool(meta_row['can_manage_faculty']), key="e_p3")
-                    e_m_mrk = st.checkbox("Can Enter/Edit Marks", value=bool(meta_row['can_edit_marks']), key="e_p4")
-
-                if st.button("💾 Save Updated Profile Configurations", type="primary", use_container_width=True):
-                    try:
-                        clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
-                        clean_cls = None if edit_class == "None" else edit_class
-                        
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                UPDATE app_users 
-                                SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
-                                    can_manage_users = :mu, can_manage_settings = :ms, can_manage_faculty = :mf, can_edit_marks = :em
-                                WHERE id = :target_id
-                            """), {
-                                "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
-                                "mu": int(e_m_usr), "ms": int(e_m_set), "mf": int(e_m_fac), "em": int(e_m_mrk), "target_id": int(meta_row['id'])
-                            })
-                        st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
-                        import time; time.sleep(1.0); st.rerun()
-                    except Exception as e:
-                        st.error(f"Database upgrade execution failed: {e}")
                         
         # --- TAB 3: TERMINATE PROFILE ---
         with tab_delete:
