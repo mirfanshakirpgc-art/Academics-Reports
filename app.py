@@ -38,21 +38,29 @@ engine = get_db_engine()
 # --- DATABASE INITIALIZATION ENGINE ---
 def initialize_database():
     with engine.begin() as conn:
-        # Create App Users Table if it doesn't exist to prevent login check crashes
+        # Create App Users Table using PostgreSQL-native types
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS app_users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(100) UNIQUE NOT NULL,
                 password VARCHAR(100) NOT NULL,
                 role VARCHAR(50) NOT NULL,
-                assigned_subject VARCHAR(100),
+                assigned_subject TEXT,
+                assigned_class VARCHAR(100),
                 can_manage_users BOOLEAN DEFAULT FALSE,
                 can_manage_settings BOOLEAN DEFAULT FALSE,
                 can_manage_faculty BOOLEAN DEFAULT FALSE,
+                can_enter_marks BOOLEAN DEFAULT TRUE,
                 can_edit_marks BOOLEAN DEFAULT FALSE
             );
         """))
         
+        # Self-healing column patch to support Class Incharge assignment data state
+        try:
+            conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS assigned_class VARCHAR(100);"))
+        except Exception:
+            pass
+
         # Create Core Operational Tables
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
@@ -139,7 +147,7 @@ def run_query(query, params=None):
     
     try:
         with engine.connect() as conn:
-            return pd.read_sql_query(text(clean_query), conn, params=params) # Fixed connection bug here
+            return pd.read_sql_query(text(clean_query), conn, params=params)
     except Exception as original_error:
         try:
             with engine.begin() as txn_conn:
@@ -197,15 +205,17 @@ def fetch_analytics_data():
         WHERE 1=1
     """
     params = {}
-    if "user_role" in st.session_state and st.session_state.user_role == "Teacher":
+    if "user_role" in st.session_state and st.session_state.user_role in ["Teacher", "Faculty"]:
         query += " AND m.subject = :teacher_sub"
         params["teacher_sub"] = st.session_state.assigned_subject
     return run_query(query, params)
 
 # --- USER LOGIN SESSION TRACKING INITIALIZATION ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "username" not in st.session_state: st.session_state.username = ""
 if "user_role" not in st.session_state: st.session_state.user_role = None
 if "assigned_subject" not in st.session_state: st.session_state.assigned_subject = None
+if "assigned_class" not in st.session_state: st.session_state.assigned_class = None
 
 for right in ["can_manage_users", "can_manage_settings", "can_manage_faculty", "can_edit_marks"]:
     if right not in st.session_state:
@@ -258,9 +268,11 @@ if not st.session_state.logged_in:
             
             if login_submitted:
                 with engine.connect() as conn:
+                    # Extracts role, metrics, flags, and class parameters together
                     query = text("""
                         SELECT role, assigned_subject, 
-                               can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                               can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks,
+                               assigned_class 
                         FROM app_users 
                         WHERE username = :u AND password = :p
                     """)
@@ -268,8 +280,10 @@ if not st.session_state.logged_in:
                     
                     if result:
                         st.session_state.logged_in = True
+                        st.session_state.username = username_input
                         st.session_state.user_role = result[0]         
                         st.session_state.assigned_subject = result[1]    
+                        st.session_state.assigned_class = result[6]
                         
                         is_legacy_admin = result[0] in ['controller', 'Admin']
                         st.session_state.can_manage_users = bool(result[2]) or is_legacy_admin
@@ -285,29 +299,39 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ==============================================================================
-# SIDEBAR NAVIGATION MODULE (ROLE-BASED + GRANULAR ACCESS CONTROL)
+# SIDEBAR NAVIGATION MODULE (ROLE-BASED + ISOLATED TEACHER INTERFACE)
 # ==============================================================================
-allowed_menus = ["📊 Home Dashboard"]
-
 user_role = st.session_state.user_role
+username_current = st.session_state.username
 can_manage_users = st.session_state.can_manage_users
 can_manage_settings = st.session_state.can_manage_settings
 can_manage_faculty = st.session_state.can_manage_faculty
 can_edit_marks = st.session_state.can_edit_marks
 
-if user_role in ['Admin', 'controller'] or can_manage_users or can_manage_settings or can_manage_faculty or can_edit_marks:
+# Extract Class Incharge flag configurations on demand
+db_class_scope = st.session_state.get("assigned_class", None)
+is_class_incharge = bool(db_class_scope and str(db_class_scope).strip().lower() != "none")
+
+# ------------------------------------------------------------------------------
+# 🗺️ DYNAMIC MENU MAPPING ROUTER
+# ------------------------------------------------------------------------------
+if user_role in ["Teacher", "Faculty"]:
+    # 🍎 SPECIALIZED TEACHER PORTAL SIDEBAR ROUTING
+    allowed_menus = ["📝 Marks Entry"]
+    if is_class_incharge:
+        allowed_menus.append("📅 Attendance Marks")
+    allowed_menus.extend(["❌ Absent Student Remarks", "📊 Result Analysis"])
+else:
+    # 👑 INSTITUTION MANAGEMENT AND SYSTEM ADMIN ROUTING
+    allowed_menus = ["📊 Home Dashboard"]
     allowed_menus += ["➕ Add Students"] if (user_role in ['Admin', 'controller'] or can_manage_users) else []
     allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role in ['Admin', 'controller'] or can_edit_marks) else []
     allowed_menus += ["📅 Attendance Entry Management", "📋 Daily Attendance Report"]
     allowed_menus += ["📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
     allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role in ['Admin', 'controller'] or can_manage_faculty) else []
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
-elif user_role == "Teacher":
-    allowed_menus += ["📝 Academic Exam Marks Entry", "📅 Attendance Entry Management", "📋 Daily Attendance Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
-else:
-    allowed_menus += ["📋 Daily Attendance Report", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "📈 Academic Analysis Reports"]
-
-allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
+    
+    allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
 
 st.sidebar.markdown("""
     <style>
