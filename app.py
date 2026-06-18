@@ -4883,13 +4883,13 @@ elif menu_choice == "⚙️ Settings":
         else:
             st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
     # ==============================================================================
-    # 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL WITH PASSWORD MANAGEMENT
+    # 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL WITH INTEGRATED PASSWORD UTILITIES
     # ==============================================================================
     elif sub_menu == "👥 User Access Control":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Build custom profiles, allocate dynamic granular rights, and manage active system passwords.")
         
-        # 1. Fetch current live users along with their custom capabilities
+        # 1. Fetch current live users along with their custom capabilities from the database
         try:
             users_df = run_query("""
                 SELECT id, username, password, role, assigned_subject,
@@ -4902,23 +4902,24 @@ elif menu_choice == "⚙️ Settings":
             st.error(f"Failed to fetch users database: {e}")
             users_df = None
 
-        # Dynamic tabs handling Creation, Editing passwords, and Deletion
+        # Render tabs handling Creation, Editing passwords, and Deletion
         tab1, tab2, tab3 = st.tabs([
             "➕ Build Custom User Profile", 
             "🔑 Change User Password", 
             "❌ Terminate User Account"
         ])
         
-        # --- TAB 1: USER CREATION WITH DYNAMIC SUBJECT FETCHING ---
+        # --- TAB 1: USER CREATION WITH EXTRACTED DICTIONARY SUBJECTS ---
         with tab1:
-            # Safely fetch your live subjects database list dynamically
-            try:
-                # Modifying query to match your system's exact subject/course tracking table name if needed
-                subjects_db = run_query("SELECT DISTINCT subject_name FROM subject_mappings ORDER BY subject_name ASC")
-                live_subjects = ["Global (All Subjects)"] + subjects_db['subject_name'].dropna().tolist()
-            except Exception:
-                # Robust structural fallback in case mapping table name differs slightly
-                live_subjects = ["Global (All Subjects)", "Physics", "Chemistry", "English", "Mathematics", "Biology", "Computer Science"]
+            # Dynamically extract every unique subject from your master config dictionary
+            unique_subjects_set = set()
+            for class_key, groups in CLASS_SUBJECTS_MASTER_MAP.items():
+                for group_key, subject_list in groups.items():
+                    for subject in subject_list:
+                        unique_subjects_set.add(subject)
+            
+            # Sort alphabetically and prepend global option
+            live_subjects = ["Global (All Subjects)"] + sorted(list(unique_subjects_set))
 
             st.markdown("##### 👤 1. Core Profile Details")
             uc1, uc2 = st.columns(2)
@@ -4962,7 +4963,7 @@ elif menu_choice == "⚙️ Settings":
                     except Exception as e:
                         st.error(f"Database insertion error: {e}")
 
-        # --- TAB 2: DEDICATED PASSWORD CHANGE UTILITY ---
+        # --- TAB 2: USER-SPECIFIC PASSWORD CONFIGURATION TERMINAL ---
         with tab2:
             st.markdown("##### Change User Password Profile")
             if users_df is not None and not users_df.empty:
@@ -4979,7 +4980,7 @@ elif menu_choice == "⚙️ Settings":
                     if not updated_pass:
                         st.warning("⚠️ Password string field cannot be evaluated empty.")
                     elif updated_pass != confirm_updated_pass:
-                        st.error("❌ Password mismatch validation failure. Please recheck your inputs.")
+                        st.error("❌ Password validation failure. Inputs do not match.")
                     else:
                         try:
                             execute_db_command("""
@@ -5012,7 +5013,6 @@ elif menu_choice == "⚙️ Settings":
                                 st.success(f"💥 Account '{user_to_delete}' has been cleanly removed.")
                                 st.rerun()
                             except Exception as e:
-                                remove_user_err = str(e)
-                                st.error(f"Database engine deletion failure: {remove_user_err}")
+                                st.error(f"Database engine deletion failure: {e}")
                     else:
                         st.info("💡 Please check the confirmation checkbox above to proceed.")
