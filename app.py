@@ -5009,6 +5009,15 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
+        # 🛠️ LIVE DB SCHEMA PATCH: Automatically inject missing columns if they don't exist
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks INTEGER DEFAULT 1;"))
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks INTEGER DEFAULT 0;"))
+        except Exception as patch_err:
+            # Table might not exist yet, which is fine; it gets created on first insert
+            pass
+
         # Pull Active Registered Teachers Dropdown references safely
         registered_teachers_list = []
         try:
@@ -5099,8 +5108,8 @@ elif menu_choice == "⚙️ Settings":
                                     can_manage_users INTEGER,
                                     can_manage_settings INTEGER,
                                     can_manage_faculty INTEGER,
-                                    can_enter_marks INTEGER,
-                                    can_edit_marks INTEGER
+                                    can_enter_marks INTEGER DEFAULT 1,
+                                    can_edit_marks INTEGER DEFAULT 0
                                 )
                             """))
                             
