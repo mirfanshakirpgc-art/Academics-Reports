@@ -5009,10 +5009,10 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
-        # 🛠️ HARD REPAIR & INIT DB SCHEMA PATCH: PostgreSQL Native Syntax (SERIAL)
+        # 🛠️ HARD REPAIR & INIT DB SCHEMA PATCH: PostgreSQL Native Syntax (SERIAL + BOOLEAN)
         try:
             with engine.begin() as conn:
-                # Core table check using standard PostgreSQL-compliant fields
+                # Core table initialization updated for native PostgreSQL compatibility
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS app_users (
                         id SERIAL PRIMARY KEY,
@@ -5029,7 +5029,7 @@ elif menu_choice == "⚙️ Settings":
                     );
                 """))
                 
-                # Check the datatype of 'can_enter_marks' in your Supabase DB to resolve prior type discrepancies
+                # Double-check the column type structure of 'can_enter_marks' to guarantee alignment
                 res = conn.execute(text("""
                     SELECT data_type FROM information_schema.columns 
                     WHERE table_name = 'app_users' AND column_name = 'can_enter_marks';
@@ -5161,7 +5161,6 @@ elif menu_choice == "⚙️ Settings":
                     edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
                     
                     if edit_role == "Faculty":
-                        # 🛡️ SAFE STRING EXTRACTION CHECK: Prevents split errors on non-string (None/Null) database values
                         db_sub_val = meta_row['assigned_subject']
                         if isinstance(db_sub_val, str) and db_sub_val.strip():
                             default_selected_subjects = [s.strip() for s in db_sub_val.split(",") if s.strip() in computed_subject_pool]
