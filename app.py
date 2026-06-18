@@ -5009,7 +5009,7 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
-        # 🛠️ LIVE DB SCHEMA PATCH: Forces creation as integer to match your current local state
+        # 🛠️ LIVE DB SCHEMA PATCH
         try:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks INTEGER DEFAULT 1;"))
@@ -5096,10 +5096,10 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
-                            # Strict inline PostgreSQL type casting using ::BOOLEAN and ::INTEGER syntax
+                            # Using standard explicit SQL CAST functions avoids engine/driver binding collision errors
                             conn.execute(text("""
                                 INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
-                                VALUES (:usr, :pwd, :role, :sub, :cls, :m_u::BOOLEAN, :m_s::BOOLEAN, :m_f::BOOLEAN, :e_n::INTEGER, :e_m::INTEGER)
+                                VALUES (:usr, :pwd, :role, :sub, :cls, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), CAST(:m_f AS BOOLEAN), CAST(:e_n AS INTEGER), CAST(:e_m AS INTEGER))
                             """), {
                                 "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
                                 "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), "e_n": int(c_m_ent), "e_m": int(c_m_mrk)
@@ -5164,12 +5164,12 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if edit_class == "None" else edit_class
                         
                         with engine.begin() as conn:
-                            # Strict inline PostgreSQL type casting using ::BOOLEAN and ::INTEGER syntax
+                            # Using standard explicit SQL CAST functions avoids engine/driver binding collision errors
                             conn.execute(text("""
                                 UPDATE app_users 
                                 SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
-                                    can_manage_users = :mu::BOOLEAN, can_manage_settings = :ms::BOOLEAN, can_manage_faculty = :mf::BOOLEAN, 
-                                    can_enter_marks = :en::INTEGER, can_edit_marks = :em::INTEGER
+                                    can_manage_users = CAST(:mu AS BOOLEAN), can_manage_settings = CAST(:ms AS BOOLEAN), can_manage_faculty = CAST(:mf AS BOOLEAN), 
+                                    can_enter_marks = CAST(:en AS INTEGER), can_edit_marks = CAST(:em AS INTEGER)
                                 WHERE id = :target_id
                             """), {
                                 "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
