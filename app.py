@@ -386,17 +386,24 @@ DISCIPLINE_SECTIONS_MAP = {
     }
 }
 
-AVAILABLE_DISCIPLINE = list(CLASS_SUBJECTS_MASTER_MAP["11th"].keys())
-AVAILABLE_EXAMS = [
-    "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
-    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-    "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
-]
+# ... your existing code above ...
 AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
 AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
 
+# 🌟 PASTE THIS NEW DYNAMIC BLOCK HERE TO MAKE IT GLOBALLY AVAILABLE
+unique_master_subjects = set()
+for class_level, disciplines in CLASS_SUBJECTS_MASTER_MAP.items():
+    for discipline_name, subjects_list in disciplines.items():
+        for subject in subjects_list:
+            if subject: 
+                unique_master_subjects.add(subject.strip())
+
+live_subjects_computed = ["Global (All Subjects)"] + sorted(list(unique_master_subjects))
+
+
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
+# ... your existing code below ...
     st.title("Concordia College Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
