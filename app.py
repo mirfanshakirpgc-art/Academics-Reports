@@ -4883,11 +4883,11 @@ elif menu_choice == "⚙️ Settings":
         else:
             st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
     # ==============================================================================
-    # 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL
+    # 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL WITH PASSWORD MANAGEMENT
     # ==============================================================================
     elif sub_menu == "👥 User Access Control":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
-        st.markdown("Build custom profiles and dynamically allocate specific system rights per user account.")
+        st.markdown("Build custom profiles, allocate dynamic granular rights, and manage active system passwords.")
         
         # 1. Fetch current live users along with their custom capabilities
         try:
@@ -4902,38 +4902,49 @@ elif menu_choice == "⚙️ Settings":
             st.error(f"Failed to fetch users database: {e}")
             users_df = None
 
-        tab1, tab2 = st.tabs(["➕ Build Custom User Profile", "❌ Terminate User Account"])
+        # Dynamic tabs handling Creation, Editing passwords, and Deletion
+        tab1, tab2, tab3 = st.tabs([
+            "➕ Build Custom User Profile", 
+            "🔑 Change User Password", 
+            "❌ Terminate User Account"
+        ])
         
+        # --- TAB 1: USER CREATION WITH DYNAMIC SUBJECT FETCHING ---
         with tab1:
+            # Safely fetch your live subjects database list dynamically
+            try:
+                # Modifying query to match your system's exact subject/course tracking table name if needed
+                subjects_db = run_query("SELECT DISTINCT subject_name FROM subject_mappings ORDER BY subject_name ASC")
+                live_subjects = ["Global (All Subjects)"] + subjects_db['subject_name'].dropna().tolist()
+            except Exception:
+                # Robust structural fallback in case mapping table name differs slightly
+                live_subjects = ["Global (All Subjects)", "Physics", "Chemistry", "English", "Mathematics", "Biology", "Computer Science"]
+
             st.markdown("##### 👤 1. Core Profile Details")
             uc1, uc2 = st.columns(2)
             with uc1:
                 new_user = st.text_input("Desired Username:", key="custom_username").strip()
-                # Friendly profile label for display purposes
                 profile_label = st.text_input("Profile Display Label (e.g., Senior Vice Principal):", key="profile_lbl").strip()
             with uc2:
-                new_pass = st.text_input("Assign Password:", key="custom_password").strip()
-                all_subjects = ["Global (All Subjects)", "Physics", "Chemistry", "English", "Mathematics"]
-                chosen_subject = st.selectbox("Scope of Subject Visibility:", all_subjects, key="custom_subject_select")
+                new_pass = st.text_input("Assign Password:", type="password", key="custom_password").strip()
+                chosen_subject = st.selectbox("Scope of Subject Visibility:", options=live_subjects, key="custom_subject_select")
 
             st.markdown("---")
             st.markdown("##### 🔑 2. Custom Rights Checklist (Toggle On/Off)")
             
-            # Interactive toggle matrix for building your own permission array
             col_p1, col_p2 = st.columns(2)
             with col_p1:
-                right_users = st.toggle("Can manage other user profiles and passwords", value=False)
-                right_settings = st.toggle("Can modify global academic sessions and terms", value=False)
+                right_users = st.toggle("Can manage other user profiles and passwords", value=False, key="t1")
+                right_settings = st.toggle("Can modify global academic sessions and terms", value=False, key="t2")
             with col_p2:
-                right_faculty = st.toggle("Can register, modify, or delete faculty members", value=False)
-                right_marks = st.toggle("Can create exam frameworks and edit student marks", value=False)
+                right_faculty = st.toggle("Can register, modify, or delete faculty members", value=False, key="t3")
+                right_marks = st.toggle("Can create exam frameworks and edit student marks", value=False, key="t4")
 
             if st.button("🚀 Deploy Custom User Profile", type="primary", use_container_width=True):
                 if not new_user or not new_pass:
                     st.warning("⚠️ Username and Password fields are mandatory.")
                 else:
                     try:
-                        # Clean data normalization for the database query
                         db_subject = None if chosen_subject == "Global (All Subjects)" else chosen_subject
                         
                         execute_db_command("""
@@ -4946,12 +4957,45 @@ elif menu_choice == "⚙️ Settings":
                             "sub": db_subject, "r_users": right_users, "r_settings": right_settings, 
                             "r_fac": right_faculty, "r_marks": right_marks
                         })
-                        st.success(f"🎉 Custom user '{new_user}' deployed successfully with your specified rights!")
+                        st.success(f"🎉 Custom user '{new_user}' deployed successfully!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Database insertion error: {e}")
 
+        # --- TAB 2: DEDICATED PASSWORD CHANGE UTILITY ---
         with tab2:
+            st.markdown("##### Change User Password Profile")
+            if users_df is not None and not users_df.empty:
+                user_list = users_df['username'].tolist()
+                target_user = st.selectbox("🎯 Select Account to Update:", user_list, key="password_target_select")
+                
+                ec1, ec2 = st.columns(2)
+                with ec1:
+                    updated_pass = st.text_input("Type New Secure Password:", type="password", key="updated_password_input").strip()
+                with ec2:
+                    confirm_updated_pass = st.text_input("Confirm New Secure Password:", type="password", key="confirm_updated_password_input").strip()
+                
+                if st.button("💾 Apply New Password Configuration", type="primary", use_container_width=True):
+                    if not updated_pass:
+                        st.warning("⚠️ Password string field cannot be evaluated empty.")
+                    elif updated_pass != confirm_updated_pass:
+                        st.error("❌ Password mismatch validation failure. Please recheck your inputs.")
+                    else:
+                        try:
+                            execute_db_command("""
+                                UPDATE app_users 
+                                SET password = :pwd 
+                                WHERE username = :usr
+                            """, {"pwd": updated_pass, "usr": target_user})
+                            st.success(f"🔒 Password credentials updated cleanly for target: **{target_user}**.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Database transaction failure editing password: {e}")
+            else:
+                st.info("No system profiles accessible to update.")
+
+        # --- TAB 3: ACCOUNT REMOVAL TERMINAL ---
+        with tab3:
             st.markdown("##### Remove Security Credentials")
             if users_df is not None and not users_df.empty:
                 user_list = users_df['username'].tolist()
@@ -4968,6 +5012,7 @@ elif menu_choice == "⚙️ Settings":
                                 st.success(f"💥 Account '{user_to_delete}' has been cleanly removed.")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Database engine deletion failure: {e}")
+                                remove_user_err = str(e)
+                                st.error(f"Database engine deletion failure: {remove_user_err}")
                     else:
                         st.info("💡 Please check the confirmation checkbox above to proceed.")
