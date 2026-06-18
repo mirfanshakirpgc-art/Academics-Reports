@@ -4883,92 +4883,79 @@ elif menu_choice == "⚙️ Settings":
         else:
             st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
     # ==============================================================================
-    # 👥 SUB-MODULE 6: MASTER USER ACCESS TERMINAL (SUPABASE)
+    # 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL
     # ==============================================================================
     elif sub_menu == "👥 User Access Control":
-        st.subheader("👥 System User Access Console")
-        st.markdown("Manage system access accounts, passwords, and permissions profiles directly below.")
+        st.subheader("👥 Dynamic User Access & Rights Matrix")
+        st.markdown("Build custom profiles and dynamically allocate specific system rights per user account.")
         
-        # 1. Fetch current live users from Supabase/Database
+        # 1. Fetch current live users along with their custom capabilities
         try:
-            users_df = run_query("SELECT id, username, password, role, assigned_subject FROM app_users ORDER BY id ASC")
-            st.subheader("📋 Current Active System Accounts")
+            users_df = run_query("""
+                SELECT id, username, password, role, assigned_subject,
+                       can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                FROM app_users ORDER BY id ASC
+            """)
+            st.subheader("📋 Current Active Profiles & Assigned Rights")
             st.dataframe(users_df, use_container_width=True, hide_index=True)
         except Exception as e:
             st.error(f"Failed to fetch users database: {e}")
             users_df = None
 
-        # 2. Tabs to Add or Delete accounts
-        tab1, tab2 = st.tabs(["➕ Create New User Account", "❌ Terminate User Account"])
+        tab1, tab2 = st.tabs(["➕ Build Custom User Profile", "❌ Terminate User Account"])
         
         with tab1:
-            st.markdown("##### Account Authorization Blueprint")
-            
-            # --- VISUAL ROLE CHECKLIST MATRIX ---
-            with st.expander("🔍 View Role Permissions Cheat Sheet Before Creating", expanded=True):
-                col_matrix1, col_matrix2, col_matrix3 = st.columns(3)
-                with col_matrix1:
-                    st.markdown("### 👑 Admin / Controller")
-                    st.markdown("""
-                    * ✅ Manage User Accounts & Passwords
-                    * ✅ Create Academic Sessions & Terms
-                    * ✅ Register / Delete Faculty Profiles
-                    * ✅ Edit Marks for **ALL** Subjects
-                    """)
-                with col_matrix2:
-                    st.markdown("### 📝 Teacher Profile")
-                    st.markdown("""
-                    * ❌ Manage User Accounts & Passwords
-                    * ❌ Create Academic Sessions & Terms
-                    * ❌ Register / Delete Faculty Profiles
-                    * ✅ Edit Marks for **Assigned Subject Only**
-                    """)
-                with col_matrix3:
-                    st.markdown("### 👁️ Viewer Profile")
-                    st.markdown("""
-                    * ❌ Manage User Accounts & Passwords
-                    * ❌ Create Academic Sessions & Terms
-                    * ❌ Register / Delete Faculty Profiles
-                    * ❌ Edit Marks (Read-Only Global Access)
-                    """)
-            
-            st.markdown("---")
-            
-            # --- USER CREATION FORM FIELDS ---
+            st.markdown("##### 👤 1. Core Profile Details")
             uc1, uc2 = st.columns(2)
             with uc1:
-                new_user = st.text_input("👤 Desired Username:", key="new_username_input").strip()
-                new_role = st.selectbox("🎯 Assign System Role:", ["Admin", "Teacher", "Viewer"], key="new_role_select")
+                new_user = st.text_input("Desired Username:", key="custom_username").strip()
+                # Friendly profile label for display purposes
+                profile_label = st.text_input("Profile Display Label (e.g., Senior Vice Principal):", key="profile_lbl").strip()
             with uc2:
-                new_pass = st.text_input("🔑 Assign Secure Password:", key="new_password_input").strip()
-                all_subjects = ["NULL", "Physics", "Chemistry", "English", "Mathematics"]
-                
-                if new_role == "Teacher":
-                    new_sub = st.selectbox("📚 Link Assigned Subject Profile:", all_subjects[1:], key="new_sub_select")
-                else:
-                    new_sub = "NULL"
-                    st.caption("ℹ️ Admin/Viewer profiles retain omnibus global visibility across all courses.")
-                    
-            if st.button("🚀 Register System Credential Record", type="primary", use_container_width=True):
+                new_pass = st.text_input("Assign Password:", key="custom_password").strip()
+                all_subjects = ["Global (All Subjects)", "Physics", "Chemistry", "English", "Mathematics"]
+                chosen_subject = st.selectbox("Scope of Subject Visibility:", all_subjects, key="custom_subject_select")
+
+            st.markdown("---")
+            st.markdown("##### 🔑 2. Custom Rights Checklist (Toggle On/Off)")
+            
+            # Interactive toggle matrix for building your own permission array
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                right_users = st.toggle("Can manage other user profiles and passwords", value=False)
+                right_settings = st.toggle("Can modify global academic sessions and terms", value=False)
+            with col_p2:
+                right_faculty = st.toggle("Can register, modify, or delete faculty members", value=False)
+                right_marks = st.toggle("Can create exam frameworks and edit student marks", value=False)
+
+            if st.button("🚀 Deploy Custom User Profile", type="primary", use_container_width=True):
                 if not new_user or not new_pass:
-                    st.warning("⚠️ Username and Password parameters cannot be left blank.")
+                    st.warning("⚠️ Username and Password fields are mandatory.")
                 else:
                     try:
-                        db_subject = None if new_sub == "NULL" else new_sub
+                        # Clean data normalization for the database query
+                        db_subject = None if chosen_subject == "Global (All Subjects)" else chosen_subject
+                        
                         execute_db_command("""
-                            INSERT INTO app_users (username, password, role, assigned_subject)
-                            VALUES (:usr, :pwd, :role, :sub)
-                        """, {"usr": new_user, "pwd": new_pass, "role": new_role, "sub": db_subject})
-                        st.success(f"🎉 Account '{new_user}' successfully generated!")
+                            INSERT INTO app_users (
+                                username, password, role, assigned_subject, 
+                                can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks
+                            ) VALUES (:usr, :pwd, :role, :sub, :r_users, :r_settings, :r_fac, :r_marks)
+                        """, {
+                            "usr": new_user, "pwd": new_pass, "role": profile_label if profile_label else "Custom User",
+                            "sub": db_subject, "r_users": right_users, "r_settings": right_settings, 
+                            "r_fac": right_faculty, "r_marks": right_marks
+                        })
+                        st.success(f"🎉 Custom user '{new_user}' deployed successfully with your specified rights!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Database insertion engine error: {e}")
+                        st.error(f"Database insertion error: {e}")
 
         with tab2:
             st.markdown("##### Remove Security Credentials")
             if users_df is not None and not users_df.empty:
                 user_list = users_df['username'].tolist()
-                user_to_delete = st.selectbox("🚨 Select Account to Delete:", user_list, key="delete_user_select")
+                user_to_delete = st.selectbox("🚨 Select Account to Delete:", user_list, key="delete_custom_select")
                 confirm_delete = st.checkbox(f"⚠️ I confirm I want to completely delete account: {user_to_delete}")
                 
                 if st.button("🗑️ Permanently Delete User Profile", type="secondary", use_container_width=True):
