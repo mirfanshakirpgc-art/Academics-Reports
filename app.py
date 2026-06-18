@@ -98,6 +98,16 @@ if "user_role" not in st.session_state:
 if "assigned_subject" not in st.session_state:
     st.session_state.assigned_subject = None
 
+# 🌟 INITIALIZE NEW GRANULAR RIGHTS VARIABLES IN SESSION STATE
+if "can_manage_users" not in st.session_state:
+    st.session_state.can_manage_users = False
+if "can_manage_settings" not in st.session_state:
+    st.session_state.can_manage_settings = False
+if "can_manage_faculty" not in st.session_state:
+    st.session_state.can_manage_faculty = False
+if "can_edit_marks" not in st.session_state:
+    st.session_state.can_edit_marks = False
+
 # 🚀 --- SYSTEM SETTINGS: GLOBAL ACADEMIC SESSION TRACKING ---
 if "current_session" not in st.session_state:
     st.session_state["current_session"] = "2026-28"  # Default system active session
@@ -116,13 +126,29 @@ if not st.session_state.logged_in:
     
     if st.button("Log In"):
         with engine.connect() as conn:
-            query = text("SELECT role, assigned_subject FROM app_users WHERE username = :u AND password = :p")
+            # 🔄 UPDATED QUERY: Select the new capability flags along with role and subject
+            query = text("""
+                SELECT role, assigned_subject, 
+                       can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                FROM app_users 
+                WHERE username = :u AND password = :p
+            """)
             result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
             
             if result:
                 st.session_state.logged_in = True
                 st.session_state.user_role = result[0]         
                 st.session_state.assigned_subject = result[1]    
+                
+                # 🔄 SAVE FLAGS INTO MEMORY: Convert database values safely to True/False
+                # If they are legacy Admin or controller profiles, automatically grant True as a backup safety net
+                is_legacy_admin = result[0] in ['controller', 'Admin']
+                
+                st.session_state.can_manage_users = bool(result[2]) or is_legacy_admin
+                st.session_state.can_manage_settings = bool(result[3]) or is_legacy_admin
+                st.session_state.can_manage_faculty = bool(result[4]) or is_legacy_admin
+                st.session_state.can_edit_marks = bool(result[5]) or is_legacy_admin
+
                 st.success("Access Granted! Loading system...")
                 st.rerun()
             else:
@@ -4084,12 +4110,14 @@ elif menu_choice == "⚙️ Settings":
     st.title("⚙️ Global Academic & Core Settings")
     st.markdown("Centralized administrative control console to manage institutional profiles, calendars, and evaluation tracks.")
     
-    # Safely acquire access credentials
+    # Safely acquire access credentials and dynamic custom rights
     current_user = st.session_state.get('username', 'admin')
-    current_role = st.session_state.get('role', 'controller') 
+    current_role = st.session_state.get('user_role', 'controller') # Matches the session key used in login gatekeeper
+    can_manage_users = st.session_state.get('can_manage_users', False)
     
-    # Enforce role-based structural routing arrays (Appended user control terminal)
-    if current_role == 'controller' or current_role == 'Admin':
+    # 🔄 UPDATED CONDITION: Enforce granular structural routing arrays
+    # Shows the "User Access Control" tab if they are an admin role OR if they have the specific checkbox checked!
+    if current_role in ['controller', 'Admin'] or can_manage_users:
         settings_options = [
             "📝 Faculty Registration", 
             "📅 Sessions & Terms", 
@@ -4097,17 +4125,17 @@ elif menu_choice == "⚙️ Settings":
             "📑 Test & Exam Frameworks",
             "🧬 Add Disciplines",
             "📚 Add Subject Mapping",
-            "👥 User Access Control"  # 👈 Added module to the view list
+            "👥 User Access Control"  
         ]
     else:
+        # Fallback profile settings list (Hides the User Access module from unauthorized users)
         settings_options = [
             "📝 Faculty Registration", 
             "📅 Sessions & Terms", 
             "🗂️ Section Master", 
             "📑 Test & Exam Frameworks",
             "🧬 Add Disciplines",
-            "📚 Add Subject Mapping",
-            "👥 User Access Control"  # 👈 Added module to fallback views as well
+            "📚 Add Subject Mapping"
         ]
         
     sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
