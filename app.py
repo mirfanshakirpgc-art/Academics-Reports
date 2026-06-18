@@ -4890,17 +4890,14 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("Build custom profiles, allocate dynamic granular rights, and manage active system passwords.")
         
         # 1. Fetch current live users along with their custom capabilities from the database
-        try:
-            users_df = run_query("""
-                SELECT id, username, password, role, assigned_subject,
-                       can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
-                FROM app_users ORDER BY id ASC
-            """)
-            st.subheader("📋 Current Active Profiles & Assigned Rights")
-            st.dataframe(users_df, use_container_width=True, hide_index=True)
-        except Exception as e:
-            st.error(f"Failed to fetch users database: {e}")
-            users_df = None
+        # (We removed try/except here so if a column is missing in Supabase, it tells you exactly what to fix!)
+        users_df = run_query("""
+            SELECT id, username, password, role, assigned_subject,
+                   can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+            FROM app_users ORDER BY id ASC
+        """)
+        st.subheader("📋 Current Active Profiles & Assigned Rights")
+        st.dataframe(users_df, use_container_width=True, hide_index=True)
 
         # Render tabs handling Creation, Editing passwords, and Deletion
         tab1, tab2, tab3 = st.tabs([
