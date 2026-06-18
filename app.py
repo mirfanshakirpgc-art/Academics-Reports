@@ -4903,6 +4903,38 @@ elif menu_choice == "⚙️ Settings":
         
         with tab1:
             st.markdown("##### Account Authorization Blueprint")
+            
+            # --- VISUAL ROLE CHECKLIST MATRIX ---
+            with st.expander("🔍 View Role Permissions Cheat Sheet Before Creating", expanded=True):
+                col_matrix1, col_matrix2, col_matrix3 = st.columns(3)
+                with col_matrix1:
+                    st.markdown("### 👑 Admin / Controller")
+                    st.markdown("""
+                    * ✅ Manage User Accounts & Passwords
+                    * ✅ Create Academic Sessions & Terms
+                    * ✅ Register / Delete Faculty Profiles
+                    * ✅ Edit Marks for **ALL** Subjects
+                    """)
+                with col_matrix2:
+                    st.markdown("### 📝 Teacher Profile")
+                    st.markdown("""
+                    * ❌ Manage User Accounts & Passwords
+                    * ❌ Create Academic Sessions & Terms
+                    * ❌ Register / Delete Faculty Profiles
+                    * ✅ Edit Marks for **Assigned Subject Only**
+                    """)
+                with col_matrix3:
+                    st.markdown("### 👁️ Viewer Profile")
+                    st.markdown("""
+                    * ❌ Manage User Accounts & Passwords
+                    * ❌ Create Academic Sessions & Terms
+                    * ❌ Register / Delete Faculty Profiles
+                    * ❌ Edit Marks (Read-Only Global Access)
+                    """)
+            
+            st.markdown("---")
+            
+            # --- USER CREATION FORM FIELDS ---
             uc1, uc2 = st.columns(2)
             with uc1:
                 new_user = st.text_input("👤 Desired Username:", key="new_username_input").strip()
