@@ -5182,149 +5182,190 @@ elif menu_choice == "⚙️ Settings":
         else:
             st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
     # ==============================================================================
-    # 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL WITH INTEGRATED PASSWORD UTILITIES
+    # 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL WITH COMPREHENSIVE CONTROL
     # ==============================================================================
     elif sub_menu == "👥 User Access Control":
+        st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
         st.subheader("👥 Dynamic User Access & Rights Matrix")
-        st.markdown("Build custom profiles, allocate dynamic granular rights, and manage active system passwords.")
+        st.markdown("Architect custom user profiles, modify account handles, configure granular permissions, and track security scopes.")
         
-        # 1. Fetch current live users along with their custom capabilities from the database
-        users_df = run_query("""
-            SELECT id, username, password, role, assigned_subject,
-                   can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
-            FROM app_users ORDER BY id ASC
-        """)
-        st.subheader("📋 Current Active Profiles & Assigned Rights")
-        st.dataframe(users_df, use_container_width=True, hide_index=True)
+        # --- STEP 1: READ MASTER PROFILES DIRECT FROM THE ENGINE ---
+        try:
+            users_df = run_query("""
+                SELECT id, username, password, role, assigned_subject,
+                       can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                FROM app_users ORDER BY id ASC
+            """)
+        except Exception as e:
+            st.error(f"Failed to access database profile table matrix: {e}")
+            users_df = pd.DataFrame()
 
-        # Render tabs handling Creation, Editing passwords, and Deletion
-        tab1, tab2, tab3 = st.tabs([
-            "➕ Build Custom User Profile", 
-            "🔑 Change User Password", 
+        # --- STEP 2: MASTER REPOSITORY OVERVIEW DATAGRID ---
+        st.markdown("### 📋 System Profiles & Active Access Permissions")
+        if not users_df.empty:
+            # Clean dataframe presentation mapping boolean integers to readable checkmarks
+            view_df = users_df.copy()
+            for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_edit_marks']:
+                view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) else "❌ Denied")
+            
+            view_df.columns = ["ID", "Username (Login ID)", "Password Label", "Assigned Role", "Subject Scope Visibility", 
+                               "User Control", "System Configuration", "Faculty Management", "Grades Override"]
+            st.dataframe(view_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("ℹ️ No profile templates found inside system memory schemas.")
+
+        st.markdown("---")
+
+        # --- STEP 3: GRANULAR PROFILES CONTROLLER WORKSPACES ---
+        tab_create, tab_edit, tab_delete = st.tabs([
+            "➕ Build & Provision Custom User", 
+            "⚙️ Edit Existing User & System Rights", 
             "❌ Terminate User Account"
         ])
         
-        # --- TAB 2: USER-SPECIFIC PASSWORD CONFIGURATION TERMINAL ---
-        with tab2:
-            st.markdown("##### 🔍 1. Identify User Account Target")
+        # ---------------------------------------------------------
+        # TAB 1: CUSTOM PROFILE CREATOR ARCHITECT
+        # ---------------------------------------------------------
+        with tab_create:
+            st.markdown("##### 🚀 Provision a New Profile Layout")
+            c_col1, c_col2, c_col3 = st.columns(3)
             
-            # Fetch a real-time list of all users from the app database
-            try:
-                users_df = run_query("SELECT username, role, assigned_subject FROM app_users ORDER BY username ASC")
+            with c_col1:
+                new_username = st.text_input("👤 Desired Username / Login ID:", key="c_user_in").strip()
+                new_password = st.text_input("🔑 Account Secret Password:", type="password", key="c_pass_in").strip()
+            
+            with c_col2:
+                new_role = st.selectbox("🏷️ Assigned Core Identity Role:", ["Admin", "Faculty", "Co-Ordinator", "Data Entry Operator"], key="c_role_sel")
+                
+                # Dynamic visibility logic pulling course names directly from live_subjects_computed lists
+                if new_role == "Faculty":
+                    sub_opts = live_subjects_computed if 'live_subjects_computed' in locals() else ["Global (All Subjects)"]
+                    new_subject = st.selectbox("📚 Course Scope Restriction:", sub_opts, key="c_sub_sel")
+                else:
+                    new_subject = "Global (All Subjects)"
+                    st.text_input("📚 Course Scope Restriction:", value="Global (All Subjects)", disabled=True, key="c_sub_dis")
+
+            with c_col3:
+                st.markdown("**Allocate Granular Capabilities:**")
+                c_m_usr = st.checkbox("Can Control App Users", value=False, key="c_p1")
+                c_m_set = st.checkbox("Can Access Settings", value=False, key="c_p2")
+                c_m_fac = st.checkbox("Can Manage Faculty Matrices", value=False, key="c_p3")
+                c_m_mrk = st.checkbox("Can Alter/Modify Student Marks", value=True, key="c_p4")
+
+            if st.button("💾 Instantiate Custom Profile", type="primary", use_container_width=True):
+                if not new_username or not new_password:
+                    st.warning("⚠️ Execution Interrupted: Account names and passwords cannot be completely evaluation empty strings.")
+                elif not users_df.empty and new_username.lower() in [u.lower() for u in users_df["username"].tolist()]:
+                    st.error(f"❌ Structural Mismatch: An identity with the handle username '{new_username}' already exists.")
+                else:
+                    try:
+                        clean_sub = None if new_subject == "Global (All Subjects)" else new_subject
+                        execute_db_command("""
+                            INSERT INTO app_users (username, password, role, assigned_subject, can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks)
+                            VALUES (:usr, :pwd, :role, :sub, :m_u, :m_s, :m_f, :e_m)
+                        """, {
+                            "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub,
+                            "m_u": int(c_m_usr), "m_s": int(c_m_set), "m_f": int(c_m_fac), "e_m": int(c_m_mrk)
+                        })
+                        st.success(f"🎉 Success! Identity configuration profile for '{new_username}' has been cleanly saved.")
+                        st.balloons()
+                        import time; time.sleep(1.0); st.rerun()
+                    except Exception as e:
+                        st.error(f"Database engine insertion transaction failure: {e}")
+
+        # ---------------------------------------------------------
+        # TAB 2: COMPREHENSIVE ACCOUNT EDIT TERMINAL
+        # ---------------------------------------------------------
+        with tab_edit:
+            st.markdown("##### 🔍 Select Configuration Override Target")
+            if not users_df.empty:
                 user_list = users_df["username"].tolist()
-            except Exception as e:
-                user_list = []
-                st.error(f"Failed to fetch user directory: {e}")
-            
-            if not user_list:
-                st.info("ℹ️ No registered system users found in the database.")
-            else:
-                col_t2_1, col_t2_2 = st.columns(2)
+                target_user = st.selectbox("🎯 Select Target User Profile to Modify:", options=user_list, key="edit_user_select")
                 
-                with col_t2_1:
-                    target_user = st.selectbox("🎯 Select Target Account to Manage:", options=user_list, key="reset_user_select")
+                # Filter down matching profile criteria line row items
+                meta_row = users_df[users_df["username"] == target_user].iloc[0]
                 
-                # Fetch detailed permissions metadata for the selected profile to show a quick summary card
-                user_meta = run_query("""
-                    SELECT role, assigned_subject, can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
-                    FROM app_users WHERE username = :u
-                """, {"u": target_user})
+                st.markdown("---")
+                st.markdown(f"📂 **Modifying Configuration Settings Matrix For:** `{target_user}`")
                 
-                if not user_meta.empty:
-                    meta_row = user_meta.iloc[0]
-                    display_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
-                    
-                    with col_t2_2:
-                        st.markdown(f"**Current Profile Metadata:**")
-                        st.caption(f"🏷️ **Assigned Role/Label:** {meta_row['role']}")
-                        st.caption(f"👁️ **Subject Scope Visibility:** {display_sub}")
-                    
-                    st.markdown("---")
-                    st.markdown("##### 🔐 2. Credentials Override Terminal")
-                    
-                    col_pwd1, col_pwd2 = st.columns(2)
-                    with col_pwd1:
-                        new_password_1 = st.text_input("Type New Secure Password:", type="password", key="pwd_reset_i1").strip()
-                    with col_pwd2:
-                        new_password_2 = st.text_input("Confirm New Secure Password:", type="password", key="pwd_reset_i2").strip()
-                    
-                    # Dashboard tracking layout displaying current rights checkmarks
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("**Account Permission Footprint Preview (Read-Only):**")
-                    p_c1, p_c2, p_c3, p_c4 = st.columns(4)
-                    p_c1.checkbox("User Management", value=bool(meta_row['can_manage_users']), disabled=True, key="chk_r1")
-                    p_c2.checkbox("System Settings", value=bool(meta_row['can_manage_settings']), disabled=True, key="chk_r2")
-                    p_c3.checkbox("Faculty Control", value=bool(meta_row['can_manage_faculty']), disabled=True, key="chk_r3")
-                    p_c4.checkbox("Marks Modification", value=bool(meta_row['can_edit_marks']), disabled=True, key="chk_r4")
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    
-                    if st.button("💾 Commit Password Modification", type="primary", use_container_width=True):
-                        if not new_password_1:
-                            st.warning("⚠️ Action Cancelled: The new password input field cannot be blank.")
-                        elif new_password_1 != new_password_2:
-                            st.error("❌ Mismatch Error: Entered passwords do not match. Please retype them carefully.")
-                        else:
-                            try:
-                                execute_db_command("""
-                                    UPDATE app_users 
-                                    SET password = :new_pwd 
-                                    WHERE username = :usr
-                                """, {"new_pwd": new_password_1, "usr": target_user})
-                                
-                                st.success(f"🎉 Success! Password for credential profile '{target_user}' has been updated.")
-                                st.balloons()
-                            except Exception as update_err:
-                                st.error(f"Failed to execute credential database write: {update_err}")
-        with tab2:
-            st.markdown("##### Change User Password Profile")
-            if users_df is not None and not users_df.empty:
-                user_list = users_df['username'].tolist()
-                target_user = st.selectbox("🎯 Select Account to Update:", user_list, key="password_target_select")
+                e_col1, e_col2, e_col3 = st.columns(3)
+                with e_col1:
+                    edit_username = st.text_input("👤 Change Login Name/ID Handle:", value=str(meta_row['username']), key="e_user_in").strip()
+                    edit_password = st.text_input("🔑 Override Account Secure Password:", value=str(meta_row['password']), type="password", key="e_pass_in").strip()
                 
-                ec1, ec2 = st.columns(2)
-                with ec1:
-                    updated_pass = st.text_input("Type New Secure Password:", type="password", key="updated_password_input").strip()
-                with ec2:
-                    confirm_updated_pass = st.text_input("Confirm New Secure Password:", type="password", key="confirm_updated_password_input").strip()
+                with e_col2:
+                    current_role_idx = ["Admin", "Faculty", "Co-Ordinator", "Data Entry Operator"].index(meta_row['role']) if meta_row['role'] in ["Admin", "Faculty", "Co-Ordinator", "Data Entry Operator"] else 0
+                    edit_role = st.selectbox("🏷️ Adjust Identity Role:", ["Admin", "Faculty", "Co-Ordinator", "Data Entry Operator"], index=current_role_idx, key="e_role_sel")
+                    
+                    if edit_role == "Faculty":
+                        sub_opts = live_subjects_computed if 'live_subjects_computed' in locals() else ["Global (All Subjects)"]
+                        current_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
+                        current_sub_idx = sub_opts.index(current_sub) if current_sub in sub_opts else 0
+                        edit_subject = st.selectbox("📚 Course Scope Visibility:", sub_opts, index=current_sub_idx, key="e_sub_sel")
+                    else:
+                        edit_subject = "Global (All Subjects)"
+                        st.text_input("📚 Course Scope Visibility:", value="Global (All Subjects)", disabled=True, key="e_sub_dis")
                 
-                if st.button("💾 Apply New Password Configuration", type="primary", use_container_width=True):
-                    if not updated_pass:
-                        st.warning("⚠️ Password string field cannot be evaluated empty.")
-                    elif updated_pass != confirm_updated_pass:
-                        st.error("❌ Password validation failure. Inputs do not match.")
+                with e_col3:
+                    st.markdown("**Fine-Tune Active Capabilities Map:**")
+                    e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
+                    e_m_set = st.checkbox("Can Access Settings", value=bool(meta_row['can_manage_settings']), key="e_p2")
+                    e_m_fac = st.checkbox("Can Manage Faculty Matrices", value=bool(meta_row['can_manage_faculty']), key="e_p3")
+                    e_m_mrk = st.checkbox("Can Alter/Modify Student Marks", value=bool(meta_row['can_edit_marks']), key="e_p4")
+
+                if st.button("💾 Apply Updated Configurations Matrix", type="primary", use_container_width=True):
+                    if not edit_username or not edit_password:
+                        st.warning("⚠️ Empty Field Failure: Handle IDs and secure password paths must contain strings.")
                     else:
                         try:
+                            clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
                             execute_db_command("""
                                 UPDATE app_users 
-                                SET password = :pwd 
-                                WHERE username = :usr
-                            """, {"pwd": updated_pass, "usr": target_user})
-                            st.success(f"🔒 Password credentials updated cleanly for target: **{target_user}**.")
-                            st.rerun()
+                                SET username = :new_usr,
+                                    password = :new_pwd,
+                                    role = :new_role,
+                                    assigned_subject = :new_sub,
+                                    can_manage_users = :mu,
+                                    can_manage_settings = :ms,
+                                    can_manage_faculty = :mf,
+                                    can_edit_marks = :em
+                                WHERE id = :target_id
+                            """, {
+                                "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub,
+                                "mu": int(e_m_usr), "ms": int(e_m_set), "mf": int(e_m_fac), "em": int(e_m_mrk),
+                                "target_id": int(meta_row['id'])
+                            })
+                            st.success(f"🔒 Profile matrix record line updated successfully for target: **{edit_username}**.")
+                            import time; time.sleep(1.0); st.rerun()
                         except Exception as e:
-                            st.error(f"Database transaction failure editing password: {e}")
+                            st.error(f"Database transaction failure updates editing profiles: {e}")
             else:
                 st.info("No system profiles accessible to update.")
 
-        # --- TAB 3: ACCOUNT REMOVAL TERMINAL ---
-        with tab3:
-            st.markdown("##### Remove Security Credentials")
-            if users_df is not None and not users_df.empty:
+        # ---------------------------------------------------------
+        # TAB 3: ACCOUNT DELETION REPOSITORY TERMINAL
+        # ---------------------------------------------------------
+        with tab_delete:
+            st.markdown("##### Remove Security Credentials Profile")
+            if not users_df.empty:
                 user_list = users_df['username'].tolist()
-                user_to_delete = st.selectbox("🚨 Select Account to Delete:", user_list, key="delete_custom_select")
-                confirm_delete = st.checkbox(f"⚠️ I confirm I want to completely delete account: {user_to_delete}")
+                user_to_delete = st.selectbox("🚨 Select Account to Delete permanently:", user_list, key="delete_custom_select")
+                confirm_delete = st.checkbox(f"⚠️ I confirm I want to completely delete account configuration: {user_to_delete}")
                 
-                if st.button("🗑️ Permanently Delete User Profile", type="secondary", use_container_width=True):
+                if st.button("🗑️ Permanently Delete User Profile Layout", type="secondary", use_container_width=True):
                     if confirm_delete:
                         if user_to_delete == st.session_state.get('username'):
-                            st.error("❌ Deletion aborted: You cannot delete your own active running session account!")
+                            st.error("❌ Deletion aborted: You cannot delete your own active running session log account!")
                         else:
                             try:
                                 execute_db_command("DELETE FROM app_users WHERE username = :usr", {"usr": user_to_delete})
-                                st.success(f"💥 Account '{user_to_delete}' has been cleanly removed.")
-                                st.rerun()
+                                st.success(f"💥 Account '{user_to_delete}' has been cleanly removed from the database directory.")
+                                import time; time.sleep(1.0); st.rerun()
                             except Exception as e:
-                                st.error(f"Database engine deletion failure: {e}")
+                                st.error(f"Database engine deletion core failure: {e}")
                     else:
-                        st.info("💡 Please check the confirmation checkbox above to proceed.")
+                        st.info("💡 Please check the confirmation checkbox above to safely execute deletion runs.")
+            else:
+                st.info("No active system records available for processing removal transactions.")
+
+        st.markdown('</div>', unsafe_allow_html=True)
