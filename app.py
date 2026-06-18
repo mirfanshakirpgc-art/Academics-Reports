@@ -1536,103 +1536,164 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # ====================================================================================
     # WORKFLOW MODE C: BULK EXCEL / CSV LEDGER IMPORT
     # ====================================================================================
-    elif entry_mode == "📤 Bulk Excel/CSV Import":
+    elif entry_mode in ["📤 Bulk Excel/CSV Import", "📊 Bulk Excel/CSV Import"]:
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
-        st.subheader("📤 Dynamic Bulk Marks Sheet Processor")
-        st.markdown("""
-        Upload a structured spreadsheet file containing system records to overwrite marks metrics simultaneously.
-        """)
+        st.subheader("📤 Bulk Marks Import Portal")
+        st.markdown("Configure the examination context parameters below before uploading your spreadsheet record sheets.")
         
-        # Guide documentation to help avoid data formatting errors
-        with st.expander("📋 View Expected Spreadsheet Format Blueprint", expanded=False):
-            st.info("💡 **Important:** Your file must contain exactly these header names:")
-            sample_blueprint = pd.DataFrame([{
-                "student_id": 1001,
-                "subject": "ENGLISH",
-                "exam_type": "MT_1",
-                "marks_obtained": "85",
-                "total_marks": 100
-            }])
-            st.dataframe(sample_blueprint)
-            st.caption("⚠️ Note: For absent records use **'A'**, for Not Cleared use **'NC'** inside marks_obtained column.")
+        # --- STEP 1: CONTEXTUAL DROPDOWN SCHEMAS ---
+        bc1, bc2, bc3, bc4 = st.columns(4)
+        with bc1: 
+            b_session = st.selectbox("1️⃣ Select Session:", session_options, key="bulk_sess")
+        with bc2: 
+            b_system = st.selectbox("2️⃣ System Type:", ["Annual System", "Semester System"], key="bulk_sys")
+        with bc3:
+            if b_system == "Annual System":
+                b_class = st.selectbox("3️⃣ Class Level:", ["11th", "12th", "ALL"], key="bulk_class")
+            else:
+                b_class = st.selectbox("3️⃣ Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="bulk_class")
+        with bc4:
+            if b_system == "Annual System":
+                b_disc_opts = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                b_disc_sel = st.selectbox("4️⃣ Discipline:", b_disc_opts, key="bulk_disc")
+                b_discipline = b_disc_sel.upper().replace(" ", "_").replace("(", "").replace(")", "")
+                if "PHYSIC" in b_discipline: b_discipline = "ICS_PHYSICS"
+                elif "STAT" in b_discipline: b_discipline = "ICS_STATISTICS"
+            else:
+                b_discipline = "DIPLOMA_IN_IT_DIT"
+                st.text_input("4️⃣ Discipline:", value="DIT", disabled=True, key="bulk_disc_disabled")
 
-        # File Intake Widget
-        uploaded_file = st.file_uploader(
-            "Choose a spreadsheet file to upload (.csv or .xlsx)", 
-            type=["csv", "xlsx"], 
-            key="bulk_marks_importer_widget"
-        )
+        # --- STEP 2: TEST DETAILS & SCORE MATRIX CAPTURE ---
+        bc5, bc6, bc7 = st.columns([2, 3, 2])
+        with bc5:
+            b_exam = st.selectbox("🎯 Target Exam Cycle:", all_frameworks, index=1, key="bulk_exam_cycle")
+        with bc6:
+            # Dynamically resolve subject map filtering based on step 1 entries
+            if b_exam == "MATRIC":
+                b_subject = "OVERALL"
+                st.info("MATRIC Mode Defaulting to OVERALL")
+            else:
+                if b_system == "Annual System":
+                    suffix = "_12TH" if b_class == "12th" else "_11TH"
+                    if b_class == "ALL":
+                        b_available_subs = list(dict.fromkeys(DISCIPLINE_SUBJECTS_MAP.get(f"{b_discipline}_11TH", []) + DISCIPLINE_SUBJECTS_MAP.get(f"{b_discipline}_12TH", [])))
+                    else:
+                        b_available_subs = DISCIPLINE_SUBJECTS_MAP.get(f"{b_discipline}{suffix}", ["English", "Urdu", "Physics"])
+                else:
+                    if "1st" in b_class: b_available_subs = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System"]
+                    elif "2nd" in b_class: b_available_subs = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design"]
+                    else: b_available_subs = ["English", "Urdu", "Mathematics", "Statistics"]
+                
+                b_subject = st.selectbox("📚 Course / Subject to Grade:", b_available_subs, key="bulk_sub_selector")
+        
+        with bc7:
+            b_default_total = 1200 if b_exam == "MATRIC" else 100
+            b_max_limit = 2000 if b_exam == "MATRIC" else 200
+            b_total_marks = st.number_input("💯 Set Total Marks Scale:", min_value=1, max_value=b_max_limit, value=b_default_total, key="bulk_total_scale")
+
+        st.markdown("---")
+        
+        # --- STEP 3: DATA STRUCTURING ENGINE & UPLOADER ---
+        st.markdown("### 📄 Step 2: Upload Spreadsheet Record Sheet")
+        
+        with st.expander("📋 View Simplified Blueprint Format Requirement", expanded=False):
+            st.warning("Your uploaded spreadsheet file must contain exactly these two column headers:")
+            blueprint_sample = pd.DataFrame([
+                {"student_id": 1001, "marks_obtained": "78"},
+                {"student_id": 1002, "marks_obtained": "A"},
+                {"student_id": 1003, "marks_obtained": "NC"}
+            ])
+            st.dataframe(blueprint_sample)
+            st.caption("💡 Note: System supports regular numbers, 'A' for Absent, and 'NC' for Not Cleared tags.")
+
+        uploaded_file = st.file_uploader("Choose a spreadsheet file (.csv or .xlsx):", type=["csv", "xlsx"], key="bulk_marks_uploader")
         
         if uploaded_file is not None:
             try:
-                # Parse data cleanly using Pandas matching upload extension type
+                # Read data formats conditionally
                 if uploaded_file.name.endswith('.csv'):
-                    bulk_df = pd.read_csv(uploaded_file)
+                    uploaded_df = pd.read_csv(uploaded_file)
                 else:
-                    bulk_df = pd.read_excel(uploaded_file)
+                    uploaded_df = pd.read_excel(uploaded_file)
                 
-                # Sanitize text spacing headers
-                bulk_df.columns = [str(col).strip().lower() for col in bulk_df.columns]
+                # Sanitize text alignment headers
+                uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
                 
-                st.markdown("### 🔍 Uploaded Data Ledger Preview")
-                st.dataframe(bulk_df.head(10), use_container_width=True)
+                # Structural Column Verification Block
+                required_headers = ["student_id", "marks_obtained"]
+                missing_headers = [col for col in required_headers if col not in uploaded_df.columns]
                 
-                # Structural columns validation check matching database logic schema
-                required_cols = ["student_id", "subject", "exam_type", "marks_obtained", "total_marks"]
-                missing_cols = [col for col in required_cols if col not in bulk_df.columns]
-                
-                if missing_cols:
-                    st.error(f"❌ Structural Rejection: Missing necessary system metrics: {missing_cols}")
+                if missing_headers:
+                    st.error(f"❌ Structural Rejection: Missing required tracking headers {missing_headers}. Please fix your spreadsheet format rows.")
                 else:
-                    col_act1, col_act2 = st.columns([4, 1])
-                    with col_act1:
-                        st.warning("⚠️ Warning: Executing this batch will overwrite existing records for matching IDs, Subjects, and Exam Types.")
+                    st.markdown("##### 🔍 Upload Parsing Preview")
+                    st.dataframe(uploaded_df.head(10), use_container_width=True)
                     
-                    if st.button("🚀 Execute Massive Data Injection", use_container_width=True, type="primary"):
+                    target_sub_slug = str(b_subject).strip().upper().replace(" ", "_")
+                    target_exam_slug = str(b_exam).strip().upper()
+                    
+                    # Confirm Context Display Card
+                    st.info(f"📋 **Target Destination Configured:** {b_session} | Class Context: {b_class} | Subject: **{target_sub_slug}** | Test: **{target_exam_slug}** | Out Of: **{b_total_marks}**")
+                    
+                    if st.button("🚀 Process & Overwrite Academic Ledger", use_container_width=True, type="primary"):
                         import time
-                        success_row_count = 0
-                        error_row_count = 0
+                        success_inserts = 0
+                        failed_inserts = 0
                         
-                        # Loop through and upsert individual record structures
-                        for idx, row in bulk_df.iterrows():
+                        for idx, row in uploaded_df.iterrows():
                             try:
-                                s_id = int(row["student_id"])
-                                sub_slug = str(row["subject"]).strip().upper().replace(" ", "_")
-                                exam_slug = str(row["exam_type"]).strip().upper()
-                                score_raw = str(row["marks_obtained"]).strip().upper()
-                                total_m = float(row["total_marks"])
+                                if pd.isna(row["student_id"]):
+                                    continue
+                                    
+                                current_student_id = int(row["student_id"])
+                                current_score = str(row["marks_obtained"]).strip().upper()
                                 
-                                # 1. Clean existing record match to prevent unique violation
+                                # Format handling variations
+                                if current_score in ["A", "ABSENT", "ABS"]:
+                                    clean_score = "A"
+                                elif current_score in ["NC", "NOT_CLEARED"]:
+                                    clean_score = "NC"
+                                elif current_score == "NAN" or current_score == "":
+                                    clean_score = ""
+                                else:
+                                    clean_score = current_score # Keeps raw parsed numerical values
+                                
+                                # Clear past matches to safe guard record conflicts
                                 execute_db_command("""
                                     DELETE FROM marks 
                                     WHERE student_id = :s_id 
                                       AND UPPER(TRIM(subject)) = :sub 
                                       AND UPPER(TRIM(exam_type)) = :exam
-                                """, {"s_id": s_id, "sub": sub_slug, "exam": exam_slug})
+                                """, {"s_id": current_student_id, "sub": target_sub_slug, "exam": target_exam_slug})
                                 
-                                # 2. Insert sanitized payload rows if not empty
-                                if score_raw != "":
+                                # Write newly injected payload block back to DB
+                                if clean_score != "":
                                     execute_db_command("""
                                         INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
                                         VALUES (:s_id, :sub, :exam, :score, :total)
-                                    """, {"s_id": s_id, "sub": sub_slug, "exam": exam_slug, "score": score_raw, "total": total_m})
-                                
-                                success_row_count += 1
-                            except Exception as row_error:
-                                error_row_count += 1
+                                    """, {
+                                        "s_id": current_student_id, 
+                                        "sub": target_sub_slug, 
+                                        "exam": target_exam_slug, 
+                                        "score": clean_score, 
+                                        "total": float(b_total_marks)
+                                    })
+                                success_inserts += 1
+                            except Exception:
+                                failed_inserts += 1
                                 continue
+                                
+                        if success_inserts > 0:
+                            st.success(f"🎉 Bulk Processing Completed! {success_inserts} records written into the ledger successfully.")
+                        if failed_inserts > 0:
+                            st.error(f"⚠️ Notice: {failed_inserts} records encountered parsing errors during validation.")
                         
-                        if success_row_count > 0:
-                            st.success(f"🎉 Success! {success_row_count} student grade tracks synchronized completely.")
-                        if error_row_count > 0:
-                            st.error(f"⚠️ Warning: {error_row_count} row data parsing configurations encountered failures.")
-                            
-                        time.sleep(1.5)
+                        time.sleep(1.2)
                         st.rerun()
                         
-            except Exception as system_parse_err:
-                st.error(f"❌ Internal Processing Fault: File parsing failed due to unexpected structural issue. Details: {system_parse_err}")
-        
+            except Exception as system_err:
+                st.error(f"❌ System failure loading resource sheets: {system_err}")
+
         st.markdown('</div>', unsafe_allow_html=True)
 # ==============================================================================
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
