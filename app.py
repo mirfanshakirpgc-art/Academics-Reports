@@ -5009,11 +5009,11 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
-        # 🛠️ LIVE DB SCHEMA PATCH: Automatically inject missing columns if they don't exist
+        # 🛠️ LIVE DB SCHEMA PATCH: Forces creation as integer to match your current local state
         try:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks BOOLEAN DEFAULT TRUE;"))
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks INTEGER DEFAULT 1;"))
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks INTEGER DEFAULT 0;"))
         except Exception as patch_err:
             pass
 
@@ -5049,7 +5049,7 @@ elif menu_choice == "⚙️ Settings":
         if not users_df.empty:
             view_df = users_df.copy()
             for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_enter_marks', 'can_edit_marks']:
-                view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) else "❌ Denied")
+                view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) or str(x) in ['1', 'True', 'true'] else "❌ Denied")
             
             view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role", "Subject Allotment", "Class Incharge Scope",
                                "User Control", "System Configuration", "Faculty Management", "Grades Entry", "Grades Override/Edit"]
@@ -5096,28 +5096,13 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
-                            conn.execute(text("""
-                                CREATE TABLE IF NOT EXISTS app_users (
-                                    id SERIAL PRIMARY KEY,
-                                    username VARCHAR(255) UNIQUE,
-                                    password TEXT,
-                                    role VARCHAR(100),
-                                    assigned_subject TEXT,
-                                    assigned_class TEXT,
-                                    can_manage_users BOOLEAN DEFAULT FALSE,
-                                    can_manage_settings BOOLEAN DEFAULT FALSE,
-                                    can_manage_faculty BOOLEAN DEFAULT FALSE,
-                                    can_enter_marks BOOLEAN DEFAULT TRUE,
-                                    can_edit_marks BOOLEAN DEFAULT FALSE
-                                )
-                            """))
-                            
+                            # Strict inline PostgreSQL type casting using ::BOOLEAN and ::INTEGER syntax
                             conn.execute(text("""
                                 INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
-                                VALUES (:usr, :pwd, :role, :sub, :cls, :m_u, :m_s, :m_f, :e_n, :e_m)
+                                VALUES (:usr, :pwd, :role, :sub, :cls, :m_u::BOOLEAN, :m_s::BOOLEAN, :m_f::BOOLEAN, :e_n::INTEGER, :e_m::INTEGER)
                             """), {
                                 "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
-                                "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), "e_n": bool(c_m_ent), "e_m": bool(c_m_mrk)
+                                "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), "e_n": int(c_m_ent), "e_m": int(c_m_mrk)
                             })
                         st.success(f"🎉 System User profile for '{new_username}' has been successfully created.")
                         import time; time.sleep(1.0); st.rerun()
@@ -5179,14 +5164,16 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if edit_class == "None" else edit_class
                         
                         with engine.begin() as conn:
+                            # Strict inline PostgreSQL type casting using ::BOOLEAN and ::INTEGER syntax
                             conn.execute(text("""
                                 UPDATE app_users 
                                 SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
-                                    can_manage_users = :mu, can_manage_settings = :ms, can_manage_faculty = :mf, can_enter_marks = :en, can_edit_marks = :em
+                                    can_manage_users = :mu::BOOLEAN, can_manage_settings = :ms::BOOLEAN, can_manage_faculty = :mf::BOOLEAN, 
+                                    can_enter_marks = :en::INTEGER, can_edit_marks = :em::INTEGER
                                 WHERE id = :target_id
                             """), {
                                 "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
-                                "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": bool(e_m_ent), "em": bool(e_m_mrk), "target_id": int(meta_row['id'])
+                                "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": int(e_m_ent), "em": int(e_m_mrk), "target_id": int(meta_row['id'])
                             })
                         st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
                         import time; time.sleep(1.0); st.rerun()
