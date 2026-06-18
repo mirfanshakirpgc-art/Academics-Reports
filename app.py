@@ -3755,7 +3755,10 @@ elif menu_choice == "🪪 Student Result Cards":
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE (FULLY INTEGRATED)
 # ==============================================================================
 if menu_choice == "👨‍🏫 Teacher Management":
+    st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
     st.title("👨‍🏫 Teacher Allocation & Performance Engine")
+    st.markdown("Central control system to manage structural academic tracks, staff course mappings, and classroom divisions.")
+    st.markdown("---")
     
     # Safely acquire access credentials
     current_user = st.session_state.get('username', 'admin')
@@ -3764,11 +3767,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # Unified Menu Options updated to match your navigation module structure
     menu_options = [
         "📝 Faculty Registration",
-        "Subject Allocations", 
-        "Class Incharge Allocations", 
-        "Teacher Marks Portal", 
-        "Teacher Analysis"
+        "📚 Subject Allocations", 
+        "👑 Class Incharge Allocations", 
+        "✏️ Teacher Marks Portal", 
+        "📊 Teacher Analysis"
     ]
+    
+    # Clean sidebar placement for sub-navigation parameters
     sub_menu = st.sidebar.radio("Navigate Module:", menu_options, key="teacher_sub_menu")
 
     # --------------------------------------------------------------------------
@@ -3787,26 +3792,27 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not db_faculty_df.empty:
             faculty_select_list = [f"{row['teacher_id']} - {row['teacher_name']}" for _, row in db_faculty_df.iterrows()]
     except Exception as e:
-        # Fallback context mapping if table hasn't been initialized yet
-        faculty_select_list = ["101 - Placeholder Faculty (DB Disconnected)"]
+        st.warning(f"⚠️ Global Faculty Sync Pending: {e}")
+        faculty_select_list = []
 
     # Flatten Master Maps for global cross-referencing validation structures
     system_sections_pool = []
-    for disc_name, class_dict in DISCIPLINE_SECTIONS_MAP.items():
-        for class_level, sections_list in class_dict.items():
-            for sec in sections_list:
-                system_sections_pool.append({
-                    "Class Level": class_level,
-                    "Discipline": disc_name,
-                    "Section": sec
-                })
-    sections_pool_df = pd.DataFrame(system_sections_pool)
+    if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals():
+        for disc_name, class_dict in DISCIPLINE_SECTIONS_MAP.items():
+            for class_level, sections_list in class_dict.items():
+                for sec in sections_list:
+                    system_sections_pool.append({
+                        "Class Level": class_level,
+                        "Discipline": disc_name,
+                        "Section": sec
+                    })
+    sections_pool_df = pd.DataFrame(system_sections_pool) if system_sections_pool else pd.DataFrame(columns=["Class Level", "Discipline", "Section"])
 
     # ==============================================================================
     # SUB-MODULE 1: FACULTY REGISTRATION TRACK
     # ==============================================================================
     if sub_menu == "📝 Faculty Registration":
-        st.write("### ➕ Register New Faculty Member")
+        st.subheader("➕ Register New Faculty Member")
 
         with st.form("teacher_reg_form", clear_on_submit=True):
             col_f1, col_f2 = st.columns(2)
@@ -3817,7 +3823,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 new_teacher_phone = st.text_input("Contact Number:", placeholder="e.g. +923001234567").strip()
                 new_teacher_email = st.text_input("Email Address:", placeholder="e.g. ali@institution.edu").strip()
                 
-            submit_faculty = st.form_submit_button("💾 Register Faculty Member", type="primary")
+            submit_faculty = st.form_submit_button("💾 Register Faculty Member", type="primary", use_container_width=True)
             
             if submit_faculty:
                 if not new_teacher_id or not new_teacher_name:
@@ -3839,12 +3845,12 @@ if menu_choice == "👨‍🏫 Teacher Management":
                                     "email": new_teacher_email
                                 })
                             st.success(f"🎉 Successfully registered {new_teacher_name} with ID '{new_teacher_id}'!")
-                            st.rerun()
+                            import time; time.sleep(0.8); st.rerun()
                     except Exception as err:
                         st.error(f"❌ Failed to write record to the database: {err}")
 
         st.markdown("---")
-        st.write("#### Registered Institutional Faculty")
+        st.subheader("📋 Registered Institutional Faculty Ledger")
         
         current_faculty = pd.DataFrame()
         try:
@@ -3896,10 +3902,10 @@ if menu_choice == "👨‍🏫 Teacher Management":
                                     "old_id": selected_fac_id
                                 })
                             st.success(f"🎉 Successfully updated profile details for {updated_fac_name}!")
-                            st.rerun()
+                            import time; time.sleep(0.8); st.rerun()
                         except Exception as err:
                             st.error(f"❌ Modification failed. The ID might conflict with another teacher's record: {err}")
-                        
+                            
                 if delete_fac:
                     if not confirm_fac_del:
                         st.error("Please check the confirmation box to authorize permanent deletion.")
@@ -3908,7 +3914,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             with engine.begin() as conn:
                                 conn.execute(text("DELETE FROM system_teachers WHERE teacher_id = :id"), {"id": selected_fac_id})
                             st.success("Faculty profile completely removed from system records.")
-                            st.rerun()
+                            import time; time.sleep(0.8); st.rerun()
                         except Exception as err:
                             st.error(f"❌ Cannot delete this teacher because they are currently assigned to active course allocations: {err}")
         else:
@@ -3917,9 +3923,9 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ==============================================================================
     # SUB-MODULE 2: SUBJECT ALLOCATIONS
     # ==============================================================================
-    elif sub_menu == "Subject Allocations":
+    elif sub_menu == "📚 Subject Allocations":
         st.subheader("📋 Subject Allocation Matrix")
-        st.markdown("Map real database-registered faculty members to structural subjects.")
+        st.markdown("Map real database-registered faculty members to structural academic subjects.")
         
         if not faculty_select_list:
             st.warning("⚠️ No active faculty records found in your database. Register an instructor first.")
@@ -3940,49 +3946,102 @@ if menu_choice == "👨‍🏫 Teacher Management":
 
             st.markdown("---")
             st.markdown("##### ⚙️ Allocate Subject Faculty Link")
-            col_form1, col_form2, col_form3 = st.columns(3)
-            with col_form1:
-                target_sub = st.selectbox("Select Target Course Object:", avail_subjects)
-            with col_form2:
-                target_sec = st.selectbox("Select Destination Section Target:", valid_sections)
-            with col_form3:
-                assigned_prof = st.selectbox("Select Verified Faculty Assignment:", faculty_select_list)
+            
+            with st.form("subject_alloc_form"):
+                col_form1, col_form2, col_form3 = st.columns(3)
+                with col_form1:
+                    target_sub = st.selectbox("Select Target Course Object:", avail_subjects)
+                with col_form2:
+                    target_sec = st.selectbox("Select Destination Section Target:", valid_sections)
+                with col_form3:
+                    assigned_prof = st.selectbox("Select Verified Faculty Assignment:", faculty_select_list)
+                    
+                commit_alloc = st.form_submit_button("🚀 Commit Subject Allocation Mapping", type="primary", use_container_width=True)
                 
-            if st.button("🚀 Commit Subject Allocation Mapping", type="primary"):
-                st.success(f"Database structural payload optimized: **{assigned_prof.split(' - ')[1]}** has been assigned to lead **{target_sub}** inside Section **{target_sec}** ({sel_class}).")
+            if commit_alloc:
+                try:
+                    tid = int(assigned_prof.split(" - ")[0])
+                    tname = assigned_prof.split(" - ")[1]
+                    
+                    # Ensure database schema persistence
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS subject_allocations (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                teacher_id INTEGER,
+                                teacher_name TEXT,
+                                class_level TEXT,
+                                discipline TEXT,
+                                subject_name TEXT,
+                                section TEXT
+                            )
+                        """))
+                        conn.execute(text("""
+                            INSERT INTO subject_allocations (teacher_id, teacher_name, class_level, discipline, subject_name, section)
+                            VALUES (:tid, :tname, :cls, :disc, :sub, :sec)
+                        """), {"tid": tid, "tname": tname, "cls": sel_class, "disc": sel_disc, "sub": target_sub, "sec": target_sec})
+                        
+                    st.success(f"🎉 Database payload optimized: **{tname}** assigned to **{target_sub}** inside Section **{target_sec}** ({sel_class}).")
+                except Exception as ex:
+                    st.error(f"Failed to persist allocation: {ex}")
 
     # ==============================================================================
     # SUB-MODULE 3: CLASS INCHARGE ALLOCATIONS
     # ==============================================================================
-    elif sub_menu == "Class Incharge Allocations":
+    elif sub_menu == "👑 Class Incharge Allocations":
         st.subheader("👑 Class Incharge Allocations")
-        st.markdown("Designate head operations management personnel to registered classroom divisions.")
+        st.markdown("Designate head operational management personnel to registered classroom divisions.")
         
         if not faculty_select_list:
             st.warning("⚠️ Missing registered teacher structures. Add profile nodes inside registration framework before mapping values.")
         else:
             st.markdown("##### 📋 Live System Matrix View")
-            st.dataframe(sections_pool_df, use_container_width=True, hide_index=True)
+            if not sections_pool_df.empty:
+                st.dataframe(sections_pool_df, use_container_width=True, hide_index=True)
             
             st.markdown("##### ⚙️ Modify Configuration Assignment Block")
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                ch_disc = st.selectbox("Filter Target Discipline Segment:", sections_pool_df["Discipline"].unique(), key="ch_disc_sel")
-            with c2:
-                sub_sec_options = sections_pool_df[sections_pool_df["Discipline"] == ch_disc]["Section"].unique()
-                ch_sec = st.selectbox("Target Classroom Assignment Node:", sub_sec_options)
-            with c3:
-                ch_name = st.selectbox("Nominate Master Incharge Faculty:", faculty_select_list)
+            with st.form("incharge_alloc_form"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    ch_disc = st.selectbox("Filter Target Discipline Segment:", sections_pool_df["Discipline"].unique() if not sections_pool_df.empty else ["None"], key="ch_disc_sel")
+                with c2:
+                    sub_sec_options = sections_pool_df[sections_pool_df["Discipline"] == ch_disc]["Section"].unique() if not sections_pool_df.empty else ["None"]
+                    ch_sec = st.selectbox("Target Classroom Assignment Node:", sub_sec_options)
+                with c3:
+                    ch_name = st.selectbox("Nominate Master Incharge Faculty:", faculty_select_list)
+                    
+                apply_incharge = st.form_submit_button(" Live Link Class Incharge", type="primary", use_container_width=True)
                 
-            if st.button("💾 Apply Class Incharge Alignment", type="primary"):
-                st.success(f"Structural ledger modified: **{ch_name.split(' - ')[1]}** designated as Class Master of Section **{ch_sec}** under path `{ch_disc}`.")
+            if apply_incharge:
+                try:
+                    tid = int(ch_name.split(" - ")[0])
+                    tname = ch_name.split(" - ")[1]
+                    
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS incharge_allocations (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                teacher_id INTEGER,
+                                teacher_name TEXT,
+                                discipline TEXT,
+                                section TEXT
+                            )
+                        """))
+                        conn.execute(text("""
+                            INSERT INTO incharge_allocations (teacher_id, teacher_name, discipline, section)
+                            VALUES (:tid, :tname, :disc, :sec)
+                        """), {"tid": tid, "tname": tname, "disc": ch_disc, "sec": ch_sec})
+                        
+                    st.success(f"Structural ledger modified: **{tname}** designated as Class Master of Section **{ch_sec}** under path `{ch_disc}`.")
+                except Exception as ex:
+                    st.error(f"Structural assignment failed: {ex}")
 
     # ==============================================================================
     # SUB-MODULE 4: TEACHER MARKS PORTAL
     # ==============================================================================
-    elif sub_menu == "Teacher Marks Portal":
+    elif sub_menu == "✏️ Teacher Marks Portal":
         st.subheader("📝 Faculty Marks Entry Portal")
-        st.markdown("Authorized submission matrix channel for structural academic data pipelines.")
+        st.markdown("Authorized verification pipeline for structural academic evaluations.")
         
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
@@ -4009,19 +4068,19 @@ if menu_choice == "👨‍🏫 Teacher Management":
         portal_df = pd.DataFrame(portal_students)
         edited_portal_df = st.data_editor(portal_df, use_container_width=True, hide_index=True)
         
-        if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary"):
+        if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
             st.success("Ledger entry frozen. Grade configurations successfully exported into the analytical data schema stream!")
 
     # ==============================================================================
     # SUB-MODULE 5: TEACHER ANALYSIS
     # ==============================================================================
-    elif sub_menu == "Teacher Analysis":
+    elif sub_menu == "📊 Teacher Analysis":
         st.subheader("📊 Performance Analytics Dashboard")
-        st.markdown("Granular evaluation of teaching metrics, system mappings, and structural distributions.")
+        st.markdown("Granular metrics mapping, student metrics, and instructional footprint layout distributions.")
         
         t_col1, t_col2 = st.columns(2)
         with t_col1:
-            st.metric(label="Global Disciplines Anchored", value=len(DISCIPLINE_SECTIONS_MAP.keys()))
+            st.metric(label="Global Disciplines Anchored", value=len(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals() else 0)
         with t_col2:
             st.metric(label="Tracked Active Section Classes", value=len(sections_pool_df))
             
@@ -4031,17 +4090,23 @@ if menu_choice == "👨‍🏫 Teacher Management":
         with t_tab1:
             st.markdown("##### 📈 Top Faculty Metric Index Evaluations")
             analysis_mock_data = []
-            for idx, d_key in enumerate(DISCIPLINE_SECTIONS_MAP.keys()):
-                analysis_mock_data.append({
-                    "Primary Assignment Path": d_key,
-                    "Target Metrics Met Base": f"{97.5 - (idx * 2.2)}%",
-                    "Quality Index Grade": round(9.6 - (idx * 0.3), 1)
-                })
+            if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals():
+                for idx, d_key in enumerate(DISCIPLINE_SECTIONS_MAP.keys()):
+                    analysis_mock_data.append({
+                        "Primary Assignment Path": d_key,
+                        "Target Metrics Met Base": f"{97.5 - (idx * 2.2)}%",
+                        "Quality Index Grade": round(9.6 - (idx * 0.3), 1)
+                    })
             st.dataframe(pd.DataFrame(analysis_mock_data), use_container_width=True, hide_index=True)
             
         with t_tab2:
             st.markdown("##### 📋 Section Map Reference Configuration")
-            st.dataframe(sections_pool_df, use_container_width=True, hide_index=True)
+            if not sections_pool_df.empty:
+                st.dataframe(sections_pool_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No section map reference data available.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
 # ====================================================================================
 # UNIFIED CENTRAL MODULE: 👥 STUDENT OPERATIONS MANAGEMENT
 # ====================================================================================
