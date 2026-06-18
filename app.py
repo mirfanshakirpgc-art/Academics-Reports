@@ -4915,7 +4915,6 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("Build custom profiles, allocate dynamic granular rights, and manage active system passwords.")
         
         # 1. Fetch current live users along with their custom capabilities from the database
-        # (We removed try/except here so if a column is missing in Supabase, it tells you exactly what to fix!)
         users_df = run_query("""
             SELECT id, username, password, role, assigned_subject,
                    can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
@@ -4933,15 +4932,16 @@ elif menu_choice == "⚙️ Settings":
         
         # --- TAB 1: USER CREATION WITH EXTRACTED DICTIONARY SUBJECTS ---
         with tab1:
-            # Dynamically extract every unique subject from your master config dictionary
+            # 🔄 FORCE COMPUTE: Dynamically extract every unique subject from your master config dictionary
             unique_subjects_set = set()
             for class_key, groups in CLASS_SUBJECTS_MASTER_MAP.items():
                 for group_key, subject_list in groups.items():
                     for subject in subject_list:
-                        unique_subjects_set.add(subject)
+                        if subject:
+                            unique_subjects_set.add(subject.strip())
             
             # Sort alphabetically and prepend global option
-            live_subjects = ["Global (All Subjects)"] + sorted(list(unique_subjects_set))
+            live_subjects_computed = ["Global (All Subjects)"] + sorted(list(unique_subjects_set))
 
             st.markdown("##### 👤 1. Core Profile Details")
             uc1, uc2 = st.columns(2)
@@ -4950,7 +4950,11 @@ elif menu_choice == "⚙️ Settings":
                 profile_label = st.text_input("Profile Display Label (e.g., Senior Vice Principal):", key="profile_lbl").strip()
             with uc2:
                 new_pass = st.text_input("Assign Password:", type="password", key="custom_password").strip()
-                chosen_subject = st.selectbox("Scope of Subject Visibility:", options=live_subjects, key="custom_subject_select")
+                chosen_subject = st.selectbox(
+                    "Scope of Subject Visibility:", 
+                    options=live_subjects_computed, 
+                    key="custom_subject_select"
+                )
 
             st.markdown("---")
             st.markdown("##### 🔑 2. Custom Rights Checklist (Toggle On/Off)")
@@ -5027,7 +5031,7 @@ elif menu_choice == "⚙️ Settings":
                 
                 if st.button("🗑️ Permanently Delete User Profile", type="secondary", use_container_width=True):
                     if confirm_delete:
-                        if user_to_delete == current_user:
+                        if user_to_delete == st.session_state.get('username'):
                             st.error("❌ Deletion aborted: You cannot delete your own active running session account!")
                         else:
                             try:
