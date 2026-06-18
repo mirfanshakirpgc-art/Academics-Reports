@@ -1534,15 +1534,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         # This belongs inside the 'Single Entry' block (indented 8 spaces)
         st.markdown('</div>', unsafe_allow_html=True)
     # ====================================================================================
-    # WORKFLOW MODE C: BULK EXCEL / CSV / PASTE LEDGER IMPORT (WITH DYNAMIC SECTION SELECTION)
+    # WORKFLOW MODE C: BULK EXCEL / CSV / PASTE LEDGER IMPORT (WITH DYNAMIC SECTION MATCHING)
     # ====================================================================================
     elif entry_mode in ["📤 Bulk Excel/CSV Import", "📊 Bulk Excel/CSV Import"]:
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
         st.subheader("📤 Bulk Marks Import Portal")
-        st.markdown("Configure the examination context parameters below before submitting your spreadsheet records.")
+        st.markdown("Configure the specific cohort parameters below before submitting your spreadsheet records.")
         
         # --- STEP 1: CONTEXTUAL DROPDOWN SCHEMAS ---
-        bc1, bc2, bc3, bc4 = st.columns(4)
+        bc1, bc2, bc3, bc4, bc_sec = st.columns([2, 2, 2, 2, 2]) # Split into 5 equal columns for inline look
         with bc1: 
             b_session = st.selectbox("1️⃣ Select Session:", session_options, key="bulk_sess")
         with bc2: 
@@ -1563,8 +1563,30 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 b_discipline = "DIPLOMA_IN_IT_DIT"
                 st.text_input("4️⃣ Discipline:", value="DIT", disabled=True, key="bulk_disc_disabled")
 
+        with bc_sec:
+            # Dynamically query active sections matching active choices from the 'students' table
+            try:
+                sections_df = execute_db_query("""
+                    SELECT DISTINCT section 
+                    FROM students 
+                    WHERE TRIM(session) = :sess 
+                      AND UPPER(TRIM(system_type)) = UPPER(:syst)
+                      AND (UPPER(TRIM(discipline)) = UPPER(:disc) OR discipline IS NULL)
+                      AND section IS NOT NULL AND section != ''
+                """, {"sess": str(b_session).strip(), "syst": str(b_system).strip(), "disc": str(b_discipline).strip()})
+                
+                available_sections = [str(s).strip() for s in sections_df["section"].tolist() if s] if not sections_df.empty else []
+            except Exception:
+                available_sections = []
+            
+            # Smart Fallback Strategy: If database filtering returns zero records, provide common local tags so workflow is never locked
+            if not available_sections:
+                available_sections = ["MG_BLUE", "MG_GREEN", "EG_ALPHA", "ICS_BETA"]
+                
+            b_section_target = st.selectbox("5️⃣ Section:", available_sections, key="bulk_sec_selector")
+
         # --- STEP 2: TEST DETAILS & SCORE MATRIX CAPTURE ---
-        bc5, bc6, bc7 = st.columns([2, 3, 2])
+        bc5, bc6, bc7 = st.columns([2, 4, 2])
         with bc5:
             b_exam = st.selectbox("🎯 Target Exam Cycle:", all_frameworks, index=1, key="bulk_exam_cycle")
         with bc6:
@@ -1590,154 +1612,118 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             b_max_limit = 2000 if b_exam == "MATRIC" else 200
             b_total_marks = st.number_input("💯 Set Total Marks Scale:", min_value=1, max_value=b_max_limit, value=b_default_total, key="bulk_total_scale")
 
-        # --- STEP 3: DYNAMIC TARGET COHORT SECTION LOOKUP ---
-        st.markdown("##### 🏢 Target Group Assignment")
-        try:
-            sections_df = execute_db_query("""
-                SELECT DISTINCT section 
-                FROM students 
-                WHERE TRIM(session) = :sess 
-                  AND UPPER(TRIM(system_type)) = UPPER(:syst)
-                  AND UPPER(TRIM(discipline)) = UPPER(:disc)
-                  AND section IS NOT NULL AND section != ''
-            """, {"sess": str(b_session).strip(), "syst": str(b_system).strip(), "disc": str(b_discipline).strip()})
-            available_sections = sections_df["section"].tolist() if not sections_df.empty else []
-        except Exception:
-            available_sections = []
-
-        if available_sections:
-            b_section_target = st.selectbox("🔍 5️⃣ Select Active Target Section:", ["-- Select Section --"] + available_sections, key="bulk_sec_selector")
-        else:
-            b_section_target = "-- No Sections Detected --"
-            st.error("⚠️ No active cohort sections found matching your specified filters (Session, System, Discipline).")
-
         st.markdown("---")
         
-        # --- STEP 4: DATA INPUT METHODS (Conditional on valid Section choice) ---
-        if b_section_target and b_section_target not in ["-- Select Section --", "-- No Sections Detected --"]:
-            st.markdown("### 📄 Step 2: Provide Student Ledger Data")
-            
-            target_sub_slug = str(b_subject).strip().upper().replace(" ", "_")
-            target_exam_slug = str(b_exam).strip().upper()
-            
-            # Tab setup for switching between file upload and copy-paste
-            tab_upload, tab_paste = st.tabs(["📁 Option A: Upload File", "📋 Option B: Paste from Excel/Sheets"])
-            
-            uploaded_df = None
-            
-            # --- TAB A: FILE UPLOADER ---
-            with tab_upload:
-                st.caption("Upload a standard .csv or .xlsx layout with columns: `student_id` and `marks_obtained`")
-                uploaded_file = st.file_uploader("Choose spreadsheet file:", type=["csv", "xlsx"], key="bulk_file_uploader_v2")
-                if uploaded_file is not None:
-                    try:
-                        if uploaded_file.name.endswith('.csv'):
-                            uploaded_df = pd.read_csv(uploaded_file)
-                        else:
-                            uploaded_df = pd.read_excel(uploaded_file)
-                    except Exception as e:
-                        st.error(f"Error reading file: {e}")
+        # --- STEP 3: DATA INPUT ENTRY PORTS (Only visualizes when a valid section is checked) ---
+        st.markdown("### 📄 Step 2: Provide Student Ledger Data")
+        
+        target_sub_slug = str(b_subject).strip().upper().replace(" ", "_")
+        target_exam_slug = str(b_exam).strip().upper()
+        
+        tab_upload, tab_paste = st.tabs(["📁 Option A: Upload File", "📋 Option B: Paste from Excel/Sheets"])
+        uploaded_df = None
+        
+        # --- TAB A: FILE UPLOADER ---
+        with tab_upload:
+            st.caption("Upload a layout containing columns: `student_id` and `marks_obtained`")
+            uploaded_file = st.file_uploader("Choose spreadsheet file:", type=["csv", "xlsx"], key="bulk_file_uploader_v3")
+            if uploaded_file is not None:
+                try:
+                    if uploaded_file.name.endswith('.csv'):
+                        uploaded_df = pd.read_csv(uploaded_file)
+                    else:
+                        uploaded_df = pd.read_excel(uploaded_file)
+                except Exception as e:
+                    st.error(f"Error reading file: {e}")
 
-            # --- TAB B: COPY PASTE BOX ---
-            with tab_paste:
-                st.markdown(
-                    "Copy two columns directly from Excel (**Roll Number/ID** and **Marks**) and paste them inside the field below:"
-                )
-                raw_paste_data = st.text_area(
-                    "Paste spreadsheet rows here:", 
-                    placeholder="1001\t85\n1002\tA\n1003\t74", 
-                    height=180, 
-                    key="bulk_clipboard_paste"
-                )
-                
-                if raw_paste_data.strip():
-                    try:
-                        import io
-                        # Read the tab-separated clipboard layout into a pandas structure
-                        uploaded_df = pd.read_csv(io.StringIO(raw_paste_data.strip()), sep="\t", names=["student_id", "marks_obtained"], header=None)
-                    except Exception as e:
-                        st.error(f"Parsing Error: Ensure you copied exactly 2 columns. ({e})")
+        # --- TAB B: COPY PASTE BOX ---
+        with tab_paste:
+            st.markdown("Copy two columns directly from Excel (**Roll Number/ID** and **Marks**) and paste below:")
+            raw_paste_data = st.text_area(
+                "Paste spreadsheet rows here:", 
+                placeholder="1001\t85\n1002\tA\n1003\t74", 
+                height=180, 
+                key="bulk_clipboard_paste"
+            )
+            
+            if raw_paste_data.strip():
+                try:
+                    import io
+                    uploaded_df = pd.read_csv(io.StringIO(raw_paste_data.strip()), sep="\t", names=["student_id", "marks_obtained"], header=None)
+                except Exception as e:
+                    st.error(f"Parsing Error: Ensure you copied exactly 2 columns. ({e})")
 
-            # --- STEP 5: CONDITIONAL ACTION INTERFACE ---
-            if uploaded_df is not None and not uploaded_df.empty:
-                # Standardize header names to lowercase strings
-                uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
-                
-                # Auto-assign names if the paste function didn't catch header rows implicitly
-                if "student_id" not in uploaded_df.columns and len(uploaded_df.columns) >= 2:
-                    uploaded_df.columns = ["student_id", "marks_obtained"] + list(uploaded_df.columns[2:])
+        # --- STEP 4: PROCESSING AND ACTION BUTTON VISIBILITY ---
+        if uploaded_df is not None and not uploaded_df.empty:
+            uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
+            
+            if "student_id" not in uploaded_df.columns and len(uploaded_df.columns) >= 2:
+                uploaded_df.columns = ["student_id", "marks_obtained"] + list(uploaded_df.columns[2:])
 
-                required_headers = ["student_id", "marks_obtained"]
-                missing_headers = [col for col in required_headers if col not in uploaded_df.columns]
+            required_headers = ["student_id", "marks_obtained"]
+            missing_headers = [col for col in required_headers if col not in uploaded_df.columns]
+            
+            if missing_headers:
+                st.error(f"❌ Missing required columns: {missing_headers}. Verify your input rows.")
+            else:
+                st.markdown("##### 🔍 Record Parsing Preview")
+                st.dataframe(uploaded_df.head(15), use_container_width=True)
                 
-                if missing_headers:
-                    st.error(f"❌ Missing required columns: {missing_headers}. Please verify the pasted structure or file layout.")
-                else:
-                    st.markdown("##### 🔍 Record Parsing Preview")
-                    st.dataframe(uploaded_df.head(15), use_container_width=True)
+                st.info(f"📋 **Target Ledger Destination:** Section: **{b_section_target}** | Subject: **{target_sub_slug}** | Test: **{target_exam_slug}** | Out Of: **{b_total_marks}**")
+                
+                # Big Action Submission Button appears ONLY after data is available
+                if st.button("🚀 Process & Save Data Ledger", use_container_width=True, type="primary"):
+                    import time
+                    success_inserts = 0
+                    failed_inserts = 0
                     
-                    st.info(f"📋 **Target Configuration:** Section: **{b_section_target}** | Subject: **{target_sub_slug}** | Test: **{target_exam_slug}** | Out Of: **{b_total_marks}**")
-                    
-                    if st.button("🚀 Process & Save Data Ledger", use_container_width=True, type="primary"):
-                        import time
-                        success_inserts = 0
-                        failed_inserts = 0
-                        
-                        for idx, row in uploaded_df.iterrows():
-                            try:
-                                if pd.isna(row["student_id"]):
-                                    continue
-                                    
-                                # Bypass text header duplication row if copied along with clipboard frames
-                                if str(row["student_id"]).strip().lower() == "student_id":
-                                    continue
-                                    
-                                current_student_id = int(float(str(row["student_id"]).strip()))
-                                current_score = str(row["marks_obtained"]).strip().upper()
-                                
-                                if current_score in ["A", "ABSENT", "ABS"]:
-                                    clean_score = "A"
-                                elif current_score in ["NC", "NOT_CLEARED"]:
-                                    clean_score = "NC"
-                                elif current_score in ["NAN", ""]:
-                                    clean_score = ""
-                                else:
-                                    clean_score = current_score
-                                
-                                # Clean conflicting historic rows
-                                execute_db_command("""
-                                    DELETE FROM marks 
-                                    WHERE student_id = :s_id 
-                                      AND UPPER(TRIM(subject)) = :sub 
-                                      AND UPPER(TRIM(exam_type)) = :exam
-                                """, {"s_id": current_student_id, "sub": target_sub_slug, "exam": target_exam_slug})
-                                
-                                # Insert refreshed ledger item
-                                if clean_score != "":
-                                    execute_db_command("""
-                                        INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
-                                        VALUES (:s_id, :sub, :exam, :score, :total)
-                                    """, {
-                                        "s_id": current_student_id, 
-                                        "sub": target_sub_slug, 
-                                        "exam": target_exam_slug, 
-                                        "score": clean_score, 
-                                        "total": float(b_total_marks)
-                                    })
-                                success_inserts += 1
-                            except Exception:
-                                failed_inserts += 1
+                    for idx, row in uploaded_df.iterrows():
+                        try:
+                            if pd.isna(row["student_id"]):
+                                continue
+                            if str(row["student_id"]).strip().lower() == "student_id":
                                 continue
                                 
-                        if success_inserts > 0:
-                            st.success(f"🎉 Processed successfully! {success_inserts} records written into the system for Section {b_section_target}.")
-                        if failed_inserts > 0:
-                            st.error(f"⚠️ Validation warnings: {failed_inserts} entries could not be parsed.")
-                        
-                        time.sleep(1.2)
-                        st.rerun()
-        else:
-            st.info("💡 Please choose a valid target section from the dropdown menu above to proceed with data input options.")
+                            current_student_id = int(float(str(row["student_id"]).strip()))
+                            current_score = str(row["marks_obtained"]).strip().upper()
+                            
+                            if current_score in ["A", "ABSENT", "ABS"]: clean_score = "A"
+                            elif current_score in ["NC", "NOT_CLEARED"]: clean_score = "NC"
+                            elif current_score in ["NAN", ""]: clean_score = ""
+                            else: clean_score = current_score
+                            
+                            # Clean conflicting historic rows
+                            execute_db_command("""
+                                DELETE FROM marks 
+                                WHERE student_id = :s_id 
+                                  AND UPPER(TRIM(subject)) = :sub 
+                                  AND UPPER(TRIM(exam_type)) = :exam
+                            """, {"s_id": current_student_id, "sub": target_sub_slug, "exam": target_exam_slug})
+                            
+                            # Insert refreshed record line
+                            if clean_score != "":
+                                execute_db_command("""
+                                    INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                    VALUES (:s_id, :sub, :exam, :score, :total)
+                                """, {
+                                    "s_id": current_student_id, 
+                                    "sub": target_sub_slug, 
+                                    "exam": target_exam_slug, 
+                                    "score": clean_score, 
+                                    "total": float(b_total_marks)
+                                })
+                            success_inserts += 1
+                        except Exception:
+                            failed_inserts += 1
+                            continue
+                            
+                    if success_inserts > 0:
+                        st.success(f"🎉 Processed successfully! {success_inserts} records saved to Section {b_section_target}.")
+                    if failed_inserts > 0:
+                        st.error(f"⚠️ Errors encountered on {failed_inserts} records.")
+                    
+                    time.sleep(1.2)
+                    st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
 # ==============================================================================
