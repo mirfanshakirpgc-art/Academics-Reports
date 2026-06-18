@@ -1127,12 +1127,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     """, unsafe_allow_html=True)
 
     # ====================================================================================
-    # WORKFLOW MODE C: BULK EXCEL/CSV IMPORT
+    # WORKFLOW MODE A: BY COMPLETE SECTION
     # ====================================================================================
-    #  GOOD: Perfect alignment
     if entry_mode == "📋 By Complete Section":
         st.write("Mode A")
-    elif entry_mode == "📤 Bulk Excel/CSV Import":  # 👈 Aligned perfectly
+
+    # ====================================================================================
+    # WORKFLOW MODE C: BULK EXCEL/CSV IMPORT
+    # ====================================================================================
+    elif entry_mode == "📤 Bulk Excel/CSV Import": 
         st.write("Mode C")
         
         # --- SAFE STATE ACCESS EXTRACTOR ---
@@ -1355,10 +1358,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     </script>
                 """, height=0)
 
+                # Use a combined dynamic key for the form component itself to isolate rendering instances cleanly
                 with st.form(key=f"roll_number_entry_form_{single_id}_{single_exam}"):
                     st.markdown("### 🔢 Marks Evaluation Ledger")
-                    
-                    updated_scores = {}
                     
                     s_h_cols = st.columns([4.0, 3.0, 1.0, 1.0])
                     s_h_cols[0].caption("📖 **Course Subject**")
@@ -1381,8 +1383,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         s_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
                         s_mark_key = f"s_mark_in_{single_id}_{sub_slug}_{target_exam_slug}"
                         
-                        if s_abs_key not in st.session_state: st.session_state[s_abs_key] = (db_score in ['A', 'ABSENT'])
-                        if s_nc_key not in st.session_state: st.session_state[s_nc_key] = (db_score == 'NC')
+                        # --- FIX 1: Set explicit defaults directly in session state ---
+                        if s_abs_key not in st.session_state: 
+                            st.session_state[s_abs_key] = (db_score in ['A', 'ABSENT'])
+                        if s_nc_key not in st.session_state: 
+                            st.session_state[s_nc_key] = (db_score == 'NC')
                         
                         chk_abs = st.session_state[s_abs_key]
                         chk_nc = st.session_state[s_nc_key]
@@ -1394,7 +1399,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             s_cols[0].markdown(f"<div class='vertical-align-center'><b>📖 {subject_name}</b></div>", unsafe_allow_html=True)
                             
                             with s_cols[1]:
-                                score_input = st.text_input(
+                                st.text_input(
                                     f"single_field_m_{single_id}_{idx}", 
                                     value=display_val, 
                                     placeholder="Score", 
@@ -1409,24 +1414,52 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             with s_cols[3]:
                                 st.checkbox("S_NC", key=s_nc_key, label_visibility="collapsed")
                                 
-                        updated_scores[sub_slug] = {"marks": score_input, "abs_key": s_abs_key, "nc_key": s_nc_key}
-
                     st.markdown("<br>", unsafe_allow_html=True)
+                    
                     if st.form_submit_button("💾 Batch Save Dynamic Student Record Sheet", type="primary", use_container_width=True):
                         import time
-                        for sub_slug, record in updated_scores.items():
-                            is_a = st.session_state.get(record["abs_key"], False)
-                            is_nc = st.session_state.get(record["nc_key"], False)
-                            final_score = "A" if is_a else ("NC" if is_nc else str(record["marks"]).strip().upper())
+                        
+                        # --- FIX 2: Evaluate fields dynamically *inside* the execution branch directly from session state keys ---
+                        for subject_name in subjects_list:
+                            sub_slug = str(subject_name).strip().upper().replace(" ", "_")
                             
-                            execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam", {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug})
+                            # Build runtime lookup keys
+                            r_abs_key = f"s_abs_{single_id}_{sub_slug}_{target_exam_slug}"
+                            r_nc_key = f"s_nc_{single_id}_{sub_slug}_{target_exam_slug}"
+                            r_mark_key = f"s_mark_in_{single_id}_{sub_slug}_{target_exam_slug}"
+                            
+                            is_a = st.session_state.get(r_abs_key, False)
+                            is_nc = st.session_state.get(r_nc_key, False)
+                            
+                            # Fallback cleanly to the raw input value string
+                            raw_input_val = st.session_state.get(r_mark_key, "").strip().upper()
+                            
+                            final_score = "A" if is_a else ("NC" if is_nc else raw_input_val)
+                            
+                            # Clear past entries out of database to override correctly
+                            execute_db_command("""
+                                DELETE FROM marks 
+                                WHERE student_id = :s_id 
+                                  AND UPPER(TRIM(subject)) = :sub 
+                                  AND UPPER(TRIM(exam_type)) = :exam
+                            """, {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug})
+                            
                             if final_score != "":
-                                execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :sub, :exam, :score, :total)",
-                                                  {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug, "score": final_score, "total": float(total_marks_input)})
+                                execute_db_command("""
+                                    INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                    VALUES (:s_id, :sub, :exam, :score, :total)
+                                """, {
+                                    "s_id": int(single_id), 
+                                    "sub": sub_slug, 
+                                    "exam": target_exam_slug, 
+                                    "score": final_score, 
+                                    "total": float(total_marks_input)
+                                })
                         
                         st.success(f"🎉 Performance matrix for Roll Number {single_id} saved successfully!")
                         time.sleep(1.2)
                         st.rerun()
+                        
         st.markdown('</div>', unsafe_allow_html=True)
 # ==============================================================================
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
