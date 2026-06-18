@@ -373,6 +373,91 @@ if st.sidebar.button("🚪 Log Out", type="secondary", use_container_width=True,
     for key in list(st.session_state.keys()): del st.session_state[key]
     st.rerun()
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
+
+
+# ==============================================================================
+# 📊 MAIN CONTENT AREA: WORKSPACE SUMMARY METRICS (FACULTY DASHBOARD VISUALS)
+# ==============================================================================
+if user_role in ["Teacher", "Faculty"]:
+    assigned_subs_raw = st.session_state.get("assigned_subject", "")
+    teacher_subjects = [s.strip() for s in assigned_subs_raw.split(",")] if assigned_subs_raw else []
+    
+    student_count = 0
+    overall_pass_rate = 0.0
+    class_attendance_avg = None
+    
+    # Run dynamic metrics collection against PostgreSQL backend database
+    try:
+        with engine.connect() as conn:
+            # 1. Compute total students assigned via mapped allocation sections
+            student_df = pd.read_sql_query(
+                text("""
+                    SELECT COUNT(DISTINCT id) FROM students 
+                    WHERE section IN (
+                        SELECT DISTINCT section_name FROM academic_allocations WHERE assigned_teacher_name = :usr
+                    ) AND status = 'ACTIVE'
+                """), conn, params={"usr": username_current}
+            )
+            student_count = int(student_df.iloc[0][0]) if not student_df.empty else 0
+            
+            # 2. Compute aggregate subject performance pass metric details (Marks >= 40%)
+            marks_df = pd.read_sql_query(
+                text("""
+                    SELECT marks_obtained, total_marks FROM marks 
+                    WHERE subject IN (
+                        SELECT DISTINCT subject_title FROM academic_allocations WHERE assigned_teacher_name = :usr
+                    )
+                """), conn, params={"usr": username_current}
+            )
+            
+            if not marks_df.empty:
+                marks_df['obtained'] = pd.to_numeric(marks_df['marks_obtained'], errors='coerce').fillna(0)
+                marks_df['total'] = pd.to_numeric(marks_df['total_marks'], errors='coerce').fillna(100)
+                marks_df = marks_df[marks_df['total'] > 0]
+                
+                if len(marks_df) > 0:
+                    pass_count = sum((marks_df['obtained'] / marks_df['total']) >= 0.40)
+                    overall_pass_rate = (pass_count / len(marks_df)) * 100
+            
+            # 3. Compute Attendance metric selectively if user is assigned Class Incharge role
+            if is_class_incharge and db_class_scope:
+                att_df = pd.read_sql_query(
+                    text("""
+                        SELECT SUM(present_days) as total_present, SUM(total_days) as total_bound 
+                        FROM attendance a
+                        JOIN students s ON a.student_id = s.id
+                        WHERE s.class = :class_scope AND a.total_days > 0
+                    """), conn, params={"class_scope": db_class_scope}
+                )
+                if not att_df.empty and att_df.iloc[0]['total_bound']:
+                    tp = float(att_df.iloc[0]['total_present'] or 0)
+                    tb = float(att_df.iloc[0]['total_bound'] or 1)
+                    class_attendance_avg = (tp / tb) * 100
+                    
+    except Exception as e:
+        pass
+
+    # Render layout container grids dynamically onto the main canvas workspace area
+    st.markdown(f"## 🏫 Welcome, {username_current}")
+    st.markdown("Here is your academic overview performance log data for today.")
+    
+    if is_class_incharge and class_attendance_avg is not None:
+        metric_col1, metric_col2, metric_col3 = st.columns(3)
+    else:
+        metric_col1, metric_col2 = st.columns(2)
+        metric_col3 = None
+
+    with metric_col1:
+        st.metric(label="👥 Total Students Allotted", value=f"{student_count} Students")
+        
+    with metric_col2:
+        st.metric(label="📈 Overall Subject Result Pass Rate", value=f"{overall_pass_rate:.1f}%")
+
+    if metric_col3:
+        with metric_col3:
+            st.metric(label=f"📅 Class Incharge Attendance ({db_class_scope})", value=f"{class_attendance_avg:.1f}%")
+            
+    st.markdown("---")
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
 # ==============================================================================
