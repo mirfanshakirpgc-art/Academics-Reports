@@ -5009,11 +5009,11 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
-        # 🛠️ LIVE DB SCHEMA PATCH
+        # 🛠️ LIVE DB SCHEMA PATCH: Aligning with your production table's boolean structure
         try:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks INTEGER DEFAULT 1;"))
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks BOOLEAN DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks BOOLEAN DEFAULT FALSE;"))
         except Exception as patch_err:
             pass
 
@@ -5096,13 +5096,13 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
-                            # Using standard explicit SQL CAST functions avoids engine/driver binding collision errors
+                            # Explicitly casting ALL flags to BOOLEAN guarantees compatibility with your Supabase setup
                             conn.execute(text("""
                                 INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
-                                VALUES (:usr, :pwd, :role, :sub, :cls, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), CAST(:m_f AS BOOLEAN), CAST(:e_n AS INTEGER), CAST(:e_m AS INTEGER))
+                                VALUES (:usr, :pwd, :role, :sub, :cls, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), CAST(:m_f AS BOOLEAN), CAST(:e_n AS BOOLEAN), CAST(:e_m AS BOOLEAN))
                             """), {
                                 "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
-                                "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), "e_n": int(c_m_ent), "e_m": int(c_m_mrk)
+                                "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), "e_n": bool(c_m_ent), "e_m": bool(c_m_mrk)
                             })
                         st.success(f"🎉 System User profile for '{new_username}' has been successfully created.")
                         import time; time.sleep(1.0); st.rerun()
@@ -5164,16 +5164,16 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if edit_class == "None" else edit_class
                         
                         with engine.begin() as conn:
-                            # Using standard explicit SQL CAST functions avoids engine/driver binding collision errors
+                            # Explicitly casting ALL flags to BOOLEAN guarantees compatibility with your Supabase setup
                             conn.execute(text("""
                                 UPDATE app_users 
                                 SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
                                     can_manage_users = CAST(:mu AS BOOLEAN), can_manage_settings = CAST(:ms AS BOOLEAN), can_manage_faculty = CAST(:mf AS BOOLEAN), 
-                                    can_enter_marks = CAST(:en AS INTEGER), can_edit_marks = CAST(:em AS INTEGER)
+                                    can_enter_marks = CAST(:en AS BOOLEAN), can_edit_marks = CAST(:em AS BOOLEAN)
                                 WHERE id = :target_id
                             """), {
                                 "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
-                                "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": int(e_m_ent), "em": int(e_m_mrk), "target_id": int(meta_row['id'])
+                                "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": bool(e_m_ent), "em": bool(e_m_mrk), "target_id": int(meta_row['id'])
                             })
                         st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
                         import time; time.sleep(1.0); st.rerun()
