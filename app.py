@@ -5012,18 +5012,15 @@ elif menu_choice == "⚙️ Settings":
         # 🛠️ HARD REPAIR DB SCHEMA PATCH: Safely self-heals mixed integer/boolean column states
         try:
             with engine.begin() as conn:
-                # 1. Check the datatype of 'can_enter_marks' in your Supabase DB
                 res = conn.execute(text("""
                     SELECT data_type FROM information_schema.columns 
                     WHERE table_name = 'app_users' AND column_name = 'can_enter_marks';
                 """)).fetchone()
                 
-                # 2. If it exists but it's an integer, drop it and align it to boolean cleanly
                 if res and res[0] != 'boolean':
                     conn.execute(text("ALTER TABLE app_users DROP COLUMN IF EXISTS can_enter_marks;"))
                     conn.execute(text("ALTER TABLE app_users DROP COLUMN IF EXISTS can_edit_marks;"))
                 
-                # 3. Create them as standard BOOLEAN elements
                 conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks BOOLEAN DEFAULT TRUE;"))
                 conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks BOOLEAN DEFAULT FALSE;"))
         except Exception as patch_err:
@@ -5102,13 +5099,15 @@ elif menu_choice == "⚙️ Settings":
             if st.button("💾 Instantiate Custom Profile", type="primary", use_container_width=True):
                 if not new_username or not new_password:
                     st.warning("⚠️ Username and password fields cannot be blank.")
+                # 🛡️ DUP CHECK: Verify if username already exists in local dataframe before running insertion
+                elif not users_df.empty and new_username in users_df["username"].values:
+                    st.warning(f"⚠️ A profile configuration for '{new_username}' already exists. Go to the 'Edit User & System Rights' tab if you want to modify their permissions.")
                 else:
                     try:
                         clean_sub = None if new_subject == "Global (All Subjects)" else new_subject
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
-                            # Unified boolean mapping safely inserted
                             conn.execute(text("""
                                 INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
                                 VALUES (:usr, :pwd, :role, :sub, :cls, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), CAST(:m_f AS BOOLEAN), CAST(:e_n AS BOOLEAN), CAST(:e_m AS BOOLEAN))
