@@ -34,7 +34,6 @@ if os.path.exists(logo_filename):
             
             logo_base64 = f"data:image/{mime_type};base64,{encoded_string}"
     except Exception as e:
-        # Log the error to your console so you know why the image failed
         print(f"Error loading logo file: {e}")
         logo_base64 = ""
 else:
@@ -61,9 +60,7 @@ def apply_filters(df, tab_key):
     return f_df
 
 @st.cache_data(ttl=600)
-@st.cache_data(ttl=600)
 def fetch_analytics_data():
-    # 1. Base query structure
     query = """
         SELECT s.id, s.name, s.section, s.class, s.session, 
                m.subject, m.marks_obtained, m.total_marks, m.exam_type
@@ -73,12 +70,10 @@ def fetch_analytics_data():
     """
     params = {}
 
-    # 2. If the current user is a Teacher, forcefully append the filter constraint
     if "user_role" in st.session_state and st.session_state.user_role == "Teacher":
         query += " AND m.subject = :teacher_sub"
         params["teacher_sub"] = st.session_state.assigned_subject
 
-    # 3. Safely pass both the query and parameters to your helper function
     return run_query(query, params)
 
 # --- DATABASE CONNECTION CONFIGURATION ---
@@ -98,7 +93,7 @@ if "user_role" not in st.session_state:
 if "assigned_subject" not in st.session_state:
     st.session_state.assigned_subject = None
 
-# 🌟 INITIALIZE NEW GRANULAR RIGHTS VARIABLES IN SESSION STATE
+# 🌟 INITIALIZE GRANULAR RIGHTS VARIABLES IN SESSION STATE
 if "can_manage_users" not in st.session_state:
     st.session_state.can_manage_users = False
 if "can_manage_settings" not in st.session_state:
@@ -126,7 +121,6 @@ if not st.session_state.logged_in:
     
     if st.button("Log In"):
         with engine.connect() as conn:
-            # 🔄 UPDATED QUERY: Select the new capability flags along with role and subject
             query = text("""
                 SELECT role, assigned_subject, 
                        can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
@@ -140,10 +134,10 @@ if not st.session_state.logged_in:
                 st.session_state.user_role = result[0]         
                 st.session_state.assigned_subject = result[1]    
                 
-                # 🔄 SAVE FLAGS INTO MEMORY: Convert database values safely to True/False
-                # If they are legacy Admin or controller profiles, automatically grant True as a backup safety net
+                # Check legacy role status
                 is_legacy_admin = result[0] in ['controller', 'Admin']
                 
+                # Assign dynamic rights fallback metrics
                 st.session_state.can_manage_users = bool(result[2]) or is_legacy_admin
                 st.session_state.can_manage_settings = bool(result[3]) or is_legacy_admin
                 st.session_state.can_manage_faculty = bool(result[4]) or is_legacy_admin
@@ -160,7 +154,6 @@ if not st.session_state.logged_in:
 # ==============================================================================
 def initialize_database():
     with engine.begin() as conn:
-        # 1. Create students table with system_type and discipline tracking columns
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
@@ -174,24 +167,16 @@ def initialize_database():
             );
         """))
         
-        # 2. Safe Patch: Force-inject system_type and discipline columns into existing Supabase tables
         try:
-            conn.execute(text("""
-                ALTER TABLE students 
-                ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';
-            """))
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';"))
         except Exception:
-            pass # Skips quietly if the column already exists
+            pass
 
         try:
-            conn.execute(text("""
-                ALTER TABLE students 
-                ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);
-            """))
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);"))
         except Exception:
-            pass # Skips quietly if the column already exists
+            pass
         
-        # 3. Create teachers table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_teachers (
                 teacher_id SERIAL PRIMARY KEY,
@@ -202,7 +187,6 @@ def initialize_database():
             );
         """))
 
-        # 4. Create allocations table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS academic_allocations (
                 allocation_id SERIAL PRIMARY KEY,
@@ -216,7 +200,6 @@ def initialize_database():
             );
         """))
         
-        # 5. Create marks table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS marks (
                 id SERIAL PRIMARY KEY,
@@ -229,7 +212,6 @@ def initialize_database():
             );
         """))
         
-        # 6. Create attendance table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS attendance (
                 id SERIAL PRIMARY KEY,
@@ -250,34 +232,24 @@ except Exception as e:
 # --- DATABASE COMMAND UTILITIES ---
 # ==============================================================================
 def run_query(query, params=None):
-    """
-    Safely executes a read query. 
-    Handles cases where query might be passed as a tuple due to calling errors.
-    """
     if params is None:
         params = {}
 
-    # 1. Defensive check: If query is a tuple, extract the string
     if isinstance(query, tuple):
-        # Assuming the first element is the string query and second is params
-        # This handles cases where you accidentally passed (query, params)
         if len(query) >= 2 and isinstance(query[0], str):
             params = query[1]
             query = query[0]
         else:
             query = str(query[0])
 
-    # 2. Proceed with string operations safely
     clean_query = query.replace("[Session Name]", '"Session Name"')
     
     try:
         with engine.connect() as conn:
             return pd.read_sql_query(text(clean_query), conn, params=params)
     except Exception as original_error:
-        # Retry logic: Attempt to repair missing columns/tables
         try:
             with engine.begin() as txn_conn:
-                # Ensure base tables exist
                 txn_conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS academic_sessions (
                         id SERIAL PRIMARY KEY,
@@ -285,8 +257,6 @@ def run_query(query, params=None):
                         status VARCHAR(20) DEFAULT 'ACTIVE'
                     );
                 """))
-                
-                # Patch columns if they are missing
                 for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
                     try:
                         txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';"))
@@ -299,7 +269,6 @@ def run_query(query, params=None):
             raise original_error
 
 def execute_db_command(query, params=None):
-    """Safely executes write operations."""
     if params is None:
         params = {}
     try:
@@ -309,25 +278,27 @@ def execute_db_command(query, params=None):
         raise RuntimeError(f"Database write execution failed: {str(e)}")
 
 # ==============================================================================
-# SIDEBAR NAVIGATION MODULE (ROLE-BASED ACCESS CONTROL)
+# SIDEBAR NAVIGATION MODULE (ROLE-BASED + GRANULAR ACCESS CONTROL)
 # ==============================================================================
 allowed_menus = ["📊 Home Dashboard"]
 
-if st.session_state.user_role == "Admin":
-    allowed_menus += [
-        "➕ Add Students", 
-        "📝 Academic Exam Marks Entry",      
-        "📅 Attendance Entry Management",    
-        "📋 Daily Attendance Report",
-        "📋 Section Summary Report", 
-        "📈 Multi-Test Progress Report", 
-        "🪪 Student Result Cards", 
-        "👨‍🏫 Teacher Management",  
-        "📈 Academic Analysis Reports",
-        "👥 Student Operations Management",
-        "⚙️ Settings"
-    ]
-elif st.session_state.user_role == "Teacher":
+# Load specific operational capability states from memory mapping
+user_role = st.session_state.get('user_role')
+can_manage_users = st.session_state.get('can_manage_users', False)
+can_manage_settings = st.session_state.get('can_manage_settings', False)
+can_manage_faculty = st.session_state.get('can_manage_faculty', False)
+can_edit_marks = st.session_state.get('can_edit_marks', False)
+
+# 🔄 DYNAMIC NAVIGATION MAP BUILDER: Bridges old roles and newly structured rights cleanly
+if user_role in ['Admin', 'controller'] or can_manage_users or can_manage_settings or can_manage_faculty or can_edit_marks:
+    # Full access configurations
+    allowed_menus += ["➕ Add Students"] if (user_role in ['Admin', 'controller'] or can_manage_users) else []
+    allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role in ['Admin', 'controller'] or can_edit_marks) else []
+    allowed_menus += ["📅 Attendance Entry Management", "📋 Daily Attendance Report"]
+    allowed_menus += ["📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
+    allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role in ['Admin', 'controller'] or can_manage_faculty) else []
+    allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
+elif user_role == "Teacher":
     allowed_menus += [
         "📝 Academic Exam Marks Entry",      
         "📅 Attendance Entry Management",    
@@ -335,7 +306,7 @@ elif st.session_state.user_role == "Teacher":
         "📈 Multi-Test Progress Report", 
         "🪪 Student Result Cards"
     ]
-elif st.session_state.user_role == "Viewer":
+else:  # Fallback for general custom viewers
     allowed_menus += [
         "📋 Daily Attendance Report",
         "📋 Section Summary Report", 
@@ -343,7 +314,9 @@ elif st.session_state.user_role == "Viewer":
         "📈 Academic Analysis Reports"
     ]
 
-# This renders the radio buttons with your customized, restricted menu list!
+# Remove duplicated list filters if arrays overlap dynamically
+allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
+
 menu_choice = st.sidebar.radio("Go To Module:", allowed_menus)
 
 # ==============================================================================
@@ -503,7 +476,6 @@ elif menu_choice == "➕ Add Students":
     # ====================================================================================
     st.markdown("## 📤 Part 1: New Student Intake Options")
     
-    # We use Streamlit tabs within Part 1 to clean up the intake workflow options
     intake_tab1, intake_tab2 = st.tabs(["📋 Bulk Upload (Excel/CSV)", "👤 Single Student Manual Form"])
     
     with intake_tab1:
