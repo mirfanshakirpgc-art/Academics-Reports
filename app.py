@@ -1050,9 +1050,6 @@ elif menu_choice == "➕ Add Students":
 elif menu_choice == "📝 Academic Exam Marks Entry":
     st.title("📝 Academic Exam Marks Entry Workspace")
     
-elif menu_choice == "📝 Academic Exam Marks Entry":
-    st.title("📝 Academic Exam Marks Entry Workspace")
-    
     # --- STEP 3: ROLE-BASED DATA LOCK DOWN ---
     if st.session_state.user_role == "Teacher":
         # Automatically capture and lock the subject assigned to this teacher in the database
