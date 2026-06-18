@@ -113,40 +113,112 @@ if "available_sessions" not in st.session_state:
 
 # --- SECURE GATEKEEPER LOGIN CHECK ---
 if not st.session_state.logged_in:
-    st.image("logo.png", width=120) 
-    st.title("Concordia College Kasur")
+    # 🎨 Injecting Custom Stylesheets directly inside the verification gatekeeper workflow
+    st.markdown("""
+        <style>
+            /* Centralizes components vertically and horizontally while maintaining structural discipline */
+            .main .block-container {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                min-height: 85vh;
+            }
+            /* Fixed-width layout footprint to eliminate empty screen whitespace */
+            .professional-login-card {
+                background-color: #ffffff;
+                padding: 2.5rem;
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+                width: 100%;
+                max-width: 420px;
+                border: 1px solid #e2e8f0;
+                text-align: center;
+                margin-top: 1.5rem;
+            }
+            .corporate-title {
+                color: #0f172a;
+                font-size: 1.75rem;
+                font-weight: 700;
+                margin-bottom: 1.5rem;
+                letter-spacing: -0.5px;
+            }
+            /* Clean structural alignment for the helper asset link */
+            .forgot-pwd-container {
+                text-align: right;
+                margin-top: -10px;
+                margin-bottom: 18px;
+                font-size: 0.85rem;
+            }
+            .forgot-pwd-container a {
+                color: #ef4444;
+                text-decoration: none;
+                font-weight: 500;
+            }
+            .forgot-pwd-container a:hover {
+                text-decoration: underline;
+            }
+            /* Removes inner borders from native streamlit forms */
+            div[data-testid="stForm"] {
+                border: none !important;
+                padding: 0 !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
-    username_input = st.text_input("Username")
-    password_input = st.text_input("Password", type="password")
+    # Render company logo centralized above the card element layout
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=140)
+        
+    # Start HTML wrapper element
+    st.markdown('<div class="professional-login-card">', unsafe_allow_html=True)
+    st.markdown('<div class="corporate-title">Concordia College Kasur</div>', unsafe_allow_html=True)
     
-    if st.button("Log In"):
-        with engine.connect() as conn:
-            query = text("""
-                SELECT role, assigned_subject, 
-                       can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
-                FROM app_users 
-                WHERE username = :u AND password = :p
-            """)
-            result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
-            
-            if result:
-                st.session_state.logged_in = True
-                st.session_state.user_role = result[0]         
-                st.session_state.assigned_subject = result[1]    
+    with st.form("centralized_auth_form", clear_on_submit=False):
+        username_input = st.text_input("Username", placeholder="Enter username")
+        password_input = st.text_input("Password", type="password", placeholder="Enter password")
+        
+        # Hyperlink to trigger campus admin resolution workflow
+        st.markdown('''
+            <div class="forgot-pwd-container">
+                <a href="mailto:admin@concordia.edu.pk?subject=Password%20Reset%20Request%20-%20Kasur%20Campus" target="_blank">
+                    Forgot Password?
+                </a>
+            </div>
+        ''', unsafe_allow_html=True)
+        
+        login_submitted = st.form_submit_button("Log In", use_container_width=True)
+        
+        if login_submitted:
+            with engine.connect() as conn:
+                query = text("""
+                    SELECT role, assigned_subject, 
+                           can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                    FROM app_users 
+                    WHERE username = :u AND password = :p
+                """)
+                result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
                 
-                # Check legacy role status
-                is_legacy_admin = result[0] in ['controller', 'Admin']
-                
-                # Assign dynamic rights fallback metrics
-                st.session_state.can_manage_users = bool(result[2]) or is_legacy_admin
-                st.session_state.can_manage_settings = bool(result[3]) or is_legacy_admin
-                st.session_state.can_manage_faculty = bool(result[4]) or is_legacy_admin
-                st.session_state.can_edit_marks = bool(result[5]) or is_legacy_admin
+                if result:
+                    st.session_state.logged_in = True
+                    st.session_state.user_role = result[0]         
+                    st.session_state.assigned_subject = result[1]    
+                    
+                    # Check legacy role status
+                    is_legacy_admin = result[0] in ['controller', 'Admin']
+                    
+                    # Assign dynamic rights fallback metrics
+                    st.session_state.can_manage_users = bool(result[2]) or is_legacy_admin
+                    st.session_state.can_manage_settings = bool(result[3]) or is_legacy_admin
+                    st.session_state.can_manage_faculty = bool(result[4]) or is_legacy_admin
+                    st.session_state.can_edit_marks = bool(result[5]) or is_legacy_admin
 
-                st.success("Access Granted! Loading system...")
-                st.rerun()
-            else:
-                st.error("Incorrect username or password. Please try again.")
+                    st.success("Access Granted! Loading system...")
+                    st.rerun()
+                else:
+                    st.error("Incorrect username or password. Please try again.")
+
+    st.markdown('</div>', unsafe_allow_html=True) # End HTML card wrapper element
     st.stop() 
 
 # ==============================================================================
