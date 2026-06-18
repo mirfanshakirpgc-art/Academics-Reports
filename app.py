@@ -5009,9 +5009,27 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
-        # 🛠️ HARD REPAIR DB SCHEMA PATCH: Safely self-heals mixed integer/boolean column states
+        # 🛠️ HARD REPAIR & INIT DB SCHEMA PATCH: PostgreSQL Native Syntax (SERIAL)
         try:
             with engine.begin() as conn:
+                # Core table check using standard PostgreSQL-compliant fields
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS app_users (
+                        id SERIAL PRIMARY KEY,
+                        username TEXT UNIQUE,
+                        password TEXT,
+                        role TEXT,
+                        assigned_subject TEXT,
+                        assigned_class TEXT,
+                        can_manage_users BOOLEAN DEFAULT FALSE,
+                        can_manage_settings BOOLEAN DEFAULT FALSE,
+                        can_manage_faculty BOOLEAN DEFAULT FALSE,
+                        can_enter_marks BOOLEAN DEFAULT TRUE,
+                        can_edit_marks BOOLEAN DEFAULT FALSE
+                    );
+                """))
+                
+                # Check the datatype of 'can_enter_marks' in your Supabase DB to resolve prior type discrepancies
                 res = conn.execute(text("""
                     SELECT data_type FROM information_schema.columns 
                     WHERE table_name = 'app_users' AND column_name = 'can_enter_marks';
@@ -5020,9 +5038,8 @@ elif menu_choice == "⚙️ Settings":
                 if res and res[0] != 'boolean':
                     conn.execute(text("ALTER TABLE app_users DROP COLUMN IF EXISTS can_enter_marks;"))
                     conn.execute(text("ALTER TABLE app_users DROP COLUMN IF EXISTS can_edit_marks;"))
-                
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks BOOLEAN DEFAULT TRUE;"))
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks BOOLEAN DEFAULT FALSE;"))
+                    conn.execute(text("ALTER TABLE app_users ADD COLUMN can_enter_marks BOOLEAN DEFAULT TRUE;"))
+                    conn.execute(text("ALTER TABLE app_users ADD COLUMN can_edit_marks BOOLEAN DEFAULT FALSE;"))
         except Exception as patch_err:
             pass
 
@@ -5035,7 +5052,7 @@ elif menu_choice == "⚙️ Settings":
         except Exception as e:
             st.warning(f"Could not sync with Teacher Management profiles table: {e}")
 
-        # Compute dynamic subject pool (excluding the "Global" placeholder for cleaner multi-select)
+        # Compute dynamic subject pool
         computed_subject_pool = []
         if 'CLASS_SUBJECTS_MASTER_MAP' in locals() or 'CLASS_SUBJECTS_MASTER_MAP' in globals():
             for class_key, discipline_map in CLASS_SUBJECTS_MASTER_MAP.items():
@@ -5058,7 +5075,6 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("### 📋 System Profiles & Active Access Permissions")
         if not users_df.empty:
             view_df = users_df.copy()
-            # Fallback formatting for visual presentation
             view_df['assigned_subject'] = view_df['assigned_subject'].fillna("Global (All Subjects)")
             for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_enter_marks', 'can_edit_marks']:
                 view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) or str(x) in ['1', 'True', 'true'] else "❌ Denied")
@@ -5106,7 +5122,6 @@ elif menu_choice == "⚙️ Settings":
                     st.warning(f"⚠️ A profile configuration for '{new_username}' already exists. Go to the 'Edit User & System Rights' tab if you want to modify their permissions.")
                 else:
                     try:
-                        # Pack list into a cleanly formatted comma separated string or remain NULL for global scope
                         clean_sub = ", ".join(new_subjects_list) if (new_role == "Faculty" and new_subjects_list) else None
                         clean_cls = None if new_class == "None" else new_class
                         
@@ -5146,9 +5161,9 @@ elif menu_choice == "⚙️ Settings":
                     edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
                     
                     if edit_role == "Faculty":
-                        # Unpack CSV string from DB back into a proper python list matching multi-select components
+                        # 🛡️ SAFE STRING EXTRACTION CHECK: Prevents split errors on non-string (None/Null) database values
                         db_sub_val = meta_row['assigned_subject']
-                        if db_sub_val:
+                        if isinstance(db_sub_val, str) and db_sub_val.strip():
                             default_selected_subjects = [s.strip() for s in db_sub_val.split(",") if s.strip() in computed_subject_pool]
                         else:
                             default_selected_subjects = []
@@ -5185,7 +5200,6 @@ elif menu_choice == "⚙️ Settings":
                         st.warning(f"⚠️ Cannot update profile. The username '{edit_username}' is already linked to a different login profile ID.")
                     else:
                         try:
-                            # Re-pack updating multi-select fields down to string format
                             clean_sub = ", ".join(edit_subjects_list) if (edit_role == "Faculty" and edit_subjects_list) else None
                             clean_cls = None if edit_class == "None" else edit_class
                             
