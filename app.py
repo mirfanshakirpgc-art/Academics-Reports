@@ -5009,9 +5009,21 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
-        # 🛠️ LIVE DB SCHEMA PATCH: Aligning with your production table's boolean structure
+        # 🛠️ HARD REPAIR DB SCHEMA PATCH: Safely self-heals mixed integer/boolean column states
         try:
             with engine.begin() as conn:
+                # 1. Check the datatype of 'can_enter_marks' in your Supabase DB
+                res = conn.execute(text("""
+                    SELECT data_type FROM information_schema.columns 
+                    WHERE table_name = 'app_users' AND column_name = 'can_enter_marks';
+                """)).fetchone()
+                
+                # 2. If it exists but it's an integer, drop it and align it to boolean cleanly
+                if res and res[0] != 'boolean':
+                    conn.execute(text("ALTER TABLE app_users DROP COLUMN IF EXISTS can_enter_marks;"))
+                    conn.execute(text("ALTER TABLE app_users DROP COLUMN IF EXISTS can_edit_marks;"))
+                
+                # 3. Create them as standard BOOLEAN elements
                 conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks BOOLEAN DEFAULT TRUE;"))
                 conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks BOOLEAN DEFAULT FALSE;"))
         except Exception as patch_err:
@@ -5096,7 +5108,7 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
-                            # Explicitly casting ALL flags to BOOLEAN guarantees compatibility with your Supabase setup
+                            # Unified boolean mapping safely inserted
                             conn.execute(text("""
                                 INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
                                 VALUES (:usr, :pwd, :role, :sub, :cls, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), CAST(:m_f AS BOOLEAN), CAST(:e_n AS BOOLEAN), CAST(:e_m AS BOOLEAN))
@@ -5164,7 +5176,6 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if edit_class == "None" else edit_class
                         
                         with engine.begin() as conn:
-                            # Explicitly casting ALL flags to BOOLEAN guarantees compatibility with your Supabase setup
                             conn.execute(text("""
                                 UPDATE app_users 
                                 SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
