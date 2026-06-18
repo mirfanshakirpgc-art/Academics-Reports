@@ -4993,7 +4993,6 @@ elif menu_choice == "⚙️ Settings":
         try:
             with engine.begin() as conn:
                 for disc_name in dict_disciplines:
-                    # Automatically determine whether it belongs to Semester or Annual track
                     is_semester = any("Semester" in str(yr) for yr in CLASS_SUBJECTS_MASTER_MAP.keys() if disc_name in [k.upper() for k in CLASS_SUBJECTS_MASTER_MAP[yr].keys()])
                     track_system = "Semester System" if is_semester else "Annual System"
                     
@@ -5009,449 +5008,406 @@ elif menu_choice == "⚙️ Settings":
             st.cache_data.clear()
             st.session_state['discipline_deep_sync'] = True
 
-        # --- DATABASE READ: FETCH SYNCHRONIZED DISCIPLINE RECORDS ---
-        current_disciplines = pd.DataFrame()
-        try:
-            current_disciplines = run_query('''
-                SELECT 
-                    id as "ID", 
-                    discipline_name as "Discipline Name", 
-                    academic_system as "Academic System",
-                    status as "Status" 
-                FROM system_disciplines 
-                ORDER BY discipline_name ASC
-            ''')
-        except Exception as e:
-            st.error(f"❌ Error communicating with database infrastructure: {e}")
-
-        tab_view, tab_new = st.tabs(["📋 View & Edit Existing Disciplines", "➕ Add New Discipline Record"])
-
-        with tab_view:
-            if not current_disciplines.empty:
-                st.markdown("### 📋 Current Synchronized Institutional Disciplines")
-                st.dataframe(current_disciplines, use_container_width=True, hide_index=True)
-                
-                st.markdown("---")
-                st.markdown("### ✏️ Edit or Modify an Existing Discipline")
-                
-                disp_options = [f"{row['ID']} - {row['Discipline Name']} ({row['Academic System']})" for _, row in current_disciplines.iterrows()]
-                selected_disp_str = st.selectbox("Select target discipline parameter row to alter:", options=disp_options, key="edit_selector_node")
-                
-                if selected_disp_str:
-                    selected_id = int(selected_disp_str.split(" - ")[0])
-                    target_row = current_disciplines[current_disciplines['ID'] == selected_id].iloc[0]
-                    sys_choices = ["Annual System", "Semester System"]
-
-                    with st.form(f"modify_discipline_form_{selected_id}"):
-                        col_m1, col_m2 = st.columns(2)
-                        with col_m1:
-                            edit_name = st.text_input("Modify Discipline Code/Title:", value=str(target_row['Discipline Name'])).upper().strip()
-                            current_track = target_row['Academic System'] if 'Academic System' in target_row else "Annual System"
-                            edit_sys = st.selectbox("Assigned System Track Framework:", options=sys_choices, index=sys_choices.index(current_track) if current_track in sys_choices else 0)
-                        with col_m2:
-                            edit_status = st.selectbox("Discipline Status Flag:", options=["ACTIVE", "INACTIVE"], index=0 if target_row['Status'] == 'ACTIVE' else 1)
-                        
-                        col_btn1, col_btn2 = st.columns(2)
-                        with col_btn1:
-                            commit_update = st.form_submit_button("💾 Save Structural Modifications", type="primary", use_container_width=True)
-                        with col_btn2:
-                            confirm_delete = st.checkbox("⚠️ Confirm complete historical removal", key=f"del_lock_{selected_id}")
-                            commit_delete = st.form_submit_button("🗑️ Drop Track Permanently", type="secondary", use_container_width=True)
-
-                        if commit_update:
-                            if not edit_name:
-                                st.error("❌ Discipline identity text cannot be blank.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE system_disciplines 
-                                            SET discipline_name = :name, academic_system = :sys, status = :status 
-                                            WHERE id = :id
-                                        """), {"name": edit_name, "sys": edit_sys, "status": edit_status, "id": selected_id})
-                                    st.cache_data.clear() 
-                                    st.success("🎉 Database entry updated successfully!")
-                                    st.rerun()
-                                except Exception as err:
-                                    st.error(f"❌ Transaction failed: {err}")
-
-                        if commit_delete:
-                            if not confirm_delete:
-                                st.error("❌ You must check the validation box checkpoint to execute deletion.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM system_disciplines WHERE id = :id"), {"id": selected_id})
-                                    st.cache_data.clear()
-                                    st.success("🗑️ Track deleted from records.")
-                                    st.rerun()
-                                except Exception as err:
-                                    st.error(f"❌ Deletion restriction encountered: {err}")
-            else:
-                st.info("ℹ️ No customized disciplines discovered in configuration records.")
-
-        with tab_new:
-            st.markdown("### ➕ Register a New Program Classification Track")
-            sys_choices = ["Annual System", "Semester System"]
-
-            with st.form("new_discipline_entry_form", clear_on_submit=True):
-                col_n1, col_n2 = st.columns(2)
-                with col_n1:
-                    new_name = st.text_input("New Discipline Title/Code:", placeholder="e.g. COMMERCE, ICS_PHYSICS, MEDICAL").upper().strip()
-                    new_sys = st.selectbox("Target Academic System Association:", options=sys_choices)
-                with col_n2:
-                    new_status = st.selectbox("Initial Discipline Operational Status:", options=["ACTIVE", "INACTIVE"])
-                
-                submit_new = st.form_submit_button("🚀 Commit New Entry to Database", type="primary")
-
-                if submit_new:
-                    if not new_name:
-                        st.error("❌ Entry field input cannot be blank.")
-                    else:
-                        try:
-                            duplicate_check = run_query("SELECT id FROM system_disciplines WHERE UPPER(TRIM(discipline_name)) = :name", {"name": new_name})
-                            if duplicate_check.empty:
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        INSERT INTO system_disciplines (discipline_name, academic_system, status)
-                                        VALUES (:name, :sys, :status)
-                                    """), {"name": new_name, "sys": new_sys, "status": new_status})
-                                st.cache_data.clear()
-                                st.success(f"🎉 Track '{new_name}' successfully added!")
-                                st.rerun()
-                            else:
-                                st.warning("⚠️ This specific discipline title variant is already registered.")
-                        except Exception as ex:
-                            st.error(f"❌ Failed to submit structural row matrix: {ex}")
-
-
-    # ==============================================================================
-    # 📚 SUB-MODULE 6: SUBJECT MAPPING MATRIX (LIVE DECOUPLED CASCADE)
-    # ==============================================================================
-    elif sub_menu == "📚 Add Subject Mapping":
-        st.subheader("📚 Subject & Course Curriculum Matrix Mapping")
-        st.info("Map individual operational subjects dynamically sourced from your active master institutional configuration dictionaries.")
-
-        # --- STEP 1: LIVE INTERACTIVE CASCADE SELECTORS (OUTSIDE THE FORM) ---
-        col_select1, col_select2 = st.columns(2)
-        
-        with col_select1:
-            # 1. Select the Academic Year Class Layer
-            available_layers = list(CLASS_SUBJECTS_MASTER_MAP.keys())
-            chosen_layer = st.selectbox(
-                "1️⃣ Select Target Academic Class / Year Layer:", 
-                options=available_layers, 
-                key="live_map_layer_selector"
-            )
-
-            # 2. Extract matching tracks for the chosen layer dynamically
-            layer_tracks = list(CLASS_SUBJECTS_MASTER_MAP[chosen_layer].keys())
-            chosen_track = st.selectbox(
-                "2️⃣ Select Program Discipline Track:", 
-                options=layer_tracks, 
-                key="live_map_track_selector"
-            )
-
-        # 🔍 LIVE FETCH: Pull the exact dictionary entries matching the user's selection in real-time
-        dict_pulled_subjects = CLASS_SUBJECTS_MASTER_MAP[chosen_layer][chosen_track]
-
-        with col_select2:
-            st.write("### 🎯 Context Tracker Verified")
-            
-            # Safe native container rendering - eliminates python f-string/HTML bracket compilation errors
-            with st.container(border=True):
-                st.markdown(f"**Active Layer:** :red[`{chosen_layer}`]")
-                st.markdown(f"**Active Track:** :red[`{chosen_track}`]")
-                st.markdown("**📖 Available Curriculum Pool:**")
-                
-                # Render clean bullet points safely
-                for sub in dict_pulled_subjects:
-                    st.markdown(f"- `{sub}`")
-
-        st.markdown("---")
-        
-        # --- STEP 2: SECURE SUBMISSION MATRIX FORM ---
+        # --- NEW DISCIPLINE REGISTRATION FORM ---
         if current_role == 'controller':
-            st.markdown("### 💾 Record Mapping Association")
-            
-            with st.form("smart_subject_mapping_form", clear_on_submit=True):
-                # Interactive toggle allows selecting dictionary pools OR adding brand new courses
-                input_mode = st.radio(
-                    "Choose Subject Input Variant:",
-                    options=["Pick from Code Dictionary Pool", "Type a Brand New Subject entirely"],
-                    horizontal=True
-                )
-
-                if input_mode == "Pick from Code Dictionary Pool":
-                    selected_subject_to_map = st.selectbox(
-                        "3️⃣ Select Existing Subject to Map:", 
-                        options=dict_pulled_subjects
-                    )
-                else:
-                    selected_subject_to_map = st.text_input(
-                        "3️⃣ Type New Custom Subject Name:", 
-                        placeholder="e.g. SOCIOLOGY, ARABIC, CIVICS"
-                    ).upper().strip()
-
-                submit_subject = st.form_submit_button("🚀 Save Course Mapping Parameters", type="primary")
+            st.markdown("### ➕ Register New Academic Discipline")
+            with st.form("discipline_reg_form", clear_on_submit=True):
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    new_disc_name = st.text_input("Discipline / Program Name:", placeholder="e.g. BS_CS").upper().strip()
+                with col_d2:
+                    new_disc_sys = st.selectbox("Academic System Track:", ["Annual System", "Semester System"])
                 
-                # --- STEP 3: DATABASE INSERT TRANSACTION WRITER ---
-                if submit_subject:
-                    if not selected_subject_to_map:
-                        st.error("❌ Target subject selection value cannot be empty.")
-                    else:
-                        try:
-                            # Standardize casing parameters for clean PostgreSQL lookups
-                            db_disp = str(chosen_track).upper().strip()
-                            db_layer = str(chosen_layer).strip()
-                            db_sub = str(selected_subject_to_map).upper().strip()
-
-                            # Guard Clause: Prevent identical duplicate matrix allocations
-                            check_existing = run_query("""
-                                SELECT id FROM system_subjects_mapping 
-                                WHERE UPPER(TRIM(discipline_name)) = :disp 
-                                AND UPPER(TRIM(class_name)) = :cls
-                                AND UPPER(TRIM(subject_name)) = :sub
-                            """, {"disp": db_disp, "cls": db_layer, "sub": db_sub})
-                            
-                            if check_existing.empty:
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        INSERT INTO system_subjects_mapping (discipline_name, class_name, subject_name)
-                                        VALUES (:disp, :cls, :sub)
-                                    """), {"disp": db_disp, "cls": db_layer, "sub": db_sub})
-                                
-                                st.cache_data.clear() # Clear internal display cache instantly
-                                st.success(f"🎉 Successfully mapped verified course: '{db_sub}' inside '{db_disp} ({db_layer})' structure!")
-                                st.rerun()
-                            else:
-                                st.warning("⚠️ This exact subject tracking arrangement already exists inside your active database.")
-                        except Exception as e:
-                            st.error(f"❌ Could not write subject mapping parameter row: {e}")
-
-        # --- STEP 4: GRID DISPLAY & DELETION PROCESSING MANAGEMENT ---
-        st.markdown("---")
-        st.write("#### Registered Structural Curriculum Maps")
-        
-        current_maps = pd.DataFrame()
-        try:
-            current_maps = run_query('''
-                SELECT 
-                    id as "ID", 
-                    discipline_name as "Discipline Track", 
-                    class_name as "Academic Term", 
-                    subject_name as "Allocated Course" 
-                FROM system_subjects_mapping 
-                ORDER BY discipline_name ASC, class_name ASC, subject_name ASC
-            ''')
-        except Exception:
-            st.warning("⚠️ Connected backend routing index table is empty or resetting.")
-
-        if not current_maps.empty:
-            st.dataframe(current_maps, use_container_width=True, hide_index=True)
-            
-            st.markdown("### 🛠️ Delete or Remove Matrix Rules")
-            mapping_list = [f"{row['ID']} - [{row['Discipline Track']}] ({row['Academic Term']}) ➔ {row['Allocated Course']}" for _, row in current_maps.iterrows()]
-            selected_map_str = st.selectbox("Select Course Rule Block to Delete:", mapping_list, key="manage_map_select")
-            
-            if selected_map_str:
-                selected_map_id = int(selected_map_str.split(" - ")[0])
+                submit_disc = st.form_submit_button("💾 Save Discipline to System Registry", type="primary")
                 
-                with st.form("edit_mapping_form"):
-                    st.warning(f"Confirm complete deletion actions for Allocation Rule Row reference ID #{selected_map_id}")
-                    confirm_map_del = st.checkbox("⚠️ Confirm complete historical removal from database", key="del_map_chk")
-                    delete_map = st.form_submit_button("🗑️ Drop Subject Route Row", type="secondary", use_container_width=True)
-                        
-                if delete_map:
-                    if not confirm_map_del:
-                        st.error("❌ You must check the validation box to drop this curriculum row assignment link.")
+                if submit_disc:
+                    if not new_disc_name:
+                        st.error("❌ Discipline Name cannot be left blank.")
                     else:
                         try:
                             with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM system_subjects_mapping WHERE id = :id"), {"id": selected_map_id})
-                            st.cache_data.clear()
-                            st.success("🎉 Curriculum routing row deleted successfully.")
+                                check_ex = conn.execute(text("SELECT id FROM system_disciplines WHERE UPPER(discipline_name) = :name"), {"name": new_disc_name}).fetchone()
+                                if check_ex:
+                                    st.error(f"❌ A discipline named '{new_disc_name}' already exists.")
+                                else:
+                                    conn.execute(text("""
+                                        INSERT INTO system_disciplines (discipline_name, academic_system, status)
+                                        VALUES (:name, :sys, 'ACTIVE')
+                                    """), {"name": new_disc_name, "sys": new_disc_sys})
+                                    st.success(f"🎉 Successfully registered discipline '{new_disc_name}'!")
+                                    st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Operation failed: {err}")
+
+        st.markdown("---")
+        st.write("#### Current Institutional Disciplines")
+        
+        current_disciplines = pd.DataFrame()
+        try:
+            current_disciplines = run_query('SELECT id as "ID", discipline_name as "Discipline Name", academic_system as "System Track", status as "Status" FROM system_disciplines ORDER BY discipline_name ASC')
+        except Exception as e:
+            st.error(f"⚠️ Failed to read academic disciplines: {e}")
+            
+        if not current_disciplines.empty:
+            st.dataframe(current_disciplines, use_container_width=True, hide_index=True)
+            
+            st.markdown("### 🛠️ Manage Existing Disciplines")
+            disc_list = [f"{row['ID']} - {row['Discipline Name']}" for _, row in current_disciplines.iterrows()]
+            selected_disc_str = st.selectbox("Select Discipline Profile to Modify:", disc_list, key="manage_disc_select")
+            
+            if selected_disc_str:
+                selected_disc_id = int(selected_disc_str.split(" - ")[0])
+                target_disc_row = current_disciplines[current_disciplines['ID'] == selected_disc_id].iloc[0]
+                
+                with st.form("edit_discipline_form"):
+                    updated_disc_name = st.text_input("Change Discipline Name:", value=str(target_disc_row['Discipline Name'])).upper().strip()
+                    updated_disc_sys = st.selectbox("Change System Track:", ["Annual System", "Semester System"], index=0 if target_disc_row['System Track'] == "Annual System" else 1)
+                    updated_disc_status = st.selectbox("Change Status:", ["ACTIVE", "INACTIVE"], index=0 if target_disc_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_du, col_dd = st.columns(2)
+                    with col_du:
+                        save_disc = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
+                    with col_dd:
+                        confirm_disc_del = st.checkbox("⚠️ Confirm complete deletion", key="del_disc_chk")
+                        delete_disc = st.form_submit_button("🗑️ Delete Discipline", type="secondary", use_container_width=True)
+                        
+                if save_disc:
+                    if not updated_disc_name:
+                        st.error("❌ Discipline Name cannot be left blank.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE system_disciplines 
+                                    SET discipline_name = :name, academic_system = :sys, status = :status 
+                                    WHERE id = :id
+                                """), {"name": updated_disc_name, "sys": updated_disc_sys, "status": updated_disc_status, "id": selected_disc_id})
+                            st.success("🎉 Discipline information updated successfully!")
                             st.rerun()
                         except Exception as err:
-                            st.error(f"❌ Deletion process failure: {err}")
+                            st.error(f"❌ Modification failed: {err}")
+                            
+                if delete_disc:
+                    if not confirm_disc_del:
+                        st.error("Please verify the validation confirmation check before deleting.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM system_disciplines WHERE id = :id"), {"id": selected_disc_id})
+                            st.success("Discipline removed from registration parameters successfully.")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Cannot remove this configuration layer because it is associated with downstream child references: {err}")
         else:
-            st.info("ℹ️ No curriculum course mapping records structured inside table setups yet.")
+            st.info("No system structural disciplines currently initialized.")
+
     # ==============================================================================
-# 👥 SUB-MODULE 6: CUSTOM GRANULAR USER ACCESS TERMINAL WITH CLASS INCHARGE MAP
-# ==============================================================================
-elif sub_menu == "👥 User Access Control":
-    st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
-    st.subheader("👥 Dynamic User Access & Rights Matrix")
-    st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
-    
-    # --------------------------------------------------------------------------
-    # CRITICAL SYNC: Fetch Registered Faculty Names from Teacher Management Engine
-    # --------------------------------------------------------------------------
-    registered_teachers_list = []
-    try:
-        teachers_db = run_query("SELECT teacher_name FROM system_teachers WHERE status = 'ACTIVE' ORDER BY teacher_name ASC")
-        if not teachers_db.empty:
-            registered_teachers_list = teachers_db["teacher_name"].tolist()
-    except Exception as e:
-        st.warning(f"Could not sync with Teacher Management profiles table: {e}")
+    # 📚 SUB-MODULE 6: SUBJECT MAPPING ENGINE
+    # ==============================================================================
+    elif sub_menu == "📚 Add Subject Mapping":
+        st.subheader("📚 Subject Mapping & Curricular Allocation Ledger")
+        st.info("Register comprehensive course units and associate core subjects natively into specific structural discipline tracks.")
 
-    # Build an clean subject array pool from your global CLASS_SUBJECTS_MASTER_MAP structure
-    computed_subject_pool = ["Global (All Subjects)"]
-    if 'CLASS_SUBJECTS_MASTER_MAP' in locals() or 'CLASS_SUBJECTS_MASTER_MAP' in globals():
-        for class_key, discipline_map in CLASS_SUBJECTS_MASTER_MAP.items():
-            for disc_key, subject_list in discipline_map.items():
-                for subject in subject_list:
-                    if subject not in computed_subject_pool:
-                        computed_subject_pool.append(subject)
-    
-    try:
-        users_df = run_query("""
-            SELECT id, username, password, role, assigned_subject, assigned_class,
-                   can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
-            FROM app_users ORDER BY id ASC
-        """)
-    except Exception as e:
-        st.error(f"Failed to access database profile table matrix: {e}")
-        users_df = pd.DataFrame()
-
-    st.markdown("### 📋 System Profiles & Active Access Permissions")
-    if not users_df.empty:
-        view_df = users_df.copy()
-        for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_edit_marks']:
-            view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) else "❌ Denied")
-        
-        view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role", "Subject Allotment", "Class Incharge Scope",
-                           "User Control", "System Configuration", "Faculty Management", "Grades Override"]
-        st.dataframe(view_df, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-    tab_create, tab_edit, tab_delete = st.tabs(["➕ Build Custom User", "⚙️ Edit User & System Rights", "❌ Terminate User"])
-    
-    # --- TAB 1: BUILD USER PROFILE ---
-    with tab_create:
-        st.markdown("##### 🚀 Provision a New Profile Layout")
-        c_col1, c_col2, c_col3 = st.columns(3)
-        with c_col1:
-            # Dropdown choice dynamically pulling active faculty from Teacher Management registration
-            if registered_teachers_list:
-                new_username = st.selectbox("👤 Select Registered Faculty Name:", options=registered_teachers_list, key="c_user_in")
-            else:
-                new_username = st.text_input("👤 Enter Login ID / Username:", key="c_user_in_fallback").strip()
-                st.caption("💡 *Tip: Register teachers under 'Teacher Management' first to choose from the dropdown names list.*")
-                
-            new_password = st.text_input("🔑 Account Secret Password:", type="password", key="c_pass_in").strip()
-        with c_col2:
-            new_role = st.selectbox("🏷️ Core Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], key="c_role_sel")
-            if new_role == "Faculty":
-                new_subject = st.selectbox("📚 Allot Subject Scope:", computed_subject_pool, key="c_sub_sel")
-                new_class = st.selectbox("🏢 Assign Class Incharge Role:", ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="c_class_sel")
-            else:
-                new_subject = "Global (All Subjects)"
-                new_class = "None"
-                st.text_input("📚 Subject Scope:", value="Global (All Subjects)", disabled=True, key="c_sub_dis")
-                st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="c_class_dis")
-        with c_col3:
-            st.markdown("**Granular Access Rights:**")
-            c_m_usr = st.checkbox("Can Control App Users", value=False, key="c_p1")
-            c_m_set = st.checkbox("Can Access Settings", value=False, key="c_p2")
-            c_m_fac = st.checkbox("Can Manage Faculty", value=False, key="c_p3")
-            c_m_mrk = st.checkbox("Can Enter/Edit Marks", value=True, key="c_p4")
-
-        if st.button("💾 Instantiate Custom Profile", type="primary", use_container_width=True):
-            if not new_username or not new_password:
-                st.warning("⚠️ Username and password fields cannot be blank.")
-            else:
-                try:
-                    clean_sub = None if new_subject == "Global (All Subjects)" else new_subject
-                    clean_cls = None if new_class == "None" else new_class
-                    execute_db_command("""
-                        INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks)
-                        VALUES (:usr, :pwd, :role, :sub, :cls, :m_u, :m_s, :m_f, :e_m)
-                    """, {
-                        "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
-                        "m_u": int(c_m_usr), "m_s": int(c_m_set), "m_f": int(c_m_fac), "e_m": int(c_m_mrk)
-                    })
-                    st.success(f"🎉 System User profile for '{new_username}' has been successfully created.")
-                    import time; time.sleep(1.0); st.rerun()
-                except Exception as e:
-                    st.error(f"Database insertion failed: {e}")
-
-    # --- TAB 2: EDIT USER MATRIX RIGHTS ---
-    with tab_edit:
-        st.markdown("##### ⚙️ Update User Permissions Matrix")
-        if not users_df.empty:
-            user_list = users_df["username"].tolist()
-            target_user = st.selectbox("🎯 Select Profile to Modify:", options=user_list, key="edit_user_select")
-            meta_row = users_df[users_df["username"] == target_user].iloc[0]
+        if current_role == 'controller':
+            st.markdown("### ➕ Register & Map New Subject")
             
-            e_col1, e_col2, e_col3 = st.columns(3)
-            with e_col1:
-                # Mirroring selection mapping cleanly for structural changes
-                if registered_teachers_list:
-                    try: current_teacher_idx = registered_teachers_list.index(meta_row['username'])
-                    except ValueError: current_teacher_idx = 0
-                    edit_username = st.selectbox("👤 Link Login Username To:", options=registered_teachers_list, index=current_teacher_idx, key="e_user_in")
-                else:
-                    edit_username = st.text_input("👤 Login Username:", value=str(meta_row['username']), key="e_user_in_fb").strip()
-                    
-                edit_password = st.text_input("🔑 Password:", value=str(meta_row['password']), type="password", key="e_pass_in").strip()
-            with e_col2:
-                current_role_idx = ["Admin", "Faculty", "Co-Ordinator"].index(meta_row['role']) if meta_row['role'] in ["Admin", "Faculty", "Co-Ordinator"] else 0
-                edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
+            # Dynamic lookups for flawless integration
+            disciplines_df = pd.DataFrame()
+            try:
+                disciplines_df = run_query("SELECT discipline_name FROM system_disciplines WHERE status='ACTIVE' ORDER BY discipline_name ASC")
+            except:
+                pass
                 
-                if edit_role == "Faculty":
-                    current_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
-                    try: current_sub_idx = computed_subject_pool.index(current_sub)
-                    except ValueError: current_sub_idx = 0
-                    edit_subject = st.selectbox("📚 Course Scope Visibility:", computed_subject_pool, index=current_sub_idx, key="e_sub_sel")
+            disc_options = disciplines_df['discipline_name'].tolist() if not disciplines_df.empty else ["GENERAL"]
+            
+            with st.form("subject_mapping_form", clear_on_submit=True):
+                col_sub1, col_sub2 = st.columns(2)
+                with col_sub1:
+                    new_sub_code = st.text_input("Subject Code Reference:", placeholder="e.g. CS-101").upper().strip()
+                    new_sub_name = st.text_input("Subject Complete Title:", placeholder="e.g. Introduction to Computing")
+                with col_sub2:
+                    associated_disc = st.selectbox("Target Discipline Association Mapping:", options=disc_options)
+                    new_sub_status = st.selectbox("Mapping Initialization Status:", ["ACTIVE", "INACTIVE"])
                     
-                    class_opts = ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
-                    current_cls = meta_row['assigned_class'] if meta_row['assigned_class'] else "None"
-                    current_cls_idx = class_opts.index(current_cls) if current_cls in class_opts else 0
-                    edit_class = st.selectbox("🏢 Change Class Incharge Duty:", class_opts, index=current_cls_idx, key="e_class_sel")
-                else:
-                    edit_subject = "Global (All Subjects)"
-                    edit_class = "None"
-                    st.text_input("📚 Course Scope:", value="Global (All Subjects)", disabled=True, key="e_sub_dis")
-                    st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="e_class_dis")
-            with e_col3:
-                st.markdown("**Rights Controls:**")
-                e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
-                e_m_set = st.checkbox("Can Access Settings", value=bool(meta_row['can_manage_settings']), key="e_p2")
-                e_m_fac = st.checkbox("Can Manage Faculty", value=bool(meta_row['can_manage_faculty']), key="e_p3")
-                e_m_mrk = st.checkbox("Can Enter/Edit Marks", value=bool(meta_row['can_edit_marks']), key="e_p4")
+                submit_subject = st.form_submit_button("💾 Save Structural Subject Mapping", type="primary")
+                
+                if submit_subject:
+                    if not new_sub_code or not new_sub_name:
+                        st.error("❌ Both Subject Code and Title references must be completely documented.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                # Safe runtime execution block for mapping registry
+                                conn.execute(text("""
+                                    CREATE TABLE IF NOT EXISTS system_subjects (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        subject_code TEXT UNIQUE,
+                                        subject_name TEXT,
+                                        discipline_assoc TEXT,
+                                        status TEXT
+                                    )
+                                """))
+                                conn.execute(text("""
+                                    INSERT INTO system_subjects (subject_code, subject_name, discipline_assoc, status)
+                                    VALUES (:code, :name, :disc, :status)
+                                    ON CONFLICT(subject_code) DO UPDATE SET 
+                                        subject_name=:name, discipline_assoc=:disc, status=:status
+                                """), {"code": new_sub_code, "name": new_sub_name, "disc": associated_disc, "status": new_sub_status})
+                            st.success(f"🎉 Core course mapping rule created successfully for [{new_sub_code}] {new_sub_name}!")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Failed to construct database allocation registry node: {err}")
 
-            if st.button("💾 Save Updated Profile Configurations", type="primary", use_container_width=True):
+        st.markdown("---")
+        st.write("#### Registered Curricular Subject Mapping Tree")
+        
+        current_subjects = pd.DataFrame()
+        try:
+            current_subjects = run_query('SELECT id as "ID", subject_code as "Subject Code", subject_name as "Subject Title", discipline_assoc as "Assigned Discipline", status as "Status" FROM system_subjects ORDER BY subject_code ASC')
+        except Exception as e:
+            # Table fallback check engine
+            st.info("No active mapping indices identified inside system tables.")
+            
+        if not current_subjects.empty:
+            st.dataframe(current_subjects, use_container_width=True, hide_index=True)
+            
+            st.markdown("### 🛠️ Modify Current Curricular Tree Nodes")
+            sub_list = [f"{row['ID']} - [{row['Subject Code']}] {row['Subject Title']}" for _, row in current_subjects.iterrows()]
+            selected_sub_str = st.selectbox("Select Target Curriculum Row to Alter:", sub_list, key="manage_sub_select")
+            
+            if selected_sub_str:
+                selected_sub_id = int(selected_sub_str.split(" - ")[0])
+                target_sub_row = current_subjects[current_subjects['ID'] == selected_sub_id].iloc[0]
+                
                 try:
-                    clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
-                    clean_cls = None if edit_class == "None" else edit_class
-                    execute_db_command("""
-                        UPDATE app_users 
-                        SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
-                            can_manage_users = :mu, can_manage_settings = :ms, can_manage_faculty = :mf, can_edit_marks = :em
-                        WHERE id = :target_id
-                    """, {
-                        "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
-                        "mu": int(e_m_usr), "ms": int(e_m_set), "mf": int(e_m_fac), "em": int(e_m_mrk), "target_id": int(meta_row['id'])
-                    })
-                    st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
-                    import time; time.sleep(1.0); st.rerun()
-                except Exception as e:
-                    st.error(f"Database upgrade execution failed: {e}")
+                    all_discs = run_query("SELECT discipline_name FROM system_disciplines")['discipline_name'].tolist()
+                except:
+                    all_discs = [str(target_sub_row['Assigned Discipline'])]
                     
-    # --- TAB 3: TERMINATE PROFILE ---
-    with tab_delete:
-        st.markdown("##### Remove Security Profile")
+                with st.form("edit_subject_form"):
+                    updated_sub_code = st.text_input("Modify Course Code:", value=str(target_sub_row['Subject Code'])).upper().strip()
+                    updated_sub_name = st.text_input("Modify Title Parameters:", value=str(target_sub_row['Subject Title']))
+                    updated_sub_disc = st.selectbox("Reassign Academic Program Node:", options=all_discs, index=all_discs.index(target_sub_row['Assigned Discipline']) if target_sub_row['Assigned Discipline'] in all_discs else 0)
+                    updated_sub_status = st.selectbox("Change Operational Tracking Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sub_row['Status'] == 'ACTIVE' else 1)
+                    
+                    col_suu, col_sud = st.columns(2)
+                    with col_suu:
+                        save_sub = st.form_submit_button("💾 Save Curricular Updates", type="primary", use_container_width=True)
+                    with col_sud:
+                        confirm_sub_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sub_chk")
+                        delete_sub = st.form_submit_button("🗑️ Drop Subject Node", type="secondary", use_container_width=True)
+                        
+                if save_sub:
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                UPDATE system_subjects 
+                                SET subject_code = :code, subject_name = :name, discipline_assoc = :disc, status = :status 
+                                WHERE id = :id
+                            """), {"code": updated_sub_code, "name": updated_sub_name, "disc": updated_sub_disc, "status": updated_sub_status, "id": selected_sub_id})
+                        st.success("🎉 Course allocation maps revised inside database schemas.")
+                        st.rerun()
+                    except Exception as err:
+                        st.error(f"❌ Mapping configuration update rejected: {err}")
+                        
+                if delete_sub:
+                    if not confirm_sub_del:
+                        st.error("Please flag authorization validation check to delete.")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM system_subjects WHERE id = :id"), {"id": selected_sub_id})
+                            st.success("Course blueprint removed from registry tree.")
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"❌ Drop cascade error executed: {err}")
+        else:
+            st.info("No courses are currently assigned or mapped.")
+
+    # ==============================================================================
+    # 👥 SUB-MODULE 7: CUSTOM GRANULAR USER ACCESS TERMINAL WITH CLASS INCHARGE MAP
+    # ==============================================================================
+    elif sub_menu == "👥 User Access Control":
+        st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
+        st.subheader("👥 Dynamic User Access & Rights Matrix")
+        st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
+        
+        # --------------------------------------------------------------------------
+        # CRITICAL SYNC: Fetch Registered Faculty Names from Teacher Management Engine
+        # --------------------------------------------------------------------------
+        registered_teachers_list = []
+        try:
+            teachers_db = run_query("SELECT teacher_name FROM system_teachers WHERE status = 'ACTIVE' ORDER BY teacher_name ASC")
+            if not teachers_db.empty:
+                registered_teachers_list = teachers_db["teacher_name"].tolist()
+        except Exception as e:
+            st.warning(f"Could not sync with Teacher Management profiles table: {e}")
+
+        # Build a clean subject array pool from your global CLASS_SUBJECTS_MASTER_MAP structure
+        computed_subject_pool = ["Global (All Subjects)"]
+        if 'CLASS_SUBJECTS_MASTER_MAP' in locals() or 'CLASS_SUBJECTS_MASTER_MAP' in globals():
+            for class_key, discipline_map in CLASS_SUBJECTS_MASTER_MAP.items():
+                for disc_key, subject_list in discipline_map.items():
+                    for subject in subject_list:
+                        if subject not in computed_subject_pool:
+                            computed_subject_pool.append(subject)
+        
+        try:
+            users_df = run_query("""
+                SELECT id, username, password, role, assigned_subject, assigned_class,
+                       can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                FROM app_users ORDER BY id ASC
+            """)
+        except Exception as e:
+            st.error(f"Failed to access database profile table matrix: {e}")
+            users_df = pd.DataFrame()
+
+        st.markdown("### 📋 System Profiles & Active Access Permissions")
         if not users_df.empty:
-            user_list = users_df['username'].tolist()
-            user_to_delete = st.selectbox("🚨 Select Account to Delete permanently:", user_list, key="d_user_sel")
-            confirm_delete = st.checkbox(f"⚠️ I confirm permanent deletion of account: {user_to_delete}")
-            if st.button("🗑️ Permanently Delete User Profile", type="secondary", use_container_width=True):
-                if confirm_delete and user_to_delete != st.session_state.get('username'):
-                    execute_db_command("DELETE FROM app_users WHERE username = :usr", {"usr": user_to_delete})
-                    st.success(f"💥 Profile '{user_to_delete}' has been cleanly removed.")
-                    import time; time.sleep(1.0); st.rerun()
+            view_df = users_df.copy()
+            for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_edit_marks']:
+                view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) else "❌ Denied")
+            
+            view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role", "Subject Allotment", "Class Incharge Scope",
+                               "User Control", "System Configuration", "Faculty Management", "Grades Override"]
+            st.dataframe(view_df, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        tab_create, tab_edit, tab_delete = st.tabs(["➕ Build Custom User", "⚙️ Edit User & System Rights", "❌ Terminate User"])
+        
+        # --- TAB 1: BUILD USER PROFILE ---
+        with tab_create:
+            st.markdown("##### 🚀 Provision a New Profile Layout")
+            c_col1, c_col2, c_col3 = st.columns(3)
+            with c_col1:
+                if registered_teachers_list:
+                    new_username = st.selectbox("👤 Select Registered Faculty Name:", options=registered_teachers_list, key="c_user_in")
                 else:
-                    st.error("❌ Action denied: Check confirmation or ensure you aren't removing yourself.")
+                    new_username = st.text_input("👤 Enter Login ID / Username:", key="c_user_in_fallback").strip()
+                    st.caption("💡 *Tip: Register teachers under 'Teacher Management' first to choose from the dropdown names list.*")
+                    
+                new_password = st.text_input("🔑 Account Secret Password:", type="password", key="c_pass_in").strip()
+            with c_col2:
+                new_role = st.selectbox("🏷️ Core Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], key="c_role_sel")
+                if new_role == "Faculty":
+                    new_subject = st.selectbox("📚 Allot Subject Scope:", computed_subject_pool, key="c_sub_sel")
+                    new_class = st.selectbox("🏢 Assign Class Incharge Role:", ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="c_class_sel")
+                else:
+                    new_subject = "Global (All Subjects)"
+                    new_class = "None"
+                    st.text_input("📚 Subject Scope:", value="Global (All Subjects)", disabled=True, key="c_sub_dis")
+                    st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="c_class_dis")
+            with c_col3:
+                st.markdown("**Granular Access Rights:**")
+                c_m_usr = st.checkbox("Can Control App Users", value=False, key="c_p1")
+                c_m_set = st.checkbox("Can Access Settings", value=False, key="c_p2")
+                c_m_fac = st.checkbox("Can Manage Faculty", value=False, key="c_p3")
+                c_m_mrk = st.checkbox("Can Enter/Edit Marks", value=True, key="c_p4")
+
+            if st.button("💾 Instantiate Custom Profile", type="primary", use_container_width=True):
+                if not new_username or not new_password:
+                    st.warning("⚠️ Username and password fields cannot be blank.")
+                else:
+                    try:
+                        clean_sub = None if new_subject == "Global (All Subjects)" else new_subject
+                        clean_cls = None if new_class == "None" else new_class
+                        
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks)
+                                VALUES (:usr, :pwd, :role, :sub, :cls, :m_u, :m_s, :m_f, :e_m)
+                            """), {
+                                "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
+                                "m_u": int(c_m_usr), "m_s": int(c_m_set), "m_f": int(c_m_fac), "e_m": int(c_m_mrk)
+                            })
+                        st.success(f"🎉 System User profile for '{new_username}' has been successfully created.")
+                        import time; time.sleep(1.0); st.rerun()
+                    except Exception as e:
+                        st.error(f"Database insertion failed: {e}")
+
+        # --- TAB 2: EDIT USER MATRIX RIGHTS ---
+        with tab_edit:
+            st.markdown("##### ⚙️ Update User Permissions Matrix")
+            if not users_df.empty:
+                user_list = users_df["username"].tolist()
+                target_user = st.selectbox("🎯 Select Profile to Modify:", options=user_list, key="edit_user_select")
+                meta_row = users_df[users_df["username"] == target_user].iloc[0]
+                
+                e_col1, e_col2, e_col3 = st.columns(3)
+                with e_col1:
+                    if registered_teachers_list:
+                        try: current_teacher_idx = registered_teachers_list.index(meta_row['username'])
+                        catch ValueError: current_teacher_idx = 0
+                        edit_username = st.selectbox("👤 Link Login Username To:", options=registered_teachers_list, index=current_teacher_idx, key="e_user_in")
+                    else:
+                        edit_username = st.text_input("👤 Login Username:", value=str(meta_row['username']), key="e_user_in_fb").strip()
+                        
+                    edit_password = st.text_input("🔑 Password:", value=str(meta_row['password']), type="password", key="e_pass_in").strip()
+                with e_col2:
+                    current_role_idx = ["Admin", "Faculty", "Co-Ordinator"].index(meta_row['role']) if meta_row['role'] in ["Admin", "Faculty", "Co-Ordinator"] else 0
+                    edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
+                    
+                    if edit_role == "Faculty":
+                        current_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
+                        try: current_sub_idx = computed_subject_pool.index(current_sub)
+                        except ValueError: current_sub_idx = 0
+                        edit_subject = st.selectbox("📚 Course Scope Visibility:", computed_subject_pool, index=current_sub_idx, key="e_sub_sel")
+                        
+                        class_opts = ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
+                        current_cls = meta_row['assigned_class'] if meta_row['assigned_class'] else "None"
+                        current_cls_idx = class_opts.index(current_cls) if current_cls in class_opts else 0
+                        edit_class = st.selectbox("🏢 Change Class Incharge Duty:", class_opts, index=current_cls_idx, key="e_class_sel")
+                    else:
+                        edit_subject = "Global (All Subjects)"
+                        edit_class = "None"
+                        st.text_input("📚 Course Scope:", value="Global (All Subjects)", disabled=True, key="e_sub_dis")
+                        st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="e_class_dis")
+                with e_col3:
+                    st.markdown("**Rights Controls:**")
+                    e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
+                    e_m_set = st.checkbox("Can Access Settings", value=bool(meta_row['can_manage_settings']), key="e_p2")
+                    e_m_fac = st.checkbox("Can Manage Faculty", value=bool(meta_row['can_manage_faculty']), key="e_p3")
+                    e_m_mrk = st.checkbox("Can Enter/Edit Marks", value=bool(meta_row['can_edit_marks']), key="e_p4")
+
+                if st.button("💾 Save Updated Profile Configurations", type="primary", use_container_width=True):
+                    try:
+                        clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
+                        clean_cls = None if edit_class == "None" else edit_class
+                        
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                UPDATE app_users 
+                                SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
+                                    can_manage_users = :mu, can_manage_settings = :ms, can_manage_faculty = :mf, can_edit_marks = :em
+                                WHERE id = :target_id
+                            """), {
+                                "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
+                                "mu": int(e_m_usr), "ms": int(e_m_set), "mf": int(e_m_fac), "em": int(e_m_mrk), "target_id": int(meta_row['id'])
+                            })
+                        st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
+                        import time; time.sleep(1.0); st.rerun()
+                    except Exception as e:
+                        st.error(f"Database upgrade execution failed: {e}")
+                        
+        # --- TAB 3: TERMINATE PROFILE ---
+        with tab_delete:
+            st.markdown("##### Remove Security Profile")
+            if not users_df.empty:
+                user_list = users_df['username'].tolist()
+                user_to_delete = st.selectbox("🚨 Select Account to Delete permanently:", user_list, key="d_user_sel")
+                confirm_delete = st.checkbox(f"⚠️ I confirm permanent deletion of account: {user_to_delete}")
+                if st.button("🗑️ Permanently Delete User Profile", type="secondary", use_container_width=True):
+                    if confirm_delete and user_to_delete != st.session_state.get('username'):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("DELETE FROM app_users WHERE username = :usr"), {"usr": user_to_delete})
+                            st.success(f"💥 Profile '{user_to_delete}' has been cleanly removed.")
+                            import time; time.sleep(1.0); st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to delete user profile: {e}")
+                    else:
+                        st.error("❌ Action denied: Check confirmation or ensure you aren't removing yourself.")
+                        
+        st.markdown('</div>', unsafe_allow_html=True)
                     
     st.markdown('</div>', unsafe_allow_html=True)
