@@ -268,7 +268,6 @@ if not st.session_state.logged_in:
             
             if login_submitted:
                 with engine.connect() as conn:
-                    # Extracts role, metrics, flags, and class parameters together
                     query = text("""
                         SELECT role, assigned_subject, 
                                can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks,
@@ -333,14 +332,38 @@ else:
     
     allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
 
+# ------------------------------------------------------------------------------
+# 🎨 SIDEBAR VISUAL DESIGN & BRANDING RENDERING
+# ------------------------------------------------------------------------------
 st.sidebar.markdown("""
     <style>
         div[data-testid="stSidebarUserContent"] {
             display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 60px);
         }
         .sidebar-logout-footer { margin-top: auto; padding-bottom: 10px; }
+        .faculty-profile-box {
+            padding: 5px 0px;
+            margin-bottom: 5px;
+        }
     </style>
 """, unsafe_allow_html=True)
+
+# 🏛️ Render the College Logo inside the sidebar header
+if os.path.exists("logo.png"):
+    st.sidebar.image("logo.png", use_container_width=True)
+
+# 👤 Render the Dynamic User/Teacher identity header banner
+if username_current:
+    st.sidebar.markdown(
+        f"""
+        <div class="faculty-profile-box">
+            <h3 style='margin: 0; color: #212529;'>👋 {username_current}</h3>
+            <p style='margin: 2px 0 0 0; color: #6c757d; font-size: 0.85rem;'>Logged in as: <b>{user_role}</b></p>
+        </div>
+        <hr style='margin-top: 5px; margin-bottom: 15px;'>
+        """, 
+        unsafe_allow_html=True
+    )
 
 menu_choice = st.sidebar.radio("Go To Module:", allowed_menus)
 
@@ -350,7 +373,6 @@ if st.sidebar.button("🚪 Log Out", type="secondary", use_container_width=True,
     for key in list(st.session_state.keys()): del st.session_state[key]
     st.rerun()
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
-
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
 # ==============================================================================
