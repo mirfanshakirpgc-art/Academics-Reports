@@ -5012,10 +5012,9 @@ elif menu_choice == "⚙️ Settings":
         # 🛠️ LIVE DB SCHEMA PATCH: Automatically inject missing columns if they don't exist
         try:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks INTEGER DEFAULT 1;"))
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_enter_marks BOOLEAN DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS can_edit_marks BOOLEAN DEFAULT FALSE;"))
         except Exception as patch_err:
-            # Table might not exist yet, which is fine; it gets created on first insert
             pass
 
         # Pull Active Registered Teachers Dropdown references safely
@@ -5105,11 +5104,11 @@ elif menu_choice == "⚙️ Settings":
                                     role VARCHAR(100),
                                     assigned_subject TEXT,
                                     assigned_class TEXT,
-                                    can_manage_users INTEGER,
-                                    can_manage_settings INTEGER,
-                                    can_manage_faculty INTEGER,
-                                    can_enter_marks INTEGER DEFAULT 1,
-                                    can_edit_marks INTEGER DEFAULT 0
+                                    can_manage_users BOOLEAN DEFAULT FALSE,
+                                    can_manage_settings BOOLEAN DEFAULT FALSE,
+                                    can_manage_faculty BOOLEAN DEFAULT FALSE,
+                                    can_enter_marks BOOLEAN DEFAULT TRUE,
+                                    can_edit_marks BOOLEAN DEFAULT FALSE
                                 )
                             """))
                             
@@ -5118,7 +5117,7 @@ elif menu_choice == "⚙️ Settings":
                                 VALUES (:usr, :pwd, :role, :sub, :cls, :m_u, :m_s, :m_f, :e_n, :e_m)
                             """), {
                                 "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
-                                "m_u": int(c_m_usr), "m_s": int(c_m_set), "m_f": int(c_m_fac), "e_n": int(c_m_ent), "e_m": int(c_m_mrk)
+                                "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), "e_n": bool(c_m_ent), "e_m": bool(c_m_mrk)
                             })
                         st.success(f"🎉 System User profile for '{new_username}' has been successfully created.")
                         import time; time.sleep(1.0); st.rerun()
@@ -5187,7 +5186,7 @@ elif menu_choice == "⚙️ Settings":
                                 WHERE id = :target_id
                             """), {
                                 "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
-                                "mu": int(e_m_usr), "ms": int(e_m_set), "mf": int(e_m_fac), "en": int(e_m_ent), "em": int(e_m_mrk), "target_id": int(meta_row['id'])
+                                "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": bool(e_m_ent), "em": bool(e_m_mrk), "target_id": int(meta_row['id'])
                             })
                         st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
                         import time; time.sleep(1.0); st.rerun()
