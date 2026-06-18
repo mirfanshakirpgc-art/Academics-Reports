@@ -5255,7 +5255,7 @@ elif menu_choice == "⚙️ Settings":
         try:
             users_df = run_query("""
                 SELECT id, username, password, role, assigned_subject, assigned_class,
-                       can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                       can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks 
                 FROM app_users ORDER BY id ASC
             """)
         except Exception as e:
@@ -5265,11 +5265,11 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("### 📋 System Profiles & Active Access Permissions")
         if not users_df.empty:
             view_df = users_df.copy()
-            for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_edit_marks']:
+            for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_enter_marks', 'can_edit_marks']:
                 view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) else "❌ Denied")
             
             view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role", "Subject Allotment", "Class Incharge Scope",
-                               "User Control", "System Configuration", "Faculty Management", "Grades Override"]
+                               "User Control", "System Configuration", "Faculty Management", "Grades Entry", "Grades Override/Edit"]
             st.dataframe(view_df, use_container_width=True, hide_index=True)
 
         st.markdown("---")
@@ -5302,7 +5302,9 @@ elif menu_choice == "⚙️ Settings":
                 c_m_usr = st.checkbox("Can Control App Users", value=False, key="c_p1")
                 c_m_set = st.checkbox("Can Access Settings", value=False, key="c_p2")
                 c_m_fac = st.checkbox("Can Manage Faculty", value=False, key="c_p3")
-                c_m_mrk = st.checkbox("Can Enter/Edit Marks", value=True, key="c_p4")
+                # Split entries (shown in image_e0d785.png) into two distinct options:
+                c_m_ent = st.checkbox("Can Enter New Marks", value=True, key="c_p4_ent")
+                c_m_mrk = st.checkbox("Can Edit/Modify Existing Marks", value=False, key="c_p4_edt")
 
             if st.button("💾 Instantiate Custom Profile", type="primary", use_container_width=True):
                 if not new_username or not new_password:
@@ -5313,12 +5315,29 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
+                            # Verify layout schemas contain both columns safely
                             conn.execute(text("""
-                                INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks)
-                                VALUES (:usr, :pwd, :role, :sub, :cls, :m_u, :m_s, :m_f, :e_m)
+                                CREATE TABLE IF NOT EXISTS app_users (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    username TEXT UNIQUE,
+                                    password TEXT,
+                                    role TEXT,
+                                    assigned_subject TEXT,
+                                    assigned_class TEXT,
+                                    can_manage_users INTEGER,
+                                    can_manage_settings INTEGER,
+                                    can_manage_faculty INTEGER,
+                                    can_enter_marks INTEGER,
+                                    can_edit_marks INTEGER
+                                )
+                            """))
+                            
+                            conn.execute(text("""
+                                INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
+                                VALUES (:usr, :pwd, :role, :sub, :cls, :m_u, :m_s, :m_f, :e_n, :e_m)
                             """), {
                                 "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
-                                "m_u": int(c_m_usr), "m_s": int(c_m_set), "m_f": int(c_m_fac), "e_m": int(c_m_mrk)
+                                "m_u": int(c_m_usr), "m_s": int(c_m_set), "m_f": int(c_m_fac), "e_n": int(c_m_ent), "e_m": int(c_m_mrk)
                             })
                         st.success(f"🎉 System User profile for '{new_username}' has been successfully created.")
                         import time; time.sleep(1.0); st.rerun()
@@ -5345,6 +5364,57 @@ elif menu_choice == "⚙️ Settings":
                         edit_username = st.text_input("👤 Login Username:", value=str(meta_row['username']), key="e_user_in_fb").strip()
                         
                     edit_password = st.text_input("🔑 Password:", value=str(meta_row['password']), type="password", key="e_pass_in").strip()
+                with e_col2:
+                    current_role_idx = ["Admin", "Faculty", "Co-Ordinator"].index(meta_row['role']) if meta_row['role'] in ["Admin", "Faculty", "Co-Ordinator"] else 0
+                    edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
+                    
+                    if edit_role == "Faculty":
+                        current_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
+                        try: current_sub_idx = computed_subject_pool.index(current_sub)
+                        except ValueError: current_sub_idx = 0
+                        edit_subject = st.selectbox("📚 Course Scope Visibility:", computed_subject_pool, index=current_sub_idx, key="e_sub_sel")
+                        
+                        class_opts = ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
+                        current_cls = meta_row['assigned_class'] if meta_row['assigned_class'] else "None"
+                        current_cls_idx = class_opts.index(current_cls) if current_cls in class_opts else 0
+                        edit_class = st.selectbox("🏢 Change Class Incharge Duty:", class_opts, index=current_cls_idx, key="e_class_sel")
+                    else:
+                        edit_subject = "Global (All Subjects)"
+                        edit_class = "None"
+                        st.text_input("📚 Course Scope:", value="Global (All Subjects)", disabled=True, key="e_sub_dis")
+                        st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="e_class_dis")
+                with e_col3:
+                    st.markdown("**Rights Controls:**")
+                    e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
+                    e_m_set = st.checkbox("Can Access Settings", value=bool(meta_row['can_manage_settings']), key="e_p2")
+                    e_m_fac = st.checkbox("Can Manage Faculty", value=bool(meta_row['can_manage_faculty']), key="e_p3")
+                    
+                    # Read properties safely from database row parameters
+                    has_ent_priv = meta_row['can_enter_marks'] if 'can_enter_marks' in meta_row else True
+                    has_edt_priv = meta_row['can_edit_marks'] if 'can_edit_marks' in meta_row else False
+                    
+                    e_m_ent = st.checkbox("Can Enter New Marks", value=bool(has_ent_priv), key="e_p4_ent")
+                    e_m_mrk = st.checkbox("Can Edit/Modify Existing Marks", value=bool(has_edt_priv), key="e_p4_edt")
+
+                if st.button("💾 Save Updated Profile Configurations", type="primary", use_container_width=True):
+                    try:
+                        clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
+                        clean_cls = None if edit_class == "None" else edit_class
+                        
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                UPDATE app_users 
+                                SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
+                                    can_manage_users = :mu, can_manage_settings = :ms, can_manage_faculty = :mf, can_enter_marks = :en, can_edit_marks = :em
+                                WHERE id = :target_id
+                            """), {
+                                "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
+                                "mu": int(e_m_usr), "ms": int(e_m_set), "mf": int(e_m_fac), "en": int(e_m_ent), "em": int(e_m_mrk), "target_id": int(meta_row['id'])
+                            })
+                        st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
+                        import time; time.sleep(1.0); st.rerun()
+                    except Exception as e:
+                        st.error(f"Database upgrade execution failed: {e}")
                         
         # --- TAB 3: TERMINATE PROFILE ---
         with tab_delete:
@@ -5366,5 +5436,3 @@ elif menu_choice == "⚙️ Settings":
                         st.error("❌ Action denied: Check confirmation or ensure you aren't removing yourself.")
                         
         st.markdown('</div>', unsafe_allow_html=True)
-                    
-    st.markdown('</div>', unsafe_allow_html=True)
