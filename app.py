@@ -5099,7 +5099,6 @@ elif menu_choice == "⚙️ Settings":
             if st.button("💾 Instantiate Custom Profile", type="primary", use_container_width=True):
                 if not new_username or not new_password:
                     st.warning("⚠️ Username and password fields cannot be blank.")
-                # 🛡️ DUP CHECK: Verify if username already exists in local dataframe before running insertion
                 elif not users_df.empty and new_username in users_df["username"].values:
                     st.warning(f"⚠️ A profile configuration for '{new_username}' already exists. Go to the 'Edit User & System Rights' tab if you want to modify their permissions.")
                 else:
@@ -5170,25 +5169,33 @@ elif menu_choice == "⚙️ Settings":
                     e_m_mrk = st.checkbox("Can Edit/Modify Existing Marks", value=bool(has_edt_priv), key="e_p4_edt")
 
                 if st.button("💾 Save Updated Profile Configurations", type="primary", use_container_width=True):
-                    try:
-                        clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
-                        clean_cls = None if edit_class == "None" else edit_class
-                        
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                UPDATE app_users 
-                                SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
-                                    can_manage_users = CAST(:mu AS BOOLEAN), can_manage_settings = CAST(:ms AS BOOLEAN), can_manage_faculty = CAST(:mf AS BOOLEAN), 
-                                    can_enter_marks = CAST(:en AS BOOLEAN), can_edit_marks = CAST(:em AS BOOLEAN)
-                                WHERE id = :target_id
-                            """), {
-                                "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
-                                "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": bool(e_m_ent), "em": bool(e_m_mrk), "target_id": int(meta_row['id'])
-                            })
-                        st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
-                        import time; time.sleep(1.0); st.rerun()
-                    except Exception as e:
-                        st.error(f"Database upgrade execution failed: {e}")
+                    # 🛡️ DUP CHECK ON EDIT: Ensure the name isn't already taken by ANOTHER profile ID
+                    conflicting_user = users_df[(users_df["username"] == edit_username) & (users_df["id"] != int(meta_row['id']))]
+                    
+                    if not edit_username or not edit_password:
+                        st.warning("⚠️ Username and password fields cannot be blank.")
+                    elif not conflicting_user.empty:
+                        st.warning(f"⚠️ Cannot update profile. The username '{edit_username}' is already linked to a different login profile ID.")
+                    else:
+                        try:
+                            clean_sub = None if edit_subject == "Global (All Subjects)" else edit_subject
+                            clean_cls = None if edit_class == "None" else edit_class
+                            
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE app_users 
+                                    SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
+                                        can_manage_users = CAST(:mu AS BOOLEAN), can_manage_settings = CAST(:ms AS BOOLEAN), can_manage_faculty = CAST(:mf AS BOOLEAN), 
+                                        can_enter_marks = CAST(:en AS BOOLEAN), can_edit_marks = CAST(:em AS BOOLEAN)
+                                    WHERE id = :target_id
+                                """), {
+                                    "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
+                                    "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": bool(e_m_ent), "em": bool(e_m_mrk), "target_id": int(meta_row['id'])
+                                })
+                            st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
+                            import time; time.sleep(1.0); st.rerun()
+                        except Exception as e:
+                            st.error(f"Database upgrade execution failed: {e}")
                         
         # --- TAB 3: TERMINATE PROFILE ---
         with tab_delete:
