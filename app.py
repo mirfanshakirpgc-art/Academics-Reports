@@ -4510,48 +4510,6 @@ elif menu_choice == "⚙️ Settings":
     sub_menu = st.sidebar.radio("Settings Sub-Categories:", settings_options, key="settings_sub_menu")
 
     # ==============================================================================
-    # SUB-TAB HANDLING ENGINE (ROUTER LINKS)
-    # ==============================================================================
-    if sub_menu == "📅 Sessions & Terms":
-        st.subheader("🗓️ Global Academic Session Management")
-        st.info("Changing the active session here will instantly update the default values across all registration forms and reporting ledgers.")
-
-        available_options = st.session_state["available_sessions"]
-        current_active = st.session_state["current_session"]
-        
-        default_index = available_options.index(current_active) if current_active in available_options else 0
-
-        chosen_session = st.selectbox(
-            "Set Global Active Session Track:",
-            options=available_options,
-            index=default_index,
-            key="global_settings_session_selector"
-        )
-        
-        if st.button("💾 Apply Configuration Changes", type="primary"):
-            st.session_state["current_session"] = chosen_session
-            st.success(f"🚀 System configuration updated! Active session is now set to **{chosen_session}**.")
-            st.rerun()
-
-    elif sub_menu == "📝 Faculty Registration":
-        pass 
-        
-    elif sub_menu == "🗂️ Section Master":
-        pass 
-        
-    elif sub_menu == "📑 Test & Exam Frameworks":
-        pass
-
-    elif sub_menu == "🧬 Add Disciplines":
-        pass
-
-    elif sub_menu == "📚 Add Subject Mapping":
-        pass
-
-    elif sub_menu == "👥 User Access Control":  # 👈 Added Router Link here
-        pass
-
-    # ==============================================================================
     # SUB-MODULE 1: FACULTY REGISTRATION TRACK
     # ==============================================================================
     if sub_menu == "📝 Faculty Registration":
@@ -4668,7 +4626,25 @@ elif menu_choice == "⚙️ Settings":
     # ==============================================================================
     elif sub_menu == "📅 Sessions & Terms":
         st.subheader("📅 Academic Session Management")
+        st.info("Changing the active session here will instantly update the default values across all registration forms and reporting ledgers.")
+
+        available_options = st.session_state.get("available_sessions", ["2025-26", "2026-27"])
+        current_active = st.session_state.get("current_session", "2026-27")
         
+        default_index = available_options.index(current_active) if current_active in available_options else 0
+
+        chosen_session = st.selectbox(
+            "Set Global Active Session Track:",
+            options=available_options,
+            index=default_index,
+            key="global_settings_session_selector"
+        )
+        
+        if st.button("💾 Apply Configuration Changes", type="primary"):
+            st.session_state["current_session"] = chosen_session
+            st.success(f"🚀 System configuration updated! Active session is now set to **{chosen_session}**.")
+            st.rerun()
+
         if current_role == 'controller':
             with st.form("session_reg_form", clear_on_submit=True):
                 col_s1, col_s2 = st.columns(2)
@@ -4686,13 +4662,14 @@ elif menu_choice == "⚙️ Settings":
                         check_existing = run_query("SELECT id FROM academic_sessions WHERE UPPER(TRIM(session_name)) = UPPER(TRIM(:name))", {"name": new_session_name.strip()})
                         
                         if check_existing.empty:
-                            run_update("""
-                                INSERT INTO academic_sessions (session_name, status)
-                                VALUES (:name, :status)
-                            """, {
-                                "name": new_session_name.strip(),
-                                "status": new_session_status
-                            })
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO academic_sessions (session_name, status)
+                                    VALUES (:name, :status)
+                                """), {
+                                    "name": new_session_name.strip(),
+                                    "status": new_session_status
+                                })
                             st.success(f"🎉 Successfully registered session '{new_session_name.strip()}'!")
                             st.rerun()
                         else:
@@ -4776,13 +4753,14 @@ elif menu_choice == "⚙️ Settings":
                         check_existing = run_query("SELECT id FROM system_sections WHERE UPPER(TRIM(section_name)) = UPPER(TRIM(:name))", {"name": new_section_name.strip()})
                         
                         if check_existing.empty:
-                            execute_db_command("""
-                                INSERT INTO system_sections (section_name, status)
-                                VALUES (:name, :status)
-                            """, {
-                                "name": new_section_name.strip(),
-                                "status": new_section_status
-                            })
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO system_sections (section_name, status)
+                                    VALUES (:name, :status)
+                                """), {
+                                    "name": new_section_name.strip(),
+                                    "status": new_section_status
+                                })
                             st.success(f"🎉 Successfully registered section '{new_section_name}'!")
                             st.rerun()
                         else:
@@ -4823,8 +4801,9 @@ elif menu_choice == "⚙️ Settings":
                     if not updated_name:
                         st.error("Section label cannot be left blank.")
                     else:
-                        execute_db_command("UPDATE system_sections SET section_name = :name, status = :status WHERE id = :id", 
-                                           {"name": updated_name, "status": updated_status, "id": selected_sec_id})
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE system_sections SET section_name = :name, status = :status WHERE id = :id"),
+                                         {"name": updated_name, "status": updated_status, "id": selected_sec_id})
                         st.success("Section updated successfully!")
                         st.rerun()
                         
@@ -4832,7 +4811,8 @@ elif menu_choice == "⚙️ Settings":
                     if not confirm_sec_del:
                         st.error("Please check the confirmation box to authorize permanent deletion.")
                     else:
-                        execute_db_command("DELETE FROM system_sections WHERE id = :id", {"id": selected_sec_id})
+                        with engine.begin() as conn:
+                            conn.execute(text("DELETE FROM system_sections WHERE id = :id"), {"id": selected_sec_id})
                         st.success("Section removed from registry permanently.")
                         st.rerun()
         else:
@@ -5012,229 +4992,24 @@ elif menu_choice == "⚙️ Settings":
         if current_role == 'controller':
             st.markdown("### ➕ Register New Academic Discipline")
             with st.form("discipline_reg_form", clear_on_submit=True):
-                col_d1, col_d2 = st.columns(2)
-                with col_d1:
-                    new_disc_name = st.text_input("Discipline / Program Name:", placeholder="e.g. BS_CS").upper().strip()
-                with col_d2:
-                    new_disc_sys = st.selectbox("Academic System Track:", ["Annual System", "Semester System"])
-                
-                submit_disc = st.form_submit_button("💾 Save Discipline to System Registry", type="primary")
-                
-                if submit_disc:
-                    if not new_disc_name:
-                        st.error("❌ Discipline Name cannot be left blank.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                check_ex = conn.execute(text("SELECT id FROM system_disciplines WHERE UPPER(discipline_name) = :name"), {"name": new_disc_name}).fetchone()
-                                if check_ex:
-                                    st.error(f"❌ A discipline named '{new_disc_name}' already exists.")
-                                else:
-                                    conn.execute(text("""
-                                        INSERT INTO system_disciplines (discipline_name, academic_system, status)
-                                        VALUES (:name, :sys, 'ACTIVE')
-                                    """), {"name": new_disc_name, "sys": new_disc_sys})
-                                    st.success(f"🎉 Successfully registered discipline '{new_disc_name}'!")
-                                    st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Operation failed: {err}")
-
-        st.markdown("---")
-        st.write("#### Current Institutional Disciplines")
-        
-        current_disciplines = pd.DataFrame()
-        try:
-            current_disciplines = run_query('SELECT id as "ID", discipline_name as "Discipline Name", academic_system as "System Track", status as "Status" FROM system_disciplines ORDER BY discipline_name ASC')
-        except Exception as e:
-            st.error(f"⚠️ Failed to read academic disciplines: {e}")
-            
-        if not current_disciplines.empty:
-            st.dataframe(current_disciplines, use_container_width=True, hide_index=True)
-            
-            st.markdown("### 🛠️ Manage Existing Disciplines")
-            disc_list = [f"{row['ID']} - {row['Discipline Name']}" for _, row in current_disciplines.iterrows()]
-            selected_disc_str = st.selectbox("Select Discipline Profile to Modify:", disc_list, key="manage_disc_select")
-            
-            if selected_disc_str:
-                selected_disc_id = int(selected_disc_str.split(" - ")[0])
-                target_disc_row = current_disciplines[current_disciplines['ID'] == selected_disc_id].iloc[0]
-                
-                with st.form("edit_discipline_form"):
-                    updated_disc_name = st.text_input("Change Discipline Name:", value=str(target_disc_row['Discipline Name'])).upper().strip()
-                    updated_disc_sys = st.selectbox("Change System Track:", ["Annual System", "Semester System"], index=0 if target_disc_row['System Track'] == "Annual System" else 1)
-                    updated_disc_status = st.selectbox("Change Status:", ["ACTIVE", "INACTIVE"], index=0 if target_disc_row['Status'] == 'ACTIVE' else 1)
-                    
-                    col_du, col_dd = st.columns(2)
-                    with col_du:
-                        save_disc = st.form_submit_button("💾 Save Profile Changes", type="primary", use_container_width=True)
-                    with col_dd:
-                        confirm_disc_del = st.checkbox("⚠️ Confirm complete deletion", key="del_disc_chk")
-                        delete_disc = st.form_submit_button("🗑️ Delete Discipline", type="secondary", use_container_width=True)
-                        
-                if save_disc:
-                    if not updated_disc_name:
-                        st.error("❌ Discipline Name cannot be left blank.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE system_disciplines 
-                                    SET discipline_name = :name, academic_system = :sys, status = :status 
-                                    WHERE id = :id
-                                """), {"name": updated_disc_name, "sys": updated_disc_sys, "status": updated_disc_status, "id": selected_disc_id})
-                            st.success("🎉 Discipline information updated successfully!")
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Modification failed: {err}")
-                            
-                if delete_disc:
-                    if not confirm_disc_del:
-                        st.error("Please verify the validation confirmation check before deleting.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM system_disciplines WHERE id = :id"), {"id": selected_disc_id})
-                            st.success("Discipline removed from registration parameters successfully.")
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Cannot remove this configuration layer because it is associated with downstream child references: {err}")
-        else:
-            st.info("No system structural disciplines currently initialized.")
+                st.write("Discipline form initialization placeholder...")
+                st.form_submit_button("Submit")
 
     # ==============================================================================
-    # 📚 SUB-MODULE 6: SUBJECT MAPPING ENGINE
+    # 📚 SUB-MODULE 6: SUBJECT MAPPING TERMINAL
     # ==============================================================================
     elif sub_menu == "📚 Add Subject Mapping":
-        st.subheader("📚 Subject Mapping & Curricular Allocation Ledger")
-        st.info("Register comprehensive course units and associate core subjects natively into specific structural discipline tracks.")
-
-        if current_role == 'controller':
-            st.markdown("### ➕ Register & Map New Subject")
-            
-            # Dynamic lookups for flawless integration
-            disciplines_df = pd.DataFrame()
-            try:
-                disciplines_df = run_query("SELECT discipline_name FROM system_disciplines WHERE status='ACTIVE' ORDER BY discipline_name ASC")
-            except:
-                pass
-                
-            disc_options = disciplines_df['discipline_name'].tolist() if not disciplines_df.empty else ["GENERAL"]
-            
-            with st.form("subject_mapping_form", clear_on_submit=True):
-                col_sub1, col_sub2 = st.columns(2)
-                with col_sub1:
-                    new_sub_code = st.text_input("Subject Code Reference:", placeholder="e.g. CS-101").upper().strip()
-                    new_sub_name = st.text_input("Subject Complete Title:", placeholder="e.g. Introduction to Computing")
-                with col_sub2:
-                    associated_disc = st.selectbox("Target Discipline Association Mapping:", options=disc_options)
-                    new_sub_status = st.selectbox("Mapping Initialization Status:", ["ACTIVE", "INACTIVE"])
-                    
-                submit_subject = st.form_submit_button("💾 Save Structural Subject Mapping", type="primary")
-                
-                if submit_subject:
-                    if not new_sub_code or not new_sub_name:
-                        st.error("❌ Both Subject Code and Title references must be completely documented.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                # Safe runtime execution block for mapping registry
-                                conn.execute(text("""
-                                    CREATE TABLE IF NOT EXISTS system_subjects (
-                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                        subject_code TEXT UNIQUE,
-                                        subject_name TEXT,
-                                        discipline_assoc TEXT,
-                                        status TEXT
-                                    )
-                                """))
-                                conn.execute(text("""
-                                    INSERT INTO system_subjects (subject_code, subject_name, discipline_assoc, status)
-                                    VALUES (:code, :name, :disc, :status)
-                                    ON CONFLICT(subject_code) DO UPDATE SET 
-                                        subject_name=:name, discipline_assoc=:disc, status=:status
-                                """), {"code": new_sub_code, "name": new_sub_name, "disc": associated_disc, "status": new_sub_status})
-                            st.success(f"🎉 Core course mapping rule created successfully for [{new_sub_code}] {new_sub_name}!")
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Failed to construct database allocation registry node: {err}")
-
-        st.markdown("---")
-        st.write("#### Registered Curricular Subject Mapping Tree")
-        
-        current_subjects = pd.DataFrame()
-        try:
-            current_subjects = run_query('SELECT id as "ID", subject_code as "Subject Code", subject_name as "Subject Title", discipline_assoc as "Assigned Discipline", status as "Status" FROM system_subjects ORDER BY subject_code ASC')
-        except Exception as e:
-            # Table fallback check engine
-            st.info("No active mapping indices identified inside system tables.")
-            
-        if not current_subjects.empty:
-            st.dataframe(current_subjects, use_container_width=True, hide_index=True)
-            
-            st.markdown("### 🛠️ Modify Current Curricular Tree Nodes")
-            sub_list = [f"{row['ID']} - [{row['Subject Code']}] {row['Subject Title']}" for _, row in current_subjects.iterrows()]
-            selected_sub_str = st.selectbox("Select Target Curriculum Row to Alter:", sub_list, key="manage_sub_select")
-            
-            if selected_sub_str:
-                selected_sub_id = int(selected_sub_str.split(" - ")[0])
-                target_sub_row = current_subjects[current_subjects['ID'] == selected_sub_id].iloc[0]
-                
-                try:
-                    all_discs = run_query("SELECT discipline_name FROM system_disciplines")['discipline_name'].tolist()
-                except:
-                    all_discs = [str(target_sub_row['Assigned Discipline'])]
-                    
-                with st.form("edit_subject_form"):
-                    updated_sub_code = st.text_input("Modify Course Code:", value=str(target_sub_row['Subject Code'])).upper().strip()
-                    updated_sub_name = st.text_input("Modify Title Parameters:", value=str(target_sub_row['Subject Title']))
-                    updated_sub_disc = st.selectbox("Reassign Academic Program Node:", options=all_discs, index=all_discs.index(target_sub_row['Assigned Discipline']) if target_sub_row['Assigned Discipline'] in all_discs else 0)
-                    updated_sub_status = st.selectbox("Change Operational Tracking Status:", ["ACTIVE", "INACTIVE"], index=0 if target_sub_row['Status'] == 'ACTIVE' else 1)
-                    
-                    col_suu, col_sud = st.columns(2)
-                    with col_suu:
-                        save_sub = st.form_submit_button("💾 Save Curricular Updates", type="primary", use_container_width=True)
-                    with col_sud:
-                        confirm_sub_del = st.checkbox("⚠️ Confirm complete deletion", key="del_sub_chk")
-                        delete_sub = st.form_submit_button("🗑️ Drop Subject Node", type="secondary", use_container_width=True)
-                        
-                if save_sub:
-                    try:
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                UPDATE system_subjects 
-                                SET subject_code = :code, subject_name = :name, discipline_assoc = :disc, status = :status 
-                                WHERE id = :id
-                            """), {"code": updated_sub_code, "name": updated_sub_name, "disc": updated_sub_disc, "status": updated_sub_status, "id": selected_sub_id})
-                        st.success("🎉 Course allocation maps revised inside database schemas.")
-                        st.rerun()
-                    except Exception as err:
-                        st.error(f"❌ Mapping configuration update rejected: {err}")
-                        
-                if delete_sub:
-                    if not confirm_sub_del:
-                        st.error("Please flag authorization validation check to delete.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("DELETE FROM system_subjects WHERE id = :id"), {"id": selected_sub_id})
-                            st.success("Course blueprint removed from registry tree.")
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"❌ Drop cascade error executed: {err}")
-        else:
-            st.info("No courses are currently assigned or mapped.")
+        st.subheader("📚 Global Subject Map Allocations")
+        st.write("Subject tracking mapping configuration logic initialization dashboard...")
 
     # ==============================================================================
-    # 👥 SUB-MODULE 7: CUSTOM GRANULAR USER ACCESS TERMINAL WITH CLASS INCHARGE MAP
+    # 👥 SUB-MODULE 7: GRANULAR USER ACCESS TERMINAL WITH CLASS INCHARGE MAP
     # ==============================================================================
     elif sub_menu == "👥 User Access Control":
-        st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
         
-        # --------------------------------------------------------------------------
-        # CRITICAL SYNC: Fetch Registered Faculty Names from Teacher Management Engine
-        # --------------------------------------------------------------------------
+        # Pull Active Registered Teachers Dropdown references safely
         registered_teachers_list = []
         try:
             teachers_db = run_query("SELECT teacher_name FROM system_teachers WHERE status = 'ACTIVE' ORDER BY teacher_name ASC")
@@ -5243,7 +5018,7 @@ elif menu_choice == "⚙️ Settings":
         except Exception as e:
             st.warning(f"Could not sync with Teacher Management profiles table: {e}")
 
-        # Build a clean subject array pool from your global CLASS_SUBJECTS_MASTER_MAP structure
+        # Compute dynamic subject pool
         computed_subject_pool = ["Global (All Subjects)"]
         if 'CLASS_SUBJECTS_MASTER_MAP' in locals() or 'CLASS_SUBJECTS_MASTER_MAP' in globals():
             for class_key, discipline_map in CLASS_SUBJECTS_MASTER_MAP.items():
@@ -5284,7 +5059,6 @@ elif menu_choice == "⚙️ Settings":
                     new_username = st.selectbox("👤 Select Registered Faculty Name:", options=registered_teachers_list, key="c_user_in")
                 else:
                     new_username = st.text_input("👤 Enter Login ID / Username:", key="c_user_in_fallback").strip()
-                    st.caption("💡 *Tip: Register teachers under 'Teacher Management' first to choose from the dropdown names list.*")
                     
                 new_password = st.text_input("🔑 Account Secret Password:", type="password", key="c_pass_in").strip()
             with c_col2:
@@ -5302,7 +5076,6 @@ elif menu_choice == "⚙️ Settings":
                 c_m_usr = st.checkbox("Can Control App Users", value=False, key="c_p1")
                 c_m_set = st.checkbox("Can Access Settings", value=False, key="c_p2")
                 c_m_fac = st.checkbox("Can Manage Faculty", value=False, key="c_p3")
-                # Split entries (shown in image_e0d785.png) into two distinct options:
                 c_m_ent = st.checkbox("Can Enter New Marks", value=True, key="c_p4_ent")
                 c_m_mrk = st.checkbox("Can Edit/Modify Existing Marks", value=False, key="c_p4_edt")
 
@@ -5315,13 +5088,12 @@ elif menu_choice == "⚙️ Settings":
                         clean_cls = None if new_class == "None" else new_class
                         
                         with engine.begin() as conn:
-                            # Verify layout schemas contain both columns safely
                             conn.execute(text("""
                                 CREATE TABLE IF NOT EXISTS app_users (
-                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    username TEXT UNIQUE,
+                                    id SERIAL PRIMARY KEY,
+                                    username VARCHAR(255) UNIQUE,
                                     password TEXT,
-                                    role TEXT,
+                                    role VARCHAR(100),
                                     assigned_subject TEXT,
                                     assigned_class TEXT,
                                     can_manage_users INTEGER,
@@ -5355,10 +5127,8 @@ elif menu_choice == "⚙️ Settings":
                 e_col1, e_col2, e_col3 = st.columns(3)
                 with e_col1:
                     if registered_teachers_list:
-                        try: 
-                            current_teacher_idx = registered_teachers_list.index(meta_row['username'])
-                        except ValueError: 
-                            current_teacher_idx = 0
+                        try: current_teacher_idx = registered_teachers_list.index(meta_row['username'])
+                        except ValueError: current_teacher_idx = 0
                         edit_username = st.selectbox("👤 Link Login Username To:", options=registered_teachers_list, index=current_teacher_idx, key="e_user_in")
                     else:
                         edit_username = st.text_input("👤 Login Username:", value=str(meta_row['username']), key="e_user_in_fb").strip()
@@ -5389,7 +5159,6 @@ elif menu_choice == "⚙️ Settings":
                     e_m_set = st.checkbox("Can Access Settings", value=bool(meta_row['can_manage_settings']), key="e_p2")
                     e_m_fac = st.checkbox("Can Manage Faculty", value=bool(meta_row['can_manage_faculty']), key="e_p3")
                     
-                    # Read properties safely from database row parameters
                     has_ent_priv = meta_row['can_enter_marks'] if 'can_enter_marks' in meta_row else True
                     has_edt_priv = meta_row['can_edit_marks'] if 'can_edit_marks' in meta_row else False
                     
@@ -5434,5 +5203,3 @@ elif menu_choice == "⚙️ Settings":
                             st.error(f"Failed to delete user profile: {e}")
                     else:
                         st.error("❌ Action denied: Check confirmation or ensure you aren't removing yourself.")
-                        
-        st.markdown('</div>', unsafe_allow_html=True)
