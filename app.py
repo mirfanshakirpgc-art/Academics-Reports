@@ -14,67 +14,17 @@ st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
 
 # --- INITIALIZE GLOBAL IMAGES AND LOGOS ---
 logo_filename = "logo.png"
-
-# 1. Always initialize the variable to prevent NameError/UnboundLocalError
 logo_base64 = ""
 
-# 2. Check existence and handle loading
 if os.path.exists(logo_filename):
     try:
         with open(logo_filename, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
-            # Handle extensions correctly
             ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            if ext in ["jpg", "jpeg"]: 
-                mime_type = "jpeg"
-            elif ext == "png": 
-                mime_type = "png"
-            else: 
-                mime_type = "png" # Default fallback
-            
+            mime_type = "jpeg" if ext in ["jpg", "jpeg"] else "png"
             logo_base64 = f"data:image/{mime_type};base64,{encoded_string}"
     except Exception as e:
         print(f"Error loading logo file: {e}")
-        logo_base64 = ""
-else:
-    print(f"Warning: Logo file '{logo_filename}' not found.")
-
-# --- CORE HELPER FUNCTIONS ---
-def apply_filters(df, tab_key):
-    st.markdown("### ⚙️ Filter Configuration")
-    s_options = sorted(df['session'].unique())
-    d_options = sorted(df['discipline'].unique())
-    sec_options = sorted(df['section'].unique())
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        s = st.multiselect("Session:", s_options, default=s_options, key=f"s_{tab_key}")
-        d = st.multiselect("Discipline:", d_options, default=d_options, key=f"d_{tab_key}")
-    with col2:
-        sec = st.multiselect("Section:", sec_options, default=sec_options, key=f"sec_{tab_key}")
-    
-    f_df = df.copy()
-    f_df = f_df[f_df['session'].isin(s if s else s_options)]
-    f_df = f_df[f_df['discipline'].isin(d if d else d_options)]
-    f_df = f_df[f_df['section'].isin(sec if sec else sec_options)]
-    return f_df
-
-@st.cache_data(ttl=600)
-def fetch_analytics_data():
-    query = """
-        SELECT s.id, s.name, s.section, s.class, s.session, 
-               m.subject, m.marks_obtained, m.total_marks, m.exam_type
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id
-        WHERE 1=1
-    """
-    params = {}
-
-    if "user_role" in st.session_state and st.session_state.user_role == "Teacher":
-        query += " AND m.subject = :teacher_sub"
-        params["teacher_sub"] = st.session_state.assigned_subject
-
-    return run_query(query, params)
 
 # --- DATABASE CONNECTION CONFIGURATION ---
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
@@ -85,160 +35,25 @@ def get_db_engine():
 
 engine = get_db_engine()
 
-# --- SETUP USER LOGIN SESSION MEMORY TRACKING ---
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "user_role" not in st.session_state:
-    st.session_state.user_role = None
-if "assigned_subject" not in st.session_state:
-    st.session_state.assigned_subject = None
-
-# 🌟 INITIALIZE GRANULAR RIGHTS VARIABLES IN SESSION STATE
-if "can_manage_users" not in st.session_state:
-    st.session_state.can_manage_users = False
-if "can_manage_settings" not in st.session_state:
-    st.session_state.can_manage_settings = False
-if "can_manage_faculty" not in st.session_state:
-    st.session_state.can_manage_faculty = False
-if "can_edit_marks" not in st.session_state:
-    st.session_state.can_edit_marks = False
-
-# 🚀 --- SYSTEM SETTINGS: GLOBAL ACADEMIC SESSION TRACKING ---
-if "current_session" not in st.session_state:
-    st.session_state["current_session"] = "2026-28"  # Default system active session
-
-if "available_sessions" not in st.session_state:
-    st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
-
-
-# --- SECURE GATEKEEPER LOGIN CHECK ---
-if not st.session_state.logged_in:
-    # 🎨 CSS Layout precisely matching image_feeb45.png layout structure
-    st.markdown("""
-        <style>
-            /* Globally center the entire workspace area */
-            .main .block-container {
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                min-height: 85vh;
-                padding-top: 2rem;
-            }
-            
-            /* Professional Header Title alignment matching image_feeb45.png */
-            .college-title {
-                color: #212529;
-                font-size: 2.5rem;
-                font-weight: 700;
-                margin-top: 1rem;
-                margin-bottom: 1.5rem;
-                text-align: center;
-            }
-            
-            /* Fixed centered width framework for form controls */
-            .login-box-container {
-                width: 100%;
-                max-width: 340px;
-                margin: 0 auto;
-            }
-            
-            /* Form strip downs to achieve a clean profile layout */
-            div[data-testid="stForm"] {
-                border: none !important;
-                padding: 0 !important;
-                background-color: transparent !important;
-                box-shadow: none !important;
-            }
-            
-            /* Custom styling layout for Forgot Password helper tool link */
-            .forgot-pwd-box {
-                text-align: right;
-                margin-top: -8px;
-                margin-bottom: 12px;
-                font-size: 0.82rem;
-            }
-            .forgot-pwd-box a {
-                color: #dc3545;
-                text-decoration: none;
-                font-weight: 500;
-            }
-            .forgot-pwd-box a:hover {
-                text-decoration: underline;
-            }
-            
-            /* Form input field labels adjustments */
-            label {
-                font-weight: 500 !important;
-                color: #495057 !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # 🏢 Left-aligned corporate identity asset row layout wrapper block
-    col_left, col_mid, col_right = st.columns([1, 2, 1])
-    with col_mid:
-        if os.path.exists("logo.png"):
-            st.image("logo.png", width=140)
-            
-        st.markdown('<div class="college-title">Concordia College Kasur</div>', unsafe_allow_html=True)
-        
-        # Open layout content target block
-        st.markdown('<div class="login-box-container">', unsafe_allow_html=True)
-        
-        with st.form("clean_central_login_form", clear_on_submit=False):
-            username_input = st.text_input("Username")
-            password_input = st.text_input("Password", type="password")
-            
-            # Forgot Password request asset linkage trigger
-            st.markdown('''
-                <div class="forgot-pwd-box">
-                    <a href="mailto:admin@concordia.edu.pk?subject=Password%20Reset%20Request%20-%20Kasur" target="_blank">
-                        Forgot Password?
-                    </a>
-                </div>
-            ''', unsafe_allow_html=True)
-            
-            # Custom styled submission element action route block
-            login_submitted = st.form_submit_button("Log In")
-            
-            if login_submitted:
-                with engine.connect() as conn:
-                    query = text("""
-                        SELECT role, assigned_subject, 
-                               can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
-                        FROM app_users 
-                        WHERE username = :u AND password = :p
-                    """)
-                    result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
-                    
-                    if result:
-                        st.session_state.logged_in = True
-                        st.session_state.user_role = result[0]         
-                        st.session_state.assigned_subject = result[1]    
-                        
-                        # Check legacy role status
-                        is_legacy_admin = result[0] in ['controller', 'Admin']
-                        
-                        # Assign dynamic rights fallback metrics
-                        st.session_state.can_manage_users = bool(result[2]) or is_legacy_admin
-                        st.session_state.can_manage_settings = bool(result[3]) or is_legacy_admin
-                        st.session_state.can_manage_faculty = bool(result[4]) or is_legacy_admin
-                        st.session_state.can_edit_marks = bool(result[5]) or is_legacy_admin
-
-                        st.success("Access Granted! Loading system...")
-                        st.rerun()
-                    else:
-                        st.error("Incorrect username or password. Please try again.")
-
-        st.markdown('</div>', unsafe_allow_html=True) # Close login-box-container
-    st.stop() 
-
-# ==============================================================================
-# --- AUTOMATIC TABLE SETUP ---
-# ==============================================================================
+# --- DATABASE INITIALIZATION ENGINE ---
 def initialize_database():
     with engine.begin() as conn:
+        # Create App Users Table if it doesn't exist to prevent login check crashes
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS app_users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password VARCHAR(100) NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                assigned_subject VARCHAR(100),
+                can_manage_users BOOLEAN DEFAULT FALSE,
+                can_manage_settings BOOLEAN DEFAULT FALSE,
+                can_manage_faculty BOOLEAN DEFAULT FALSE,
+                can_edit_marks BOOLEAN DEFAULT FALSE
+            );
+        """))
+        
+        # Create Core Operational Tables
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 id SERIAL PRIMARY KEY,
@@ -252,16 +67,13 @@ def initialize_database():
             );
         """))
         
-        try:
-            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS system_type VARCHAR(50) DEFAULT 'Annual System';"))
-        except Exception:
-            pass
+        # Soft-patch structural updates smoothly
+        for col, col_type in [("system_type", "VARCHAR(50) DEFAULT 'Annual System'"), ("discipline", "VARCHAR(100)")]:
+            try:
+                conn.execute(text(f"ALTER TABLE students ADD COLUMN IF NOT EXISTS {col} {col_type};"))
+            except Exception:
+                pass
 
-        try:
-            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS discipline VARCHAR(100);"))
-        except Exception:
-            pass
-        
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_teachers (
                 teacher_id SERIAL PRIMARY KEY,
@@ -313,25 +125,21 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize database tables: {e}")
 
-# ==============================================================================
-# --- DATABASE COMMAND UTILITIES ---
-# ==============================================================================
+# --- SQL PROCESSING UTILITIES ---
 def run_query(query, params=None):
-    if params is None:
-        params = {}
-
+    if params is None: params = {}
     if isinstance(query, tuple):
         if len(query) >= 2 and isinstance(query[0], str):
             params = query[1]
             query = query[0]
         else:
             query = str(query[0])
-
+            
     clean_query = query.replace("[Session Name]", '"Session Name"')
     
     try:
         with engine.connect() as conn:
-            return pd.read_sql_query(text(clean_query), retry_conn, params=params)
+            return pd.read_sql_query(text(clean_query), conn, params=params) # Fixed connection bug here
     except Exception as original_error:
         try:
             with engine.begin() as txn_conn:
@@ -342,41 +150,152 @@ def run_query(query, params=None):
                         status VARCHAR(20) DEFAULT 'ACTIVE'
                     );
                 """))
-                for table_name in ["academic_sessions", "system_sections", "exam_cycles"]:
+                for t in ["academic_sessions", "system_sections", "exam_cycles"]:
                     try:
-                        txn_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';"))
-                    except Exception:
-                        pass 
-
+                        txn_conn.execute(text(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';"))
+                    except Exception: pass
             with engine.connect() as retry_conn:
                 return pd.read_sql_query(text(clean_query), retry_conn, params=params)
         except Exception:
             raise original_error
 
 def execute_db_command(query, params=None):
-    if params is None:
-        params = {}
+    if params is None: params = {}
     try:
         with engine.begin() as conn:
             conn.execute(text(query), params)
     except Exception as e:
         raise RuntimeError(f"Database write execution failed: {str(e)}")
 
+# --- CORE DATA FILTER LOGIC ---
+def apply_filters(df, tab_key):
+    st.markdown("### ⚙️ Filter Configuration")
+    s_options = sorted(df['session'].unique()) if 'session' in df.columns else []
+    d_options = sorted(df['discipline'].unique()) if 'discipline' in df.columns else []
+    sec_options = sorted(df['section'].unique()) if 'section' in df.columns else []
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        s = st.multiselect("Session:", s_options, default=s_options, key=f"s_{tab_key}")
+        d = st.multiselect("Discipline:", d_options, default=d_options, key=f"d_{tab_key}")
+    with col2:
+        sec = st.multiselect("Section:", sec_options, default=sec_options, key=f"sec_{tab_key}")
+    
+    f_df = df.copy()
+    if s_options: f_df = f_df[f_df['session'].isin(s if s else s_options)]
+    if d_options: f_df = f_df[f_df['discipline'].isin(d if d else d_options)]
+    if sec_options: f_df = f_df[f_df['section'].isin(sec if sec else sec_options)]
+    return f_df
+
+@st.cache_data(ttl=600)
+def fetch_analytics_data():
+    query = """
+        SELECT s.id, s.name, s.section, s.class, s.session, 
+               m.subject, m.marks_obtained, m.total_marks, m.exam_type
+        FROM students s
+        LEFT JOIN marks m ON s.id = m.student_id
+        WHERE 1=1
+    """
+    params = {}
+    if "user_role" in st.session_state and st.session_state.user_role == "Teacher":
+        query += " AND m.subject = :teacher_sub"
+        params["teacher_sub"] = st.session_state.assigned_subject
+    return run_query(query, params)
+
+# --- USER LOGIN SESSION TRACKING INITIALIZATION ---
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "user_role" not in st.session_state: st.session_state.user_role = None
+if "assigned_subject" not in st.session_state: st.session_state.assigned_subject = None
+
+for right in ["can_manage_users", "can_manage_settings", "can_manage_faculty", "can_edit_marks"]:
+    if right not in st.session_state:
+        st.session_state[right] = False
+
+if "current_session" not in st.session_state: st.session_state["current_session"] = "2026-28"
+if "available_sessions" not in st.session_state: st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
+
+# ==============================================================================
+# --- GATEKEEPER ROUTING STEP ---
+# ==============================================================================
+if not st.session_state.logged_in:
+    st.markdown("""
+        <style>
+            .main .block-container {
+                display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 85vh; padding-top: 2rem;
+            }
+            .college-title {
+                color: #212529; font-size: 2.5rem; font-weight: 700; margin-top: 1rem; margin-bottom: 1.5rem; text-align: center;
+            }
+            .login-box-container {
+                width: 100%; max-width: 340px; margin: 0 auto;
+            }
+            div[data-testid="stForm"] {
+                border: none !important; padding: 0 !important; background-color: transparent !important; box-shadow: none !important;
+            }
+            .forgot-pwd-box {
+                text-align: right; margin-top: -8px; margin-bottom: 12px; font-size: 0.82rem;
+            }
+            .forgot-pwd-box a {
+                color: #dc3545; text-decoration: none; font-weight: 500;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    col_l, col_m, col_r = st.columns([1, 2, 1])
+    with col_m:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", width=140)
+            
+        st.markdown('<div class="college-title">Concordia College Kasur</div>', unsafe_allow_html=True)
+        st.markdown('<div class="login-box-container">', unsafe_allow_html=True)
+        
+        with st.form("clean_central_login_form", clear_on_submit=False):
+            username_input = st.text_input("Username")
+            password_input = st.text_input("Password", type="password")
+            
+            st.markdown('<div class="forgot-pwd-box"><a href="mailto:admin@concordia.edu.pk?subject=Password%20Reset" target="_blank">Forgot Password?</a></div>', unsafe_allow_html=True)
+            login_submitted = st.form_submit_button("Log In")
+            
+            if login_submitted:
+                with engine.connect() as conn:
+                    query = text("""
+                        SELECT role, assigned_subject, 
+                               can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                        FROM app_users 
+                        WHERE username = :u AND password = :p
+                    """)
+                    result = conn.execute(query, {"u": username_input, "p": password_input}).fetchone()
+                    
+                    if result:
+                        st.session_state.logged_in = True
+                        st.session_state.user_role = result[0]         
+                        st.session_state.assigned_subject = result[1]    
+                        
+                        is_legacy_admin = result[0] in ['controller', 'Admin']
+                        st.session_state.can_manage_users = bool(result[2]) or is_legacy_admin
+                        st.session_state.can_manage_settings = bool(result[3]) or is_legacy_admin
+                        st.session_state.can_manage_faculty = bool(result[4]) or is_legacy_admin
+                        st.session_state.can_edit_marks = bool(result[5]) or is_legacy_admin
+
+                        st.success("Access Granted!")
+                        st.rerun()
+                    else:
+                        st.error("Incorrect credentials.")
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
+
 # ==============================================================================
 # SIDEBAR NAVIGATION MODULE (ROLE-BASED + GRANULAR ACCESS CONTROL)
 # ==============================================================================
 allowed_menus = ["📊 Home Dashboard"]
 
-# Load specific operational capability states from memory mapping
-user_role = st.session_state.get('user_role')
-can_manage_users = st.session_state.get('can_manage_users', False)
-can_manage_settings = st.session_state.get('can_manage_settings', False)
-can_manage_faculty = st.session_state.get('can_manage_faculty', False)
-can_edit_marks = st.session_state.get('can_edit_marks', False)
+user_role = st.session_state.user_role
+can_manage_users = st.session_state.can_manage_users
+can_manage_settings = st.session_state.can_manage_settings
+can_manage_faculty = st.session_state.can_manage_faculty
+can_edit_marks = st.session_state.can_edit_marks
 
-# 🔄 DYNAMIC NAVIGATION MAP BUILDER: Bridges old roles and newly structured rights cleanly
 if user_role in ['Admin', 'controller'] or can_manage_users or can_manage_settings or can_manage_faculty or can_edit_marks:
-    # Full access configurations
     allowed_menus += ["➕ Add Students"] if (user_role in ['Admin', 'controller'] or can_manage_users) else []
     allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role in ['Admin', 'controller'] or can_edit_marks) else []
     allowed_menus += ["📅 Attendance Entry Management", "📋 Daily Attendance Report"]
@@ -384,66 +303,29 @@ if user_role in ['Admin', 'controller'] or can_manage_users or can_manage_settin
     allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role in ['Admin', 'controller'] or can_manage_faculty) else []
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
 elif user_role == "Teacher":
-    allowed_menus += [
-        "📝 Academic Exam Marks Entry",      
-        "📅 Attendance Entry Management",    
-        "📋 Daily Attendance Report",
-        "📈 Multi-Test Progress Report", 
-        "🪪 Student Result Cards"
-    ]
-else:  # Fallback for general custom viewers
-    allowed_menus += [
-        "📋 Daily Attendance Report",
-        "📋 Section Summary Report", 
-        "📈 Multi-Test Progress Report",
-        "📈 Academic Analysis Reports"
-    ]
+    allowed_menus += ["📝 Academic Exam Marks Entry", "📅 Attendance Entry Management", "📋 Daily Attendance Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
+else:
+    allowed_menus += ["📋 Daily Attendance Report", "📋 Section Summary Report", "📈 Multi-Test Progress Report", "📈 Academic Analysis Reports"]
 
-# Remove duplicated list filters if arrays overlap dynamically
 allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
 
-# 🎨 CSS Layout Engine to push Logout to the absolute bottom of the sidebar layout container
 st.sidebar.markdown("""
     <style>
-        /* Configure the inner content zone of the sidebar to function as a full-height flex column */
         div[data-testid="stSidebarUserContent"] {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            min-height: calc(100vh - 80px);
+            display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 60px);
         }
-        /* Top Navigation block stays unified */
-        .sidebar-top-nav-block {
-            flex-grow: 1;
-        }
-        /* Bottom element gets distinct footer formatting */
-        .sidebar-logout-footer-block {
-            margin-top: auto;
-            padding-bottom: 20px;
-        }
+        .sidebar-logout-footer { margin-top: auto; padding-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# Start Upper Segment Container
-st.sidebar.markdown('<div class="sidebar-top-nav-block">', unsafe_allow_html=True)
 menu_choice = st.sidebar.radio("Go To Module:", allowed_menus)
-st.sidebar.markdown('</div>', unsafe_allow_html=True) # End Upper Segment Container
 
-# Start Absolute Footer Container (Accessible globally by all system users)
-st.sidebar.markdown('<div class="sidebar-logout-footer-block">', unsafe_allow_html=True)
+st.sidebar.markdown('<div class="sidebar-logout-footer">', unsafe_allow_html=True)
 st.sidebar.markdown("---")
-
-if st.sidebar.button("🚪 Log Out", type="secondary", use_container_width=True, key="unified_sidebar_logout_trigger"):
-    # Complete memory flush of system parameters, tokens, roles, and course constraints
-    for session_token_key in list(st.session_state.keys()):
-        del st.session_state[session_token_key]
-        
-    st.toast("🔒 Session terminated safely. Redirecting to auth portal...")
-    import time
-    time.sleep(1)
+if st.sidebar.button("🚪 Log Out", type="secondary", use_container_width=True, key="unified_logout"):
+    for key in list(st.session_state.keys()): del st.session_state[key]
     st.rerun()
-
-st.sidebar.markdown('</div>', unsafe_allow_html=True) # End Absolute Footer Container
+st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
