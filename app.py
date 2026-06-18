@@ -4909,66 +4909,78 @@ elif menu_choice == "⚙️ Settings":
             "❌ Terminate User Account"
         ])
         
-        # --- TAB 1: USER CREATION WITH EXTRACTED DICTIONARY SUBJECTS ---
-        with tab1:
-            # 🔄 FORCE COMPUTE: Dynamically extract every unique subject from your master config dictionary
-            unique_subjects_set = set()
-            for class_key, groups in CLASS_SUBJECTS_MASTER_MAP.items():
-                for group_key, subject_list in groups.items():
-                    for subject in subject_list:
-                        if subject:
-                            unique_subjects_set.add(subject.strip())
-            
-            # Sort alphabetically and prepend global option
-            live_subjects_computed = ["Global (All Subjects)"] + sorted(list(unique_subjects_set))
-
-            st.markdown("##### 👤 1. Core Profile Details")
-            uc1, uc2 = st.columns(2)
-            with uc1:
-                new_user = st.text_input("Desired Username:", key="custom_username").strip()
-                profile_label = st.text_input("Profile Display Label (e.g., Senior Vice Principal):", key="profile_lbl").strip()
-            with uc2:
-                new_pass = st.text_input("Assign Password:", type="password", key="custom_password").strip()
-                chosen_subject = st.selectbox(
-                    "Scope of Subject Visibility:", 
-                    options=live_subjects_computed, 
-                    key="custom_subject_select"
-                )
-
-            st.markdown("---")
-            st.markdown("##### 🔑 2. Custom Rights Checklist (Toggle On/Off)")
-            
-            col_p1, col_p2 = st.columns(2)
-            with col_p1:
-                right_users = st.toggle("Can manage other user profiles and passwords", value=False, key="t1")
-                right_settings = st.toggle("Can modify global academic sessions and terms", value=False, key="t2")
-            with col_p2:
-                right_faculty = st.toggle("Can register, modify, or delete faculty members", value=False, key="t3")
-                right_marks = st.toggle("Can create exam frameworks and edit student marks", value=False, key="t4")
-
-            if st.button("🚀 Deploy Custom User Profile", type="primary", use_container_width=True):
-                if not new_user or not new_pass:
-                    st.warning("⚠️ Username and Password fields are mandatory.")
-                else:
-                    try:
-                        db_subject = None if chosen_subject == "Global (All Subjects)" else chosen_subject
-                        
-                        execute_db_command("""
-                            INSERT INTO app_users (
-                                username, password, role, assigned_subject, 
-                                can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks
-                            ) VALUES (:usr, :pwd, :role, :sub, :r_users, :r_settings, :r_fac, :r_marks)
-                        """, {
-                            "usr": new_user, "pwd": new_pass, "role": profile_label if profile_label else "Custom User",
-                            "sub": db_subject, "r_users": right_users, "r_settings": right_settings, 
-                            "r_fac": right_faculty, "r_marks": right_marks
-                        })
-                        st.success(f"🎉 Custom user '{new_user}' deployed successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Database insertion error: {e}")
-
         # --- TAB 2: USER-SPECIFIC PASSWORD CONFIGURATION TERMINAL ---
+        with tab2:
+            st.markdown("##### 🔍 1. Identify User Account Target")
+            
+            # Fetch a real-time list of all users from the app database
+            try:
+                users_df = run_query("SELECT username, role, assigned_subject FROM app_users ORDER BY username ASC")
+                user_list = users_df["username"].tolist()
+            except Exception as e:
+                user_list = []
+                st.error(f"Failed to fetch user directory: {e}")
+            
+            if not user_list:
+                st.info("ℹ️ No registered system users found in the database.")
+            else:
+                col_t2_1, col_t2_2 = st.columns(2)
+                
+                with col_t2_1:
+                    target_user = st.selectbox("🎯 Select Target Account to Manage:", options=user_list, key="reset_user_select")
+                
+                # Fetch detailed permissions metadata for the selected profile to show a quick summary card
+                user_meta = run_query("""
+                    SELECT role, assigned_subject, can_manage_users, can_manage_settings, can_manage_faculty, can_edit_marks 
+                    FROM app_users WHERE username = :u
+                """, {"u": target_user})
+                
+                if not user_meta.empty:
+                    meta_row = user_meta.iloc[0]
+                    display_sub = meta_row['assigned_subject'] if meta_row['assigned_subject'] else "Global (All Subjects)"
+                    
+                    with col_t2_2:
+                        st.markdown(f"**Current Profile Metadata:**")
+                        st.caption(f"🏷️ **Assigned Role/Label:** {meta_row['role']}")
+                        st.caption(f"👁️ **Subject Scope Visibility:** {display_sub}")
+                    
+                    st.markdown("---")
+                    st.markdown("##### 🔐 2. Credentials Override Terminal")
+                    
+                    col_pwd1, col_pwd2 = st.columns(2)
+                    with col_pwd1:
+                        new_password_1 = st.text_input("Type New Secure Password:", type="password", key="pwd_reset_i1").strip()
+                    with col_pwd2:
+                        new_password_2 = st.text_input("Confirm New Secure Password:", type="password", key="pwd_reset_i2").strip()
+                    
+                    # Dashboard tracking layout displaying current rights checkmarks
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("**Account Permission Footprint Preview (Read-Only):**")
+                    p_c1, p_c2, p_c3, p_c4 = st.columns(4)
+                    p_c1.checkbox("User Management", value=bool(meta_row['can_manage_users']), disabled=True, key="chk_r1")
+                    p_c2.checkbox("System Settings", value=bool(meta_row['can_manage_settings']), disabled=True, key="chk_r2")
+                    p_c3.checkbox("Faculty Control", value=bool(meta_row['can_manage_faculty']), disabled=True, key="chk_r3")
+                    p_c4.checkbox("Marks Modification", value=bool(meta_row['can_edit_marks']), disabled=True, key="chk_r4")
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    
+                    if st.button("💾 Commit Password Modification", type="primary", use_container_width=True):
+                        if not new_password_1:
+                            st.warning("⚠️ Action Cancelled: The new password input field cannot be blank.")
+                        elif new_password_1 != new_password_2:
+                            st.error("❌ Mismatch Error: Entered passwords do not match. Please retype them carefully.")
+                        else:
+                            try:
+                                execute_db_command("""
+                                    UPDATE app_users 
+                                    SET password = :new_pwd 
+                                    WHERE username = :usr
+                                """, {"new_pwd": new_password_1, "usr": target_user})
+                                
+                                st.success(f"🎉 Success! Password for credential profile '{target_user}' has been updated.")
+                                st.balloons()
+                            except Exception as update_err:
+                                st.error(f"Failed to execute credential database write: {update_err}")
         with tab2:
             st.markdown("##### Change User Password Profile")
             if users_df is not None and not users_df.empty:
