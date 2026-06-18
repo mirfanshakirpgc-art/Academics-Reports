@@ -3935,7 +3935,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 
             avail_subjects = CLASS_SUBJECTS_MASTER_MAP[sel_class][sel_disc]
             
-            # Map clean internal keys to look up configuration arrays safely
             display_disc_key = "ICS (PHYSICS)" if sel_disc == "ICS_PHYSICS" else ("ICS (STATS)" if sel_disc == "ICS_STATS" else sel_disc)
             valid_sections = DISCIPLINE_SECTIONS_MAP.get(display_disc_key, {}).get(sel_class, ["Default Node"])
 
