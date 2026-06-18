@@ -317,7 +317,48 @@ else:  # Fallback for general custom viewers
 # Remove duplicated list filters if arrays overlap dynamically
 allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
 
+# 🎨 CSS Layout Engine to push Logout to the absolute bottom of the sidebar layout container
+st.sidebar.markdown("""
+    <style>
+        /* Configure the inner content zone of the sidebar to function as a full-height flex column */
+        div[data-testid="stSidebarUserContent"] {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: calc(100vh - 80px);
+        }
+        /* Top Navigation block stays unified */
+        .sidebar-top-nav-block {
+            flex-grow: 1;
+        }
+        /* Bottom element gets distinct footer formatting */
+        .sidebar-logout-footer-block {
+            margin-top: auto;
+            padding-bottom: 20px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Start Upper Segment Container
+st.sidebar.markdown('<div class="sidebar-top-nav-block">', unsafe_allow_html=True)
 menu_choice = st.sidebar.radio("Go To Module:", allowed_menus)
+st.sidebar.markdown('</div>', unsafe_allow_html=True) # End Upper Segment Container
+
+# Start Absolute Footer Container (Accessible globally by all system users)
+st.sidebar.markdown('<div class="sidebar-logout-footer-block">', unsafe_allow_html=True)
+st.sidebar.markdown("---")
+
+if st.sidebar.button("🚪 Log Out", type="secondary", use_container_width=True, key="unified_sidebar_logout_trigger"):
+    # Complete memory flush of system parameters, tokens, roles, and course constraints
+    for session_token_key in list(st.session_state.keys()):
+        del st.session_state[session_token_key]
+        
+    st.toast("🔒 Session terminated safely. Redirecting to auth portal...")
+    import time
+    time.sleep(1)
+    st.rerun()
+
+st.sidebar.markdown('</div>', unsafe_allow_html=True) # End Absolute Footer Container
 
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
