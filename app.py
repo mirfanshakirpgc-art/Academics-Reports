@@ -1534,7 +1534,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         # This belongs inside the 'Single Entry' block (indented 8 spaces)
         st.markdown('</div>', unsafe_allow_html=True)
     # ====================================================================================
-    # WORKFLOW MODE C: BULK EXCEL / CSV / PASTE LEDGER IMPORT (WITH DYNAMIC SECTION MATCHING)
+    # WORKFLOW MODE C: BULK EXCEL / CSV / PASTE LEDGER IMPORT (DYNAMIC CONFIGURATIONS)
     # ====================================================================================
     elif entry_mode in ["📤 Bulk Excel/CSV Import", "📊 Bulk Excel/CSV Import"]:
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
@@ -1542,16 +1542,20 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         st.markdown("Configure the specific cohort parameters below before submitting your spreadsheet records.")
         
         # --- STEP 1: CONTEXTUAL DROPDOWN SCHEMAS ---
-        bc1, bc2, bc3, bc4, bc_sec = st.columns([2, 2, 2, 2, 2]) # Split into 5 equal columns for inline look
+        bc1, bc2, bc3, bc4, bc_sec = st.columns([2, 2, 2, 2, 2])
         with bc1: 
             b_session = st.selectbox("1️⃣ Select Session:", session_options, key="bulk_sess")
         with bc2: 
             b_system = st.selectbox("2️⃣ System Type:", ["Annual System", "Semester System"], key="bulk_sys")
         with bc3:
             if b_system == "Annual System":
-                b_class = st.selectbox("3️⃣ Class Level:", ["11th", "12th", "ALL"], key="bulk_class")
+                b_class = st.selectbox("3️⃣ Class Level:", ["11th", "12th"], key="bulk_class")
+                lookup_class_key = b_class
             else:
-                b_class = st.selectbox("3️⃣ Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="bulk_class")
+                b_class = st.selectbox("3️⃣ Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="bulk_class")
+                # Normalize text layout to match your master dictionary keys ("1st Semester" -> "Semester 1")
+                lookup_class_key = f"Semester {b_class.split()[0][0]}"
+                
         with bc4:
             if b_system == "Annual System":
                 b_disc_opts = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
@@ -1559,12 +1563,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 b_discipline = b_disc_sel.upper().replace(" ", "_").replace("(", "").replace(")", "")
                 if "PHYSIC" in b_discipline: b_discipline = "ICS_PHYSICS"
                 elif "STAT" in b_discipline: b_discipline = "ICS_STATISTICS"
+                lookup_disc_key = b_disc_sel  # Keeps "ICS (PHYSICS)" format for section dictionary maps
             else:
-                b_discipline = "DIPLOMA_IN_IT_DIT"
-                st.text_input("4️⃣ Discipline:", value="DIT", disabled=True, key="bulk_disc_disabled")
+                b_discipline = "INFORMATION_TECHNOLOGY"
+                st.text_input("4️⃣ Discipline:", value="IT", disabled=True, key="bulk_disc_disabled")
+                lookup_disc_key = "INFORMATION_TECHNOLOGY"
 
         with bc_sec:
-            # Dynamically query active sections matching active choices from the 'students' table
+            # Step A: Query Live Database Rows
             try:
                 sections_df = execute_db_query("""
                     SELECT DISTINCT section 
@@ -1574,18 +1580,17 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                       AND (UPPER(TRIM(discipline)) = UPPER(:disc) OR discipline IS NULL)
                       AND section IS NOT NULL AND section != ''
                 """, {"sess": str(b_session).strip(), "syst": str(b_system).strip(), "disc": str(b_discipline).strip()})
-                
                 available_sections = [str(s).strip() for s in sections_df["section"].tolist() if s] if not sections_df.empty else []
             except Exception:
                 available_sections = []
             
-            # Smart Fallback Strategy: If database filtering returns zero records, provide common local tags so workflow is never locked
+            # Step B: Fallback to exact DISCIPLINE_SECTIONS_MAP if database array comes back empty
             if not available_sections:
-                available_sections = ["MG_BLUE", "MG_GREEN", "EG_ALPHA", "ICS_BETA"]
+                available_sections = DISCIPLINE_SECTIONS_MAP.get(lookup_disc_key, {}).get(lookup_class_key, ["MG_BLUE"])
                 
             b_section_target = st.selectbox("5️⃣ Section:", available_sections, key="bulk_sec_selector")
 
-        # --- STEP 2: TEST DETAILS & SCORE MATRIX CAPTURE ---
+        # --- STEP 2: DYNAMIC SUBJECT MATCHING FROM MASTER CONFIGS ---
         bc5, bc6, bc7 = st.columns([2, 4, 2])
         with bc5:
             b_exam = st.selectbox("🎯 Target Exam Cycle:", all_frameworks, index=1, key="bulk_exam_cycle")
@@ -1594,17 +1599,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 b_subject = "OVERALL"
                 st.info("MATRIC Mode Defaulting to OVERALL")
             else:
-                if b_system == "Annual System":
-                    suffix = "_12TH" if b_class == "12th" else "_11TH"
-                    if b_class == "ALL":
-                        b_available_subs = list(dict.fromkeys(DISCIPLINE_SUBJECTS_MAP.get(f"{b_discipline}_11TH", []) + DISCIPLINE_SUBJECTS_MAP.get(f"{b_discipline}_12TH", [])))
-                    else:
-                        b_available_subs = DISCIPLINE_SUBJECTS_MAP.get(f"{b_discipline}{suffix}", ["English", "Urdu", "Physics"])
-                else:
-                    if "1st" in b_class: b_available_subs = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System"]
-                    elif "2nd" in b_class: b_available_subs = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design"]
-                    else: b_available_subs = ["English", "Urdu", "Mathematics", "Statistics"]
-                
+                # Dynamic mapping lookup from CLASS_SUBJECTS_MASTER_MAP
+                b_available_subs = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(b_discipline, ["English", "Urdu"])
                 b_subject = st.selectbox("📚 Course / Subject to Grade:", b_available_subs, key="bulk_sub_selector")
         
         with bc7:
@@ -1614,7 +1610,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
         st.markdown("---")
         
-        # --- STEP 3: DATA INPUT ENTRY PORTS (Only visualizes when a valid section is checked) ---
+        # --- STEP 3: DATA INPUT ENTRY PORTS ---
         st.markdown("### 📄 Step 2: Provide Student Ledger Data")
         
         target_sub_slug = str(b_subject).strip().upper().replace(" ", "_")
@@ -1653,7 +1649,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 except Exception as e:
                     st.error(f"Parsing Error: Ensure you copied exactly 2 columns. ({e})")
 
-        # --- STEP 4: PROCESSING AND ACTION BUTTON VISIBILITY ---
+        # --- STEP 4: PROCESSING PIPELINE & ACTION BUTTON INTERFACE ---
         if uploaded_df is not None and not uploaded_df.empty:
             uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
             
@@ -1671,7 +1667,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 st.info(f"📋 **Target Ledger Destination:** Section: **{b_section_target}** | Subject: **{target_sub_slug}** | Test: **{target_exam_slug}** | Out Of: **{b_total_marks}**")
                 
-                # Big Action Submission Button appears ONLY after data is available
+                # Action Submission button shows only when data layout matches criteria
                 if st.button("🚀 Process & Save Data Ledger", use_container_width=True, type="primary"):
                     import time
                     success_inserts = 0
