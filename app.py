@@ -3583,33 +3583,6 @@ elif menu_choice == "🪪 Student Result Cards":
     # --------------------------------------------------------------------------
     students_to_print = pd.DataFrame()
     
-    # --------------------------------------------------------------------------
-    # 🔍 TEMPORARY LIVE DIAGNOSTIC DETECTOR (REMOVE ONCE WORKING)
-    # --------------------------------------------------------------------------
-    st.markdown("### 🛠️ Database Diagnostic System")
-    with st.expander("Show Database Diagnostics", expanded=True):
-        st.write(f"**Current Application Target Session:** `{selected_session}`")
-        
-        # 1. Inspect Table Schemas and Entries
-        try:
-            sample_students = run_query("SELECT id, name, section, class, session FROM students LIMIT 5", {})
-            st.write("📊 **Students Table Sample Data:**", sample_students)
-            
-            distinct_sections = run_query("SELECT DISTINCT section FROM students", {})
-            st.write("📋 **Available Sections in DB Rows:**", distinct_sections['section'].tolist() if not distinct_sections.empty else "Empty")
-            
-            distinct_sessions = run_query("SELECT DISTINCT session FROM students", {})
-            st.write("📆 **Available Academic Sessions in DB Rows:**", distinct_sessions['session'].tolist() if not distinct_sessions.empty else "Empty")
-        except Exception as err:
-            st.error(f"Error checking students schema structural parameters: {err}")
-            
-        # 2. Inspect Marks Entries
-        try:
-            sample_marks = run_query("SELECT DISTINCT subject FROM marks LIMIT 5", {})
-            st.write("📚 **Available Subjects in Marks Data Rows:**", sample_marks['subject'].tolist() if not sample_marks.empty else "Empty")
-        except Exception as err:
-            st.error(f"Error checking marks schema matching profiles: {err}")
-    # --------------------------------------------------------------------------
     if submit_execution:
         st.write(f"Searching for ID: {search_id} | Session: {selected_session}")
     
