@@ -559,8 +559,9 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
     with col_date:
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
+    # Fetch updated roster along with existing remarks if any exist
     roster_df = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
@@ -592,20 +593,62 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                 attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_state, key=f"t_chk_{row['ID']}", label_visibility="collapsed")
 
             st.markdown("###")
-            if st.form_submit_button("💾 Save & Lock Attendance Roster", type="primary", use_container_width=True):
+            submit_attendance = st.form_submit_button("💾 Save & Lock Attendance Roster", type="primary", use_container_width=True)
+            
+            if submit_attendance:
                 try:
                     with engine.begin() as conn:
                         for s_id, checked_present in attendance_checkbox_map.items():
+                            status_val = "P" if checked_present else "A"
+                            # Maintain old remarks on standard saves unless updated down below
                             conn.execute(text("""
                                 INSERT INTO daily_attendance (student_id, attendance_date, status) 
                                 VALUES (:s_id, :att_date, :status)
                                 ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
-                            """), {"s_id": int(s_id), "att_date": str(target_date), "status": "P" if checked_present else "A"})
-                    st.success(f"🎉 Attendance locked successfully for {target_date.strftime('%d-%b-%Y')}!")
-                    time.sleep(1.0)
+                            """), {"s_id": int(s_id), "att_date": str(target_date), "status": status_val})
+                    st.success(f"🎉 Attendance updated for {target_date.strftime('%d-%b-%Y')}!")
+                    time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
                     st.error(f"Write Failure: {e}")
+
+        # ----------------------------------------------------------------------
+        # ❌ DYNAMIC ABSENT REMARKS GENERATOR 
+        # ----------------------------------------------------------------------
+        absent_students = roster_df[roster_df['SavedStatus'].isin(['A', 'ABSENT', '0'])]
+        
+        if not absent_students.empty:
+            st.markdown("###")
+            st.error("❌ Absent Student Remarks Panel")
+            st.caption("Provide reason for absence for tracked profiles:")
+            
+            with st.form("absent_remarks_form_teacher"):
+                remarks_input_map = {}
+                for idx, ab_row in absent_students.iterrows():
+                    r_c1, r_c2 = st.columns([1.5, 3.5])
+                    r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
+                    existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
+                    remarks_input_map[ab_row['ID']] = r_c2.text_input(
+                        "Reason/Remarks", 
+                        value=existing_rem, 
+                        key=f"rem_t_{ab_row['ID']}", 
+                        placeholder="e.g., Sick Leave, Absent without warning"
+                    )
+                
+                if st.form_submit_button("💾 Save Absentee Remarks", type="secondary"):
+                    try:
+                        with engine.begin() as conn:
+                            for s_id, remark_text in remarks_input_map.items():
+                                conn.execute(text("""
+                                    UPDATE daily_attendance 
+                                    SET remarks = :remarks 
+                                    WHERE student_id = :s_id AND attendance_date = :att_date
+                                """), {"remarks": remark_text.strip(), "s_id": int(s_id), "att_date": str(target_date)})
+                        st.success("🎉 Absence records updated with remarks!")
+                        time.sleep(1.0)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to apply remarks: {e}")
 
 
 # ==============================================================================
@@ -629,7 +672,16 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
 
         if sel_section and sel_session:
-            roster_df = run_query('SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus" FROM students s LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)) AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN (\'LEFT\', \'INACTIVE\', \'DROPOUT\')) ORDER BY s.id ASC', {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
+            roster_df = run_query("""
+                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks" 
+                FROM students s 
+                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date 
+                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
+                  AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)) 
+                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT')) 
+                ORDER BY s.id ASC
+            """, {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
+            
             if not roster_df.empty:
                 master_toggle = st.checkbox("🟢 Check All", value=True, key="adm_master_toggle")
                 with st.form("adm_daily_form"):
@@ -641,12 +693,36 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         saved = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                         state = True if saved in ['P', 'PRESENT', '1'] else (False if saved in ['A', 'ABSENT', '0'] else master_toggle)
                         chk_map[row['ID']] = c3.checkbox("Present", value=state, key=f"adm_chk_{row['ID']}", label_visibility="collapsed")
+                    
                     if st.form_submit_button("💾 Save Changes"):
                         with engine.begin() as conn:
                             for s_id, chk in chk_map.items():
                                 conn.execute(text("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :dt, :st) ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status"), {"s_id": int(s_id), "dt": str(target_date), "st": "P" if chk else "A"})
                         st.success("Saved!")
+                        time.sleep(0.5)
                         st.rerun()
+
+                # ----------------------------------------------------------------------
+                # ❌ ADMIN WORKFLOW ABSENTEE REMARKS PANELS
+                # ----------------------------------------------------------------------
+                absent_students = roster_df[roster_df['SavedStatus'].isin(['A', 'ABSENT', '0'])]
+                if not absent_students.empty:
+                    st.markdown("###")
+                    st.error("❌ Absent Student Remarks Panel")
+                    with st.form("absent_remarks_form_admin"):
+                        remarks_input_map = {}
+                        for idx, ab_row in absent_students.iterrows():
+                            r_c1, r_c2 = st.columns([1.5, 3.5])
+                            r_c1.write(f"🛑 `{ab_row['ID']}` — **{ab_row['Student Name']}**")
+                            existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
+                            remarks_input_map[ab_row['ID']] = r_c2.text_input("Reason for absence:", value=existing_rem, key=f"rem_adm_{ab_row['ID']}")
+                        
+                        if st.form_submit_button("💾 Update Absentee Remarks"):
+                            with engine.begin() as conn:
+                                for s_id, remark_text in remarks_input_map.items():
+                                    conn.execute(text("UPDATE daily_attendance SET remarks = :remarks WHERE student_id = :s_id AND attendance_date = :att_date"), {"remarks": remark_text.strip(), "s_id": int(s_id), "att_date": str(target_date)})
+                            st.success("Remarks logged!")
+                            st.rerun()
 
     elif att_sub_type == "👤 By Single Student Roll Number":
         sc1, sc2, sc3 = st.columns(3)
@@ -663,12 +739,20 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
             student_info = run_query(sql, conds)
             if not student_info.empty:
                 st.info(f"👤 {student_info['name'].iloc[0].upper()} | Section: {student_info['section'].iloc[0]}")
-                ca1, ca2 = st.columns(2)
+                ca1, ca2, ca3 = st.columns([1.5, 1.5, 2])
                 with ca1: dt = st.date_input("Date:", value=datetime.date.today(), key="s_dt")
                 with ca2: stat = st.selectbox("Status:", ["Present (P)", "Absent (A)"], key="s_stat")
+                with ca3: s_rem = st.text_input("Remarks:", key="s_rem_input", placeholder="Reason if Absent")
+                
                 if st.button("💾 Log Entry", key="s_save"):
                     with engine.begin() as conn:
-                        conn.execute(text("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:id, :dt, :st) ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status"), {"id": int(single_id), "dt": str(dt), "st": "P" if "Present" in stat else "A"})
+                        status_flag = "P" if "Present" in stat else "A"
+                        conn.execute(text("""
+                            INSERT INTO daily_attendance (student_id, attendance_date, status, remarks) 
+                            VALUES (:id, :dt, :st, :remarks) 
+                            ON CONFLICT (student_id, attendance_date) 
+                            DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks
+                        """), {"id": int(single_id), "dt": str(dt), "st": status_flag, "remarks": s_rem.strip()})
                     st.success("Saved successfully!")
                     st.rerun()
 # ==============================================================================
