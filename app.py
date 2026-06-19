@@ -489,7 +489,6 @@ if normalized_role in ["teacher", "faculty"]:
     elif "Marks Attendance" in menu_choice:
         st.markdown("## 📅 Student Attendance Management Tracker")
         st.info("Now operational. Choose parameters below to log and manage class monthly attendance registry fields.")
-        # Active placeholder interactive inputs
         target_month = st.selectbox("Select Target Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
         st.dataframe(pd.DataFrame(columns=["Student ID", "Student Name", "Total Academic Days", "Attended Days Status"]))
 
@@ -502,10 +501,72 @@ if normalized_role in ["teacher", "faculty"]:
         st.markdown("## 📊 Subject Performance Matrix Insights")
         st.info("Analytical summary charts indicating distribution graphs of student marks breakdown profiles.")
 
+# ==============================================================================
+# 🛠️ ADMINISTRATIVE CONTENT ROUTING (ADMIN / CONTROLLER PANEL)
+# ==============================================================================
 else:
-    st.markdown(f"## 🛠️ Admin Control Center")
-    st.markdown(f"Welcome back, **{st.session_state.get('username', 'Admin')}**. Access global metrics and settings modules from the sidebar menu.")
-    st.markdown("---")
+    if menu_choice == "📊 Home Dashboard":
+        st.markdown("## 🛠️ Admin Control Center")
+        st.markdown(f"Welcome back, **{st.session_state.get('username', 'Admin')}**. Access global metrics and settings modules from the sidebar menu.")
+        st.markdown("---")
+        
+        # Admin Summary KPIs Placeholder
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Operational Faculty", "12 Active")
+        c2.metric("Total System Registrations", "450 Students")
+        c3.metric("Global Daily Attendance Avg", "92.4%")
+
+    elif menu_choice == "➕ Add Students":
+        st.markdown("## ➕ Student Operations: Enrollment Terminal")
+        with st.form("student_enrollment_form"):
+            s_name = st.text_input("Student Full Name")
+            s_class = st.selectbox("Class Level", ["11th", "12th"])
+            s_sec = st.text_input("Section Allocation Key")
+            s_discipline = st.selectbox("Discipline Segment", ["COMMERCE", "MEDICAL", "ENGINEERING", "ARTS"])
+            submitted = st.form_submit_button("🚀 Commit Enrollment To Database")
+
+    elif menu_choice == "📝 Academic Exam Marks Entry":
+        st.markdown("## 📝 Institutional Master Marks Board")
+        st.info("Global access override configuration form allowed for administrative verification.")
+
+    elif menu_choice == "📅 Marks Attendance":
+        st.markdown("## 📅 System Attendance Monitor Panel")
+        st.selectbox("View Logs for Month:", ["January", "February", "March", "April", "May", "June"])
+
+    elif menu_choice == "📋 Daily Attendance Report":
+        st.markdown("## 📋 Institutional Attendance Spreadsheets")
+
+    elif menu_choice == "📋 Section Summary Report":
+        st.markdown("## 📋 High-Level Cross Section Summary Performance Logs")
+
+    elif menu_choice == "📈 Multi-Test Progress Report":
+        st.markdown("## 📈 Comparative Progress Performance Overviews")
+
+    elif menu_choice == "🪪 Student Result Cards":
+        st.markdown("## 🪪 Transcript & Report Card Generator Engine")
+
+    elif menu_choice == "👨‍🏫 Teacher Management":
+        st.markdown("## ⚙️ Modify Configuration Assignments")
+        
+        # Interactive allocation config matching user-view expectations
+        col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+        with col_cfg1:
+            st.selectbox("Filter Target Discipline Segment:", ["COMMERCE", "MEDICAL", "ENGINEERING"])
+        with col_cfg2:
+            st.selectbox("Target Section Assignment Track:", ["MG_BLUE", "MG_WHITE", "EB_BLUE", "EQ", "MK"])
+        with col_cfg3:
+            st.selectbox("Nominate Master Incharge Faculty:", ["1 - Ms. Aisha Karamat", "2 - Ms. Nazia Karamat"])
+            
+        st.button("👑 Live Link Class Incharge", type="primary", use_container_width=True)
+
+    elif menu_choice == "📈 Academic Analysis Reports":
+        st.markdown("## 📈 Deep-Dive Academic Analysis Reports Dashboard")
+
+    elif menu_choice == "👥 Student Operations Management":
+        st.markdown("## 👥 Central Student Lifecycle Profiles Management")
+
+    elif menu_choice == "⚙️ Settings":
+        st.markdown("## ⚙️ Global Infrastructure System Settings")
 
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
