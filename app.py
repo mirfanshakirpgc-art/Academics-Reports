@@ -1639,7 +1639,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             
                             chk_absent = st.session_state[state_abs_key]
                             chk_nc = st.session_state[state_nc_key]
-                            is_disabled = chk_absent or chk_nc
+                            
                             display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
                             
                             with st.container():
@@ -1654,8 +1654,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                         value=display_score, 
                                         placeholder="Score", 
                                         key=state_marks_key, 
-                                        label_visibility="collapsed", 
-                                        disabled=is_disabled
+                                        label_visibility="collapsed"
                                     )
                                     
                                 with r_cols[3]:
@@ -1672,7 +1671,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             for s_id, record in updated_section_scores.items():
                                 is_a = st.session_state.get(record["abs_key"], False)
                                 is_nc = st.session_state.get(record["nc_key"], False)
-                                score_clean = "A" if is_a else ("NC" if is_nc else str(record["marks"]).strip().upper())
+                                
+                                # Evaluate the fallback value smoothly if status flags were explicitly unchecked
+                                raw_marks = str(record["marks"]).strip().upper()
+                                if is_a:
+                                    score_clean = "A"
+                                elif is_nc:
+                                    score_clean = "NC"
+                                else:
+                                    # If the user cleared the checkbox, clean out old 'A' or 'NC' text representations
+                                    score_clean = "" if raw_marks in ["A", "NC"] else raw_marks
                                 
                                 execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam})
                                 if score_clean != "":
