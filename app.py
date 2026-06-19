@@ -2576,155 +2576,212 @@ elif menu_choice == "📋 Daily Attendance Report":
 
     st.title("📋 Daily Attendance Report")
 
-    # 1. SETUP (Dynamically linked to Settings)
-    try:
-        # Queries active sessions directly from your settings configuration table
-        session_data = run_query("SELECT session_name FROM sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
-        session_choices = session_data["session_name"].tolist() if not session_data.empty else []
-    except Exception:
-        # Emergency fallback if database connection drops or table name varies
+    # Create layout tabs to cleanly separate rosters from remarks
+    tab1, tab2 = st.tabs(["📊 Attendance Overview Records", "❌ Absentee Teacher Remarks Audit Log"])
+
+    with tab1:
+        # 1. SETUP (Dynamically linked to Settings)
         try:
-            session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
-        except NameError:
-            session_choices = ["2025-27", "2026-28", "2027-29"]
-            
-    # Quick sanity filter: eliminate 2024-26 if it bypassed settings
-    if "2024-26" in session_choices:
-        session_choices.remove("2024-26")
-        
-    c1, c2 = st.columns(2)
-    with c1:
-        report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]])
-    with c2:
-        report_date = st.date_input("🗓️ Target Date:", value=datetime.date.today())
-
-    if not report_sessions:
-        st.warning("Please select at least one session.")
-        st.stop()
-
-    # 2. DATA FETCHING (Robust)
-    session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
-    
-    query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
-    raw_students = run_query(query, {"sessions": session_tuple})
-    raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
-    raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
-
-    if raw_students.empty:
-        st.info("ℹ️ No student records found for the selected sessions.")
-    else:
-        # DATA PROCESSING
-        df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
-        teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
-        
-        df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
-        df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
-        df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
-        df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
-
-        def classify(row):
-            cls, sec = str(row['Class']), str(row['Section'])
-            if "11" in cls: 
-                return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
-            if "12" in cls: 
-                return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
-            return "Other Tiers (DIT)"
-            
-        df['Group_Category'] = df.apply(classify, axis=1)
-
-        summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
-            Total=('id', 'count'), 
-            Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
-            Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
-        ).reset_index()
-
-        # 3. HTML PRINT ENGINE
-        table_rows = ""
-        grand_total = {"Total": 0, "Present": 0, "Absent": 0}
-        
-        for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
-            cat_data = summary[summary['Group_Category'] == cat]
-            if cat_data.empty: 
-                continue
-            
-            sub_total = cat_data.agg({'Total': 'sum', 'Present': 'sum', 'Absent': 'sum'})
-            grand_total['Total'] += sub_total['Total']
-            grand_total['Present'] += sub_total['Present']
-            grand_total['Absent'] += sub_total['Absent']
-            
-            row_span = len(cat_data)
-            for i, (_, row) in enumerate(cat_data.iterrows()):
-                pct = f"{int((row['Present']/row['Total'])*100)}%" if row['Total'] > 0 else "0%"
-                table_rows += f"<tr>"
-                if i == 0: 
-                    table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold; background:#fff;">{cat}</td>'
-                table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
-            
-            sub_total_pct = f"{int((sub_total['Present']/sub_total['Total'])*100)}%" if sub_total['Total'] > 0 else "0%"
-            table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
-                          f'<td colspan="3" style="text-align:left; padding-left:10px;">Sub-Total ({cat})</td>' \
-                          f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
-                          f'<td>{sub_total_pct}</td></tr>'
-
-        grand_pct = f"{int((grand_total['Present']/grand_total['Total'])*100)}%" if grand_total['Total'] > 0 else "0%"
-        table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
-                      f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
-                      f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}</td></tr>'
-
-        # Render complete layout
-        html_template = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: "Times New Roman", serif; padding: 10px; }}
-                .header-container {{ display: flex; align-items: center; margin-bottom: 20px; }}
-                .logo {{ width: 80px; }}
-                .title-group {{ flex-grow: 1; text-align: center; }}
+            # Queries active sessions directly from your settings configuration table
+            session_data = run_query("SELECT session_name FROM sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
+            session_choices = session_data["session_name"].tolist() if not session_data.empty else []
+        except Exception:
+            # Emergency fallback if database connection drops or table name varies
+            try:
+                session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
+            except NameError:
+                session_choices = ["2025-27", "2026-28", "2027-29"]
                 
-                table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
-                th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
-                th {{ background: #eee; }}
-                
-                @media print {{ 
-                    @page {{ size: A4 portrait; margin: 10mm; }}
-                    .print-btn {{ display: none; }} 
-                }}
-            </style>
-        </head>
-        <body>
-            <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
+        # Quick sanity filter: eliminate 2024-26 if it bypassed settings
+        if "2024-26" in session_choices:
+            session_choices.remove("2024-26")
             
-            <div class="header-container">
-                <img src="https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png" class="logo">
-                <div class="title-group">
-                    <h1 style="font-size: 20px; margin: 0;">CONCORDIA COLLEGE KASUR</h1>
-                    <h3 style="font-size: 16px; margin: 0;">Daily Attendance Report - {report_date}</h3>
-                </div>
-            </div>
-            
-            <table>
-                <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
-                {table_rows}
-            </table>
-            <div style="margin-top: 40px; text-align: right; font-weight:bold;">Principal Signature: ___________</div>
-        </body>
-        </html>
-        """
-        components.html(html_template, height=800, scrolling=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            report_sessions = st.multiselect("🎯 Select Session Grouping(s):", session_choices, default=[session_choices[0]] if session_choices else [], key="rep_sess_ms")
+        with c2:
+            report_date = st.date_input("🗓️ Target Date:", value=datetime.date.today(), key="rep_target_dt_p")
 
-        # 4. EXCEL EXPORT
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            summary.to_excel(writer, index=False, sheet_name='Attendance')
-            ws = writer.sheets['Attendance']
-            ws.set_column('A:A', 15)
-            ws.set_column('B:B', 12)
-            ws.set_column('C:C', 30)
-            ws.set_column('D:G', 10)
-            ws.set_default_row(25)
+        if not report_sessions:
+            st.warning("Please select at least one session.")
+            st.stop()
+
+        # 2. DATA FETCHING (Robust)
+        session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
+        
+        query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
+        raw_students = run_query(query, {"sessions": session_tuple})
+        raw_att = run_query("SELECT student_id, status FROM daily_attendance WHERE attendance_date = :dt", {"dt": report_date.isoformat()})
+        raw_alloc = run_query("SELECT section_name, assigned_teacher_name FROM academic_allocations WHERE subject_title = '🌟 CLASS IN-CHARGE (ROLE ONLY)'", {})
+
+        if raw_students.empty:
+            st.info("ℹ️ No student records found for the selected sessions.")
+        else:
+            # DATA PROCESSING
+            df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
+            teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
             
-        st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
+            df['Class'] = df['class'].fillna('Unknown').astype(str).str.upper().str.strip()
+            df['Section'] = df['section'].fillna('Unknown').astype(str).str.upper().str.strip()
+            df['In_Charge'] = df['Section'].apply(lambda x: teacher_map.get(str(x).replace(" ", "").upper(), '---'))
+            df['Attendance_Status'] = df['status_y'].fillna('').astype(str).str.upper().str.strip()
+
+            def classify(row):
+                cls, sec = str(row['Class']), str(row['Section'])
+                if "11" in cls: 
+                    return "11th (Girls)" if any(x in sec for x in ["G", "WHITE", "GREEN"]) else "11th (Boys)"
+                if "12" in cls: 
+                    return "12th (Girls)" if any(x in sec for x in ["Q", "G", "WHITE", "GREEN"]) else "12th (Boys)"
+                return "Other Tiers (DIT)"
+                
+            df['Group_Category'] = df.apply(classify, axis=1)
+
+            summary = df.groupby(['Group_Category', 'Section', 'In_Charge']).agg(
+                Total=('id', 'count'), 
+                Present=('Attendance_Status', lambda x: x.isin(['P', 'PRESENT', '1']).sum()),
+                Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
+            ).reset_index()
+
+            # 3. HTML PRINT ENGINE
+            table_rows = ""
+            grand_total = {"Total": 0, "Present": 0, "Absent": 0}
+            
+            for cat in ["11th (Girls)", "12th (Girls)", "11th (Boys)", "12th (Boys)", "Other Tiers (DIT)"]:
+                cat_data = summary[summary['Group_Category'] == cat]
+                if cat_data.empty: 
+                    continue
+                
+                sub_total = cat_data.agg({'Total': 'sum', 'Present': 'sum', 'Absent': 'sum'})
+                grand_total['Total'] += sub_total['Total']
+                grand_total['Present'] += sub_total['Present']
+                grand_total['Absent'] += sub_total['Absent']
+                
+                row_span = len(cat_data)
+                for i, (_, row) in enumerate(cat_data.iterrows()):
+                    pct = f"{int((row['Present']/row['Total'])*100)}%" if row['Total'] > 0 else "0%"
+                    table_rows += f"<tr>"
+                    if i == 0: 
+                        table_rows += f'<td rowspan="{row_span}" style="border:1px solid #000; font-weight:bold; background:#fff;">{cat}</td>'
+                    table_rows += f'<td>{row["Section"]}</td><td>{row["In_Charge"]}</td><td>{row["Total"]}</td><td>{row["Present"]}</td><td>{row["Absent"]}</td><td>{pct}</td></tr>'
+                
+                sub_total_pct = f"{int((sub_total['Present']/sub_total['Total'])*100)}%" if sub_total['Total'] > 0 else "0%"
+                table_rows += f'<tr style="background:#f9f9f9; font-weight:bold;">' \
+                              f'<td colspan="3" style="text-align:left; padding-left:10px;">Sub-Total ({cat})</td>' \
+                              f'<td>{sub_total["Total"]}</td><td>{sub_total["Present"]}</td><td>{sub_total["Absent"]}</td>' \
+                              f'<td>{sub_total_pct}</td></tr>'
+
+            grand_pct = f"{int((grand_total['Present']/grand_total['Total'])*100)}%" if grand_total['Total'] > 0 else "0%"
+            table_rows += f'<tr style="background:#ddd; font-weight:bold; font-size:14px;">' \
+                          f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
+                          f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}</td></tr>'
+
+            # Render complete layout
+            html_template = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: "Times New Roman", serif; padding: 10px; }}
+                    .header-container {{ display: flex; align-items: center; margin-bottom: 20px; }}
+                    .logo {{ width: 80px; }}
+                    .title-group {{ flex-grow: 1; text-align: center; }}
                     
+                    table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+                    th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
+                    th {{ background: #eee; }}
+                    
+                    @media print {{ 
+                        @page {{ size: A4 portrait; margin: 10mm; }}
+                        .print-btn {{ display: none; }} 
+                    }}
+                </style>
+            </head>
+            <body>
+                <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
+                
+                <div class="header-container">
+                    <img src="https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png" class="logo">
+                    <div class="title-group">
+                        <h1 style="font-size: 20px; margin: 0;">CONCORDIA COLLEGE KASUR</h1>
+                        <h3 style="font-size: 16px; margin: 0;">Daily Attendance Report - {report_date}</h3>
+                    </div>
+                </div>
+                
+                <table>
+                    <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
+                    {table_rows}
+                </table>
+                <div style="margin-top: 40px; text-align: right; font-weight:bold;">Principal Signature: ___________</div>
+            </body>
+            </html>
+            """
+            components.html(html_template, height=800, scrolling=True)
+
+            # 4. EXCEL EXPORT
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                summary.to_excel(writer, index=False, sheet_name='Attendance')
+                ws = writer.sheets['Attendance']
+                ws.set_column('A:A', 15)
+                ws.set_column('B:B', 12)
+                ws.set_column('C:C', 30)
+                ws.set_column('D:G', 10)
+                ws.set_default_row(25)
+                
+            st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
+
+    with tab2:
+        st.subheader("📋 Master Absent Student Remarks Report")
+        st.caption("Live tracking timeline displaying unalterable teacher feedback submissions with server timestamps.")
+        st.markdown("---")
+        
+        # Filters for Admin Overview
+        adm_col1, adm_col2 = st.columns(2)
+        with adm_col1:
+            rem_report_date = adm_col1.date_input("Filter Report Date:", value=datetime.date.today(), key="adm_rem_report_date")
+        with adm_col2:
+            rem_report_section = adm_col2.selectbox("Filter Section:", ["ALL", "IG", "IB", "FB", "FG", "MG_BLUE"], key="adm_rem_report_sec")
+
+        # Query structure to dynamically fetch teacher logs
+        query_params = {"target_date": str(rem_report_date)}
+        sql_report = """
+            SELECT 
+                s.id AS "Roll No",
+                s.name AS "Student Name",
+                s.section AS "Section",
+                s.session AS "Session",
+                d.remarks AS "Teacher Remarks",
+                to_char(d.remarks_updated_at, 'DD-Mon-YYYY HH:MI AM') AS "Logged Timestamp"
+            FROM students s
+            JOIN daily_attendance d ON s.id = d.student_id
+            WHERE d.attendance_date = :target_date
+              AND d.remarks IS NOT NULL 
+              AND d.remarks != ''
+        """
+        
+        if rem_report_section != "ALL":
+            sql_report += " AND UPPER(TRIM(s.section)) = UPPER(TRIM(:section))"
+            query_params["section"] = rem_report_section
+            
+        sql_report += " ORDER BY d.remarks_updated_at DESC"
+
+        try:
+            remarks_report_df = run_query(sql_report, query_params)
+
+            if remarks_report_df.empty:
+                st.info(f"🍃 No absence remarks have been logged by any faculty for {rem_report_date.strftime('%d-%b-%Y')}.")
+            else:
+                st.dataframe(remarks_report_df, use_container_width=True, hide_index=True)
+                
+                st.download_button(
+                    label="📥 Export Remarks Log to CSV",
+                    data=remarks_report_df.to_csv(index=False).encode('utf-8'),
+                    file_name=f"Absent_Remarks_Report_{rem_report_date}.csv",
+                    mime="text/csv",
+                    key="remarks_csv_dl"
+                )
+        except Exception as e:
+            st.error(f"Could not load the admin remarks data view grid: {e}")
+            
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
 # ====================================================================================
