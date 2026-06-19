@@ -1453,16 +1453,25 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         
-        # Pull role cleanly and handle case variations seamlessly
         raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_role = str(raw_role).strip().lower() if raw_role else 'admin'
-        current_user_id = st.session_state.get('user_id', None)
         
         sel_discipline = "MEDICAL" 
         sel_class = "ALL"
         
-        if current_role in ['teacher', 'faculty'] and current_user_id is not None:
-            teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
+        # INTERCEPT AND BIND FACULTY ACCESS RIGHTS DYNAMICALLY
+        if current_role in ['teacher', 'faculty']:
+            # Pull clean string name from session state
+            active_faculty_name = st.session_state.get('username', 'Ms. Nazia Karamat').strip()
+            
+            # Use a robust cross-table lookup pattern matching her string identifier
+            teacher_rights = run_query("""
+                SELECT DISTINCT subject_name AS subject, section 
+                FROM subject_allocations 
+                WHERE TRIM(teacher_name) = :tname 
+                   OR TRIM(teacher_name) LIKE :tname_like
+            """, {"tname": active_faculty_name, "tname_like": f"%{active_faculty_name}%"})
+            
             if not teacher_rights.empty:
                 allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                 allowed_secs = sorted(list(teacher_rights['section'].unique()))
@@ -1481,8 +1490,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
             else:
-                st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                st.warning("🚨 You do not have any active subjects or sections assigned yet in the system files.")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
+                
+        else:
+            # --- LEAVE ADMIN / CONTROLLER INTERFACE BELOW UNTOUCHED ---
         else:
             with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             with c2: academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
