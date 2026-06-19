@@ -481,6 +481,42 @@ if user_role in ["Teacher", "Faculty"]:
     # ------------------------------------------------------------------------------
 # 🎴 VIEW COMPONENT RENDERING LAYER
 # ------------------------------------------------------------------------------
+# Fallback variable safety initialization layer to prevent NameErrors
+if 'username_current' not in locals() and 'username_current' not in globals():
+    username_current = st.session_state.get("username", "Faculty Member")
+
+if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
+    try:
+        incharge_check = run_query("""
+            SELECT section_name, class_level FROM academic_allocations 
+            WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
+              AND is_class_incharge = 'Yes' LIMIT 1
+        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+        is_class_incharge = not incharge_check.empty
+        db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section_name'].iloc[0]}" if is_class_incharge else ""
+    except Exception:
+        is_class_incharge = False
+        db_class_scope = ""
+
+if 'student_count' not in locals() and 'student_count' not in globals():
+    try:
+        student_data = run_query("""
+            SELECT COUNT(DISTINCT s.id) as total_count 
+            FROM subject_allocations sa
+            JOIN students s ON s.section = sa.section AND s.class = sa.class_level
+            WHERE sa.teacher_name = :tname OR sa.teacher_name LIKE :tname_like
+        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+        student_count = int(student_data['total_count'].iloc[0]) if not student_data.empty else 0
+    except Exception:
+        student_count = 0
+
+if 'overall_pass_rate' not in locals() and 'overall_pass_rate' not in globals():
+    overall_pass_rate = 0.0
+
+if 'class_attendance_avg' not in locals() and 'class_attendance_avg' not in globals():
+    class_attendance_avg = None
+
+
 st.markdown(f"## 🏫 Welcome, {username_current}")
 st.markdown("Here is your academic overview performance log data for today.")
 
