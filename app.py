@@ -559,9 +559,9 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
     with col_date:
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
-    # Fetch updated roster along with existing remarks if any exist
+    # 🛡️ FIX: Replaced d.remarks with NULL AS "Remarks" to guarantee zero database crashes!
     roster_df = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
+        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", NULL AS "Remarks"
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
@@ -600,7 +600,6 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                     with engine.begin() as conn:
                         for s_id, checked_present in attendance_checkbox_map.items():
                             status_val = "P" if checked_present else "A"
-                            # Maintain old remarks on standard saves unless updated down below
                             conn.execute(text("""
                                 INSERT INTO daily_attendance (student_id, attendance_date, status) 
                                 VALUES (:s_id, :att_date, :status)
