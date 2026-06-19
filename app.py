@@ -1451,9 +1451,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
-        # 🧪 TEMPORARY DIAGNOSTIC LINES
-        st.write("### 🔍 Debug Information")
-        st.write(st.session_state)
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         
         raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
@@ -1499,12 +1496,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
             else:
-                # Diagnostic printing to trace what the app sees during fallback
                 st.warning(f"🚨 No allocations linked to user account info.")
                 st.caption(f"**Diagnostic Details** — Session Username: `{active_faculty_name}` | User ID: `{current_user_id}`")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
                 
-        # --- LEVEL 1 FALLBACK: ADMINISTRATIVE ROUTE (LINE 1498 FIX) ---
+        # --- LEVEL 1 FALLBACK: ADMINISTRATIVE ROUTE ---
         else:
             with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             with c2: academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
@@ -1580,9 +1576,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             clean_session = str(sel_session).strip()
 
             try:
-                # Optimized query utilizing a flexible LIKE pattern matching to safely group "2025" input with "2025-27" database structures.
+                # FIX: Added s.session projection inside select block to prevent KeyError downstream
                 roster_df = run_query("""
-                    SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                    SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks", s.session
                     FROM students s
                     LEFT JOIN marks m ON s.id = m.student_id 
                         AND UPPER(TRIM(m.subject)) = :subject
