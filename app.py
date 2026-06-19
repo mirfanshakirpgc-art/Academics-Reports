@@ -1453,7 +1453,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         
-        # Pull role and clean it to lower-case for robust checking
+        # Pull role cleanly and handle case variations seamlessly
         raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_role = str(raw_role).strip().lower() if raw_role else 'admin'
         current_user_id = st.session_state.get('user_id', None)
@@ -1461,7 +1461,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         sel_discipline = "MEDICAL" 
         sel_class = "ALL"
         
-        # Updated to catch 'faculty' or 'teacher' roles securely
         if current_role in ['teacher', 'faculty'] and current_user_id is not None:
             teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
             if not teacher_rights.empty:
@@ -1557,8 +1556,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             target_sub_slug = str(sel_subject).strip().upper().replace(" ", "_")
             target_exam = str(sel_exam).strip().upper()
+            clean_session = str(sel_session).strip()
 
             try:
+                # Optimized query utilizing a flexible LIKE pattern matching to safely group "2025" input with "2025-27" database structures.
                 roster_df = run_query("""
                     SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
                     FROM students s
@@ -1566,13 +1567,19 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         AND UPPER(TRIM(m.subject)) = :subject
                         AND UPPER(TRIM(m.exam_type)) = :exam
                     WHERE UPPER(TRIM(s.section)) = :section
-                      AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = :session
+                      AND (UPPER(TRIM(CAST(s.session AS VARCHAR))) LIKE :sess_match OR :sess_raw LIKE '%' || UPPER(TRIM(CAST(s.session AS VARCHAR))) || '%')
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
                     ORDER BY s.id ASC
-                """, {"subject": target_sub_slug, "exam": target_exam, "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
+                """, {
+                    "subject": target_sub_slug, 
+                    "exam": target_exam, 
+                    "section": str(sel_section).strip().upper(), 
+                    "sess_match": f"%{clean_session}%",
+                    "sess_raw": clean_session
+                })
                 
                 if roster_df.empty:
-                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session {sel_session}.")
+                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session Context: '{sel_session}'. Verification Check: Ensure your student entries match this text exact string layout.")
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
@@ -1675,14 +1682,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 is_a = st.session_state.get(record["abs_key"], False)
                                 is_nc = st.session_state.get(record["nc_key"], False)
                                 
-                                # Evaluate the fallback value smoothly if status flags were explicitly unchecked
                                 raw_marks = str(record["marks"]).strip().upper()
                                 if is_a:
                                     score_clean = "A"
                                 elif is_nc:
                                     score_clean = "NC"
                                 else:
-                                    # If the user cleared the checkbox, clean out old 'A' or 'NC' text representations
                                     score_clean = "" if raw_marks in ["A", "NC"] else raw_marks
                                 
                                 execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam})
@@ -1690,7 +1695,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                     execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
                                                       {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam, "score": score_clean, "total": float(total_marks)})
                             
-                            st.success(f"🎉 Marks ledger for Section {sel_section} recorded successfully!")
+                            st.success(f"🎉 Marks ledger recorded successfully!")
                             time.sleep(1.2)
                             st.rerun()
             except Exception as e:
