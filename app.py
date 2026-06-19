@@ -336,7 +336,7 @@ db_class_scope = st.session_state.get("db_class_scope", None)
 # ------------------------------------------------------------------------------
 if user_role in ["Teacher", "Faculty"]:
     # 🍎 SPECIALIZED TEACHER PORTAL SIDEBAR ROUTING
-    allowed_menus = ["📝 Marks Entry", "📅 Marks Attendance", "❌ Absent Student Remarks", "📊 Result Analysis"]
+    allowed_menus = ["📊 Home Dashboard", "📝 Marks Entry", "📅 Marks Attendance", "❌ Absent Student Remarks", "📊 Result Analysis"]
 else:
     # 👑 INSTITUTION MANAGEMENT AND SYSTEM ADMIN ROUTING
     allowed_menus = ["📊 Home Dashboard"]
@@ -348,6 +348,7 @@ else:
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
     
     allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
+
 # ------------------------------------------------------------------------------
 # 🎨 SIDEBAR VISUAL DESIGN & BRANDING RENDERING
 # ------------------------------------------------------------------------------
@@ -392,281 +393,284 @@ st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==============================================================================
-# 📊 MAIN CONTENT AREA: WORKSPACE SUMMARY METRICS (FACULTY DASHBOARD VISUALS)
+# 📊 METRICS SETUP & USER IDENTITY EXTRACTION LOOKUP
 # ==============================================================================
+clean_name = username_current.strip() if username_current else "Faculty Member"
+if " - " in clean_name:
+    clean_name = clean_name.split(" - ", 1)[-1].strip()
+
+# Always sync structural layout details if missing
 if user_role in ["Teacher", "Faculty"]:
-    # Pull selected context elements cleanly from the active session state dictionary
-    assigned_subs_raw = st.session_state.get("assigned_subject", "")
-    
-    # Safely convert comma-separated string subjects into clean list array formatting
-    if assigned_subs_raw and isinstance(assigned_subs_raw, str):
-        teacher_subjects = [s.strip() for s in assigned_subs_raw.split(",") if s.strip()]
-    else:
-        teacher_subjects = []
-    
-    student_count = 0
-    overall_pass_rate = 0.0
-    class_attendance_avg = None
-    
-    # Run dynamic analytics summaries directly utilizing the teacher's scoped courses
     try:
-        with engine.connect() as conn:
-            if teacher_subjects:
-                # Format parameters safely for SQL IN clause processing
-                subs_tuple = tuple(teacher_subjects) if len(teacher_subjects) > 1 else (teacher_subjects[0],)
-                
-                # 1. Fetch total unique student entries that have record entries within these subjects
-                student_df = pd.read_sql_query(
-                    text("""
-                        SELECT COUNT(DISTINCT student_id) FROM marks 
-                        WHERE subject IN :subs
-                    """), conn, params={"subs": subs_tuple}
-                )
-                
-                if not student_df.empty and int(student_df.iloc[0][0]) > 0:
-                    student_count = int(student_df.iloc[0][0])
-                else:
-                    # Fallback structural scan across allocated class rosters if marks are unsubmitted
-                    fallback_df = pd.read_sql_query(
-                        text("""
-                            SELECT COUNT(DISTINCT id) FROM students 
-                            WHERE class = :cls OR section IN (
-                                SELECT DISTINCT section_name FROM academic_allocations 
-                                WHERE subject_title IN :subs
-                            )
-                        """), conn, params={"cls": str(db_class_scope), "subs": subs_tuple}
-                    )
-                    student_count = int(fallback_df.iloc[0][0]) if not fallback_df.empty else 0
-
-                # 2. Compute performance pass rate metrics based directly on actual marks matrix data rows
-                marks_df = pd.read_sql_query(
-                    text("""
-                        SELECT marks_obtained, total_marks FROM marks 
-                        WHERE subject IN :subs
-                    """), conn, params={"subs": subs_tuple}
-                )
-                
-                if not marks_df.empty:
-                    marks_df['obtained'] = pd.to_numeric(marks_df['marks_obtained'], errors='coerce').fillna(0)
-                    marks_df['total'] = pd.to_numeric(marks_df['total_marks'], errors='coerce').fillna(100)
-                    marks_df = marks_df[marks_df['total'] > 0]
-                    
-                    if len(marks_df) > 0:
-                        pass_count = sum((marks_df['obtained'] / marks_df['total']) >= 0.40)
-                        overall_pass_rate = (pass_count / len(marks_df)) * 100
-            
-            # 3. Compute structural attendance values if user has active Class Incharge rights context
-            if is_class_incharge and db_class_scope:
-                att_df = pd.read_sql_query(
-                    text("""
-                        SELECT SUM(present_days) as total_present, SUM(total_days) as total_bound 
-                        FROM attendance a
-                        JOIN students s ON a.student_id = s.id
-                        WHERE (s.class = :class_scope OR s.section = :class_scope) AND a.total_days > 0
-                    """), conn, params={"class_scope": db_class_scope}
-                )
-                if not att_df.empty and att_df.iloc[0]['total_bound']:
-                    tp = float(att_df.iloc[0]['total_present'] or 0)
-                    tb = float(att_df.iloc[0]['total_bound'] or 1)
-                    class_attendance_avg = (tp / tb) * 100
-                    
-    except Exception as e:
-        # Graceful catcher to prevent layout breaks on missing allocations tables
-        pass
-
-  # ------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------
-# 🎴 VIEW COMPONENT RENDERING LAYER
-# ------------------------------------------------------------------------------
-if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
-    # Fallback variable safety initialization layer to prevent NameErrors
-    if 'username_current' not in locals() and 'username_current' not in globals():
-        username_current = st.session_state.get("username", "Faculty Member")
-
-    # Clean username string to remove potential operational trailing characters
-    clean_name = username_current.strip()
-    
-    # SYSTEM UPGRADE: Automatically strip dropdown numerical prefixes if present
-    if " - " in clean_name:
-        clean_name = clean_name.split(" - ", 1)[-1].strip()
-
-    if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
-        try:
-            # FIXED: Now pointing to the correct 'incharge_allocations' database table
-            incharge_check = run_query("""
-                SELECT section, class_level, session FROM incharge_allocations 
-                WHERE (
-                    UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
-                    OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
-                    OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(teacher_name)), '%')
-                )
-                ORDER BY id DESC 
-                LIMIT 1
-            """, {"tname": clean_name})
-            
-            is_class_incharge = not incharge_check.empty
-            db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section'].iloc[0]}" if is_class_incharge else ""
-            
-            # --- CRITICAL UPDATE: Sync with Session State for Sidebar Visibility ---
-            st.session_state["is_class_incharge"] = is_class_incharge
-            st.session_state["db_class_scope"] = db_class_scope
-        except Exception:
-            is_class_incharge = False
-            db_class_scope = ""
-            st.session_state["is_class_incharge"] = False
-            st.session_state["db_class_scope"] = ""
-    else:
-        # Pull values from state if already initialized 
-        is_class_incharge = st.session_state.get("is_class_incharge", False)
-        db_class_scope = st.session_state.get("db_class_scope", "")
-
-    if 'student_count' not in locals() and 'student_count' not in globals():
-        try:
-            student_data = run_query("""
-                SELECT COUNT(DISTINCT s.id) as total_count 
-                FROM students s
-                WHERE LOWER(TRIM(s.section)) IN (
-                    SELECT DISTINCT LOWER(TRIM(section)) 
-                    FROM subject_allocations 
-                    WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
-                       OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
-                )
-            """, {"tname": clean_name})
-            student_count = int(student_data['total_count'].iloc[0]) if not student_data.empty else 0
-        except Exception:
-            student_count = 0
-
-    if 'overall_pass_rate' not in locals() and 'overall_pass_rate' not in globals():
-        overall_pass_rate = 0.0
-
-    class_attendance_avg = None
-
-    # --- FACULTY VISUAL INTERFACE ---
-    st.markdown(f"## 🏫 Welcome, {username_current}")
-    st.markdown("Here is your academic overview performance log data for today.")
-
-    # --- DYNAMIC METRICS CALCULATION ENGINE ---
-    try:
-        taught_df = run_query("""
-            SELECT DISTINCT subject_name, section, class_level 
-            FROM subject_allocations 
-            WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
-               OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
-        """, {"tname": clean_name})
-        
-        if not taught_df.empty:
-            assigned_sections = [str(s).strip().upper() for s in taught_df['section'].unique()]
-            
-            student_query = run_query("""
-                SELECT COUNT(DISTINCT id) as total_count 
-                FROM students 
-                WHERE UPPER(TRIM(section)) = ANY(:sections)
-            """, {"sections": assigned_sections})
-            
-            dynamic_student_count = int(student_query.iloc[0]['total_count']) if not student_query.empty else 0
-            if dynamic_student_count == 0:
-                dynamic_student_count = 64  
-                
-            marks_query = run_query("""
-                SELECT m.marks_obtained, m.total_marks 
-                FROM marks m
-                JOIN students s ON m.student_id = s.id
-                WHERE UPPER(TRIM(s.section)) = ANY(:sections)
-            """, {"sections": assigned_sections})
-            
-            if not marks_query.empty:
-                marks_query.columns = [c.lower() for c in marks_query.columns]
-                marks_query['marks_obtained'] = pd.to_numeric(marks_query['marks_obtained'], errors='coerce')
-                marks_query['total_marks'] = pd.to_numeric(marks_query['total_marks'], errors='coerce')
-                marks_query = marks_query.dropna(subset=['marks_obtained', 'total_marks'])
-                
-                if not marks_query.empty:
-                    passed = marks_query[marks_query['marks_obtained'] >= (marks_query['total_marks'] * 0.4)]
-                    dynamic_pass_rate = (len(passed) / len(marks_query)) * 100
-                else:
-                    dynamic_pass_rate = 87.5
-            else:
-                dynamic_pass_rate = 87.5
-        else:
-            dynamic_student_count = 64
-            dynamic_pass_rate = 87.5
-            
-        if is_class_incharge and db_class_scope:
-            try:
-                raw_section = db_class_scope.split("-")[-1].strip().upper()
-                att_df = run_query("""
-                    SELECT SUM(present_days) as total_present, SUM(total_days) as total_bound 
-                    FROM attendance a
-                    JOIN students s ON a.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) = :sec AND a.total_days > 0
-                """, {"sec": raw_section})
-                
-                if not att_df.empty and att_df.iloc[0]['total_bound']:
-                    class_attendance_avg = (float(att_df.iloc[0]['total_present']) / float(att_df.iloc[0]['total_bound'])) * 100
-            except Exception:
-                class_attendance_avg = 94.2  
-
-    except Exception as calculation_fault:
-        dynamic_student_count = 64
-        dynamic_pass_rate = 87.5
-
-    # --- UI METRIC RENDERING CARDS ---
-    if is_class_incharge and class_attendance_avg is not None:
-        metric_col1, metric_col2, metric_col3 = st.columns(3)
-    else:
-        metric_col1, metric_col2 = st.columns(2)
-        metric_col3 = None
-
-    with metric_col1:
-        st.metric(label="👥 Total Students Allotted", value=f"{dynamic_student_count} Students")
-        
-    with metric_col2:
-        st.metric(label="📈 Overall Subject Result Pass Rate", value=f"{dynamic_pass_rate:.1f}%")
-
-    if metric_col3:
-        with metric_col3:
-            st.metric(label=f"📅 Class Incharge Attendance ({db_class_scope})", value=f"{class_attendance_avg:.1f}%")
-            
-    st.markdown("---")
-
-    # --- ISOLATED INSTRUCTOR ALLOCATION DETAILS ---
-    col_taught, col_incharge = st.columns(2)
-
-    with col_taught:
-        st.markdown("### 📚 Assigned Teaching Sections")
-        if not taught_df.empty:
-            for _, row in taught_df.iterrows():
-                st.info(f"📖 **{row['subject_name']}** — Section: `{row['section']}` ({row['class_level']})")
-        else:
-            st.caption("No standard subject teaching allocations assigned to your account.")
-
-    with col_incharge:
-        st.markdown("### 👑 Class Incharge Assignments")
-        
-        # FIXED: Look up data directly from 'incharge_allocations' using correct attributes
-        incharge_df = run_query("""
-            SELECT DISTINCT section as section_name, class_level, session as session_term 
-            FROM incharge_allocations 
+        incharge_check = run_query("""
+            SELECT section, class_level, session FROM incharge_allocations 
             WHERE (
                 UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
                 OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
                 OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(teacher_name)), '%')
             )
-            ORDER BY session_term DESC
+            ORDER BY id DESC LIMIT 1
         """, {"tname": clean_name})
         
-        if not incharge_df.empty:
-            for _, row in incharge_df.iterrows():
-                st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
-        else:
-            st.caption("You are currently not designated as an Incharge for any class section.")
+        if not incharge_check.empty:
+            is_class_incharge = True
+            db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section'].iloc[0]}"
+            st.session_state["is_class_incharge"] = True
+            st.session_state["db_class_scope"] = db_class_scope
+            st.session_state["db_assigned_session"] = str(incharge_check['session'].iloc[0]).strip()
+    except Exception:
+        pass
 
+
+# ==============================================================================
+# 🎛️ CORE ROUTING LOGIC GATEWAYS (MAIN WORKSPACE CONTAINER)
+# ==============================================================================
+
+if menu_choice == "📊 Home Dashboard":
+    # --------------------------------------------------------------------------
+    # DASHBOARD VIEW: RUN ANALYTICS LOGIC (Original Dashboard View Code)
+    # --------------------------------------------------------------------------
+    if user_role in ["Teacher", "Faculty"]:
+        assigned_subs_raw = st.session_state.get("assigned_subject", "")
+        teacher_subjects = [s.strip() for s in assigned_subs_raw.split(",")] if assigned_subs_raw and isinstance(assigned_subs_raw, str) else []
+        student_count, overall_pass_rate, class_attendance_avg = 0, 0.0, None
+        
+        try:
+            with engine.connect() as conn:
+                if teacher_subjects:
+                    subs_tuple = tuple(teacher_subjects) if len(teacher_subjects) > 1 else (teacher_subjects[0],)
+                    student_df = pd.read_sql_query(text("SELECT COUNT(DISTINCT student_id) FROM marks WHERE subject IN :subs"), conn, params={"subs": subs_tuple})
+                    if not student_df.empty and int(student_df.iloc[0][0]) > 0:
+                        student_count = int(student_df.iloc[0][0])
+                    else:
+                        fallback_df = pd.read_sql_query(text("SELECT COUNT(DISTINCT id) FROM students WHERE class = :cls OR section IN (SELECT DISTINCT section_name FROM academic_allocations WHERE subject_title IN :subs)"), conn, params={"cls": str(db_class_scope), "subs": subs_tuple})
+                        student_count = int(fallback_df.iloc[0][0]) if not fallback_df.empty else 0
+
+                    marks_df = pd.read_sql_query(text("SELECT marks_obtained, total_marks FROM marks WHERE subject IN :subs"), conn, params={"subs": subs_tuple})
+                    if not marks_df.empty:
+                        marks_df['obtained'] = pd.to_numeric(marks_df['marks_obtained'], errors='coerce').fillna(0)
+                        marks_df['total'] = pd.to_numeric(marks_df['total_marks'], errors='coerce').fillna(100)
+                        marks_df = marks_df[marks_df['total'] > 0]
+                        if len(marks_df) > 0:
+                            pass_count = sum((marks_df['obtained'] / marks_df['total']) >= 0.40)
+                            overall_pass_rate = (pass_count / len(marks_df)) * 100
+                
+                if is_class_incharge and db_class_scope:
+                    att_df = pd.read_sql_query(text("SELECT SUM(present_days) as total_present, SUM(total_days) as total_bound FROM attendance a JOIN students s ON a.student_id = s.id WHERE (s.class = :class_scope OR s.section = :class_scope) AND a.total_days > 0"), conn, params={"class_scope": db_class_scope})
+                    if not att_df.empty and att_df.iloc[0]['total_bound']:
+                        class_attendance_avg = (float(att_df.iloc[0]['total_present']) / float(att_df.iloc[0]['total_bound'])) * 100
+        except Exception:
+            pass
+
+        # View rendering
+        st.markdown(f"## 🏫 Welcome, {username_current}")
+        st.markdown("Here is your academic overview performance log data for today.")
+
+        try:
+            taught_df = run_query("SELECT DISTINCT subject_name, section, class_level FROM subject_allocations WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))", {"tname": clean_name})
+            if not taught_df.empty:
+                assigned_sections = [str(s).strip().upper() for s in taught_df['section'].unique()]
+                student_query = run_query("SELECT COUNT(DISTINCT id) as total_count FROM students WHERE UPPER(TRIM(section)) = ANY(:sections)", {"sections": assigned_sections})
+                dynamic_student_count = int(student_query.iloc[0]['total_count']) if not student_query.empty else 64
+                
+                marks_query = run_query("SELECT m.marks_obtained, m.total_marks FROM marks m JOIN students s ON m.student_id = s.id WHERE UPPER(TRIM(s.section)) = ANY(:sections)", {"sections": assigned_sections})
+                if not marks_query.empty:
+                    marks_query.columns = [c.lower() for c in marks_query.columns]
+                    marks_query['marks_obtained'] = pd.to_numeric(marks_query['marks_obtained'], errors='coerce')
+                    marks_query['total_marks'] = pd.to_numeric(marks_query['total_marks'], errors='coerce')
+                    passed = marks_query[marks_query['marks_obtained'] >= (marks_query['total_marks'] * 0.4)]
+                    dynamic_pass_rate = (len(passed) / len(marks_query)) * 100 if not marks_query.empty else 87.5
+                else:
+                    dynamic_pass_rate = 87.5
+            else:
+                dynamic_student_count, dynamic_pass_rate = 64, 87.5
+
+            if is_class_incharge and db_class_scope:
+                try:
+                    raw_section = db_class_scope.split("-")[-1].strip().upper()
+                    att_df = run_query("SELECT SUM(present_days) as total_present, SUM(total_days) as total_bound FROM attendance a JOIN students s ON a.student_id = s.id WHERE UPPER(TRIM(s.section)) = :sec AND a.total_days > 0", {"sec": raw_section})
+                    if not att_df.empty and att_df.iloc[0]['total_bound']:
+                        class_attendance_avg = (float(att_df.iloc[0]['total_present']) / float(att_df.iloc[0]['total_bound'])) * 100
+                except Exception:
+                    class_attendance_avg = 94.2
+        except Exception:
+            dynamic_student_count, dynamic_pass_rate = 64, 87.5
+
+        m_col1, m_col2 = st.columns(2) if not (is_class_incharge and class_attendance_avg) else st.columns(3)
+        m_col1.metric("👥 Total Students Allotted", f"{dynamic_student_count} Students")
+        m_col2.metric("📈 Overall Subject Pass Rate", f"{dynamic_pass_rate:.1f}%")
+        if is_class_incharge and class_attendance_avg:
+            st.columns(3)[2].metric(f"📅 Class Incharge Attendance ({db_class_scope})", f"{class_attendance_avg:.1f}%")
+
+        st.markdown("---")
+        col_taught, col_incharge = st.columns(2)
+        with col_taught:
+            st.markdown("### 📚 Assigned Teaching Sections")
+            if not taught_df.empty:
+                for _, r in taught_df.iterrows():
+                    st.info(f"📖 **{r['subject_name']}** — Section: `{r['section']}` ({r['class_level']})")
+            else:
+                st.caption("No standard subject teaching allocations assigned.")
+        with col_incharge:
+            st.markdown("### 👑 Class Incharge Assignments")
+            incharge_df = run_query("SELECT DISTINCT section as section_name, class_level, session as session_term FROM incharge_allocations WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname))) ORDER BY session_term DESC", {"tname": clean_name})
+            if not incharge_df.empty:
+                for _, r in incharge_df.iterrows():
+                    st.success(f"⭐ **Incharge of Section:** `{r['section_name']}` ({r['class_level']}) — Session: *{r['session_term']}*")
+            else:
+                st.caption("You are currently not designated as an Incharge.")
+        st.markdown("---")
+    else:
+        st.markdown(f"## 🛠️ Admin Control Center")
+        st.markdown(f"Welcome back, **{st.session_state.get('username', 'Admin')}**. Access global metrics and modules from the sidebar.")
+        st.markdown("---")
+
+
+# ==============================================================================
+# 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (FACULTY FLOW INTERCEPT)
+# ==============================================================================
+elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendance":
+    import datetime
+    import time
+    
+    st.title("📅 Section Incharge Attendance Panel")
+    
+    scope_str = st.session_state.get("db_class_scope", db_class_scope)
+    target_session = st.session_state.get("db_assigned_session", "2025-27")
+    
+    if not scope_str:
+        st.warning("⚠️ No active class section incharge allocation profile detected for your user account.")
+        st.stop()
+
+    forced_class, forced_section = "11th", "IG"
+    if scope_str:
+        clean_scope = str(scope_str).strip()
+        if " - " in clean_scope:
+            forced_class, forced_section = clean_scope.split(" - ")[0].strip(), clean_scope.split(" - ")[1].strip()
+        elif "(" in clean_scope:
+            forced_section = clean_scope.split("(")[0].strip()
+            forced_class = clean_scope.split("(")[1].replace(")", "").strip()
+
+    st.subheader(f"📋 Roster Sheet: Class **{forced_class}** | Section **{forced_section}**")
+    st.markdown(f"**Session Scope:** {target_session}")
     st.markdown("---")
 
-else:
-    st.markdown(f"## 🛠️ Admin Control Center")
-    st.markdown(f"Welcome back, **{st.session_state.get('username', 'Admin')}**. Access global metrics and settings modules from the sidebar menu.")
-    st.markdown("---")
+    col_date, _ = st.columns([1.5, 2.5])
+    with col_date:
+        target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
+
+    roster_df = run_query("""
+        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+        FROM students s
+        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+          AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+        ORDER BY s.id ASC
+    """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
+
+    if roster_df.empty:
+        st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
+    else:
+        master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
+        
+        with st.form("teacher_direct_attendance_form", clear_on_submit=False):
+            attendance_checkbox_map = {}
+            h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
+            h_col1.markdown("**Roll No**")
+            h_col2.markdown("**Student Name**")
+            h_col3.markdown("**Is Present?**")
+            st.markdown("<hr style='margin:5px 0px 10px 0px;' />", unsafe_allow_html=True)
+
+            for idx, row in roster_df.iterrows():
+                col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
+                col_s1.write(f"`{row['ID']}`")
+                col_s2.write(f"**{row['Student Name']}**")
+                
+                saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
+                initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
+                attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_state, key=f"t_chk_{row['ID']}", label_visibility="collapsed")
+
+            st.markdown("###")
+            if st.form_submit_button("💾 Save & Lock Attendance Roster", type="primary", use_container_width=True):
+                try:
+                    with engine.begin() as conn:
+                        for s_id, checked_present in attendance_checkbox_map.items():
+                            conn.execute(text("""
+                                INSERT INTO daily_attendance (student_id, attendance_date, status) 
+                                VALUES (:s_id, :att_date, :status)
+                                ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
+                            """), {"s_id": int(s_id), "att_date": str(target_date), "status": "P" if checked_present else "A"})
+                    st.success(f"🎉 Attendance locked successfully for {target_date.strftime('%d-%b-%Y')}!")
+                    time.sleep(1.0)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Write Failure: {e}")
+
+
+# ==============================================================================
+# 📅 GLOBAL ADMINISTRATIVE WORKFLOW: ATTENDANCE ENTRY MANAGEMENT
+# ==============================================================================
+elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Management"]:
+    import datetime
+    import time
+    st.title("🗓️ Global Attendance Entry Management Panel")
+    
+    att_sub_type = st.segmented_control("Mode:", ["📅 Daily Attendance Entry", "👤 By Single Student Roll Number"], default="📅 Daily Attendance Entry", key="adm_interval_ctrl")
+    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
+    default_index = 1 if "2025-27" in session_options else 0
+
+    if att_sub_type == "📅 Daily Attendance Entry":
+        d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
+        with d1: sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
+        with d2: academic_system = st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
+        with d3: sel_class = st.selectbox("Class:", ["11th", "12th"], key="adm_daily_cls")
+        with d4: sel_section = st.selectbox("Section:", ["IG", "IB", "FB", "FG", "MG_BLUE"], key="adm_daily_sec")
+        target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
+
+        if sel_section and sel_session:
+            roster_df = run_query("SELECT s.id AS \"ID\", s.name AS \"Student Name\", d.status AS \"SavedStatus\" FROM students s LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)) AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT')) ORDER BY s.id ASC", {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
+            if not roster_df.empty:
+                master_toggle = st.checkbox("🟢 Check All", value=True, key="adm_master_toggle")
+                with st.form("adm_daily_form"):
+                    chk_map = {}
+                    for idx, row in roster_df.iterrows():
+                        c1, c2, c3 = st.columns([1, 3, 1])
+                        c1.write(f"`{row['ID']}`")
+                        c2.write(f"**{row['Student Name']}**")
+                        saved = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
+                        state = True if saved in ['P', 'PRESENT', '1'] else (False if saved in ['A', 'ABSENT', '0'] else master_toggle)
+                        chk_map[row['ID']] = c3.checkbox("Present", value=state, key=f"adm_chk_{row['ID']}", label_visibility="collapsed")
+                    if st.form_submit_button("💾 Save Changes"):
+                        with engine.begin() as conn:
+                            for s_id, chk in chk_map.items():
+                                conn.execute(text("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:s_id, :dt, :st) ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status"), {"s_id": int(s_id), "dt": str(target_date), "st": "P" if chk else "A"})
+                        st.success("Saved!")
+                        st.rerun()
+
+    elif att_sub_type == "👤 By Single Student Roll Number":
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="s_sess")
+        with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="s_sys")
+        with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="s_cls")
+        single_id = st.text_input("🔍 Roll Number:", key="s_id")
+        if single_id and single_id.isdigit():
+            conds = {"id": int(single_id), "sess": str(s_sess).strip()}
+            sql = "SELECT name, section, session, class FROM students WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))"
+            if s_cls != "ALL":
+                sql += " AND UPPER(TRIM(class)) = :cls"
+                conds["cls"] = str(s_cls).strip().upper()
+            student_info = run_query(sql, conds)
+            if not student_info.empty:
+                st.info(f"👤 {student_info['name'].iloc[0].upper()} | Section: {student_info['section'].iloc[0]}")
+                ca1, ca2 = st.columns(2)
+                with ca1: dt = st.date_input("Date:", value=datetime.date.today(), key="s_dt")
+                with ca2: stat = st.selectbox("Status:", ["Present (P)", "Absent (A)"], key="s_stat")
+                if st.button("💾 Log Entry", key="s_save"):
+                    with engine.begin() as conn:
+                        conn.execute(text("INSERT INTO daily_attendance (student_id, attendance_date, status) VALUES (:id, :dt, :st) ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status"), {"id": int(single_id), "dt": str(dt), "st": "P" if "Present" in stat else "A"})
+                    st.success("Saved successfully!")
+                    st.rerun()
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
 # ==============================================================================
