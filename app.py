@@ -3681,9 +3681,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 st.write("Database shows student exists in these sessions:", total_check)
             
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            # Execute the fetch for the whole section
+            # FIX: Explicitly added session to the SELECT projection list to resolve the KeyError downstream
             sql_section = """
-                SELECT id, name, section, class 
+                SELECT id, name, section, class, session 
                 FROM students 
                 WHERE TRIM(session) = TRIM(:session) 
                 AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
