@@ -491,6 +491,7 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
 
     if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
         try:
+            # FIXED: Ordered by allocation_id DESC to fetch the most recent updates first
             incharge_check = run_query("""
                 SELECT section_name, class_level, session_term FROM academic_allocations 
                 WHERE (
@@ -498,7 +499,9 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
                     OR UPPER(TRIM(assigned_teacher_name)) LIKE UPPER(TRIM(:tname_like))
                     OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
                 )
-                AND is_class_incharge = 'Yes' ORDER BY session_term DESC LIMIT 1
+                AND is_class_incharge = 'Yes' 
+                ORDER BY allocation_id DESC 
+                LIMIT 1
             """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
             
             is_class_incharge = not incharge_check.empty
