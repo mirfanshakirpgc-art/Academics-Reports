@@ -3703,7 +3703,6 @@ elif menu_choice == "🪪 Student Result Cards":
         # --- 1. PERFORMANCE DATA FETCH (DYNAMIC ACTIVE WORKSPACE COUPLING) ---
         if 'marks_df' not in locals() or marks_df.empty:
             try:
-                # FIX: Swapped hardcoded text slices out for clean parameter lookups matching active context
                 marks_df = run_query("""
                     SELECT m.student_id, m.subject, m.marks_obtained, m.total_marks, m.exam_type 
                     FROM marks m
@@ -3721,17 +3720,19 @@ elif menu_choice == "🪪 Student Result Cards":
                 if not marks_df.empty and 'student_id' in marks_df.columns:
                     allocated_students_count = marks_df['student_id'].nunique()
                     
-                    numeric_marks = marks_df[marks_df['marks_obtained'].astype(str).str.replace('.', '', 1).isdigit()].copy()
+                    # FIX: Safely parse numbers using Pandas vector utilities instead of .isdigit()
+                    marks_df['parsed_obtained'] = pd.to_numeric(marks_df['marks_obtained'], errors='coerce')
+                    marks_df['parsed_total'] = pd.to_numeric(marks_df['total_marks'], errors='coerce')
+                    
+                    # Filter down only to valid numerical records
+                    numeric_marks = marks_df[marks_df['parsed_obtained'].notna() & marks_df['parsed_total'].notna()].copy()
+                    
                     if not numeric_marks.empty:
-                        numeric_marks['marks_obtained'] = numeric_marks['marks_obtained'].astype(float)
-                        numeric_marks['total_marks'] = numeric_marks['total_marks'].astype(float)
-                        
-                        passed_records = numeric_marks[numeric_marks['marks_obtained'] >= (numeric_marks['total_marks'] * 0.4)]
+                        passed_records = numeric_marks[numeric_marks['parsed_obtained'] >= (numeric_marks['parsed_total'] * 0.4)]
                         teacher_pass_rate = (len(passed_records) / len(numeric_marks)) * 100
                     else:
                         teacher_pass_rate = 85.0
                 else:
-                    # Adaptive tracking counter based on the active structural group width
                     allocated_students_count = len(students_to_print) if not students_to_print.empty else 64
                     teacher_pass_rate = 100.0
                         
@@ -3744,7 +3745,6 @@ elif menu_choice == "🪪 Student Result Cards":
         # --- 2. ATTENDANCE DATA FETCH (DYNAMIC ACTIVE WORKSPACE COUPLING) ---
         if 'logs_df' not in locals() or logs_df.empty:
             try:
-                # FIX: Swapped out hardcoded text lookups for dynamic runtime variables
                 logs_df = run_query("""
                     SELECT d.student_id, d.attendance_date, d.status as att_status 
                     FROM daily_attendance d
