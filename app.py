@@ -478,7 +478,7 @@ if user_role in ["Teacher", "Faculty"]:
         # Graceful catcher to prevent layout breaks on missing allocations tables
         pass
 
-    # ------------------------------------------------------------------------------
+  # ------------------------------------------------------------------------------
 # 🎴 VIEW COMPONENT RENDERING LAYER
 # ------------------------------------------------------------------------------
 if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
@@ -486,13 +486,18 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
     if 'username_current' not in locals() and 'username_current' not in globals():
         username_current = st.session_state.get("username", "Faculty Member")
 
+    # Clean username string to remove potential operational trailing characters
+    clean_name = username_current.strip()
+
     if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
         try:
             incharge_check = run_query("""
                 SELECT section_name, class_level FROM academic_allocations 
-                WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
+                WHERE (assigned_teacher_name = :tname 
+                   OR assigned_teacher_name LIKE :tname_like
+                   OR :tname LIKE CONCAT('%', assigned_teacher_name, '%'))
                   AND is_class_incharge = 'Yes' LIMIT 1
-            """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+            """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
             is_class_incharge = not incharge_check.empty
             db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section_name'].iloc[0]}" if is_class_incharge else ""
         except Exception:
@@ -501,14 +506,18 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
 
     if 'student_count' not in locals() and 'student_count' not in globals():
         try:
+            # FIXED: Match students strictly by their assigned sections to bypass grade text mismatches
             student_data = run_query("""
                 SELECT COUNT(DISTINCT s.id) as total_count 
                 FROM students s
-                WHERE s.section IN (
-                    SELECT DISTINCT section FROM subject_allocations 
-                    WHERE teacher_name = :tname OR teacher_name LIKE :tname_like
+                WHERE LOWER(TRIM(s.section)) IN (
+                    SELECT DISTINCT LOWER(TRIM(section)) 
+                    FROM subject_allocations 
+                    WHERE teacher_name = :tname 
+                       OR teacher_name LIKE :tname_like
+                       OR :tname LIKE CONCAT('%', teacher_name, '%')
                 )
-            """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+            """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
             student_count = int(student_data['total_count'].iloc[0]) if not student_data.empty else 0
         except Exception:
             student_count = 0
@@ -552,7 +561,8 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
             FROM subject_allocations 
             WHERE teacher_name = :tname 
                OR teacher_name LIKE :tname_like
-        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+               OR :tname LIKE CONCAT('%', teacher_name, '%')
+        """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
         
         if not taught_df.empty:
             for _, row in taught_df.iterrows():
@@ -566,9 +576,9 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
         incharge_df = run_query("""
             SELECT DISTINCT section_name, class_level, session_term 
             FROM academic_allocations 
-            WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
+            WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like OR :tname LIKE CONCAT('%', assigned_teacher_name, '%'))
               AND is_class_incharge = 'Yes'
-        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+        """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
         
         if not incharge_df.empty:
             for _, row in incharge_df.iterrows():
