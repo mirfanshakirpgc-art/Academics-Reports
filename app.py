@@ -500,11 +500,14 @@ if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
 
 if 'student_count' not in locals() and 'student_count' not in globals():
     try:
+        # Pulling count based on matching sections allocated to this teacher name
         student_data = run_query("""
             SELECT COUNT(DISTINCT s.id) as total_count 
-            FROM subject_allocations sa
-            JOIN students s ON s.section = sa.section AND s.class = sa.class_level
-            WHERE sa.teacher_name = :tname OR sa.teacher_name LIKE :tname_like
+            FROM students s
+            WHERE s.section IN (
+                SELECT DISTINCT section FROM subject_allocations 
+                WHERE teacher_name = :tname OR teacher_name LIKE :tname_like
+            )
         """, {"tname": username_current, "tname_like": f"%{username_current}%"})
         student_count = int(student_data['total_count'].iloc[0]) if not student_data.empty else 0
     except Exception:
@@ -546,9 +549,8 @@ col_taught, col_incharge = st.columns(2)
 with col_taught:
     st.markdown("### 📚 Assigned Teaching Sections")
     
-    # Query regular subject teaching configurations using the active instructor's username
     taught_df = run_query("""
-        SELECT subject_name, section, class_level 
+        SELECT DISTINCT subject_name, section, class_level 
         FROM subject_allocations 
         WHERE teacher_name = :tname 
            OR teacher_name LIKE :tname_like
@@ -563,9 +565,8 @@ with col_taught:
 with col_incharge:
     st.markdown("### 👑 Class Incharge Assignments")
     
-    # Query allocations where explicitly assigned as Incharge
     incharge_df = run_query("""
-        SELECT section_name, class_level, session_term 
+        SELECT DISTINCT section_name, class_level, session_term 
         FROM academic_allocations 
         WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
           AND is_class_incharge = 'Yes'
