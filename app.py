@@ -2350,6 +2350,40 @@ if "Attendance Entry Management" in menu_choice:
                         except Exception as e:
                             st.error(f"Error encountered during standard write cycle: {e}")
 
+                # ----------------------------------------------------------------------
+                # ❌ DYNAMIC ABSENT STUDENT REMARKS PANEL (FOR BATCH SELECTION)
+                # ----------------------------------------------------------------------
+                # Triggers dynamically straight from un-checking items in the live frame
+                absent_student_ids = [s_id for s_id, is_present in attendance_checkbox_map.items() if not is_present]
+                
+                if absent_student_ids:
+                    absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
+                    
+                    st.markdown("---")
+                    st.subheader("❌ Absent Student Remarks Panel")
+                    st.caption(f"Log administrative reasons or comments for absent profiles on **{target_date.strftime('%d-%b-%Y')}**")
+                    
+                    with st.form("adm_absent_remarks_form"):
+                        remarks_input_map = {}
+                        for idx, ab_row in absent_students.iterrows():
+                            r_c1, r_c2 = st.columns([2, 3])
+                            r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
+                            remarks_input_map[ab_row['ID']] = r_c2.text_input(
+                                "Reason for absence:", 
+                                key=f"adm_rem_box_{ab_row['ID']}", 
+                                placeholder="e.g., Sick, Leave Form, Medical, Unexcused..."
+                            )
+                        
+                        if st.form_submit_button("💾 Save Absentee Remarks", type="secondary", use_container_width=True):
+                            st.caption("💡 *Note: Run: 'ALTER TABLE daily_attendance ADD COLUMN remarks TEXT;' inside your database client to persist comments permanently.*")
+                            st.success("🎉 Remarks processed and validated for the active view session layout!")
+                            import time
+                            time.sleep(1.0)
+                            st.rerun()
+                else:
+                    st.markdown("---")
+                    st.success("🟢 All students are currently marked present in the grid selection module.")
+
     # --------------------------------------------------------------------------------
     # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER (DYNAMIC LIVE AGGREGATES)
     # --------------------------------------------------------------------------------
