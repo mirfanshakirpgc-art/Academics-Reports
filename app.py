@@ -479,6 +479,7 @@ if user_role in ["Teacher", "Faculty"]:
         pass
 
   # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # 🎴 VIEW COMPONENT RENDERING LAYER
 # ------------------------------------------------------------------------------
 if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
@@ -489,28 +490,26 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
     # Clean username string to remove potential operational trailing characters
     clean_name = username_current.strip()
     
-    # SYSTEM UPGRADE: If username is "2 - Ms. Nazia Karamat", extract just "Ms. Nazia Karamat"
-    # If it's already "Ms. Nazia Karamat", it leaves it perfectly intact.
+    # SYSTEM UPGRADE: Automatically strip dropdown numerical prefixes if present
     if " - " in clean_name:
         clean_name = clean_name.split(" - ", 1)[-1].strip()
 
     if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
         try:
-            # Fully synchronized matching query 
+            # FIXED: Now pointing to the correct 'incharge_allocations' database table
             incharge_check = run_query("""
-                SELECT section_name, class_level, session_term FROM academic_allocations 
+                SELECT section, class_level, session FROM incharge_allocations 
                 WHERE (
-                    UPPER(TRIM(assigned_teacher_name)) = UPPER(TRIM(:tname)) 
-                    OR UPPER(TRIM(assigned_teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
-                    OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
+                    UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
+                    OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
+                    OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(teacher_name)), '%')
                 )
-                AND is_class_incharge = 'Yes' 
-                ORDER BY allocation_id DESC 
+                ORDER BY id DESC 
                 LIMIT 1
             """, {"tname": clean_name})
             
             is_class_incharge = not incharge_check.empty
-            db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section_name'].iloc[0]}" if is_class_incharge else ""
+            db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section'].iloc[0]}" if is_class_incharge else ""
             
             # --- CRITICAL UPDATE: Sync with Session State for Sidebar Visibility ---
             st.session_state["is_class_incharge"] = is_class_incharge
@@ -648,15 +647,15 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
     with col_incharge:
         st.markdown("### 👑 Class Incharge Assignments")
         
+        # FIXED: Look up data directly from 'incharge_allocations' using correct attributes
         incharge_df = run_query("""
-            SELECT DISTINCT section_name, class_level, session_term 
-            FROM academic_allocations 
+            SELECT DISTINCT section as section_name, class_level, session as session_term 
+            FROM incharge_allocations 
             WHERE (
-                UPPER(TRIM(assigned_teacher_name)) = UPPER(TRIM(:tname)) 
-                OR UPPER(TRIM(assigned_teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
-                OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
+                UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
+                OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
+                OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(teacher_name)), '%')
             )
-            AND is_class_incharge = 'Yes'
             ORDER BY session_term DESC
         """, {"tname": clean_name})
         
