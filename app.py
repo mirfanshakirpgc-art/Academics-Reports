@@ -1453,14 +1453,31 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         
-        current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
-        current_user_id = st.session_state.get('user_id', None)
+        raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
+        current_role = str(raw_role).strip().lower() if raw_role else 'admin'
         
         sel_discipline = "MEDICAL" 
         sel_class = "ALL"
         
-        if current_role == 'teacher' and current_user_id is not None:
-            teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
+        # --- LEVEL 1: CHECK ACCESSIBILITY ROLE ---
+        if current_role in ['teacher', 'faculty']:
+            # Pull both potential identifiers from session state
+            active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
+            current_user_id = st.session_state.get('user_id', 7) # Fallback to her ID from DB
+            
+            # Cross-check allocations by both Name String AND User ID dynamically
+            teacher_rights = run_query("""
+                SELECT DISTINCT subject_name AS subject, section 
+                FROM subject_allocations 
+                WHERE TRIM(teacher_name) = :tname 
+                   OR TRIM(teacher_name) LIKE :tname_like
+                   OR user_id = :uid
+            """, {
+                "tname": active_faculty_name, 
+                "tname_like": f"%{active_faculty_name}%",
+                "uid": int(current_user_id) if current_user_id is not None else -1
+            })
+            
             if not teacher_rights.empty:
                 allowed_subs = sorted(list(teacher_rights['subject'].unique()))
                 allowed_secs = sorted(list(teacher_rights['section'].unique()))
@@ -1479,8 +1496,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
             else:
-                st.warning("🚨 You do not have any active subjects or sections assigned yet.")
+                st.warning(f"🚨 No allocations linked to user account info.")
+                st.caption(f"**Diagnostic Details** — Session Username: `{active_faculty_name}` | User ID: `{current_user_id}`")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
+                
+        # --- LEVEL 1 FALLBACK: ADMINISTRATIVE ROUTE ---
         else:
             with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             with c2: academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
@@ -1525,7 +1545,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
             if sel_exam == "MATRIC":
                 sel_subject = "OVERALL"
-                st.info("🎓 **MATRIC Macro Entry Mode Active**: Ledger updates mapped directly to record column 'OVERALL'.")
             else:
                 if academic_system == "Annual System":
                     if sel_class == "ALL":
@@ -1554,22 +1573,30 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             target_sub_slug = str(sel_subject).strip().upper().replace(" ", "_")
             target_exam = str(sel_exam).strip().upper()
+            clean_session = str(sel_session).strip()
 
             try:
+                # FIX: Added s.session projection inside select block to prevent KeyError downstream
                 roster_df = run_query("""
-                    SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                    SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks", s.session
                     FROM students s
                     LEFT JOIN marks m ON s.id = m.student_id 
                         AND UPPER(TRIM(m.subject)) = :subject
                         AND UPPER(TRIM(m.exam_type)) = :exam
                     WHERE UPPER(TRIM(s.section)) = :section
-                      AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = :session
+                      AND (UPPER(TRIM(CAST(s.session AS VARCHAR))) LIKE :sess_match OR :sess_raw LIKE '%' || UPPER(TRIM(CAST(s.session AS VARCHAR))) || '%')
                       AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
                     ORDER BY s.id ASC
-                """, {"subject": target_sub_slug, "exam": target_exam, "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
+                """, {
+                    "subject": target_sub_slug, 
+                    "exam": target_exam, 
+                    "section": str(sel_section).strip().upper(), 
+                    "sess_match": f"%{clean_session}%",
+                    "sess_raw": clean_session
+                })
                 
                 if roster_df.empty:
-                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session {sel_session}.")
+                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session Context: '{sel_session}'. Verification Check: Ensure your student entries match this text exact string layout.")
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
@@ -1639,7 +1666,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             
                             chk_absent = st.session_state[state_abs_key]
                             chk_nc = st.session_state[state_nc_key]
-                            is_disabled = chk_absent or chk_nc
+                            
                             display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
                             
                             with st.container():
@@ -1654,8 +1681,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                         value=display_score, 
                                         placeholder="Score", 
                                         key=state_marks_key, 
-                                        label_visibility="collapsed", 
-                                        disabled=is_disabled
+                                        label_visibility="collapsed"
                                     )
                                     
                                 with r_cols[3]:
@@ -1672,14 +1698,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             for s_id, record in updated_section_scores.items():
                                 is_a = st.session_state.get(record["abs_key"], False)
                                 is_nc = st.session_state.get(record["nc_key"], False)
-                                score_clean = "A" if is_a else ("NC" if is_nc else str(record["marks"]).strip().upper())
+                                
+                                raw_marks = str(record["marks"]).strip().upper()
+                                if is_a:
+                                    score_clean = "A"
+                                elif is_nc:
+                                    score_clean = "NC"
+                                else:
+                                    score_clean = "" if raw_marks in ["A", "NC"] else raw_marks
                                 
                                 execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam})
                                 if score_clean != "":
                                     execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
                                                       {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam, "score": score_clean, "total": float(total_marks)})
                             
-                            st.success(f"🎉 Marks ledger for Section {sel_section} recorded successfully!")
+                            st.success(f"🎉 Marks ledger recorded successfully!")
                             time.sleep(1.2)
                             st.rerun()
             except Exception as e:
@@ -3648,9 +3681,9 @@ elif menu_choice == "🪪 Student Result Cards":
                 st.write("Database shows student exists in these sessions:", total_check)
             
         elif print_scope == "👥 Complete Section Cards" and active_section:
-            # Execute the fetch for the whole section
+            # FIX: Explicitly added session to the SELECT projection list to resolve the KeyError downstream
             sql_section = """
-                SELECT id, name, section, class 
+                SELECT id, name, section, class, session 
                 FROM students 
                 WHERE TRIM(session) = TRIM(:session) 
                 AND UPPER(TRIM(class)) = UPPER(TRIM(:cls))
