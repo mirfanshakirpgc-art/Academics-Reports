@@ -104,6 +104,19 @@ def initialize_database():
                 UNIQUE(session_term, class_level, section_name, subject_title)
             );
         """))
+
+        # FIXED: Removed SQLite AUTOINCREMENT syntax, correctly implemented PostgreSQL SERIAL primary key
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS subject_allocations (
+                id SERIAL PRIMARY KEY,
+                teacher_id INTEGER,
+                teacher_name TEXT,
+                class_level TEXT,
+                discipline TEXT,
+                subject_name TEXT,
+                section TEXT
+            );
+        """))
         
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS marks (
