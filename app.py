@@ -1461,14 +1461,22 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         
         # --- LEVEL 1: CHECK ACCESSIBILITY ROLE ---
         if current_role in ['teacher', 'faculty']:
-            active_faculty_name = st.session_state.get('username', 'Ms. Nazia Karamat').strip()
+            # Pull both potential identifiers from session state
+            active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
+            current_user_id = st.session_state.get('user_id', 7) # Fallback to her ID from DB
             
+            # Cross-check allocations by both Name String AND User ID dynamically
             teacher_rights = run_query("""
                 SELECT DISTINCT subject_name AS subject, section 
                 FROM subject_allocations 
                 WHERE TRIM(teacher_name) = :tname 
                    OR TRIM(teacher_name) LIKE :tname_like
-            """, {"tname": active_faculty_name, "tname_like": f"%{active_faculty_name}%"})
+                   OR user_id = :uid
+            """, {
+                "tname": active_faculty_name, 
+                "tname_like": f"%{active_faculty_name}%",
+                "uid": int(current_user_id) if current_user_id is not None else -1
+            })
             
             if not teacher_rights.empty:
                 allowed_subs = sorted(list(teacher_rights['subject'].unique()))
@@ -1488,7 +1496,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 else:
                     sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
             else:
-                st.warning("🚨 You do not have any active subjects or sections assigned yet in the system files.")
+                # Diagnostic printing to trace what the app sees during fallback
+                st.warning(f"🚨 No allocations linked to user account info.")
+                st.caption(f"**Diagnostic Details** — Session Username: `{active_faculty_name}` | User ID: `{current_user_id}`")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
                 
         # --- LEVEL 1 FALLBACK: ADMINISTRATIVE ROUTE (LINE 1498 FIX) ---
