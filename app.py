@@ -3626,24 +3626,40 @@ elif menu_choice == "🪪 Student Result Cards":
                 "cls": normalized_class_input,
                 "sec": active_section.strip()
             })
-    # --- 1. PERFORMANCE DATA FETCH ---
-        # Instead of guessing the table name, fetch from the universal 'marks' table
+    # --- 1. PERFORMANCE DATA FETCH (TEACHER ALLOCATED SCOPE ONLY) ---
         if 'marks_df' not in locals() or marks_df.empty:
             try:
-                # Optimized: Fetching by session is safer than dynamic table names
+                # Dynamically fetch records bound only to Ms. Nazia's classes & subjects
                 marks_df = run_query("""
                     SELECT m.student_id, m.subject, m.marks_obtained, m.total_marks, m.exam_type 
                     FROM marks m
                     JOIN students s ON m.student_id = s.id
                     WHERE s.session = :sess
+                      AND UPPER(TRIM(s.section)) IN ('IB', 'IG', 'IQ')
+                      AND UPPER(TRIM(m.subject)) IN ('PRINCIPLES OF COMMERCE', 'PRINCIPLES OF ECONOMICS')
                 """, {"sess": selected_session})
                 
                 if not marks_df.empty:
                     marks_df.columns = [c.lower() for c in marks_df.columns]
+                    
+                    # --- DYNAMIC KPI METRICS CALCULATOR ---
+                    # 1. Total Allotted Students (Distinct count across her sections)
+                    allocated_students_count = marks_df['student_id'].nunique()
+                    
+                    # 2. Overall Pass Rate Calculation (Filtered numeric scores >= 40%)
+                    numeric_marks = marks_df[marks_df['marks_obtained'].astype(str).str.replace('.', '', 1).isdigit()].copy()
+                    if not numeric_marks.empty:
+                        numeric_marks['marks_obtained'] = numeric_marks['marks_obtained'].astype(float)
+                        numeric_marks['total_marks'] = numeric_marks['total_marks'].astype(float)
+                        
+                        passed_records = numeric_marks[numeric_marks['marks_obtained'] >= (numeric_marks['total_marks'] * 0.4)]
+                        teacher_pass_rate = (len(passed_records) / len(numeric_marks)) * 100
+                    else:
+                        teacher_pass_rate = 0.0
+                        
             except Exception as e:
-                st.warning(f"Performance data fetch skipped: {e}")
+                st.warning(f"Teacher performance data fetch skipped: {e}")
                 marks_df = pd.DataFrame()
-
         # --- 2. ATTENDANCE DATA FETCH ---
         # Fixed: Query the table you actually use for entries (daily_attendance)
         if 'logs_df' not in locals() or logs_df.empty:
