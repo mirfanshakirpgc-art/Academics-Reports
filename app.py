@@ -481,104 +481,108 @@ if user_role in ["Teacher", "Faculty"]:
     # ------------------------------------------------------------------------------
 # 🎴 VIEW COMPONENT RENDERING LAYER
 # ------------------------------------------------------------------------------
-# Fallback variable safety initialization layer to prevent NameErrors
-if 'username_current' not in locals() and 'username_current' not in globals():
-    username_current = st.session_state.get("username", "Faculty Member")
+if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
+    # Fallback variable safety initialization layer to prevent NameErrors
+    if 'username_current' not in locals() and 'username_current' not in globals():
+        username_current = st.session_state.get("username", "Faculty Member")
 
-if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
-    try:
-        incharge_check = run_query("""
-            SELECT section_name, class_level FROM academic_allocations 
-            WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
-              AND is_class_incharge = 'Yes' LIMIT 1
-        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
-        is_class_incharge = not incharge_check.empty
-        db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section_name'].iloc[0]}" if is_class_incharge else ""
-    except Exception:
-        is_class_incharge = False
-        db_class_scope = ""
+    if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
+        try:
+            incharge_check = run_query("""
+                SELECT section_name, class_level FROM academic_allocations 
+                WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
+                  AND is_class_incharge = 'Yes' LIMIT 1
+            """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+            is_class_incharge = not incharge_check.empty
+            db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section_name'].iloc[0]}" if is_class_incharge else ""
+        except Exception:
+            is_class_incharge = False
+            db_class_scope = ""
 
-if 'student_count' not in locals() and 'student_count' not in globals():
-    try:
-        # Pulling count based on matching sections allocated to this teacher name
-        student_data = run_query("""
-            SELECT COUNT(DISTINCT s.id) as total_count 
-            FROM students s
-            WHERE s.section IN (
-                SELECT DISTINCT section FROM subject_allocations 
-                WHERE teacher_name = :tname OR teacher_name LIKE :tname_like
-            )
-        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
-        student_count = int(student_data['total_count'].iloc[0]) if not student_data.empty else 0
-    except Exception:
-        student_count = 0
+    if 'student_count' not in locals() and 'student_count' not in globals():
+        try:
+            student_data = run_query("""
+                SELECT COUNT(DISTINCT s.id) as total_count 
+                FROM students s
+                WHERE s.section IN (
+                    SELECT DISTINCT section FROM subject_allocations 
+                    WHERE teacher_name = :tname OR teacher_name LIKE :tname_like
+                )
+            """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+            student_count = int(student_data['total_count'].iloc[0]) if not student_data.empty else 0
+        except Exception:
+            student_count = 0
 
-if 'overall_pass_rate' not in locals() and 'overall_pass_rate' not in globals():
-    overall_pass_rate = 0.0
+    if 'overall_pass_rate' not in locals() and 'overall_pass_rate' not in globals():
+        overall_pass_rate = 0.0
 
-if 'class_attendance_avg' not in locals() and 'class_attendance_avg' not in globals():
-    class_attendance_avg = None
+    if 'class_attendance_avg' not in locals() and 'class_attendance_avg' not in globals():
+        class_attendance_avg = None
 
+    # --- FACULTY VISUAL INTERFACE ---
+    st.markdown(f"## 🏫 Welcome, {username_current}")
+    st.markdown("Here is your academic overview performance log data for today.")
 
-st.markdown(f"## 🏫 Welcome, {username_current}")
-st.markdown("Here is your academic overview performance log data for today.")
+    if is_class_incharge and class_attendance_avg is not None:
+        metric_col1, metric_col2, metric_col3 = st.columns(3)
+    else:
+        metric_col1, metric_col2 = st.columns(2)
+        metric_col3 = None
 
-if is_class_incharge and class_attendance_avg is not None:
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
-else:
-    metric_col1, metric_col2 = st.columns(2)
-    metric_col3 = None
-
-with metric_col1:
-    st.metric(label="👥 Total Students Allotted", value=f"{student_count} Students")
-    
-with metric_col2:
-    st.metric(label="📈 Overall Subject Result Pass Rate", value=f"{overall_pass_rate:.1f}%")
-
-if metric_col3:
-    with metric_col3:
-        st.metric(label=f"📅 Class Incharge Attendance ({db_class_scope})", value=f"{class_attendance_avg:.1f}%")
+    with metric_col1:
+        st.metric(label="👥 Total Students Allotted", value=f"{student_count} Students")
         
-st.markdown("---")
+    with metric_col2:
+        st.metric(label="📈 Overall Subject Result Pass Rate", value=f"{overall_pass_rate:.1f}%")
 
-# ------------------------------------------------------------------------------
-# 📊 ISOLATED INSTRUCTOR ALLOCATION DETAILS (TEACHING VS INCHARGE)
-# ------------------------------------------------------------------------------
-col_taught, col_incharge = st.columns(2)
+    if metric_col3:
+        with metric_col3:
+            st.metric(label=f"📅 Class Incharge Attendance ({db_class_scope})", value=f"{class_attendance_avg:.1f}%")
+            
+    st.markdown("---")
 
-with col_taught:
-    st.markdown("### 📚 Assigned Teaching Sections")
-    
-    taught_df = run_query("""
-        SELECT DISTINCT subject_name, section, class_level 
-        FROM subject_allocations 
-        WHERE teacher_name = :tname 
-           OR teacher_name LIKE :tname_like
-    """, {"tname": username_current, "tname_like": f"%{username_current}%"})
-    
-    if not taught_df.empty:
-        for _, row in taught_df.iterrows():
-            st.info(f"📖 **{row['subject_name']}** — Section: `{row['section']}` ({row['class_level']})")
-    else:
-        st.caption("No standard subject teaching allocations assigned to your account.")
+    # --- ISOLATED INSTRUCTOR ALLOCATION DETAILS ---
+    col_taught, col_incharge = st.columns(2)
 
-with col_incharge:
-    st.markdown("### 👑 Class Incharge Assignments")
-    
-    incharge_df = run_query("""
-        SELECT DISTINCT section_name, class_level, session_term 
-        FROM academic_allocations 
-        WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
-          AND is_class_incharge = 'Yes'
-    """, {"tname": username_current, "tname_like": f"%{username_current}%"})
-    
-    if not incharge_df.empty:
-        for _, row in incharge_df.iterrows():
-            st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
-    else:
-        st.caption("You are currently not designated as an Incharge for any class section.")
+    with col_taught:
+        st.markdown("### 📚 Assigned Teaching Sections")
+        
+        taught_df = run_query("""
+            SELECT DISTINCT subject_name, section, class_level 
+            FROM subject_allocations 
+            WHERE teacher_name = :tname 
+               OR teacher_name LIKE :tname_like
+        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+        
+        if not taught_df.empty:
+            for _, row in taught_df.iterrows():
+                st.info(f"📖 **{row['subject_name']}** — Section: `{row['section']}` ({row['class_level']})")
+        else:
+            st.caption("No standard subject teaching allocations assigned to your account.")
 
-st.markdown("---")
+    with col_incharge:
+        st.markdown("### 👑 Class Incharge Assignments")
+        
+        incharge_df = run_query("""
+            SELECT DISTINCT section_name, class_level, session_term 
+            FROM academic_allocations 
+            WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
+              AND is_class_incharge = 'Yes'
+        """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+        
+        if not incharge_df.empty:
+            for _, row in incharge_df.iterrows():
+                st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
+        else:
+            st.caption("You are currently not designated as an Incharge for any class section.")
+
+    st.markdown("---")
+
+else:
+    # --- ADMIN OR CONTROLLER VISUAL INTERFACE CORNER ---
+    st.markdown(f"## 🛠️ Admin Control Center")
+    st.markdown(f"Welcome back, **{st.session_state.get('username', 'Admin')}**. Access global metrics and settings modules from the sidebar menu.")
+    st.markdown("---")
 
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
