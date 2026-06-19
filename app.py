@@ -1495,7 +1495,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
         else:
             # --- LEAVE ADMIN / CONTROLLER INTERFACE BELOW UNTOUCHED ---
-        else:
+            else:
             with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             with c2: academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
             with c3:
