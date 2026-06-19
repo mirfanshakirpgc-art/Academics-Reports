@@ -2099,41 +2099,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
 
-# Ensure menu_choice exists in state and cleanly sanitize the target variable
-current_menu = st.session_state.get("menu_choice", "")
-if not current_menu and 'menu_choice' in globals():
-    current_menu = menu_choice
-
-# 🛠️ FAILS-SAFE INTERCEPT ROUTER: Catch any variation of the Attendance string
-if any(phrase in str(current_menu) for phrase in ["Marks Attendance", "Attendance Entry Management", "📅 Marks Attendance"]):
+if "Attendance Entry Management" in menu_choice:
     import datetime  
     import pandas as pd
     from sqlalchemy import text
     
     st.title("🗓️ Attendance Entry Management Panel")
     
-    # --------------------------------------------------------------------------
-    # 👤 DEFINE ROLE AND INCHARGE PROPERTIES
-    # --------------------------------------------------------------------------
-    current_role = st.session_state.get("user_role", "Faculty")
-    is_teacher_flow = current_role in ["Teacher", "Faculty"]
-    
-    # Force teacher flow active fallback to prevent page blanking out 
-    teacher_is_incharge = True 
-    
-    # Parse scope gracefully (Defaulting to the assignment seen in image_2d72ff.png)
-    teacher_scope = st.session_state.get("db_class_scope", "IG (11th)")
-    
-    # Backup dictionary scan to scrape any hidden session context mapping variables
-    for key_name in list(st.session_state.keys()):
-        if any(token in key_name.lower() for token in ["scope", "incharge", "section"]):
-            state_val = str(st.session_state[key_name])
-            if "(" in state_val or "-" in state_val:
-                teacher_scope = state_val
-
-    # --------------------------------------------------------------------------
-    # 🎛️ CONTROLS LAYER
-    # --------------------------------------------------------------------------
     att_sub_type = st.segmented_control(
         "Select Attendance Interval Mode:",
         ["📅 Daily Attendance Entry", "👤 By Single Student Roll Number"],
@@ -2142,28 +2114,16 @@ if any(phrase in str(current_menu) for phrase in ["Marks Attendance", "Attendanc
     )
     st.markdown("###")
 
+    # 🚀 CLEAN STATE INTEGRATION: Read strictly from settings to prevent duplicates
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-    # Match the active 2025-27 session context seen on Ms. Nazia's card
-    active_session = "2025-27" if "2025-27" in session_options else session_options[0]
+    active_session = st.session_state.get("current_session", "2026-28")
+    
+    # Force the selector index to point right to your active session choice
     default_index = session_options.index(active_session) if active_session in session_options else 0
 
-    # 🔬 CLEANLY EXTRACT CLASS AND SECTION FROM "IG (11th)" OR "11th - IG"
-    forced_class = "11th"
-    forced_section = "IG"
-    
-    if teacher_scope:
-        ts_clean = str(teacher_scope).strip()
-        if "(" in ts_clean and ")" in ts_clean:
-            forced_section = ts_clean.split("(")[0].strip()
-            forced_class = ts_clean.split("(")[1].replace(")", "").strip()
-        elif " - " in ts_clean:
-            parts = ts_clean.split(" - ")
-            forced_class = parts[0].strip()
-            forced_section = parts[1].strip()
-
-    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
-    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     if att_sub_type == "📅 Daily Attendance Entry":
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
@@ -2173,15 +2133,32 @@ if any(phrase in str(current_menu) for phrase in ["Marks Attendance", "Attendanc
             sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
             
         with d2:
-            sys_default_idx = 0
-            academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], index=sys_default_idx, key="att_sys_type")
+            academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
             
         with d3:
-            class_options = [forced_class] if (is_teacher_flow and forced_class) else ["11th", "12th"]
-            sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
+            if academic_system == "Annual System":
+                class_options = ["11th", "12th"]
+                sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
+            else:
+                class_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
+                sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
                 
         with d4:
-            section_options = [forced_section] if (is_teacher_flow and forced_section) else ["IG", "IB", "FB", "FG", "MG_BLUE"]
+            section_options = []
+            if academic_system == "Annual System":
+                try:
+                    for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                        sections_list = class_map.get(sel_class, [])
+                        section_options.extend(sections_list)
+                    section_options = sorted(list(set(section_options)))
+                except NameError:
+                    if sel_class == "11th":
+                        section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
+                    else:
+                        section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
+            else:
+                section_options = ["DIT_B", "DIT_G"]
+                
             sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
 
         row_date_1, _ = st.columns([1.5, 2.5])
@@ -2189,7 +2166,6 @@ if any(phrase in str(current_menu) for phrase in ["Marks Attendance", "Attendanc
             target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
-            # Roster execution wrapper using standardized case-insensitive matches
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
@@ -2269,12 +2245,13 @@ if any(phrase in str(current_menu) for phrase in ["Marks Attendance", "Attendanc
                             import time
                             time.sleep(1.2)
                             st.rerun()
-                        except Exception as e:
-                            st.error(f"Error writing to database: {e}")
 
-    # --------------------------------------------------------------------------
-    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER
-    # --------------------------------------------------------------------------
+                        except Exception as e:
+                            st.error(f"Error encountered during standard write cycle: {e}")
+
+    # --------------------------------------------------------------------------------
+    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE MANAGER (DYNAMIC LIVE AGGREGATES)
+    # --------------------------------------------------------------------------------
     elif att_sub_type == "👤 By Single Student Roll Number":
         st.subheader("👤 Single Student Attendance Record Manager")
         st.markdown("---")
@@ -2283,65 +2260,111 @@ if any(phrase in str(current_menu) for phrase in ["Marks Attendance", "Attendanc
         with sc1:
             s_session_sel = st.selectbox("Select Session Context:", session_options, index=default_index, key="single_att_sess_filter")
         with sc2:
-            s_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], index=0, key="single_att_sys_filter")
+            s_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="single_att_sys_filter")
         with sc3:
-            class_opts = [forced_class] if (is_teacher_flow and forced_class) else ["11th", "12th", "ALL"]
-            s_class_sel = st.selectbox("Select Class Level:", class_opts, key="single_att_class_filter")
+            if s_system == "Annual System":
+                s_class_sel = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="single_att_class_filter")
+            else:
+                s_class_sel = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_att_filter_sem")
 
         col_search, _ = st.columns([2, 2])
         with col_search:
             single_id = st.text_input("🔍 Search Student Roll Number / ID:", key="single_att_id_input")
             
         if single_id and single_id.isdigit():
-            query_conds = {"id": int(single_id), "sess": str(s_session_sel).strip()}
-            base_sql = "SELECT name, section, session, class FROM students WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))"
+            query_conds = {
+                "id": int(single_id), 
+                "sess": str(s_session_sel).strip()
+            }
+            
+            base_sql = """
+                SELECT name, section, session, class FROM students 
+                WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))
+            """
             
             if s_class_sel != "ALL":
                 base_sql += " AND UPPER(TRIM(class)) = :cls"
                 query_conds["cls"] = str(s_class_sel).strip().upper()
-            
-            if is_teacher_flow and forced_section:
-                base_sql += " AND UPPER(TRIM(section)) = :forced_sec"
-                query_conds["forced_sec"] = forced_section.upper().strip()
                 
             student_info = run_query(base_sql, query_conds)
             
             if student_info.empty:
-                st.error(f"❌ Student profile with Roll Number '{single_id}' not found under your class bounds.")
+                st.error(f"❌ Roll number '{single_id}' not found matching Session ({s_session_sel}) and Class Level ({s_class_sel}).")
             else:
                 s_name = student_info['name'].iloc[0].upper()
                 s_section = student_info['section'].iloc[0].upper().strip()
                 s_session = student_info['session'].iloc[0]
                 s_class = student_info['class'].iloc[0]
                 
-                st.info(f"👤 **Student:** {s_name} | **Class:** {s_class} | **Section:** {s_section}")
+                st.info(f"👤 **Student Profile:** {s_name}  |  **Class/Sem:** {s_class}  |  **Section:** {s_section}  |  **Session:** {s_session}")
                 
+                st.markdown("##### 📅 Log Single Day Entry")
                 ca1, ca2, ca3 = st.columns([2, 1.5, 1.5])
                 with ca1:
                     att_date = st.date_input("Target Date:", value=datetime.date.today(), key="single_att_date_pick")
                 with ca2:
-                    existing_status = run_query("SELECT status FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt", {"id": int(single_id), "dt": str(att_date)})
+                    existing_status = run_query("""
+                        SELECT status FROM daily_attendance WHERE student_id = :id AND attendance_date = :dt
+                    """, {"id": int(single_id), "dt": str(att_date)})
+                    
                     default_idx = 0
                     if not existing_status.empty:
-                        default_idx = 0 if str(existing_status['status'].iloc[0]).strip().upper() in ["P", "PRESENT"] else 1
+                        clean_status = str(existing_status['status'].iloc[0]).strip().upper()
+                        default_idx = 0 if clean_status in ["P", "PRESENT"] else 1
+                        
                     status_choice = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="single_att_status_pick")
                 
                 with ca3:
                     st.markdown("##") 
                     if st.button("💾 Log Entry", type="primary", use_container_width=True, key="execute_single_att_save"):
                         final_status_code = "P" if "Present" in status_choice else "A"
+                        
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     INSERT INTO daily_attendance (student_id, attendance_date, status) 
                                     VALUES (:id, :dt, :st)
-                                    ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
+                                    ON CONFLICT (student_id, attendance_date) 
+                                    DO UPDATE SET status = EXCLUDED.status
                                 """), {"id": int(single_id), "dt": str(att_date), "st": final_status_code})
-                            st.success(f"🎉 Saved successfully for {s_name}!")
+                                
+                            st.success(f"🎉 Attendance log saved successfully for {s_name}!")
+                            import time
                             time.sleep(1.2)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error: {e}")
+                            st.error(f"Error encountered updating record profile: {e}")
+                        
+                st.markdown("---")
+                st.markdown("##### 📊 Dynamically Compiled Monthly Summary (From Daily Logs)")
+                
+                raw_logs = run_query("""
+                    SELECT attendance_date, status FROM daily_attendance WHERE student_id = :id
+                """, {"id": int(single_id)})
+                
+                if raw_logs.empty:
+                    st.caption("ℹ️ No active daily logs found to compute monthly values yet.")
+                else:
+                    raw_logs['attendance_date'] = pd.to_datetime(raw_logs['attendance_date'], errors='coerce')
+                    raw_logs = raw_logs.dropna(subset=['attendance_date'])
+                    
+                    raw_logs['Month'] = raw_logs['attendance_date'].dt.strftime('%B')
+                    raw_logs['Month_Num'] = raw_logs['attendance_date'].dt.month
+                    raw_logs['Is_Present'] = raw_logs['status'].astype(str).str.strip().str.upper().isin(['P', 'PRESENT', '1'])
+                    
+                    summary_df = raw_logs.groupby(['Month_Num', 'Month']).agg(
+                        Present_Days=('Is_Present', 'sum'),
+                        Total_Days=('status', 'count')
+                    ).reset_index()
+                    
+                    summary_df = summary_df.sort_values(by='Month_Num', ascending=False)
+                    
+                    history_df = summary_df[['Month', 'Present_Days', 'Total_Days']].rename(columns={
+                        "Present_Days": "Present Days",
+                        "Total_Days": "Total Days"
+                    })
+                    
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
 # ====================================================================================
 # MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE ROSTER ENGINE)
 # ====================================================================================
