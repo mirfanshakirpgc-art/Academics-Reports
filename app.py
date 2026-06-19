@@ -3660,19 +3660,22 @@ elif menu_choice == "🪪 Student Result Cards":
             except Exception as e:
                 st.warning(f"Teacher performance data fetch skipped: {e}")
                 marks_df = pd.DataFrame()
-        # --- 2. ATTENDANCE DATA FETCH ---
-        # Fixed: Query the table you actually use for entries (daily_attendance)
+        # --- 2. ATTENDANCE DATA FETCH (TEACHER ALLOCATED SCOPE ONLY) ---
         if 'logs_df' not in locals() or logs_df.empty:
             try:
+                # Optimized: Filter logs down to her sections and the active session
                 logs_df = run_query("""
-                    SELECT student_id, attendance_date, status as att_status 
-                    FROM daily_attendance
-                """, {})
+                    SELECT d.student_id, d.attendance_date, d.status as att_status 
+                    FROM daily_attendance d
+                    JOIN students s ON d.student_id = s.id
+                    WHERE s.session = :sess
+                      AND UPPER(TRIM(s.section)) IN ('IB', 'IG', 'IQ')
+                """, {"sess": selected_session})
                 
                 if not logs_df.empty:
                     logs_df.columns = [c.lower() for c in logs_df.columns]
             except Exception as e:
-                st.warning(f"Attendance data fetch skipped: {e}")
+                st.warning(f"Teacher attendance data fetch skipped: {e}")
                 logs_df = pd.DataFrame()
         # --------------------------------------------------------------------------
         # MODULE A: CARD VIEW BOILERPLATE, MEDIA STYLES & INTERACTION INTERFACES
