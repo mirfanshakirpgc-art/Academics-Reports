@@ -327,9 +327,9 @@ can_manage_settings = st.session_state.can_manage_settings
 can_manage_faculty = st.session_state.can_manage_faculty
 can_edit_marks = st.session_state.can_edit_marks
 
-# Extract Class Incharge flag configurations on demand
-db_class_scope = st.session_state.get("assigned_class", None)
-is_class_incharge = bool(db_class_scope and str(db_class_scope).strip().lower() != "none")
+# --- FIXED: Now pulling perfectly from synchronized table calculations ---
+is_class_incharge = st.session_state.get("is_class_incharge", False)
+db_class_scope = st.session_state.get("db_class_scope", None)
 
 # ------------------------------------------------------------------------------
 # 🗺️ DYNAMIC MENU MAPPING ROUTER
@@ -337,8 +337,11 @@ is_class_incharge = bool(db_class_scope and str(db_class_scope).strip().lower() 
 if user_role in ["Teacher", "Faculty"]:
     # 🍎 SPECIALIZED TEACHER PORTAL SIDEBAR ROUTING
     allowed_menus = ["📝 Marks Entry"]
+    
+    # --- FIXED: Appends 'Marks Attendance' dynamically if teacher manages a section ---
     if is_class_incharge:
-        allowed_menus.append("📅 Attendance Marks")
+        allowed_menus.append("📅 Marks Attendance")
+        
     allowed_menus.extend(["❌ Absent Student Remarks", "📊 Result Analysis"])
 else:
     # 👑 INSTITUTION MANAGEMENT AND SYSTEM ADMIN ROUTING
