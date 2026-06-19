@@ -336,13 +336,7 @@ db_class_scope = st.session_state.get("db_class_scope", None)
 # ------------------------------------------------------------------------------
 if user_role in ["Teacher", "Faculty"]:
     # 🍎 SPECIALIZED TEACHER PORTAL SIDEBAR ROUTING
-    allowed_menus = ["📝 Marks Entry"]
-    
-    # Only expose attendance module if they are assigned as an active Class Incharge
-    if is_class_incharge:
-        allowed_menus.append("📅 Marks Attendance")
-        
-    allowed_menus.extend(["❌ Absent Student Remarks", "📊 Result Analysis"])
+    allowed_menus = ["📝 Marks Entry", "📅 Marks Attendance", "❌ Absent Student Remarks", "📊 Result Analysis"]
 else:
     # 👑 INSTITUTION MANAGEMENT AND SYSTEM ADMIN ROUTING
     allowed_menus = ["📊 Home Dashboard"]
@@ -354,7 +348,6 @@ else:
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
     
     allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
-
 # ------------------------------------------------------------------------------
 # 🎨 SIDEBAR VISUAL DESIGN & BRANDING RENDERING
 # ------------------------------------------------------------------------------
