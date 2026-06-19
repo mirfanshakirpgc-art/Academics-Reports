@@ -4137,28 +4137,25 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     tid = int(assigned_prof.split(" - ")[0])
                     tname = assigned_prof.split(" - ")[1]
                     
-                    # Ensure database schema persistence
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            CREATE TABLE IF NOT EXISTS subject_allocations (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                teacher_id INTEGER,
-                                teacher_name TEXT,
-                                class_level TEXT,
-                                discipline TEXT,
-                                subject_name TEXT,
-                                section TEXT
-                            )
-                        """))
-                        conn.execute(text("""
-                            INSERT INTO subject_allocations (teacher_id, teacher_name, class_level, discipline, subject_name, section)
-                            VALUES (:tid, :tname, :cls, :disc, :sub, :sec)
-                        """), {"tid": tid, "tname": tname, "cls": sel_class, "disc": sel_disc, "sub": target_sub, "sec": target_sec})
-                        
-                    st.success(f"🎉 Database payload optimized: **{tname}** assigned to **{target_sub}** inside Section **{target_sec}** ({sel_class}).")
-                except Exception as ex:
-                    st.error(f"Failed to persist allocation: {ex}")
-
+                   # Ensure database schema persistence
+with engine.begin() as conn:
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS subject_allocations (
+            id SERIAL PRIMARY KEY,
+            teacher_id INTEGER,
+            teacher_name TEXT,
+            class_level TEXT,
+            discipline TEXT,
+            subject_name TEXT,
+            section TEXT
+        )
+    """))
+    conn.execute(text("""
+        INSERT INTO subject_allocations (teacher_id, teacher_name, class_level, discipline, subject_name, section)
+        VALUES (:tid, :tname, :cls, :disc, :sub, :sec)
+    """), {"tid": tid, "tname": tname, "cls": sel_class, "disc": sel_disc, "sub": target_sub, "sec": target_sec})
+    
+st.success(f"🎉 Database payload optimized: **{tname}** assigned to **{target_sub}** inside Section **{target_sec}** ({sel_class}).")
     # ==============================================================================
     # SUB-MODULE 3: CLASS INCHARGE ALLOCATIONS
     # ==============================================================================
