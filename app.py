@@ -4274,7 +4274,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     tid = int(assigned_prof.split(" - ")[0])
                     tname = assigned_prof.split(" - ")[1]
                     
-                    # Ensure database schema persistence using PostgreSQL native types
+                    # Ensure database schema persistence using standard relational types
                     with engine.begin() as conn:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS subject_allocations (
@@ -4322,17 +4322,18 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 with c3:
                     ch_name = st.selectbox("Nominate Master Incharge Faculty:", faculty_select_list)
                     
-                apply_incharge = st.form_submit_button(" Live Link Class Incharge", type="primary", use_container_width=True)
+                apply_incharge = st.form_submit_button("👑 Live Link Class Incharge", type="primary", use_container_width=True)
                 
             if apply_incharge:
                 try:
                     tid = int(ch_name.split(" - ")[0])
                     tname = ch_name.split(" - ")[1]
                     
+                    # FIXED: Using standard SERIAL PRIMARY KEY definition instead of erroneous AUTOINCREMENT
                     with engine.begin() as conn:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS incharge_allocations (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                id SERIAL PRIMARY KEY,
                                 teacher_id INTEGER,
                                 teacher_name TEXT,
                                 discipline TEXT,
@@ -4371,17 +4372,44 @@ if menu_choice == "👨‍🏫 Teacher Management":
         
         st.info(f"📋 Verified Access: Modification path active for course **{p_sub}** in section **{sel_p_sec}**.")
         
-        portal_students = {
-            "Roll No": ["2026-001", "2026-002", "2026-003", "2026-004", "2026-005"],
-            "Student Name": ["Muhammad Rafay", "Ayesha Siddiqua", "Zain Shah", "Esha Fatima", "Bilal Ghafoor"],
-            "Obtained Marks": [0.0, 0.0, 0.0, 0.0, 0.0],
-            "Total Scope Limit": [100.0, 100.0, 100.0, 100.0, 100.0]
-        }
-        portal_df = pd.DataFrame(portal_students)
-        edited_portal_df = st.data_editor(portal_df, use_container_width=True, hide_index=True)
-        
-        if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
-            st.success("Ledger entry frozen. Grade configurations successfully exported into the analytical data schema stream!")
+        # FIXED: Dynamic Student Retrieval via Selected Filters Instead of Fixed Placeholders
+        try:
+            live_students_df = run_query("""
+                SELECT id AS "Roll No", name AS "Student Name" 
+                FROM students 
+                WHERE UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+                  AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
+                ORDER BY id ASC
+            """, {"cls": p_class.strip(), "sec": sel_p_sec.strip()})
+        except Exception as query_err:
+            live_students_df = pd.DataFrame()
+            
+        if not live_students_df.empty:
+            # Inject score management columns into data ledger view
+            live_students_df["Obtained Marks"] = 0.0
+            live_students_df["Total Scope Limit"] = 100.0
+            
+            edited_portal_df = st.data_editor(live_students_df, use_container_width=True, hide_index=True)
+            
+            if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
+                # Process data grid entry rows iteratively for saving payload
+                try:
+                    with engine.begin() as conn:
+                        for _, row in edited_portal_df.iterrows():
+                            conn.execute(text("""
+                                INSERT INTO marks (student_id, subject, marks_obtained, total_marks, exam_type)
+                                VALUES (:sid, :subject, :obtained, :total, 'Terminal Exam')
+                            """), {
+                                "sid": row["Roll No"],
+                                "subject": p_sub,
+                                "obtained": float(row["Obtained Marks"]),
+                                "total": float(row["Total Scope Limit"])
+                            })
+                    st.success("🎉 Marks ledger frozen and successfully synced to system analysis engines!")
+                except Exception as write_err:
+                    st.error(f"Failed to submit scores into ledger: {write_err}")
+        else:
+            st.warning(f"No student matching profiles found allocated to Class: '{p_class}' | Section: '{sel_p_sec}'.")
 
     # ==============================================================================
     # SUB-MODULE 5: TEACHER ANALYSIS
