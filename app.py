@@ -629,7 +629,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
 
         if sel_section and sel_session:
-            roster_df = run_query("SELECT s.id AS \"ID\", s.name AS \"Student Name\", d.status AS \"SavedStatus\" FROM students s LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)) AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT')) ORDER BY s.id ASC", {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
+            roster_df = run_query('SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus" FROM students s LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)) AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN (\'LEFT\', \'INACTIVE\', \'DROPOUT\')) ORDER BY s.id ASC', {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
             if not roster_df.empty:
                 master_toggle = st.checkbox("🟢 Check All", value=True, key="adm_master_toggle")
                 with st.form("adm_daily_form"):
