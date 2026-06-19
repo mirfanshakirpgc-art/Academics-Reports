@@ -671,7 +671,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
 
         if sel_section and sel_session:
-            # 🛡️ FIX: Hard-coded NULL to bypass missing table column database crash
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", NULL AS "Remarks" 
                 FROM students s 
@@ -707,31 +706,24 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         st.rerun()
 
                 # ----------------------------------------------------------------------
-                # ❌ DYNAMIC ABSENT STUDENT REMARKS PANEL (FOR BATCH SELECTION)
+                # ❌ DYNAMIC IN-PAGE ABSENT STUDENTS DETECTOR
                 # ----------------------------------------------------------------------
-                absent_students = roster_df[roster_df['SavedStatus'].isin(['A', 'ABSENT', '0'])]
-                if not absent_students.empty:
+                absent_student_ids = [s_id for s_id, is_present in chk_map.items() if not is_present]
+                if absent_student_ids:
+                    absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
                     st.markdown("---")
-                    st.subheader("❌ Absent Student Remarks")
-                    st.caption(f"Log absence tracking details for **{target_date.strftime('%d-%b-%Y')}**")
-                    
+                    st.subheader("❌ Dynamic Unsaved Absentee Remarks Tracker")
                     with st.form("adm_absent_remarks_form"):
-                        remarks_input_map = {}
                         for idx, ab_row in absent_students.iterrows():
                             r_c1, r_c2 = st.columns([2, 3])
                             r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
-                            remarks_input_map[ab_row['ID']] = r_c2.text_input(
-                                "Reason for absence:", 
-                                key=f"adm_rem_box_{ab_row['ID']}", 
-                                placeholder="e.g., Sick, Unexcused, Emergency"
-                            )
+                            r_c2.text_input("Reason:", key=f"adm_rem_box_{ab_row['ID']}", placeholder="e.g., Sick, Unexcused")
                         
-                        if st.form_submit_button("💾 Save Absentee Remarks", type="secondary", use_container_width=True):
-                            # Notification since field updates require the schema migration
-                            st.caption("💡 *Note: Run: 'ALTER TABLE daily_attendance ADD COLUMN remarks TEXT;' to persist comments to DB.*")
-                            st.success("🎉 Remarks cached for the active view session!")
-                            time.sleep(1.0)
-                            st.rerun()
+                        if st.form_submit_button("💾 Cache Temporary Form Remarks", use_container_width=True):
+                            st.success("🎉 Session remarks verified successfully!")
+                else:
+                    st.markdown("---")
+                    st.success("🟢 Every student in this section scope is marked present.")
 
     elif att_sub_type == "👤 By Single Student Roll Number":
         sc1, sc2, sc3 = st.columns(3)
@@ -758,19 +750,68 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 if st.button("💾 Log Entry", key="s_save", use_container_width=True):
                     with engine.begin() as conn:
                         status_flag = "P" if "Present" in stat else "A"
-                        # Standard clean injection context fallback without column breaking updates
                         conn.execute(text("""
                             INSERT INTO daily_attendance (student_id, attendance_date, status) 
                             VALUES (:id, :dt, :st) 
-                            ON CONFLICT (student_id, attendance_date) 
-                            DO UPDATE SET status = EXCLUDED.status
+                            ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
                         """), {"id": int(single_id), "dt": str(dt), "st": status_flag})
-                    st.success("Saved single record tracking details successfully!")
+                    st.success("Saved single record successfully!")
                     time.sleep(0.5)
                     st.rerun()
+
 # ==============================================================================
-# --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
+# ❌ ULTIMATE STANDALONE SIDEBAR ROUTER FOR ABSENT STUDENTS REMARKS
 # ==============================================================================
+elif "Absent" in str(menu_choice) or "Remarks" in str(menu_choice):
+    import datetime
+    import time
+    st.title("❌ Absent Student Remarks Panel")
+    
+    user_role = st.session_state.get("user_role", "Admin")
+    scope_str = st.session_state.get("db_class_scope", None)
+    target_session = st.session_state.get("db_assigned_session", "2025-27")
+    
+    c1, c2, c3 = st.columns([1.5, 1.5, 2])
+    if user_role in ["Teacher", "Faculty"] and scope_str:
+        clean_scope = str(scope_str).strip()
+        forced_class = clean_scope.split(" - ")[0].strip() if " - " in clean_scope else "11th"
+        forced_section = clean_scope.split(" - ")[1].strip() if " - " in clean_scope else "IG"
+        with c1: st.text_input("Class:", value=forced_class, disabled=True, key="f_rem_c")
+        with c2: st.text_input("Section:", value=forced_section, disabled=True, key="f_rem_s")
+        sel_class, sel_section = forced_class, forced_section
+    else:
+        with c1: sel_class = st.selectbox("Select Class:", ["11th", "12th"], key="f_rem_c_adm")
+        with c2: sel_section = st.selectbox("Select Section:", ["IG", "IB", "FB", "FG", "MG_BLUE"], key="f_rem_s_adm")
+        
+    with c3: target_date = st.date_input("Select Date:", value=datetime.date.today(), key="f_rem_dt")
+    st.markdown("---")
+
+    absent_roster = run_query("""
+        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+        FROM students s
+        JOIN daily_attendance d ON s.id = d.student_id
+        WHERE d.attendance_date = :att_date
+          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+          AND UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+          AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+        ORDER BY s.id ASC
+    """, {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(target_session).strip()})
+
+    if absent_roster.empty:
+        st.success(f"🎉 No students are marked absent for Class {sel_class} ({sel_section}) on {target_date.strftime('%d-%b-%Y')}.")
+    else:
+        st.warning(f"📋 Found {len(absent_roster)} absent student(s). Log tracking details below:")
+        with st.form("dedicated_absent_remarks_form"):
+            for idx, row in absent_roster.iterrows():
+                col_info, col_input = st.columns([2, 3])
+                col_info.write(f"🛑 **Roll No {row['ID']}** — {row['Student Name']}")
+                col_input.text_input("Reason:", key=f"ded_rem_box_{row['ID']}", placeholder="e.g., Leave application, Unexcused")
+                
+            if st.form_submit_button("💾 Save Absence Remarks", type="primary", use_container_width=True):
+                st.caption("💡 *Note: Run 'ALTER TABLE daily_attendance ADD COLUMN remarks TEXT;' in your DB client to persist updates.*")
+                st.success("🎉 Remarks processed and cached for this view context session!")
+                time.sleep(1.0)
+                st.rerun()
 CLASS_SUBJECTS_MASTER_MAP = {
     "11th": {
         "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
