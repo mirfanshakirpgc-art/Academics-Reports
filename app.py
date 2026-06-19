@@ -498,15 +498,26 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
                    OR :tname LIKE CONCAT('%', assigned_teacher_name, '%'))
                   AND is_class_incharge = 'Yes' LIMIT 1
             """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+            
             is_class_incharge = not incharge_check.empty
             db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section_name'].iloc[0]}" if is_class_incharge else ""
+            
+            # --- CRITICAL UPDATE: Sync with Session State for Sidebar Visibility ---
+            st.session_state["is_class_incharge"] = is_class_incharge
+            st.session_state["db_class_scope"] = db_class_scope
         except Exception:
             is_class_incharge = False
             db_class_scope = ""
+            st.session_state["is_class_incharge"] = False
+            st.session_state["db_class_scope"] = ""
+    else:
+        # Pull values from state if already initialized 
+        is_class_incharge = st.session_state.get("is_class_incharge", False)
+        db_class_scope = st.session_state.get("db_class_scope", "")
 
     if 'student_count' not in locals() and 'student_count' not in globals():
         try:
-            # FIXED: Match students strictly by their assigned sections to bypass grade text mismatches
+            # Match students strictly by their assigned sections to bypass grade text mismatches
             student_data = run_query("""
                 SELECT COUNT(DISTINCT s.id) as total_count 
                 FROM students s
