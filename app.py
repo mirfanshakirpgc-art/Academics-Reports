@@ -3999,9 +3999,9 @@ if menu_choice == "👨‍🏫 Teacher Management":
     
     # Safely acquire access credentials
     current_user = st.session_state.get('username', 'admin')
-    current_role = st.session_state.get('role', 'controller') 
+    current_role = st.session_state.get('user_role', 'controller') 
     
-    # Unified Menu Options updated to match your navigation module structure
+    # Unified Menu Options updated to match navigation module structure
     menu_options = [
         "📝 Faculty Registration",
         "📚 Subject Allocations", 
@@ -4034,15 +4034,14 @@ if menu_choice == "👨‍🏫 Teacher Management":
 
     # Flatten Master Maps for global cross-referencing validation structures
     system_sections_pool = []
-    if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals():
-        for disc_name, class_dict in DISCIPLINE_SECTIONS_MAP.items():
-            for class_level, sections_list in class_dict.items():
-                for sec in sections_list:
-                    system_sections_pool.append({
-                        "Class Level": class_level,
-                        "Discipline": disc_name,
-                        "Section": sec
-                    })
+    for disc_name, class_dict in DISCIPLINE_SECTIONS_MAP.items():
+        for class_level, sections_list in class_dict.items():
+            for sec in sections_list:
+                system_sections_pool.append({
+                    "Class Level": class_level,
+                    "Discipline": disc_name,
+                    "Section": sec
+                })
     sections_pool_df = pd.DataFrame(system_sections_pool) if system_sections_pool else pd.DataFrame(columns=["Class Level", "Discipline", "Section"])
 
     # ==============================================================================
@@ -4200,7 +4199,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     tid = int(assigned_prof.split(" - ")[0])
                     tname = assigned_prof.split(" - ")[1]
                     
-                    # Ensure database schema persistence using standard relational types
                     with engine.begin() as conn:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS subject_allocations (
@@ -4255,7 +4253,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     tid = int(ch_name.split(" - ")[0])
                     tname = ch_name.split(" - ")[1]
                     
-                    # FIXED: Using standard SERIAL PRIMARY KEY definition instead of erroneous AUTOINCREMENT
                     with engine.begin() as conn:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS incharge_allocations (
@@ -4298,7 +4295,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
         
         st.info(f"📋 Verified Access: Modification path active for course **{p_sub}** in section **{sel_p_sec}**.")
         
-        # FIXED: Dynamic Student Retrieval via Selected Filters Instead of Fixed Placeholders
         try:
             live_students_df = run_query("""
                 SELECT id AS "Roll No", name AS "Student Name" 
@@ -4311,25 +4307,30 @@ if menu_choice == "👨‍🏫 Teacher Management":
             live_students_df = pd.DataFrame()
             
         if not live_students_df.empty:
-            # Inject score management columns into data ledger view
-            live_students_df["Obtained Marks"] = 0.0
-            live_students_df["Total Scope Limit"] = 100.0
+            # Inject score management columns into data ledger view (allowing String representation for Absentees)
+            live_students_df["Obtained Marks"] = "0"
+            live_students_df["Total Scope Limit"] = 100
             
             edited_portal_df = st.data_editor(live_students_df, use_container_width=True, hide_index=True)
             
             if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
-                # Process data grid entry rows iteratively for saving payload
                 try:
                     with engine.begin() as conn:
                         for _, row in edited_portal_df.iterrows():
+                            # String cleanup validation step
+                            raw_mark = str(row["Obtained Marks"]).strip().upper()
+                            tot_mark = int(row["Total Scope Limit"])
+                            
                             conn.execute(text("""
                                 INSERT INTO marks (student_id, subject, marks_obtained, total_marks, exam_type)
                                 VALUES (:sid, :subject, :obtained, :total, 'Terminal Exam')
+                                ON CONFLICT (student_id, subject, exam_type) 
+                                DO UPDATE SET marks_obtained = EXCLUDED.marks_obtained, total_marks = EXCLUDED.total_marks
                             """), {
-                                "sid": row["Roll No"],
+                                "sid": int(row["Roll No"]),
                                 "subject": p_sub,
-                                "obtained": float(row["Obtained Marks"]),
-                                "total": float(row["Total Scope Limit"])
+                                "obtained": raw_mark,
+                                "total": tot_mark
                             })
                     st.success("🎉 Marks ledger frozen and successfully synced to system analysis engines!")
                 except Exception as write_err:
@@ -4346,7 +4347,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
         
         t_col1, t_col2 = st.columns(2)
         with t_col1:
-            st.metric(label="Global Disciplines Anchored", value=len(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals() else 0)
+            st.metric(label="Global Disciplines Anchored", value=len(DISCIPLINE_SECTIONS_MAP.keys()))
         with t_col2:
             st.metric(label="Tracked Active Section Classes", value=len(sections_pool_df))
             
@@ -4356,13 +4357,12 @@ if menu_choice == "👨‍🏫 Teacher Management":
         with t_tab1:
             st.markdown("##### 📈 Top Faculty Metric Index Evaluations")
             analysis_mock_data = []
-            if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals():
-                for idx, d_key in enumerate(DISCIPLINE_SECTIONS_MAP.keys()):
-                    analysis_mock_data.append({
-                        "Primary Assignment Path": d_key,
-                        "Target Metrics Met Base": f"{97.5 - (idx * 2.2)}%",
-                        "Quality Index Grade": round(9.6 - (idx * 0.3), 1)
-                    })
+            for idx, d_key in enumerate(DISCIPLINE_SECTIONS_MAP.keys()):
+                analysis_mock_data.append({
+                    "Primary Assignment Path": d_key,
+                    "Target Metrics Met Base": f"{97.5 - (idx * 2.2)}%",
+                    "Quality Index Grade": round(9.6 - (idx * 0.3), 1)
+                })
             st.dataframe(pd.DataFrame(analysis_mock_data), use_container_width=True, hide_index=True)
             
         with t_tab2:
