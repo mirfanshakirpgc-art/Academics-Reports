@@ -1453,13 +1453,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     if entry_mode == "📋 By Complete Section":
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         
-        current_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
+        # Pull role and clean it to lower-case for robust checking
+        raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
+        current_role = str(raw_role).strip().lower() if raw_role else 'admin'
         current_user_id = st.session_state.get('user_id', None)
         
         sel_discipline = "MEDICAL" 
         sel_class = "ALL"
         
-        if current_role == 'teacher' and current_user_id is not None:
+        # Updated to catch 'faculty' or 'teacher' roles securely
+        if current_role in ['teacher', 'faculty'] and current_user_id is not None:
             teacher_rights = run_query("SELECT subject, section FROM allocations WHERE user_id = :uid", {"uid": int(current_user_id)})
             if not teacher_rights.empty:
                 allowed_subs = sorted(list(teacher_rights['subject'].unique()))
