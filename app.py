@@ -479,28 +479,70 @@ if user_role in ["Teacher", "Faculty"]:
         pass
 
     # ------------------------------------------------------------------------------
-    # 🎴 VIEW COMPONENT RENDERING LAYER
-    # ------------------------------------------------------------------------------
-    st.markdown(f"## 🏫 Welcome, {username_current}")
-    st.markdown("Here is your academic overview performance log data for today.")
+# 🎴 VIEW COMPONENT RENDERING LAYER
+# ------------------------------------------------------------------------------
+st.markdown(f"## 🏫 Welcome, {username_current}")
+st.markdown("Here is your academic overview performance log data for today.")
+
+if is_class_incharge and class_attendance_avg is not None:
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+else:
+    metric_col1, metric_col2 = st.columns(2)
+    metric_col3 = None
+
+with metric_col1:
+    st.metric(label="👥 Total Students Allotted", value=f"{student_count} Students")
     
-    if is_class_incharge and class_attendance_avg is not None:
-        metric_col1, metric_col2, metric_col3 = st.columns(3)
-    else:
-        metric_col1, metric_col2 = st.columns(2)
-        metric_col3 = None
+with metric_col2:
+    st.metric(label="📈 Overall Subject Result Pass Rate", value=f"{overall_pass_rate:.1f}%")
 
-    with metric_col1:
-        st.metric(label="👥 Total Students Allotted", value=f"{student_count} Students")
+if metric_col3:
+    with metric_col3:
+        st.metric(label=f"📅 Class Incharge Attendance ({db_class_scope})", value=f"{class_attendance_avg:.1f}%")
         
-    with metric_col2:
-        st.metric(label="📈 Overall Subject Result Pass Rate", value=f"{overall_pass_rate:.1f}%")
+st.markdown("---")
 
-    if metric_col3:
-        with metric_col3:
-            st.metric(label=f"📅 Class Incharge Attendance ({db_class_scope})", value=f"{class_attendance_avg:.1f}%")
-            
-    st.markdown("---")
+# ------------------------------------------------------------------------------
+# 📊 ISOLATED INSTRUCTOR ALLOCATION DETAILS (TEACHING VS INCHARGE)
+# ------------------------------------------------------------------------------
+col_taught, col_incharge = st.columns(2)
+
+with col_taught:
+    st.markdown("### 📚 Assigned Teaching Sections")
+    
+    # Query regular subject teaching configurations using the active instructor's username
+    taught_df = run_query("""
+        SELECT subject_name, section, class_level 
+        FROM subject_allocations 
+        WHERE teacher_name = :tname 
+           OR teacher_name LIKE :tname_like
+    """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+    
+    if not taught_df.empty:
+        for _, row in taught_df.iterrows():
+            st.info(f"📖 **{row['subject_name']}** — Section: `{row['section']}` ({row['class_level']})")
+    else:
+        st.caption("No standard subject teaching allocations assigned to your account.")
+
+with col_incharge:
+    st.markdown("### 👑 Class Incharge Assignments")
+    
+    # Query allocations where explicitly assigned as Incharge
+    incharge_df = run_query("""
+        SELECT section_name, class_level, session_term 
+        FROM academic_allocations 
+        WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like)
+          AND is_class_incharge = 'Yes'
+    """, {"tname": username_current, "tname_like": f"%{username_current}%"})
+    
+    if not incharge_df.empty:
+        for _, row in incharge_df.iterrows():
+            st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
+    else:
+        st.caption("You are currently not designated as an Incharge for any class section.")
+
+st.markdown("---")
+
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
 # ==============================================================================
