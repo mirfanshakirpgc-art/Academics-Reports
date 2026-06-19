@@ -2099,18 +2099,31 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
 
-if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in menu_choice:
+# 🛠️ FIXED CONDITIONAL ROUTING MATCH CONDITION
+if any(x in menu_choice for x in ["Attendance Entry Management", "📅 Marks Attendance"]):
     import datetime  
     import pandas as pd
     from sqlalchemy import text
     
     st.title("🗓️ Attendance Entry Management Panel")
     
+    # Identify user role context
     current_role = st.session_state.get("user_role", "Faculty")
     is_teacher_flow = current_role in ["Teacher", "Faculty"]
     
+    # Pull class incharge variables loaded from the dashboard view component
     teacher_is_incharge = st.session_state.get("is_class_incharge", False)
-    teacher_scope = st.session_state.get("db_class_scope", "") # e.g., "11th - IG" or "IG (11th)"
+    
+    # 🔬 ROBUST CASE-INSENSITIVE INCHARGE AREA LOOKUP (Matches: "IG (11th)")
+    teacher_scope = ""
+    for k in st.session_state.keys():
+        if "scope" in k.lower() or "class_scope" in k.lower() or "incharge" in k.lower():
+            val = str(st.session_state[k])
+            if "(" in val and ")" in val or " - " in val:
+                teacher_scope = val
+                break
+    if not teacher_scope:
+        teacher_scope = st.session_state.get("db_class_scope", "IG (11th)")
     
     if is_teacher_flow and not teacher_is_incharge:
         st.error("❌ Access Denied: You must be assigned as an active Class Incharge to access this module.")
