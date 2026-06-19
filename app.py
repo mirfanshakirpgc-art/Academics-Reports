@@ -1451,6 +1451,9 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
+        # 🧪 TEMPORARY DIAGNOSTIC LINES
+        st.write("### 🔍 Debug Information")
+        st.write(st.session_state)
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         
         raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
