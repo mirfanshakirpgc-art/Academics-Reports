@@ -4222,7 +4222,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     st.error(f"Failed to persist allocation: {ex}")
 
     # ==============================================================================
-    # SUB-MODULE 3: CLASS INCHARGE ALLOCATIONS
+    # SUB-MODULE 3: CLASS INCHARGE ALLOCATIONS (PRODUCTION REVISED)
     # ==============================================================================
     elif sub_menu == "👑 Class Incharge Allocations":
         st.subheader("👑 Class Incharge Allocations")
@@ -4231,47 +4231,172 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not faculty_select_list:
             st.warning("⚠️ Missing registered teacher structures. Add profile nodes inside registration framework before mapping values.")
         else:
-            st.markdown("##### 📋 Live System Matrix View")
-            if not sections_pool_df.empty:
-                st.dataframe(sections_pool_df, use_container_width=True, hide_index=True)
-            
-            st.markdown("##### ⚙️ Modify Configuration Assignment Block")
-            with st.form("incharge_alloc_form"):
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    ch_disc = st.selectbox("Filter Target Discipline Segment:", sections_pool_df["Discipline"].unique() if not sections_pool_df.empty else ["None"], key="ch_disc_sel")
-                with c2:
-                    sub_sec_options = sections_pool_df[sections_pool_df["Discipline"] == ch_disc]["Section"].unique() if not sections_pool_df.empty else ["None"]
-                    ch_sec = st.selectbox("Target Classroom Assignment Node:", sub_sec_options)
-                with c3:
-                    ch_name = st.selectbox("Nominate Master Incharge Faculty:", faculty_select_list)
-                    
-                apply_incharge = st.form_submit_button("👑 Live Link Class Incharge", type="primary", use_container_width=True)
+            # Sync database schema layout definitions explicitly with relational types
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS incharge_allocations (
+                            id SERIAL PRIMARY KEY,
+                            session VARCHAR(50),
+                            academic_system VARCHAR(100),
+                            class_level VARCHAR(50),
+                            section VARCHAR(50),
+                            teacher_id INTEGER,
+                            teacher_name TEXT
+                        )
+                    """))
+            except Exception as schema_err:
+                st.error(f"❌ Failed to verify structural schema configurations: {schema_err}")
+
+            # --------------------------------------------------------------------------
+            # SELECTION WORKSPACE CONFIGURATION FORM BLOCK
+            # --------------------------------------------------------------------------
+            with st.form("incharge_alloc_form_revised"):
+                col_i1, col_i2, col_i3 = st.columns(3)
                 
+                with col_i1:
+                    # Sync using global AVAILABLE_SESSIONS list object from config parameters
+                    session_pool = AVAILABLE_SESSIONS if 'AVAILABLE_SESSIONS' in locals() or 'AVAILABLE_SESSIONS' in globals() else ["2025-27", "2026-28"]
+                    sel_session = st.selectbox("Select Session:", session_pool)
+                    
+                    # Differentiate matrix boundaries automatically based on text matching patterns
+                    sel_academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"])
+                
+                with col_i2:
+                    # Isolate master key options dynamically 
+                    all_available_classes = list(CLASS_SUBJECTS_MASTER_MAP.keys())
+                    if sel_academic_system == "Annual System":
+                        class_options = [c for c in all_available_classes if "th" in c.lower()]
+                    else:
+                        class_options = [c for c in all_available_classes if "semester" in c.lower()]
+                        
+                    sel_class = st.selectbox("Class:", class_options if class_options else all_available_classes)
+                    
+                    # Compute dynamic mapping paths matching DISCIPLINE_SECTIONS_MAP values exactly
+                    computed_sections_list = []
+                    for disc_key, inner_classes in DISCIPLINE_SECTIONS_MAP.items():
+                        if sel_class in inner_classes:
+                            computed_sections_list.extend(inner_classes[sel_class])
+                            
+                    computed_sections_list = sorted(list(set(computed_sections_list)))
+                    if not computed_sections_list:
+                        computed_sections_list = ["Default Node"]
+                        
+                    sel_section = st.selectbox("Section:", computed_sections_list)
+                
+                with col_i3:
+                    sel_teacher = st.selectbox("Select Teacher In-Charge:", faculty_select_list)
+                    st.write("") # Pad vertical layout spacing
+                    st.write("")
+                    apply_incharge = st.form_submit_button("👑 Live Link Class Incharge", type="primary", use_container_width=True)
+            
             if apply_incharge:
                 try:
-                    tid = int(ch_name.split(" - ")[0])
-                    tname = ch_name.split(" - ")[1]
+                    tid = int(sel_teacher.split(" - ")[0])
+                    tname = sel_teacher.split(" - ")[1].strip()
                     
                     with engine.begin() as conn:
+                        # Clear any existing matching structural allocation paths to avoid room duplicate overlap clashes
                         conn.execute(text("""
-                            CREATE TABLE IF NOT EXISTS incharge_allocations (
-                                id SERIAL PRIMARY KEY,
-                                teacher_id INTEGER,
-                                teacher_name TEXT,
-                                discipline TEXT,
-                                section TEXT
-                            )
-                        """))
-                        conn.execute(text("""
-                            INSERT INTO incharge_allocations (teacher_id, teacher_name, discipline, section)
-                            VALUES (:tid, :tname, :disc, :sec)
-                        """), {"tid": tid, "tname": tname, "disc": ch_disc, "sec": ch_sec})
+                            DELETE FROM incharge_allocations 
+                            WHERE session = :session 
+                              AND class_level = :cls 
+                              AND section = :sec
+                        """), {"session": str(sel_session), "cls": str(sel_class), "sec": str(sel_section)})
                         
-                    st.success(f"Structural ledger modified: **{tname}** designated as Class Master of Section **{ch_sec}** under path `{ch_disc}`.")
+                        # Apply clear record configuration line insertion
+                        conn.execute(text("""
+                            INSERT INTO incharge_allocations (session, academic_system, class_level, section, teacher_id, teacher_name)
+                            VALUES (:session, :sys, :cls, :sec, :tid, :tname)
+                        """), {
+                            "session": str(sel_session),
+                            "sys": str(sel_academic_system),
+                            "cls": str(sel_class),
+                            "sec": str(sel_section),
+                            "tid": tid,
+                            "tname": tname
+                        })
+                    st.success(f"🎉 Allocation configuration mapped structural update: **{tname}** successfully linked to Class **{sel_class} - {sel_section}**.")
+                    import time; time.sleep(0.6); st.rerun()
                 except Exception as ex:
-                    st.error(f"Structural assignment failed: {ex}")
+                    st.error(f"❌ Target update payload operations failed: {ex}")
 
+            # --------------------------------------------------------------------------
+            # LIVE SYSTEM CONFIGURATION PREVIEW MATRIX LEDGER WITH INLINE MANAGEMENT
+            # --------------------------------------------------------------------------
+            st.markdown("---")
+            st.subheader("📋 Already Allotted In-Charge List")
+            
+            current_allocations_df = pd.DataFrame()
+            try:
+                current_allocations_df = run_query("""
+                    SELECT id as "Allocation ID", session as "Session", academic_system as "Academic System",
+                           class_level as "Class", section as "Section", 
+                           teacher_id as "Teacher ID", teacher_name as "Teacher In-Charge"
+                    FROM incharge_allocations
+                    ORDER BY session DESC, class_level ASC, section ASC
+                """)
+            except Exception as fetch_err:
+                st.info("No tracking matrix configuration datasets are initialized inside database pipelines.")
+                
+            if not current_allocations_df.empty:
+                # Output scannable clear reference block data table layout
+                st.dataframe(current_allocations_df.drop(columns=["Allocation ID"]), use_container_width=True, hide_index=True)
+                
+                st.markdown("### 🛠️ Manage Active Structural Allocations")
+                
+                # Setup dynamic interactive select mapping to quickly handle deletion/updates
+                inline_options_list = [
+                    f"{row['Allocation ID']} - {row['Teacher In-Charge']} ({row['Class']} {row['Section']})"
+                    for _, row in current_allocations_df.iterrows()
+                ]
+                selected_target_alloc = st.selectbox("Select Target Assignment Entry Row:", inline_options_list, key="manage_incharge_sel")
+                
+                if selected_target_alloc:
+                    target_alloc_id = int(selected_target_alloc.split(" - ")[0])
+                    matched_row = current_allocations_df[current_allocations_df["Allocation ID"] == target_alloc_id].iloc[0]
+                    
+                    with st.form("edit_incharge_allocation_form"):
+                        st.info(f"Modifying operational path control parameters for: **Class {matched_row['Class']} - {matched_row['Section']} ({matched_row['Session']})**")
+                        
+                        updated_teacher_map = st.selectbox("Assign Alternative Teacher Node Vector:", faculty_select_list)
+                        
+                        col_m1, col_m2 = st.columns(2)
+                        with col_m1:
+                            save_modifications = st.form_submit_button("💾 Save Modification Changes", type="primary", use_container_width=True)
+                        with col_m2:
+                            confirm_purge = st.checkbox("⚠️ Check to confirm permanent extraction", key="del_inc_chk")
+                            purge_allocation = st.form_submit_button("🗑️ Delete Allocation Permanently", type="secondary", use_container_width=True)
+                            
+                        if save_modifications:
+                            try:
+                                mod_tid = int(updated_teacher_map.split(" - ")[0])
+                                mod_tname = updated_teacher_map.split(" - ")[1].strip()
+                                
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        UPDATE incharge_allocations
+                                        SET teacher_id = :tid, teacher_name = :name
+                                        WHERE id = :id
+                                    """), {"tid": mod_tid, "name": mod_tname, "id": target_alloc_id})
+                                st.success("🎉 Matrix row reference updated inside relational logs successfully!")
+                                import time; time.sleep(0.6); st.rerun()
+                            except Exception as u_err:
+                                st.error(f"❌ Modification processing failed: {u_err}")
+                                
+                        if purge_allocation:
+                            if not confirm_purge:
+                                st.error("❌ Action aborted. You must acknowledge the validation safety box prior to removal processing.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("DELETE FROM incharge_allocations WHERE id = :id"), {"id": target_alloc_id})
+                                    st.success("💥 Allocation mapping link successfully deleted from master configurations.")
+                                    import time; time.sleep(0.6); st.rerun()
+                                except Exception as d_err:
+                                    st.error(f"❌ Purge execution error tracking response: {d_err}")
+            else:
+                st.info("No active institutional class in-charge slots are assigned or recorded yet.")
     # ==============================================================================
     # SUB-MODULE 4: TEACHER MARKS PORTAL
     # ==============================================================================
