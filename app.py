@@ -1459,12 +1459,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         sel_discipline = "MEDICAL" 
         sel_class = "ALL"
         
-        # INTERCEPT AND BIND FACULTY ACCESS RIGHTS DYNAMICALLY
+        # --- LEVEL 1: CHECK ACCESSIBILITY ROLE ---
         if current_role in ['teacher', 'faculty']:
-            # Pull clean string name from session state
             active_faculty_name = st.session_state.get('username', 'Ms. Nazia Karamat').strip()
             
-            # Use a robust cross-table lookup pattern matching her string identifier
             teacher_rights = run_query("""
                 SELECT DISTINCT subject_name AS subject, section 
                 FROM subject_allocations 
@@ -1493,9 +1491,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.warning("🚨 You do not have any active subjects or sections assigned yet in the system files.")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
                 
+        # --- LEVEL 1 FALLBACK: ADMINISTRATIVE ROUTE (LINE 1498 FIX) ---
         else:
-            # --- LEAVE ADMIN / CONTROLLER INTERFACE BELOW UNTOUCHED ---
-            else:
             with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             with c2: academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
             with c3:
@@ -1539,7 +1536,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
             if sel_exam == "MATRIC":
                 sel_subject = "OVERALL"
-                st.info("🎓 **MATRIC Macro Entry Mode Active**: Ledger updates mapped directly to record column 'OVERALL'.")
             else:
                 if academic_system == "Annual System":
                     if sel_class == "ALL":
