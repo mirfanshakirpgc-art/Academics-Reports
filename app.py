@@ -336,7 +336,13 @@ db_class_scope = st.session_state.get("db_class_scope", None)
 # ------------------------------------------------------------------------------
 if user_role in ["Teacher", "Faculty"]:
     # 🍎 SPECIALIZED TEACHER PORTAL SIDEBAR ROUTING
-    allowed_menus = ["📝 Marks Entry", "📅 Marks Attendance", "❌ Absent Student Remarks", "📊 Result Analysis"]
+    allowed_menus = ["📝 Marks Entry"]
+    
+    # Only expose attendance module if they are assigned as an active Class Incharge
+    if is_class_incharge:
+        allowed_menus.append("📅 Marks Attendance")
+        
+    allowed_menus.extend(["❌ Absent Student Remarks", "📊 Result Analysis"])
 else:
     # 👑 INSTITUTION MANAGEMENT AND SYSTEM ADMIN ROUTING
     allowed_menus = ["📊 Home Dashboard"]
@@ -2107,15 +2113,12 @@ if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in me
     
     st.title("🗓️ Attendance Entry Management Panel")
     
-    # Identify user role context
     current_role = st.session_state.get("user_role", "Faculty")
     is_teacher_flow = current_role in ["Teacher", "Faculty"]
     
-    # Pull class incharge variables loaded from the dashboard view component
     teacher_is_incharge = st.session_state.get("is_class_incharge", False)
-    teacher_scope = st.session_state.get("db_class_scope", "") # Format example: "11th - IG"
+    teacher_scope = st.session_state.get("db_class_scope", "") # e.g., "11th - IG" or "IG (11th)"
     
-    # 🔒 ROLE ACCESS SAFETY CHECK
     if is_teacher_flow and not teacher_is_incharge:
         st.error("❌ Access Denied: You must be assigned as an active Class Incharge to access this module.")
         st.stop()
@@ -2128,22 +2131,25 @@ if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in me
     )
     st.markdown("###")
 
-    # 🚀 CLEAN STATE INTEGRATION: Read strictly from settings to prevent duplicates
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     active_session = st.session_state.get("current_session", "2026-28")
-    
-    # Force the selector index to point right to your active session choice
     default_index = session_options.index(active_session) if active_session in session_options else 0
 
-    # Parse out teacher allocation restrictions up front
+    # 🔬 ROBUST SCOPE PARSER FOR TEACHER IN-CHARGE ASSIGNMENTS
     forced_class = ""
     forced_section = ""
-    if is_teacher_flow and teacher_scope and " - " in teacher_scope:
-        try:
-            forced_class = teacher_scope.split(" - ")[0].strip()
-            forced_section = teacher_scope.split(" - ")[1].strip()
-        except Exception:
-            pass
+    if is_teacher_flow and teacher_scope:
+        ts_clean = str(teacher_scope).strip()
+        if " - " in ts_clean:
+            parts = ts_clean.split(" - ")
+            forced_class = parts[0].strip()
+            forced_section = parts[1].strip()
+        elif "(" in ts_clean and ")" in ts_clean:
+            # Handles format: "IG (11th)"
+            forced_section = ts_clean.split("(")[0].strip()
+            forced_class = ts_clean.split("(")[1].replace(")", "").strip()
+        else:
+            forced_section = ts_clean
 
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
@@ -2157,20 +2163,17 @@ if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in me
             sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
             
         with d2:
-            # Dynamically set the default matching layout system type context
-            sys_default_idx = 1 if "semester" in forced_class.lower() else 0
+            sys_default_idx = 1 if forced_class and "semester" in forced_class.lower() else 0
             academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], index=sys_default_idx, key="att_sys_type")
             
         with d3:
             if academic_system == "Annual System":
                 class_options = ["11th", "12th"]
-                # 🔒 Lock class dropdown to the teacher's designated allocation if applicable
                 if is_teacher_flow and forced_class in class_options:
                     class_options = [forced_class]
                 sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
             else:
                 class_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
-                # 🔒 Lock semester dropdown to the teacher's designated allocation if applicable
                 if is_teacher_flow and forced_class in class_options:
                     class_options = [forced_class]
                 sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
@@ -2191,11 +2194,11 @@ if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in me
             else:
                 section_options = ["DIT_B", "DIT_G"]
                 
-            # 🔒 Lock section dropdown completely to their assigned in-charge area
             if is_teacher_flow and forced_section:
-                # Match case-insensitive but display uniform value
-                section_options = [s for s in section_options if s.upper().strip() == forced_section.upper().strip()]
-                if not section_options:
+                clean_sec_opts = [s for s in section_options if s.upper().strip() == forced_section.upper().strip()]
+                if clean_sec_opts:
+                    section_options = clean_sec_opts
+                else:
                     section_options = [forced_section]
                     
             sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
@@ -2205,6 +2208,7 @@ if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in me
             target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="daily_att_date")
 
         if sel_section and sel_session:
+            # 🛠️ CRITICAL FIX: Standardizing SQL query filters using UPPER(TRIM())
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
                 FROM students s
@@ -2299,7 +2303,7 @@ if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in me
         with sc1:
             s_session_sel = st.selectbox("Select Session Context:", session_options, index=default_index, key="single_att_sess_filter")
         with sc2:
-            sys_default_idx = 1 if "semester" in forced_class.lower() else 0
+            sys_default_idx = 1 if forced_class and "semester" in forced_class.lower() else 0
             s_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], index=sys_default_idx, key="single_att_sys_filter")
         with sc3:
             if s_system == "Annual System":
@@ -2332,7 +2336,6 @@ if "Attendance Entry Management" in menu_choice or "📅 Marks Attendance" in me
                 base_sql += " AND UPPER(TRIM(class)) = :cls"
                 query_conds["cls"] = str(s_class_sel).strip().upper()
             
-            # 🔒 TEACHER PROFILE CROSS-VALIDATION SECURITY: Force lookups into their own section parameter boundaries
             if is_teacher_flow and forced_section:
                 base_sql += " AND UPPER(TRIM(section)) = :forced_sec"
                 query_conds["forced_sec"] = forced_section.upper().strip()
