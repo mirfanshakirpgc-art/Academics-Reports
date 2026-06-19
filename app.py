@@ -2734,21 +2734,33 @@ elif menu_choice == "📋 Daily Attendance Report":
         st.caption("Live tracking timeline displaying unalterable teacher feedback submissions with server timestamps.")
         st.markdown("---")
         
+        # 🌟 DYNAMIC SECTION EXTRACTION FROM YOUR MASTER DISCIPLINE MAP
+        all_possible_sections = set()
+        for discipline, classes in DISCIPLINE_SECTIONS_MAP.items():
+            for class_tier, sections_list in classes.items():
+                for sec in sections_list:
+                    if sec:
+                        all_possible_sections.add(str(sec).strip().upper())
+        
+        sorted_admin_sections = ["ALL"] + sorted(list(all_possible_sections))
+        
         # Filters for Admin Overview
         adm_col1, adm_col2 = st.columns(2)
         with adm_col1:
             rem_report_date = adm_col1.date_input("Filter Report Date:", value=datetime.date.today(), key="adm_rem_report_date")
         with adm_col2:
-            rem_report_section = adm_col2.selectbox("Filter Section:", ["ALL", "IG", "IB", "FB", "FG", "MG_BLUE"], key="adm_rem_report_sec")
+            rem_report_section = adm_col2.selectbox("Filter Section Mapping:", sorted_admin_sections, key="adm_rem_report_sec")
 
-        # Query structure to dynamically fetch teacher logs
+        # Query structure to dynamically fetch teacher logs matching any section choice setup
         query_params = {"target_date": str(rem_report_date)}
+        
         sql_report = """
             SELECT 
                 s.id AS "Roll No",
                 s.name AS "Student Name",
-                s.section AS "Section",
-                s.session AS "Session",
+                UPPER(TRIM(s.class)) AS "Class Level",
+                UPPER(TRIM(s.section)) AS "Section",
+                s.session AS "Session Batch",
                 d.remarks AS "Teacher Remarks",
                 to_char(d.remarks_updated_at, 'DD-Mon-YYYY HH:MI AM') AS "Logged Timestamp"
             FROM students s
@@ -2762,22 +2774,48 @@ elif menu_choice == "📋 Daily Attendance Report":
             sql_report += " AND UPPER(TRIM(s.section)) = UPPER(TRIM(:section))"
             query_params["section"] = rem_report_section
             
-        sql_report += " ORDER BY d.remarks_updated_at DESC"
+        sql_report += " ORDER BY d.remarks_updated_at DESC, s.id ASC"
 
         try:
             remarks_report_df = run_query(sql_report, query_params)
 
             if remarks_report_df.empty:
-                st.info(f"🍃 No absence remarks have been logged by any faculty for {rem_report_date.strftime('%d-%b-%Y')}.")
+                st.info(f"🍃 No active absence remarks are logged by faculty for target selection on {rem_report_date.strftime('%d-%b-%Y')}.")
             else:
+                # Render clean dataframe to admin view
                 st.dataframe(remarks_report_df, use_container_width=True, hide_index=True)
                 
+                # Professional Styled Excel Export Engine
+                excel_buffer = BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                    remarks_report_df.to_excel(writer, index=False, sheet_name='Absence Remarks Audit')
+                    
+                    # Formatting worksheet styles
+                    workbook = writer.book
+                    worksheet = writer.sheets['Absence Remarks Audit']
+                    
+                    header_format = workbook.add_format({
+                        'bold': True,
+                        'text_wrap': True,
+                        'valign': 'top',
+                        'fg_color': '#D32F2F',
+                        'font_color': '#FFFFFF',
+                        'border': 1
+                    })
+                    
+                    # Format layout spacing columns
+                    for col_num, col_name in enumerate(remarks_report_df.columns):
+                        worksheet.write(0, col_num, col_name, header_format)
+                        worksheet.set_column(col_num, col_num, 22)
+                        
+                    worksheet.set_default_row(24)
+
                 st.download_button(
-                    label="📥 Export Remarks Log to CSV",
-                    data=remarks_report_df.to_csv(index=False).encode('utf-8'),
-                    file_name=f"Absent_Remarks_Report_{rem_report_date}.csv",
-                    mime="text/csv",
-                    key="remarks_csv_dl"
+                    label="📥 Download Excel Report",
+                    data=excel_buffer.getvalue(),
+                    file_name=f"Master_Absent_Remarks_{rem_report_date}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="remarks_excel_dashboard_dl"
                 )
         except Exception as e:
             st.error(f"Could not load the admin remarks data view grid: {e}")
