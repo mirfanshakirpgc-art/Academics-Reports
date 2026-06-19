@@ -801,17 +801,42 @@ elif "Absent" in str(menu_choice) or "Remarks" in str(menu_choice):
         st.success(f"🎉 No students are marked absent for Class {sel_class} ({sel_section}) on {target_date.strftime('%d-%b-%Y')}.")
     else:
         st.warning(f"📋 Found {len(absent_roster)} absent student(s). Log tracking details below:")
+        
         with st.form("dedicated_absent_remarks_form"):
+            remarks_tracking_inputs = {}
             for idx, row in absent_roster.iterrows():
                 col_info, col_input = st.columns([2, 3])
                 col_info.write(f"🛑 **Roll No {row['ID']}** — {row['Student Name']}")
-                col_input.text_input("Reason:", key=f"ded_rem_box_{row['ID']}", placeholder="e.g., Leave application, Unexcused")
+                remarks_tracking_inputs[row['ID']] = col_input.text_input(
+                    "Reason:", 
+                    key=f"ded_rem_box_{row['ID']}", 
+                    placeholder="e.g., Leave application, Unexcused"
+                )
                 
             if st.form_submit_button("💾 Save Absence Remarks", type="primary", use_container_width=True):
-                st.caption("💡 *Note: Run 'ALTER TABLE daily_attendance ADD COLUMN remarks TEXT;' in your DB client to persist updates.*")
-                st.success("🎉 Remarks processed and cached for this view context session!")
-                time.sleep(1.0)
-                st.rerun()
+                try:
+                    with engine.begin() as conn:
+                        for student_id, remark_text in remarks_tracking_inputs.items():
+                            # Save updates if the field is populated
+                            if remark_text.strip():
+                                conn.execute(text("""
+                                    UPDATE daily_attendance 
+                                    SET remarks = :remarks,
+                                        remarks_updated_at = CURRENT_TIMESTAMP
+                                    WHERE student_id = :s_id 
+                                      AND attendance_date = :att_date
+                                """), {
+                                    "remarks": str(remark_text).strip(),
+                                    "s_id": int(student_id),
+                                    "att_date": str(target_date)
+                                })
+                                
+                    st.success("🎉 Remarks saved securely with an automatic system timestamp!")
+                    time.sleep(1.0)
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"⚠️ SQL Update failed. Ensure you ran the alter table command: {e}")
 CLASS_SUBJECTS_MASTER_MAP = {
     "11th": {
         "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
@@ -893,7 +918,6 @@ live_subjects_computed = ["Global (All Subjects)"] + sorted(list(unique_master_s
 
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
-# ... your existing code below ...
     st.title("Concordia College Kasur")
     try:
         s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
