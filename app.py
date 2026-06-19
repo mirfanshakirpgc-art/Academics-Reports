@@ -629,22 +629,28 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
             st.caption("No standard subject teaching allocations assigned to your account.")
 
     with col_incharge:
-        st.markdown("### 👑 Class Incharge Assignments")
-        
-        incharge_df = run_query("""
-            SELECT DISTINCT section_name, class_level, session_term 
-            FROM academic_allocations 
-            WHERE (assigned_teacher_name = :tname OR assigned_teacher_name LIKE :tname_like OR :tname LIKE CONCAT('%', assigned_teacher_name, '%'))
-              AND is_class_incharge = 'Yes'
-        """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
-        
-        if not incharge_df.empty:
-            for _, row in incharge_df.iterrows():
-                st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
-        else:
-            st.caption("You are currently not designated as an Incharge for any class section.")
+            st.markdown("### 👑 Class Incharge Assignments")
+            
+            # Synchronized fetching matching Sub-Module 3 allocation logic precisely
+            incharge_df = run_query("""
+                SELECT DISTINCT section_name, class_level, session_term 
+                FROM academic_allocations 
+                WHERE (
+                    UPPER(TRIM(assigned_teacher_name)) = UPPER(TRIM(:tname)) 
+                    OR UPPER(TRIM(assigned_teacher_name)) LIKE UPPER(TRIM(:tname_like))
+                    OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
+                )
+                AND is_class_incharge = 'Yes'
+                ORDER BY session_term DESC
+            """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+            
+            if not incharge_df.empty:
+                for _, row in incharge_df.iterrows():
+                    st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
+            else:
+                st.caption("You are currently not designated as an Incharge for any class section.")
 
-    st.markdown("---")
+        st.markdown("---")
 
 else:
     # --- ADMIN OR CONTROLLER VISUAL INTERFACE CORNER ---
