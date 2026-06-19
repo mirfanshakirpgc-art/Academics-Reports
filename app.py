@@ -488,22 +488,26 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
 
     # Clean username string to remove potential operational trailing characters
     clean_name = username_current.strip()
+    
+    # SYSTEM UPGRADE: If username is "2 - Ms. Nazia Karamat", extract just "Ms. Nazia Karamat"
+    # If it's already "Ms. Nazia Karamat", it leaves it perfectly intact.
+    if " - " in clean_name:
+        clean_name = clean_name.split(" - ", 1)[-1].strip()
 
     if 'is_class_incharge' not in locals() and 'is_class_incharge' not in globals():
         try:
-            # FIXED: Added wildcard to handle names saved with ID prefixes like "2 - Ms. Nazia Karamat"
+            # Fully synchronized matching query 
             incharge_check = run_query("""
                 SELECT section_name, class_level, session_term FROM academic_allocations 
                 WHERE (
                     UPPER(TRIM(assigned_teacher_name)) = UPPER(TRIM(:tname)) 
-                    OR UPPER(TRIM(assigned_teacher_name)) LIKE UPPER(TRIM(:tname_like))
-                    OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
                     OR UPPER(TRIM(assigned_teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
+                    OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
                 )
                 AND is_class_incharge = 'Yes' 
                 ORDER BY allocation_id DESC 
                 LIMIT 1
-            """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+            """, {"tname": clean_name})
             
             is_class_incharge = not incharge_check.empty
             db_class_scope = f"{incharge_check['class_level'].iloc[0]} - {incharge_check['section_name'].iloc[0]}" if is_class_incharge else ""
@@ -523,7 +527,6 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
 
     if 'student_count' not in locals() and 'student_count' not in globals():
         try:
-            # Match students strictly by their assigned sections to bypass grade text mismatches
             student_data = run_query("""
                 SELECT COUNT(DISTINCT s.id) as total_count 
                 FROM students s
@@ -531,10 +534,9 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
                     SELECT DISTINCT LOWER(TRIM(section)) 
                     FROM subject_allocations 
                     WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
-                       OR UPPER(TRIM(teacher_name)) LIKE UPPER(TRIM(:tname_like))
                        OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
                 )
-            """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+            """, {"tname": clean_name})
             student_count = int(student_data['total_count'].iloc[0]) if not student_data.empty else 0
         except Exception:
             student_count = 0
@@ -542,7 +544,6 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
     if 'overall_pass_rate' not in locals() and 'overall_pass_rate' not in globals():
         overall_pass_rate = 0.0
 
-    # Initialize variable explicitly before compilation blocks
     class_attendance_avg = None
 
     # --- FACULTY VISUAL INTERFACE ---
@@ -551,21 +552,16 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
 
     # --- DYNAMIC METRICS CALCULATION ENGINE ---
     try:
-        # Step 1: Run the taught query first to know which sections to look up
         taught_df = run_query("""
             SELECT DISTINCT subject_name, section, class_level 
             FROM subject_allocations 
             WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
-               OR UPPER(TRIM(teacher_name)) LIKE UPPER(TRIM(:tname_like))
-               OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(teacher_name)), '%')
                OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
-        """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+        """, {"tname": clean_name})
         
         if not taught_df.empty:
-            # Extract sections and enforce safe clean-text arrays
             assigned_sections = [str(s).strip().upper() for s in taught_df['section'].unique()]
             
-            # Step 2: Dynamically calculate total allotment based on active assigned sections
             student_query = run_query("""
                 SELECT COUNT(DISTINCT id) as total_count 
                 FROM students 
@@ -574,9 +570,8 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
             
             dynamic_student_count = int(student_query.iloc[0]['total_count']) if not student_query.empty else 0
             if dynamic_student_count == 0:
-                dynamic_student_count = 64  # Safe institutional recovery boundary
+                dynamic_student_count = 64  
                 
-            # Step 3: Fetch dynamic pass analytics for these specific sections
             marks_query = run_query("""
                 SELECT m.marks_obtained, m.total_marks 
                 FROM marks m
@@ -601,10 +596,8 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
             dynamic_student_count = 64
             dynamic_pass_rate = 87.5
             
-        # --- NEW LIVE ATTENDANCE CALCULATOR ENGINE FOR CLASS INCHARGE ---
         if is_class_incharge and db_class_scope:
             try:
-                # Strip down class level to get raw component section name string
                 raw_section = db_class_scope.split("-")[-1].strip().upper()
                 att_df = run_query("""
                     SELECT SUM(present_days) as total_present, SUM(total_days) as total_bound 
@@ -616,7 +609,7 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
                 if not att_df.empty and att_df.iloc[0]['total_bound']:
                     class_attendance_avg = (float(att_df.iloc[0]['total_present']) / float(att_df.iloc[0]['total_bound'])) * 100
             except Exception:
-                class_attendance_avg = 94.2  # Fallback sample metrics default if records are uninitialized
+                class_attendance_avg = 94.2  
 
     except Exception as calculation_fault:
         dynamic_student_count = 64
@@ -660,15 +653,13 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
             FROM academic_allocations 
             WHERE (
                 UPPER(TRIM(assigned_teacher_name)) = UPPER(TRIM(:tname)) 
-                OR UPPER(TRIM(assigned_teacher_name)) LIKE UPPER(TRIM(:tname_like))
-                OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
                 OR UPPER(TRIM(assigned_teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
+                OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
             )
             AND is_class_incharge = 'Yes'
             ORDER BY session_term DESC
-        """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+        """, {"tname": clean_name})
         
-        # FIXED INDENTATION LEVEL: Brought inside the "with col_incharge:" structural scope
         if not incharge_df.empty:
             for _, row in incharge_df.iterrows():
                 st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
@@ -678,11 +669,9 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
     st.markdown("---")
 
 else:
-    # --- ADMIN OR CONTROLLER VISUAL INTERFACE CORNER ---
     st.markdown(f"## 🛠️ Admin Control Center")
     st.markdown(f"Welcome back, **{st.session_state.get('username', 'Admin')}**. Access global metrics and settings modules from the sidebar menu.")
     st.markdown("---")
-
 # ==============================================================================
 # --- SYSTEM CONTROL: UNIFIED MULTI-LEVEL SUBJECT MASTER CONFIGURATIONS ---
 # ==============================================================================
