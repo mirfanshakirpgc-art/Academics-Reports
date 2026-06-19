@@ -206,8 +206,15 @@ def fetch_analytics_data():
     """
     params = {}
     if "user_role" in st.session_state and st.session_state.user_role in ["Teacher", "Faculty"]:
-        query += " AND m.subject = :teacher_sub"
-        params["teacher_sub"] = st.session_state.assigned_subject
+        assigned_subs_raw = st.session_state.get("assigned_subject", "")
+        if assigned_subs_raw and isinstance(assigned_subs_raw, str):
+            teacher_subjects = [s.strip() for s in assigned_subs_raw.split(",") if s.strip()]
+        else:
+            teacher_subjects = []
+            
+        if teacher_subjects:
+            query += " AND m.subject IN :teacher_subs"
+            params["teacher_subs"] = tuple(teacher_subjects) if len(teacher_subjects) > 1 else (teacher_subjects[0],)
     return run_query(query, params)
 
 # --- USER LOGIN SESSION TRACKING INITIALIZATION ---
