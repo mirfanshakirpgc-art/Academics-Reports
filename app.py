@@ -558,6 +558,7 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
             WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) 
                OR UPPER(TRIM(teacher_name)) LIKE UPPER(TRIM(:tname_like))
                OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(teacher_name)), '%')
+               OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
         """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
         
         if not taught_df.empty:
@@ -652,21 +653,22 @@ if st.session_state.get("user_role") in ["Teacher", "Faculty"]:
             st.caption("No standard subject teaching allocations assigned to your account.")
 
     with col_incharge:
-            st.markdown("### 👑 Class Incharge Assignments")
-            
-            incharge_df = run_query("""
-                SELECT DISTINCT section_name, class_level, session_term 
-                FROM academic_allocations 
-                WHERE (
-                    UPPER(TRIM(assigned_teacher_name)) = UPPER(TRIM(:tname)) 
-                    OR UPPER(TRIM(assigned_teacher_name)) LIKE UPPER(TRIM(:tname_like))
-                    OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
-                    OR UPPER(TRIM(assigned_teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
-                )
-                AND is_class_incharge = 'Yes'
-                ORDER BY session_term DESC
-            """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+        st.markdown("### 👑 Class Incharge Assignments")
         
+        incharge_df = run_query("""
+            SELECT DISTINCT section_name, class_level, session_term 
+            FROM academic_allocations 
+            WHERE (
+                UPPER(TRIM(assigned_teacher_name)) = UPPER(TRIM(:tname)) 
+                OR UPPER(TRIM(assigned_teacher_name)) LIKE UPPER(TRIM(:tname_like))
+                OR UPPER(TRIM(:tname)) LIKE CONCAT('%', UPPER(TRIM(assigned_teacher_name)), '%')
+                OR UPPER(TRIM(assigned_teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))
+            )
+            AND is_class_incharge = 'Yes'
+            ORDER BY session_term DESC
+        """, {"tname": clean_name, "tname_like": f"%{clean_name}%"})
+        
+        # FIXED INDENTATION LEVEL: Brought inside the "with col_incharge:" structural scope
         if not incharge_df.empty:
             for _, row in incharge_df.iterrows():
                 st.success(f"⭐ **Incharge of Section:** `{row['section_name']}` ({row['class_level']}) — Session: *{row['session_term']}*")
