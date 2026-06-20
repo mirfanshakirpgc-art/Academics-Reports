@@ -6239,24 +6239,21 @@ elif menu_choice == "⚙️ Settings":
         st.write("Subject tracking mapping configuration logic initialization dashboard...")
 
     # ==============================================================================
-    # 👥 SUB-MODULE 7: GRANULAR USER ACCESS TERMINAL WITH CLASS INCHARGE MAP
+    # 👥 SUB-MODULE 7: GRANULAR USER ACCESS TERMINAL
     # ==============================================================================
     elif sub_menu == "👥 User Access Control":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
-        st.markdown("Architect custom user profiles, allocate granular subject parameters, and assign Class Incharge rights.")
+        st.markdown("Architect custom user profiles and allocate granular application security parameters.")
         
-        # 🛠️ HARD REPAIR & INIT DB SCHEMA PATCH: PostgreSQL Native Syntax (SERIAL + BOOLEAN)
+        # 🛠️ INIT DB SCHEMA PATCH: PostgreSQL Native Syntax (SERIAL + BOOLEAN)
         try:
             with engine.begin() as conn:
-                # Core table initialization updated for native PostgreSQL compatibility
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS app_users (
                         id SERIAL PRIMARY KEY,
                         username TEXT UNIQUE,
                         password TEXT,
                         role TEXT,
-                        assigned_subject TEXT,
-                        assigned_class TEXT,
                         can_manage_users BOOLEAN DEFAULT FALSE,
                         can_manage_settings BOOLEAN DEFAULT FALSE,
                         can_manage_faculty BOOLEAN DEFAULT FALSE,
@@ -6265,7 +6262,7 @@ elif menu_choice == "⚙️ Settings":
                     );
                 """))
                 
-                # Double-check the column type structure of 'can_enter_marks' to guarantee alignment
+                # Verify column type structure matches to ensure alignment
                 res = conn.execute(text("""
                     SELECT data_type FROM information_schema.columns 
                     WHERE table_name = 'app_users' AND column_name = 'can_enter_marks';
@@ -6287,20 +6284,10 @@ elif menu_choice == "⚙️ Settings":
                 registered_teachers_list = teachers_db["teacher_name"].tolist()
         except Exception as e:
             st.warning(f"Could not sync with Teacher Management profiles table: {e}")
-
-        # Compute dynamic subject pool
-        computed_subject_pool = []
-        if 'CLASS_SUBJECTS_MASTER_MAP' in locals() or 'CLASS_SUBJECTS_MASTER_MAP' in globals():
-            for class_key, discipline_map in CLASS_SUBJECTS_MASTER_MAP.items():
-                for disc_key, subject_list in discipline_map.items():
-                    for subject in subject_list:
-                        if subject not in computed_subject_pool:
-                            computed_subject_pool.append(subject)
-        computed_subject_pool.sort()
         
         try:
             users_df = run_query("""
-                SELECT id, username, password, role, assigned_subject, assigned_class,
+                SELECT id, username, password, role,
                        can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks 
                 FROM app_users ORDER BY id ASC
             """)
@@ -6311,11 +6298,10 @@ elif menu_choice == "⚙️ Settings":
         st.markdown("### 📋 System Profiles & Active Access Permissions")
         if not users_df.empty:
             view_df = users_df.copy()
-            view_df['assigned_subject'] = view_df['assigned_subject'].fillna("Global (All Subjects)")
             for col in ['can_manage_users', 'can_manage_settings', 'can_manage_faculty', 'can_enter_marks', 'can_edit_marks']:
                 view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) or str(x) in ['1', 'True', 'true'] else "❌ Denied")
             
-            view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role", "Subject Allotment(s)", "Class Incharge Scope",
+            view_df.columns = ["ID", "Username (Linked Faculty Name)", "Password Label", "Assigned Role",
                                "User Control", "System Configuration", "Faculty Management", "Grades Entry", "Grades Override/Edit"]
             st.dataframe(view_df, use_container_width=True, hide_index=True)
 
@@ -6335,14 +6321,6 @@ elif menu_choice == "⚙️ Settings":
                 new_password = st.text_input("🔑 Account Secret Password:", type="password", key="c_pass_in").strip()
             with c_col2:
                 new_role = st.selectbox("🏷️ Core Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], key="c_role_sel")
-                if new_role == "Faculty":
-                    new_subjects_list = st.multiselect("📚 Allot Subject Scope (Select Multiple):", options=computed_subject_pool, key="c_sub_sel")
-                    new_class = st.selectbox("🏢 Assign Class Incharge Role:", ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="c_class_sel")
-                else:
-                    new_subjects_list = []
-                    new_class = "None"
-                    st.text_input("📚 Subject Scope:", value="Global (All Subjects)", disabled=True, key="c_sub_dis")
-                    st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="c_class_dis")
             with c_col3:
                 st.markdown("**Granular Access Rights:**")
                 c_m_usr = st.checkbox("Can Control App Users", value=False, key="c_p1")
@@ -6355,18 +6333,15 @@ elif menu_choice == "⚙️ Settings":
                 if not new_username or not new_password:
                     st.warning("⚠️ Username and password fields cannot be blank.")
                 elif not users_df.empty and new_username in users_df["username"].values:
-                    st.warning(f"⚠️ A profile configuration for '{new_username}' already exists. Go to the 'Edit User & System Rights' tab if you want to modify their permissions.")
+                    st.warning(f"⚠️ A profile configuration for '{new_username}' already exists.")
                 else:
                     try:
-                        clean_sub = ", ".join(new_subjects_list) if (new_role == "Faculty" and new_subjects_list) else None
-                        clean_cls = None if new_class == "None" else new_class
-                        
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO app_users (username, password, role, assigned_subject, assigned_class, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
-                                VALUES (:usr, :pwd, :role, :sub, :cls, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), CAST(:m_f AS BOOLEAN), CAST(:e_n AS BOOLEAN), CAST(:e_m AS BOOLEAN))
+                                INSERT INTO app_users (username, password, role, can_manage_users, can_manage_settings, can_manage_faculty, can_enter_marks, can_edit_marks)
+                                VALUES (:usr, :pwd, :role, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), CAST(:m_f AS BOOLEAN), CAST(:e_n AS BOOLEAN), CAST(:e_m AS BOOLEAN))
                             """), {
-                                "usr": new_username, "pwd": new_password, "role": new_role, "sub": clean_sub, "cls": clean_cls,
+                                "usr": new_username, "pwd": new_password, "role": new_role,
                                 "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), "e_n": bool(c_m_ent), "e_m": bool(c_m_mrk)
                             })
                         st.success(f"🎉 System User profile for '{new_username}' has been successfully created.")
@@ -6395,25 +6370,6 @@ elif menu_choice == "⚙️ Settings":
                 with e_col2:
                     current_role_idx = ["Admin", "Faculty", "Co-Ordinator"].index(meta_row['role']) if meta_row['role'] in ["Admin", "Faculty", "Co-Ordinator"] else 0
                     edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
-                    
-                    if edit_role == "Faculty":
-                        db_sub_val = meta_row['assigned_subject']
-                        if isinstance(db_sub_val, str) and db_sub_val.strip():
-                            default_selected_subjects = [s.strip() for s in db_sub_val.split(",") if s.strip() in computed_subject_pool]
-                        else:
-                            default_selected_subjects = []
-                            
-                        edit_subjects_list = st.multiselect("📚 Course Scope Visibility:", options=computed_subject_pool, default=default_selected_subjects, key="e_sub_sel")
-                        
-                        class_opts = ["None", "11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4"]
-                        current_cls = meta_row['assigned_class'] if meta_row['assigned_class'] else "None"
-                        current_cls_idx = class_opts.index(current_cls) if current_cls in class_opts else 0
-                        edit_class = st.selectbox("🏢 Change Class Incharge Duty:", class_opts, index=current_cls_idx, key="e_class_sel")
-                    else:
-                        edit_subjects_list = []
-                        edit_class = "None"
-                        st.text_input("📚 Course Scope:", value="Global (All Subjects)", disabled=True, key="e_sub_dis")
-                        st.text_input("🏢 Class Incharge Scope:", value="All Access", disabled=True, key="e_class_dis")
                 with e_col3:
                     st.markdown("**Rights Controls:**")
                     e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
@@ -6432,28 +6388,25 @@ elif menu_choice == "⚙️ Settings":
                     if not edit_username or not edit_password:
                         st.warning("⚠️ Username and password fields cannot be blank.")
                     elif not conflicting_user.empty:
-                        st.warning(f"⚠️ Cannot update profile. The username '{edit_username}' is already linked to a different login profile ID.")
+                        st.warning(f"⚠️ The username '{edit_username}' is already linked to a different login profile.")
                     else:
                         try:
-                            clean_sub = ", ".join(edit_subjects_list) if (edit_role == "Faculty" and edit_subjects_list) else None
-                            clean_cls = None if edit_class == "None" else edit_class
-                            
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE app_users 
-                                    SET username = :new_usr, password = :new_pwd, role = :new_role, assigned_subject = :new_sub, assigned_class = :new_cls,
+                                    SET username = :new_usr, password = :new_pwd, role = :new_role,
                                         can_manage_users = CAST(:mu AS BOOLEAN), can_manage_settings = CAST(:ms AS BOOLEAN), can_manage_faculty = CAST(:mf AS BOOLEAN), 
                                         can_enter_marks = CAST(:en AS BOOLEAN), can_edit_marks = CAST(:em AS BOOLEAN)
                                     WHERE id = :target_id
                                 """), {
-                                    "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role, "new_sub": clean_sub, "new_cls": clean_cls,
+                                    "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role,
                                     "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "en": bool(e_m_ent), "em": bool(e_m_mrk), "target_id": int(meta_row['id'])
                                 })
                             st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
                             import time; time.sleep(1.0); st.rerun()
                         except Exception as e:
                             st.error(f"Database upgrade execution failed: {e}")
-                        
+                                
         # --- TAB 3: TERMINATE PROFILE ---
         with tab_delete:
             st.markdown("##### Remove Security Profile")
