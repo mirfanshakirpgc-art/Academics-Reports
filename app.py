@@ -3358,7 +3358,35 @@ elif menu_choice == "📋 Daily Attendance Report":
             if remarks_report_df.empty:
                 st.info(f"🍃 No active absence remarks are logged by faculty for target selection on {rem_report_date.strftime('%d-%b-%Y')}.")
             else:
-                # Render clean dataframe to admin view
+                # ==============================================================================
+                # 🔥 DYNAMIC SPLITTING PATCH FOR SEPARATE COLUMNS
+                # ==============================================================================
+                def split_remarks_metadata(remarks_str):
+                    if not remarks_str or pd.isna(remarks_str):
+                        return "", "", ""
+                    
+                    remarks_str = str(remarks_str)
+                    if " | By: " in remarks_str and " on " in remarks_str:
+                        try:
+                            base_text, metadata = remarks_str.split(" | By: ", 1)
+                            operator, timestamp = metadata.split(" on ", 1)
+                            return base_text.strip(), operator.strip(), timestamp.strip()
+                        except Exception:
+                            return remarks_str, "", ""
+                    return remarks_str, "N/A", "N/A"
+
+                # Parse the "Teacher Remarks" row column into independent components
+                split_data = remarks_report_df['Teacher Remarks'].apply(split_remarks_metadata)
+                
+                remarks_report_df["Teacher's Remarks"] = [x[0] for x in split_data]
+                remarks_report_df["Remarks By"] = [x[1] for x in split_data]
+                remarks_report_df["Date & Time"] = [x[2] for x in split_data]
+                
+                # Drop old monolithic columns to keep reports looking beautifully formatted
+                remarks_report_df = remarks_report_df.drop(columns=['Teacher Remarks', 'Logged Timestamp'], errors='ignore')
+                # ==============================================================================
+
+                # Render clean split dataframe to admin view
                 st.dataframe(remarks_report_df, use_container_width=True, hide_index=True)
                 
                 # Professional Styled Excel Export Engine
