@@ -890,7 +890,8 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
         if not sel_sections or not sel_subjects:
             st.info("💡 Please select at least one Section AND one Subject to view performance.")
         else:
-            clean_sections = tuple([str(s).strip().upper() for s in sel_sections])
+            # Safe clean parsing guaranteeing standardized format arrays for DB engine bounds
+            clean_sections = [str(s).strip().upper() for s in sel_sections]
             
             # Loop through each selected subject to provide clean, isolated analysis
             for sub in sel_subjects:
@@ -915,7 +916,7 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
                           AND UPPER(TRIM(m.subject)) = :subject
                           AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
                         GROUP BY m.exam_type
-                    """, {"sections": clean_sections, "subject": target_sub_slug})
+                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
                     
                     raw_scores = run_query("""
                         SELECT m.exam_type, m.marks_obtained, m.total_marks, TRIM(s.section) AS section
@@ -925,7 +926,7 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
                           AND UPPER(TRIM(m.subject)) = :subject
                           AND UPPER(TRIM(m.marks_obtained)) NOT IN ('A', 'NC')
                           AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                    """, {"sections": clean_sections, "subject": target_sub_slug})
+                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
                     
                 except Exception as e:
                     st.error(f"Error executing analysis details for {sub}: {e}")
@@ -934,6 +935,8 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
                 if analysis_data.empty:
                     st.warning(f"No marks data found for {sub} in the selected sections.")
                 else:
+                    import numpy as np # Safeguard local import instance context
+                    
                     for _, row in analysis_data.iterrows():
                         exam_code = row["Exam Cycle"]
                         total = int(row["Total Registered"])
@@ -945,21 +948,26 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
                         scores['numeric_marks'] = pd.to_numeric(scores['marks_obtained'], errors='coerce')
                         scores = scores.dropna(subset=['numeric_marks'])
                         
-                        avg = np.mean(scores['numeric_marks']) if not scores.empty else 0
+                        # Mathematical corrections ensuring coherent averages
+                        actual_attendees = total - absent - nc
+                        avg = np.mean(scores['numeric_marks']) if not scores.empty else 0.0
                         passed = np.sum(scores['numeric_marks'] >= (scale * 0.4)) if not scores.empty else 0
-                        fail_rate = (total - absent - passed)
+                        
+                        fail_rate = max(0, actual_attendees - passed)
+                        pass_percentage = (passed / actual_attendees * 100) if actual_attendees > 0 else 0.0
                         
                         with st.expander(f"🏅 Exam Cycle: {exam_code} | Scale Max: {int(scale)}", expanded=True):
                             m1, m2, m3, m4 = st.columns(4)
                             m1.metric("Class Average Score", f"{avg:.1f} / {int(scale)}")
-                            m2.metric("Pass Percentage", f"{((passed/total)*100):.1f}%" if total > 0 else "0%")
-                            m3.metric("Failure Ledger Count", f"{fail_rate} Students")
+                            m2.metric("Pass Percentage (Attended)", f"{pass_percentage:.1f}%")
+                            m3.metric("Failure Ledger Count", f"{int(fail_rate)} Students")
                             m4.metric("Absentees / NC", f"{absent + nc}")
                             
                             if not scores.empty:
                                 st.markdown("<br>##### 🏢 Cross-Section Cohort Distribution Graph", unsafe_allow_html=True)
-                                bins = [0, scale*0.4, scale*0.6, scale*0.75, scale*0.9, scale+1]
+                                bins = [0, scale*0.4, scale*0.6, scale*0.75, scale*0.9, scale+1.0]
                                 labels = ['Fails (<40%)', 'Grade C (40-60%)', 'Grade B (60-75%)', 'Grade A (75-90%)', 'Merit A+ (>90%)']
+                                
                                 scores['Range'] = pd.cut(scores['numeric_marks'], bins=bins, labels=labels, right=False)
                                 chart_data = scores.groupby(['Range', 'section'], observed=False).size().unstack(fill_value=0)
                                 st.bar_chart(chart_data)
