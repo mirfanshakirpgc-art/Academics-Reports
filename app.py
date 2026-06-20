@@ -738,8 +738,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
             st.error("❌ Absent Student Remarks Panel")
             st.caption("Provide reason for absence for tracked profiles:")
             
-            with st.form("absent_remarks_form_teacher"):
-                # Input to capture WHO is entering the records
+            with st.form("absent_remarks_form_teacher", clear_on_submit=False):
                 operator_identity = st.text_input(
                     "👤 Teacher / Operator Name (Mandatory):", 
                     placeholder="Enter your name or staff ID", 
@@ -753,10 +752,9 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                     r_c1, r_c2 = st.columns([1.5, 3.5])
                     r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
                     
-                    # Clean out previous system tags if editing to show only the clean text
                     existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
-                    if " | By:" in existing_rem:
-                        existing_rem = existing_rem.split(" | By:")[0].strip()
+                    if " | By:" in str(existing_rem):
+                        existing_rem = str(existing_rem).split(" | By:")[0].strip()
                         
                     remarks_input_map[ab_row['ID']] = r_c2.text_input(
                         "Reason/Remarks", 
@@ -765,36 +763,43 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                         placeholder="e.g., Sick Leave, Absent without warning"
                     )
                 
-                if st.form_submit_button("💾 Save Absentee Remarks", type="secondary"):
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Directly write to database on click
+                if st.form_submit_button("💾 Save Absentee Remarks", type="primary", use_container_width=True):
                     if not operator_identity:
-                        st.warning("⚠️ Action Blocked: You must fill in the Teacher / Operator Name field before saving.")
+                        st.error("⚠️ Action Blocked: You must fill in your Operator Name before saving.")
                     else:
                         import datetime
-                        # Auto-capture current time and date
+                        import time
                         current_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %I:%M %p")
                         
                         try:
+                            # Direct transaction execution to prevent caching lag
                             with engine.begin() as conn:
                                 for s_id, remark_text in remarks_input_map.items():
                                     clean_text = remark_text.strip()
                                     
-                                    # Format: "Your text entry | By: Name on YYYY-MM-DD HH:MM AM/PM"
                                     if clean_text:
                                         formatted_remarks = f"{clean_text} | By: {operator_identity} on {current_timestamp}"
                                     else:
-                                        formatted_remarks = "" # Keeps field clear if text is erased
+                                        formatted_remarks = ""
                                         
                                     conn.execute(text("""
                                         UPDATE daily_attendance 
                                         SET remarks = :remarks 
                                         WHERE student_id = :s_id AND attendance_date = :att_date
-                                    """), {"remarks": formatted_remarks, "s_id": int(s_id), "att_date": str(target_date)})
+                                    """), {
+                                        "remarks": formatted_remarks, 
+                                        "s_id": int(s_id), 
+                                        "att_date": str(target_date)
+                                    })
                                     
-                            st.success("🎉 Absence records updated with structured user and timestamp logs!")
+                            st.success("🚀 Success! Remarks written directly to database and ready for reporting.")
                             time.sleep(1.0)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Failed to apply remarks: {e}")
+                            st.error(f"Failed to directly write remarks to database: {e}")
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
