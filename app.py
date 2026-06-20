@@ -1640,7 +1640,7 @@ elif menu_choice == "➕ Add Students":
                     else:
                         student = stu_df.iloc[0]
                         
-                        # Safe type conversion to native Python primitives to prevent numpy type errors
+                        # Safe type conversion to prevent numpy type errors
                         student_native_id = int(student['id'])
                         current_session = str(student['session'])
                         current_class = str(student['class'])
@@ -1658,7 +1658,7 @@ elif menu_choice == "➕ Add Students":
                         with col_i1:
                             ind_dest_session = st.selectbox("🔄 Target Session:", all_sessions, index=all_sessions.index(current_session) if current_session in all_sessions else 0, key="ind_sess_pick")
 
-                        # SESSION ENFORCEMENT RULES FOR CLASSES DROPDOWN LIST
+                        # Session enforcement rules for classes dropdown list
                         if ind_dest_session == "2025-27":
                             filtered_classes = ["12th"]
                         elif ind_dest_session == "2026-28":
@@ -1674,7 +1674,7 @@ elif menu_choice == "➕ Add Students":
                                 key="ind_cls_pick"
                             )
 
-                        # DYNAMIC CONTEXTUAL FILTERING FOR SECTIONS
+                        # Dynamic contextual filtering for sections
                         all_existing_sections = []
                         for discipline, classes_dict in DISCIPLINE_SECTIONS_MAP.items():
                             if ind_dest_class in classes_dict:
@@ -1684,11 +1684,9 @@ elif menu_choice == "➕ Add Students":
 
                         all_existing_sections.sort()
 
-                        # Fail-safe structural default array fallback
                         if not all_existing_sections:
                             all_existing_sections = ["A", "B", "C"]
 
-                        # Guarantee current student section value inclusion to prevent Streamlit internal index errors
                         current_student_section = str(student['section']).strip().upper()
                         if current_student_section not in all_existing_sections:
                             all_existing_sections.append(current_student_section)
@@ -1712,11 +1710,11 @@ elif menu_choice == "➕ Add Students":
 
                         st.markdown(" ") # Spacer
 
-                        # Action Buttons Row
-                        btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+                        # Refactored 5-Column Button Grid Layout Layout
+                        btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5)
 
                         with btn_col1:
-                            if st.button("🔀 Execute Base Relocations", use_container_width=True):
+                            if st.button("🔀 Relocate Base", use_container_width=True):
                                 if not ind_action_remarks.strip():
                                     st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before executing a relocation.")
                                 else:
@@ -1733,7 +1731,7 @@ elif menu_choice == "➕ Add Students":
                                                 "id": student_native_id
                                             })
                                         log_audit_trail("Single Profile Relocation", "Single Student", student_identity_string, ind_action_remarks)
-                                        st.success(f"🚀 Student {student_native_id} relocated successfully on {ind_action_date}!")
+                                        st.success("🚀 Student relocated successfully!")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Execution Error: {e}")
@@ -1755,44 +1753,54 @@ elif menu_choice == "➕ Add Students":
                                                 "id": student_native_id
                                             })
                                         log_audit_trail(f"Promotion to {next_class}", "Single Student", student_identity_string, ind_action_remarks)
-                                        st.success(f"🎉 Student promoted to {next_class} on {ind_action_date}!")
+                                        st.success(f"🎉 Student promoted to {next_class}!")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Execution Error: {e}")
 
                         with btn_col3:
-                            if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
+                            if st.button("🔴 Set Left", use_container_width=True):
                                 if not ind_action_remarks.strip():
-                                    st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before setting profile status to LEFT.")
+                                    st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before setting status to LEFT.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
-                                            conn.execute(text("""
-                                                UPDATE students 
-                                                SET status = 'LEFT'
-                                                WHERE id = :id
-                                            """), {
-                                                "id": student_native_id
-                                            })
+                                            conn.execute(text("UPDATE students SET status = 'LEFT' WHERE id = :id"), {"id": student_native_id})
                                         log_audit_trail("Status Altered to LEFT", "Single Student", student_identity_string, ind_action_remarks)
-                                        st.warning(f"📉 Student {student_native_id} status altered to LEFT on {ind_action_date}.")
+                                        st.warning("📉 Student marked as LEFT.")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Execution Error: {e}")
 
                         with btn_col4:
-                            if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
+                            # 🟢 NEW COMPONENT: RE-ACTIVE PROFILE ENGINE
+                            if st.button("🟢 Re-Active", use_container_width=True, help="Restore status to ACTIVE"):
                                 if not ind_action_remarks.strip():
-                                    st.warning("⚠️ Action Blocked: Please provide a structural justification in remarks first.")
-                                elif ind_action_remarks.strip().upper() != "CONFIRM DELETE":
-                                    st.error("❌ Safety Lockout: To perform deletion, explicitly input 'CONFIRM DELETE' into the operational remarks window.")
+                                    st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before executing a Re-Activation.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
+                                            conn.execute(text("UPDATE students SET status = 'ACTIVE' WHERE id = :id"), {"id": student_native_id})
+                                        log_audit_trail("Status Altered to ACTIVE", "Single Student", student_identity_string, ind_action_remarks)
+                                        st.success("✅ Student restored to ACTIVE status.")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Execution Error: {e}")
+
+                        with btn_col5:
+                            # 🗑️ FIX: RESTRICTIVE LOCK REMOVED
+                            if st.button("🗑️ Purge Entry", use_container_width=True, type="secondary"):
+                                if not ind_action_remarks.strip():
+                                    st.warning("⚠️ Action Blocked: Please enter operational remarks/justification to authorize permanent record purge.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            # Drop child cascading keys first
+                                            conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
                                             conn.execute(text("DELETE FROM attendance WHERE student_id = :id"), {"id": student_native_id})
                                             conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                                        log_audit_trail("Permanent Record Purge", "Single Student", student_identity_string, "Forced safety clearance authorization sequence used.")
-                                        st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged on {ind_action_date}.")
+                                        log_audit_trail("Permanent Record Purge", "Single Student", student_identity_string, ind_action_remarks)
+                                        st.error("💥 Record permanently purged.")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Execution Error: {e}")
@@ -2063,11 +2071,6 @@ elif menu_choice == "➕ Add Students":
             use_container_width=True,
             hide_index=True
         )
-
-# ====================================================================================
-# MODULE 1: ACADEMIC EXAM MARKS ENTRY
-# ====================================================================================
-
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
 # ====================================================================================
