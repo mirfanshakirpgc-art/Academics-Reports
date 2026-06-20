@@ -1138,6 +1138,9 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     default_index = 1 if "2025-27" in session_options else 0
 
+    # --------------------------------------------------------------------------
+    # MODE 1: BULK CLASSROOM MANAGEMENT ROSTER
+    # --------------------------------------------------------------------------
     if att_sub_type == "📅 Daily Attendance Entry":
         d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
         with d1: sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
@@ -1181,9 +1184,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         time.sleep(0.5)
                         st.rerun()
 
-                # ----------------------------------------------------------------------
-                # ❌ DYNAMIC IN-PAGE ABSENT STUDENTS DETECTOR
-                # ----------------------------------------------------------------------
                 absent_student_ids = [s_id for s_id, is_present in chk_map.items() if not is_present]
                 if absent_student_ids:
                     absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
@@ -1201,26 +1201,26 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                     st.markdown("---")
                     st.success("🟢 Every student in this section scope is marked present.")
 
+    # --------------------------------------------------------------------------
+    # MODE 2: SINGLE STUDENT LOGGING & HISTORICAL ANALYSIS ENGINE
+    # --------------------------------------------------------------------------
     elif att_sub_type == "👤 By Single Student Roll Number":
         sc1, sc2, sc3 = st.columns(3)
         with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="s_sess")
         with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="s_sys")
         with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="s_cls")
         
-        # Upgraded to search by both Name and Roll Number ID strings
-        search_input = st.text_input("🔍 Search Student by Roll Number (ID) OR Name:", key="single_student_search_input").strip()
+        # Search options by Roll Number (ID) or Name
+        search_input = st.text_input("🔍 Search Single Student by ID or Name:", key="single_student_search_input").strip()
         
         if search_input:
             conds = {"sess": str(s_sess).strip()}
-            
-            # Filter active database profiles
             base_sql = """
                 SELECT id, name, section, session, class FROM students 
                 WHERE UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))
                   AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
             """
             
-            # Switch between numeric ID or string Name queries
             if search_input.isdigit():
                 base_sql += " AND id = :search_val"
                 conds["search_val"] = int(search_input)
@@ -1238,7 +1238,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 st.error(f"❌ No active student found matching '{search_input}' inside Session ({s_sess}) and Class Level ({s_cls}).")
             
             elif len(student_matches) > 1:
-                st.warning(f"⚠️ Multiple matches found ({len(student_matches)} students). Please select the exact profile:")
+                st.warning(f"⚠️ Multiple matches found. Select the exact student profile:")
                 selected_student_str = st.selectbox(
                     "Select Exact Student Profile:",
                     options=[f"ID: {row['id']} — {row['name'].upper()} ({row['section']})" for _, row in student_matches.iterrows()]
@@ -1249,7 +1249,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 student_info = student_matches
 
             if not student_matches.empty:
-                # Isolate variables safely
                 single_id = int(student_info['id'].iloc[0])
                 s_name = student_info['name'].iloc[0].upper()
                 s_section = student_info['section'].iloc[0].upper().strip()
@@ -1258,20 +1257,22 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 
                 st.info(f"👤 **Active Profile:** {s_name} (Roll No: `{single_id}`) | **Class:** {s_class} | **Section:** {s_section}")
                 
-                # ------------------------------------------------------------------
-                # 📅 SINGLE DAY ATTENDANCE & LATE ENTRY LOGGING FORM
-                # ------------------------------------------------------------------
-                st.markdown("##### 📅 Log/Update Single Day Entry")
+                # Dynamic column update verification fallback
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("ALTER TABLE daily_attendance ADD COLUMN late_arrival_minutes INTEGER DEFAULT 0;"))
+                except Exception:
+                    pass
                 
-                # Automatically falls back to admin if login sessions aren't tracked yet
+                st.markdown("##### 📅 Log Attendance & Mark Late Arrival")
+                
                 current_user = st.session_state.get('username', 'Ms. Nazia Karamat')
                 operator_name = st.text_input("👤 Teacher / Operator Name:", value=current_user, key="s_operator")
                 
                 ca1, ca2, ca3 = st.columns([1.5, 1.2, 1.2])
                 with ca1:
-                    dt = st.date_input("Target Date:", value=datetime.date.today(), key="s_dt")
+                    dt = st.date_input("Date:", value=datetime.date.today(), key="s_dt")
                 
-                # Pull existing records to pre-populate form options
                 existing_record = run_query("""
                     SELECT status, remarks, late_arrival_minutes 
                     FROM daily_attendance 
@@ -1299,18 +1300,17 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 with ca2:
                     stat = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="s_stat")
                 with ca3:
-                    late_mins = st.number_input("Late Arrival Minutes:", min_value=0, max_value=480, value=default_late, step=5, key="s_late_input")
+                    late_mins = st.number_input("Mark Late Minutes:", min_value=0, max_value=480, value=default_late, step=5, key="s_late_input")
                 
-                s_rem = st.text_input("Remarks:", value=default_rem, placeholder="Reason for absence or late arrival details...", key="s_rem_input")
+                s_rem = st.text_input("Remarks:", value=default_rem, placeholder="Reason if Absent or special entry notes...", key="s_rem_input")
                 
-                if st.button("💾 Log Entry", key="s_save", use_container_width=True):
+                if st.button("💾 Save Attendance Record", key="s_save", use_container_width=True):
                     if not operator_name.strip():
-                        st.error("❌ Please provide an Operator / Teacher Name before saving.")
+                        st.error("❌ Teacher / Operator Name required.")
                     else:
                         status_flag = "P" if "Present" in stat else "A"
                         final_late_mins = late_mins if status_flag == "P" else 0
                         
-                        # Structured string compilation to match audit requirements
                         timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d %I:%M %p")
                         formatted_remarks = f"{s_rem.strip()} | By: {operator_name.strip()} on {timestamp_str}"
                         
@@ -1323,17 +1323,17 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                                     DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks, late_arrival_minutes = EXCLUDED.late_arrival_minutes
                                 """), {"id": single_id, "dt": str(dt), "st": status_flag, "rem": formatted_remarks, "late": final_late_mins})
                                 
-                            st.success("Saved single student attendance log successfully!")
+                            st.success(f"🎉 Logs updated successfully for {s_name}!")
                             time.sleep(0.5)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Database update failed: {e}")
+                            st.error(f"Save action failed: {e}")
 
                 # ------------------------------------------------------------------
-                # 📊 COMPLETE TIMELINE HISTORY REPORT GENERATOR
+                # DYNAMIC ATTENDANCE HISTORY COMPLETION DATA ENGINE
                 # ------------------------------------------------------------------
                 st.markdown("---")
-                st.markdown("##### 📊 Complete Attendance History & Audit Log")
+                st.markdown("##### 📊 Complete Attendance History Report")
                 
                 raw_logs = run_query("""
                     SELECT 
@@ -1376,7 +1376,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         "Late Minutes", "Logged By", "Logged Timestamp"
                     ]]
                     
-                    # Core analytic metrics display cards
                     total_records = len(raw_logs)
                     present_count = raw_logs["Status Code"].isin(['P', 'PRESENT', '1']).sum()
                     absent_count = total_records - present_count
