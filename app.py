@@ -1755,40 +1755,21 @@ elif menu_choice == "➕ Add Students":
                                         st.error(f"Execution Error: {e}")
 
                         with btn_col4:
-                            if st.button("🟢 Set Active", use_container_width=True, help="Restore or set this student status indicator to ACTIVE"):
+                            if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
                                 if not ind_action_remarks.strip():
-                                    st.warning("⚠️ Action Blocked: Please enter remarks before setting profile status to ACTIVE.")
+                                    st.warning("⚠️ Action Blocked: Please enter remarks to justify this permanent deletion.")
+                                elif ind_action_remarks.strip().upper() != "CONFIRM DELETE":
+                                    st.error("❌ Safety Lockout: Type 'CONFIRM DELETE' in the remarks field to execute profile purge.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
-                                            conn.execute(text("""
-                                                UPDATE students 
-                                                SET status = 'ACTIVE'
-                                                WHERE id = :id
-                                            """), {
-                                                "id": student_native_id
-                                            })
-                                        st.success(f"🍏 Student {student_native_id} status altered to ACTIVE on {ind_action_date}.")
+                                            # ✅ CHANGED FROM daily_attendance TO attendance
+                                            conn.execute(text("DELETE FROM attendance WHERE student_id = :id"), {"id": student_native_id})
+                                            conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+                                        st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged on {ind_action_date}.")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Execution Error: {e}")
-                                        
-                        # Destructive section
-                        st.markdown("---")
-                        if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
-                            if not ind_action_remarks.strip():
-                                st.warning("⚠️ Action Blocked: Please enter remarks to justify this permanent deletion.")
-                            elif ind_action_remarks.strip().upper() != "CONFIRM DELETE":
-                                st.error("❌ Safety Lockout: Type 'CONFIRM DELETE' in the remarks field to execute profile purge.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
-                                        conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
-                                    st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged on {ind_action_date}.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Execution Error: {e}")
 
                 except Exception as db_err:
                     st.error(f"Database Subsystem Error: {db_err}")
