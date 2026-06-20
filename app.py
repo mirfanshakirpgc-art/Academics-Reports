@@ -3025,67 +3025,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.markdown("---")
                     st.success("🟢 All students are currently marked present in the grid selection module.")
 
-    # --------------------------------------------------------------------------------
-    # WORKFLOW 2: SINGLE STUDENT ATTENDANCE & LATE TRACKING MANAGER
-    # --------------------------------------------------------------------------------
-    elif att_sub_type == "👤 By Single Student Roll Number":
-        st.subheader("👤 Single Student Attendance & Late Tracking Manager")
-        st.markdown("---")
-        
-        sc1, sc2, sc3 = st.columns(3)
-        with sc1:
-            s_session_sel = st.selectbox("Select Session Context:", session_options, index=default_index, key="single_att_sess_filter")
-        with sc2:
-            s_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="single_att_sys_filter")
-        with sc3:
-            if s_system == "Annual System":
-                s_class_sel = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="single_att_class_filter")
-            else:
-                s_class_sel = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_att_filter_sem")
-
-        col_search, _ = st.columns([2, 2])
-        with col_search:
-            search_input = st.text_input("🔍 Search Student by Roll Number (ID) OR Name:", key="single_att_search_input").strip()
-            
-        if search_input:
-            query_conds = {"sess": str(s_session_sel).strip()}
-            
-            # Base SQL structural definition matching active student statuses
-            base_sql = """
-                SELECT id, name, section, session, class FROM students 
-                WHERE UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))
-                  AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-            """
-            
-            # Direct routing switch checking if the string format is digital or text alpha characters
-            if search_input.isdigit():
-                base_sql += " AND id = :search_val"
-                query_conds["search_val"] = int(search_input)
-            else:
-                base_sql += " AND UPPER(name) LIKE UPPER(:search_val)"
-                query_conds["search_val"] = f"%{search_input}%"
-                
-            if s_class_sel != "ALL":
-                base_sql += " AND UPPER(TRIM(class)) = :cls"
-                query_conds["cls"] = str(s_class_sel).strip().upper()
-                
-            student_matches = run_query(base_sql, query_conds)
-            
-            if student_matches.empty:
-                st.error(f"❌ No active student found matching '{search_input}' inside Session ({s_session_sel}) and Class Level ({s_class_sel}).")
-            
-            elif len(student_matches) > 1:
-                st.warning(f"⚠️ Multiple matches found ({len(student_matches)} students). Please select the exact profile:")
-                selected_student_str = st.selectbox(
-                    "Select Exact Student Profile:",
-                    options=[f"ID: {row['id']} — {row['name'].upper()} ({row['section']})" for _, row in student_matches.iterrows()]
-                )
-                chosen_id = int(selected_student_str.split("ID: ")[1].split(" —")[0])
-                student_info = student_matches[student_matches['id'] == chosen_id]
-            else:
-                student_info = student_matches
-
-            if not student_matches.empty:
+    if not student_matches.empty:
                 # Isolate target context variables
                 single_id = int(student_info['id'].iloc[0])
                 s_name = student_info['name'].iloc[0].upper()
@@ -3094,6 +3034,123 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = student_info['class'].iloc[0]
                 
                 st.info(f"👤 **Active Student Profile:** {s_name} (Roll No: `{single_id}`) | **Class/Sem:** {s_class} | **Section:** {s_section} | **Session:** {s_session}")
+                
+                # ------------------------------------------------------------------
+                # WORKFLOW 2A: LOG OR UPDATE SINGLE DAY RECORDS WITH LATE MINUTES
+                # ------------------------------------------------------------------
+                st.markdown("##### 📅 Log/Update Single Day Entry")
+                
+                ca1, ca2, ca3, ca4 = st.columns([1.5, 1.2, 1.2, 1.1])
+                with ca1:
+                    att_date = st.date_input("Target Date:", value=datetime.date.today(), key="single_att_date_pick")
+                
+                # Fetch pre-existing database layouts to auto-populate defaults
+                existing_record = run_query("""
+                    SELECT status, late_arrival_minutes 
+                    FROM daily_attendance 
+                    WHERE student_id = :id AND attendance_date = :dt
+                """, {"id": single_id, "dt": str(att_date)})
+                
+                default_idx = 0
+                default_late = 0
+                if not existing_record.empty:
+                    clean_status = str(existing_record['status'].iloc[0]).strip().upper()
+                    default_idx = 0 if clean_status in ["P", "PRESENT", "1"] else 1
+                    try:
+                        default_late = int(existing_record['late_arrival_minutes'].iloc[0])
+                    except Exception:
+                        default_late = 0
+                        
+                with ca2:
+                    status_choice = st.selectbox("Status:", ["Present (P)", "Absent (A)"], index=default_idx, key="single_att_status_pick")
+                with ca3:
+                    late_mins = st.number_input("Late Minutes:", min_value=0, max_value=480, value=default_late, step=5, key="single_att_late_input")
+                
+                with ca4:
+                    st.markdown("##") 
+                    if st.button("💾 Log Entry", type="primary", use_container_width=True, key="execute_single_att_save"):
+                        final_status_code = "P" if "Present" in status_choice else "A"
+                        # Set late minutes automatically to zero if marked absent
+                        final_late_mins = late_mins if final_status_code == "P" else 0
+                        
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO daily_attendance (student_id, attendance_date, status, late_arrival_minutes) 
+                                    VALUES (:id, :dt, :st, :late)
+                                    ON CONFLICT (student_id, attendance_date) 
+                                    DO UPDATE SET status = EXCLUDED.status, late_arrival_minutes = EXCLUDED.late_arrival_minutes
+                                """), {"id": single_id, "dt": str(att_date), "st": final_status_code, "late": final_late_mins})
+                                
+                            st.success(f"🎉 Roster log updated successfully for {s_name}!")
+                            import time
+                            time.sleep(1.0)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error updating record layout profile: {e}")
+                        
+                # ------------------------------------------------------------------
+                # WORKFLOW 2B: COMPILED ATTENDANCE HISTORY TIMELINE VIA PARSING PATCH
+                # ------------------------------------------------------------------
+                st.markdown("---")
+                st.markdown("##### 📊 Dynamically Compiled Complete Attendance History & Audit Log")
+                
+                raw_logs = run_query("""
+                    SELECT 
+                        attendance_date AS "Date",
+                        UPPER(TRIM(status)) AS "Status Code",
+                        remarks AS "Raw Remarks",
+                        COALESCE(late_arrival_minutes, 0) AS "Late Minutes"
+                    FROM daily_attendance 
+                    WHERE student_id = :id
+                    ORDER BY attendance_date DESC
+                """, {"id": single_id})
+                
+                if raw_logs.empty:
+                    st.caption("ℹ️ No historical record metrics logged for this profile yet.")
+                else:
+                    def split_remarks_metadata(remarks_str):
+                        if not remarks_str or pd.isna(remarks_str):
+                            return "", "", ""
+                        remarks_str = str(remarks_str)
+                        if " | By: " in remarks_str and " on " in remarks_str:
+                            try:
+                                base_text, metadata = remarks_str.split(" | By: ", 1)
+                                operator, timestamp = metadata.split(" on ", 1)
+                                return base_text.strip(), operator.strip(), timestamp.strip()
+                            except Exception:
+                                return remarks_str, "", ""
+                        return remarks_str, "N/A", "N/A"
+
+                    split_data = raw_logs['Raw Remarks'].apply(split_remarks_metadata)
+                    raw_logs["Teacher's Remarks"] = [x[0] for x in split_data]
+                    raw_logs["Remarks By"] = [x[1] for x in split_data]
+                    raw_logs["Date & Time Logged"] = [x[2] for x in split_data]
+                    
+                    raw_logs["Attendance Status"] = raw_logs["Status Code"].apply(
+                        lambda x: "🟢 Present" if x in ['P', 'PRESENT', '1'] else "❌ Absent"
+                    )
+                    
+                    history_display_df = raw_logs[[
+                        "Date", "Attendance Status", "Teacher's Remarks", 
+                        "Late Minutes", "Remarks By", "Date & Time Logged"
+                    ]]
+                    
+                    # Compute key analytics metrics summary cards
+                    total_records = len(raw_logs)
+                    present_count = raw_logs["Status Code"].isin(['P', 'PRESENT', '1']).sum()
+                    absent_count = total_records - present_count
+                    total_late_mins = raw_logs["Late Minutes"].sum()
+                    attendance_percentage = int((present_count / total_records) * 100) if total_records > 0 else 0
+                    
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("Attendance Rate", f"{attendance_percentage}%")
+                    m2.metric("Total Days Present", f"{present_count} Days")
+                    m3.metric("Total Days Absent", f"{absent_count} Days")
+                    m4.metric("Accumulated Late Time", f"{total_late_mins} Mins")
+                    
+                    st.markdown("###")
+                    st.dataframe(history_display_df, use_container_width=True, hide_index=True)
                 
                 # ------------------------------------------------------------------
                 # WORKFLOW 2A: LOG OR UPDATE SINGLE DAY RECORDS WITH LATE MINUTES
