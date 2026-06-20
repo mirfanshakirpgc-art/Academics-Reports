@@ -2469,6 +2469,31 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         if b_section_target and b_section_target != "-- Choose Section --":
             st.markdown("### 📄 Step 2: Provide Student Ledger Data")
             
+            # --- DYNAMIC SAMPLE TEMPLATE DOWNLOADER ---
+            import io
+            # Generate a clean starter template DataFrame matching expected logic schemas
+            sample_df = pd.DataFrame({
+                "student_id": [1001, 1002, 1003],
+                "marks_obtained": [85, "A", 92]
+            })
+            
+            # Convert to standard CSV bytes seamlessly in memory
+            csv_buffer = io.StringIO()
+            sample_df.to_csv(csv_buffer, index=False)
+            csv_bytes = csv_buffer.getvalue()
+            
+            # Render a high-visibility wide download action button
+            st.download_button(
+                label="📥 Download Sample Spreadsheet Template (.csv)",
+                data=csv_bytes,
+                file_name="marks_entry_template.csv",
+                mime="text/csv",
+                use_container_width=True,
+                help="Click to download a clean sample template. Open this in Excel, fill out your student data, and re-upload!"
+            )
+            
+            st.markdown("---") # Visual divider between template utility and upload workflow
+            
             target_sub_slug = str(b_subject).strip().upper().replace(" ", "_")
             target_exam_slug = str(b_exam).strip().upper()
             
