@@ -6239,7 +6239,7 @@ elif menu_choice == "⚙️ Settings":
         st.write("Subject tracking mapping configuration logic initialization dashboard...")
 
     # ==============================================================================
-    # 👥 SUB-MODULE 7: ENTERPRISE USER ACCESS TERMINAL
+    # 👥 SUB-MODULE 7: CUSTOM SCHOOL USER ACCESS TERMINAL
     # ==============================================================================
     elif sub_menu == "👥 User Access Control":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
@@ -6248,7 +6248,7 @@ elif menu_choice == "⚙️ Settings":
         # Define the exact core role choices
         role_choices = ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty"]
         
-        # 🛠️ NATIVE DB SCHEMA PATCH: PostgreSQL Syntax with Full Granular Parameters
+        # 🛠️ NATIVE DB SCHEMA PATCH: PostgreSQL Syntax matching explicit institutional rules
         try:
             with engine.begin() as conn:
                 conn.execute(text("""
@@ -6257,29 +6257,34 @@ elif menu_choice == "⚙️ Settings":
                         username TEXT UNIQUE,
                         password TEXT,
                         role TEXT,
-                        can_manage_users BOOLEAN DEFAULT FALSE,
-                        can_manage_settings BOOLEAN DEFAULT FALSE,
-                        can_manage_faculty BOOLEAN DEFAULT FALSE,
-                        can_manage_attendance BOOLEAN DEFAULT TRUE,
-                        can_enter_marks BOOLEAN DEFAULT TRUE,
-                        can_edit_marks BOOLEAN DEFAULT FALSE,
-                        can_generate_results BOOLEAN DEFAULT TRUE,
-                        can_modify_student_data BOOLEAN DEFAULT FALSE,
-                        can_view_all_reports BOOLEAN DEFAULT FALSE
+                        can_control_users BOOLEAN DEFAULT FALSE,
+                        can_fetch_all_reports BOOLEAN DEFAULT FALSE,
+                        can_enter_all_data BOOLEAN DEFAULT FALSE,
+                        can_manage_all_attendance BOOLEAN DEFAULT FALSE,
+                        can_edit_student_data BOOLEAN DEFAULT FALSE,
+                        can_manage_all_marks BOOLEAN DEFAULT FALSE,
+                        can_generate_exam_reports BOOLEAN DEFAULT FALSE,
+                        can_only_allotted_fields BOOLEAN DEFAULT TRUE,
+                        lock_marks_after_entry BOOLEAN DEFAULT TRUE
                     );
                 """))
                 
-                # Check for table alignment and dynamically insert missing columns
+                # Check for table alignment and dynamically insert missing columns safely
                 existing_cols = conn.execute(text("""
                     SELECT column_name FROM information_schema.columns WHERE table_name = 'app_users';
                 """)).fetchall()
                 existing_cols = [r[0] for r in existing_cols]
                 
                 new_features = {
-                    "can_manage_attendance": "BOOLEAN DEFAULT TRUE",
-                    "can_generate_results": "BOOLEAN DEFAULT TRUE",
-                    "can_modify_student_data": "BOOLEAN DEFAULT FALSE",
-                    "can_view_all_reports": "BOOLEAN DEFAULT FALSE"
+                    "can_control_users": "BOOLEAN DEFAULT FALSE",
+                    "can_fetch_all_reports": "BOOLEAN DEFAULT FALSE",
+                    "can_enter_all_data": "BOOLEAN DEFAULT FALSE",
+                    "can_manage_all_attendance": "BOOLEAN DEFAULT FALSE",
+                    "can_edit_student_data": "BOOLEAN DEFAULT FALSE",
+                    "can_manage_all_marks": "BOOLEAN DEFAULT FALSE",
+                    "can_generate_exam_reports": "BOOLEAN DEFAULT FALSE",
+                    "can_only_allotted_fields": "BOOLEAN DEFAULT TRUE",
+                    "lock_marks_after_entry": "BOOLEAN DEFAULT TRUE"
                 }
                 for col_name, col_def in new_features.items():
                     if col_name not in existing_cols:
@@ -6299,9 +6304,9 @@ elif menu_choice == "⚙️ Settings":
         try:
             users_df = run_query("""
                 SELECT id, username, password, role,
-                       can_manage_users, can_manage_settings, can_manage_faculty, 
-                       can_manage_attendance, can_enter_marks, can_edit_marks, 
-                       can_generate_results, can_modify_student_data, can_view_all_reports 
+                       can_control_users, can_fetch_all_reports, can_enter_all_data, 
+                       can_manage_all_attendance, can_edit_student_data, can_manage_all_marks, 
+                       can_generate_exam_reports, can_only_allotted_fields, lock_marks_after_entry
                 FROM app_users ORDER BY id ASC
             """)
         except Exception as e:
@@ -6312,17 +6317,17 @@ elif menu_choice == "⚙️ Settings":
         if not users_df.empty:
             view_df = users_df.copy()
             boolean_cols = [
-                'can_manage_users', 'can_manage_settings', 'can_manage_faculty', 
-                'can_manage_attendance', 'can_enter_marks', 'can_edit_marks', 
-                'can_generate_results', 'can_modify_student_data', 'can_view_all_reports'
+                'can_control_users', 'can_fetch_all_reports', 'can_enter_all_data', 
+                'can_manage_all_attendance', 'can_edit_student_data', 'can_manage_all_marks', 
+                'can_generate_exam_reports', 'can_only_allotted_fields', 'lock_marks_after_entry'
             ]
             for col in boolean_cols:
                 view_df[col] = view_df[col].apply(lambda x: "✅ Allowed" if bool(x) or str(x) in ['1', 'True', 'true'] else "❌ Denied")
             
             view_df.columns = [
                 "ID", "Username (Faculty Link)", "Password Label", "Assigned Role",
-                "User Control", "Sys Config", "Faculty Mgmt", "Attendance Control", 
-                "Grades Entry", "Grades Override", "Result Generation", "Modify Student Data", "All System Reports"
+                "Control Users", "Fetch All Reports", "Enter All Data", "All Sections Attendance",
+                "Edit Student Data", "All Subjects Marks", "Exam Report Engine", "Allotted Bounds Only", "Lock Entry Instantly"
             ]
             st.dataframe(view_df, use_container_width=True, hide_index=True)
 
@@ -6332,12 +6337,7 @@ elif menu_choice == "⚙️ Settings":
         # --- TAB 1: BUILD USER PROFILE ---
         with tab_create:
             st.markdown("##### 🚀 Provision a New Profile Layout")
-            
-            # Form setup for UI stability
-            if "role_preset_state" not in st.session_state:
-                st.session_state.role_preset_state = "Principal"
-                
-            c_col1, c_col2 = st.columns([1, 1.2])
+            c_col1, c_col2 = st.columns([1, 1.3])
             with c_col1:
                 if registered_teachers_list:
                     new_username = st.selectbox("👤 Select Registered Faculty Name:", options=registered_teachers_list, key="c_user_in")
@@ -6347,36 +6347,31 @@ elif menu_choice == "⚙️ Settings":
                 new_password = st.text_input("🔑 Account Secret Password:", type="password", key="c_pass_in").strip()
                 new_role = st.selectbox("🏷️ Core Identity Role:", options=role_choices, key="c_role_sel")
                 
-                # Dynamic guidance text matching your rules
-                st.info(f"💡 **Preset Profile Rule for {new_role}:** Options automatically optimized for core workflow duties.")
+                st.info(f"💡 **Rules Engine Auto-Preset:** Custom permissions layout modified dynamically for role: **{new_role}**.")
                 
-            # Compute dynamic fallback presets based on structural workflow specifications
-            p_users = (new_role == "Principal")
-            p_settings = (new_role == "Principal")
-            p_faculty = (new_role == "Principal")
-            p_attendance = (new_role in ["Principal", "Vice Principal", "Admission Officer"])
-            p_ent_marks = (new_role in ["Principal", "Vice Principal", "Exam Control Officer", "Faculty"])
-            p_edt_marks = (new_role in ["Principal", "Vice Principal", "Exam Control Officer"])
-            p_gen_results = (new_role in ["Principal", "Vice Principal", "Exam Control Officer"])
-            p_mod_student = (new_role in ["Principal", "Vice Principal", "Admission Officer"])
-            p_all_reports = (new_role in ["Principal", "Vice Principal", "Exam Control Officer"])
+            # Direct Rule Mapping Presets based on explicit user parameters
+            p_control_users = (new_role == "Principal")
+            p_fetch_all_rep = (new_role in ["Principal", "Vice Principal"])
+            p_enter_all_dat = (new_role in ["Principal", "Vice Principal"])
+            p_all_attendance = (new_role in ["Principal", "Vice Principal", "Admission Officer"])
+            p_edit_student   = (new_role in ["Principal", "Vice Principal", "Admission Officer"])
+            p_all_marks      = (new_role in ["Principal", "Vice Principal", "Exam Control Officer"])
+            p_exam_reports   = (new_role in ["Principal", "Vice Principal", "Exam Control Officer"])
+            p_only_allotted  = (new_role == "Faculty")
+            p_lock_marks     = (new_role == "Faculty")
 
             with c_col2:
-                st.markdown("**🛡️ Security Rights Matrix (Overridable):**")
-                rg1, rg2 = st.columns(2)
-                with rg1:
-                    st.caption("🖥️ System Administration")
-                    c_m_usr = st.checkbox("Can Control App Users", value=p_users, key="c_p1")
-                    c_m_set = st.checkbox("Can Access Settings", value=p_settings, key="c_p2")
-                    c_m_fac = st.checkbox("Can Manage Faculty", value=p_faculty, key="c_p3")
-                    c_m_std = st.checkbox("Can Edit Student Profiles", value=p_mod_student, key="c_p4")
-                with rg2:
-                    st.caption("📊 Academic & Report Engine")
-                    c_m_att = st.checkbox("Can Manage Attendance Matrix", value=p_attendance, key="c_p5")
-                    c_m_ent = st.checkbox("Can Enter New Marks", value=p_ent_marks, key="c_p6")
-                    c_m_mrk = st.checkbox("Can Override/Edit Marks", value=p_edt_marks, key="c_p7")
-                    c_m_res = st.checkbox("Can Compile Result Cards & Summaries", value=p_gen_results, key="c_p8")
-                    c_m_rep = st.checkbox("Can Fetch All Reports", value=p_all_reports, key="c_p9")
+                st.markdown("**🛡️ Granular Access Rights:**")
+                
+                c_1 = st.checkbox("Can access and control app users (Full Control)", value=p_control_users, key="cr_1")
+                c_2 = st.checkbox("Can fetch all types of institutional reports", value=p_fetch_all_rep, key="cr_2")
+                c_3 = st.checkbox("Can enter all types of system data configurations", value=p_enter_all_dat, key="cr_3")
+                c_4 = st.checkbox("Can mark / edit attendance of all sections & mark absent students", value=p_all_attendance, key="cr_4")
+                c_5 = st.checkbox("Can view and edit student baseline biographical profiles", value=p_edit_student, key="cr_5")
+                c_6 = st.checkbox("Can enter and edit marks for all available subjects", value=p_all_marks, key="cr_6")
+                c_7 = st.checkbox("Can generate Student Result Cards, Multi-Test, and Section Summaries", value=p_exam_reports, key="cr_7")
+                c_8 = st.checkbox("Can only mark attendance/marks for explicitly allotted incharge areas", value=p_only_allotted, key="cr_8")
+                c_9 = st.checkbox("Strictly lock and prevent editing of marks once entered", value=p_lock_marks, key="cr_9")
 
             if st.button("💾 Instantiate Custom Profile", type="primary", use_container_width=True):
                 if not new_username or not new_password:
@@ -6388,19 +6383,18 @@ elif menu_choice == "⚙️ Settings":
                         with engine.begin() as conn:
                             conn.execute(text("""
                                 INSERT INTO app_users (
-                                    username, password, role, can_manage_users, can_manage_settings, 
-                                    can_manage_faculty, can_manage_attendance, can_enter_marks, 
-                                    can_edit_marks, can_generate_results, can_modify_student_data, can_view_all_reports
+                                    username, password, role, can_control_users, can_fetch_all_reports, 
+                                    can_enter_all_data, can_manage_all_attendance, can_edit_student_data, 
+                                    can_manage_all_marks, can_generate_exam_reports, can_only_allotted_fields, lock_marks_after_entry
                                 ) VALUES (
-                                    :usr, :pwd, :role, CAST(:m_u AS BOOLEAN), CAST(:m_s AS BOOLEAN), 
-                                    CAST(:m_f AS BOOLEAN), CAST(:m_a AS BOOLEAN), CAST(:e_n AS BOOLEAN), 
-                                    CAST(:e_m AS BOOLEAN), CAST(:g_r AS BOOLEAN), CAST(:m_d AS BOOLEAN), CAST(:v_r AS BOOLEAN)
+                                    :usr, :pwd, :role, CAST(:c_u AS BOOLEAN), CAST(:f_r AS BOOLEAN), 
+                                    CAST(:e_d AS BOOLEAN), CAST(:m_a AS BOOLEAN), CAST(:e_s AS BOOLEAN), 
+                                    CAST(:m_m AS BOOLEAN), CAST(:g_e AS BOOLEAN), CAST(:o_a AS BOOLEAN), CAST(:l_m AS BOOLEAN)
                                 )
                             """), {
                                 "usr": new_username, "pwd": new_password, "role": new_role,
-                                "m_u": bool(c_m_usr), "m_s": bool(c_m_set), "m_f": bool(c_m_fac), 
-                                "m_a": bool(c_m_att), "e_n": bool(c_m_ent), "e_m": bool(c_m_mrk),
-                                "g_r": bool(c_m_res), "m_d": bool(c_m_std), "v_r": bool(c_m_rep)
+                                "c_u": bool(c_1), "f_r": bool(c_2), "e_d": bool(c_3), "m_a": bool(c_4),
+                                "e_s": bool(c_5), "m_m": bool(c_6), "g_e": bool(c_7), "o_a": bool(c_8), "l_m": bool(c_9)
                             })
                         st.success(f"🎉 Core Access Profile tailored successfully for **{new_username}** ({new_role}).")
                         import time; time.sleep(1.0); st.rerun()
@@ -6415,7 +6409,7 @@ elif menu_choice == "⚙️ Settings":
                 target_user = st.selectbox("🎯 Select Profile to Modify:", options=user_list, key="edit_user_select")
                 meta_row = users_df[users_df["username"] == target_user].iloc[0]
                 
-                e_col1, e_col2 = st.columns([1, 1.2])
+                e_col1, e_col2 = st.columns([1, 1.3])
                 with e_col1:
                     if registered_teachers_list:
                         try: current_teacher_idx = registered_teachers_list.index(meta_row['username'])
@@ -6430,20 +6424,16 @@ elif menu_choice == "⚙️ Settings":
                 
                 with e_col2:
                     st.markdown("**🛡️ Rights Controls Modifiers:**")
-                    eg1, eg2 = st.columns(2)
-                    with eg1:
-                        st.caption("🖥️ System Administration")
-                        e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
-                        e_m_set = st.checkbox("Can Access Settings", value=bool(meta_row['can_manage_settings']), key="e_p2")
-                        e_m_fac = st.checkbox("Can Manage Faculty", value=bool(meta_row['can_manage_faculty']), key="e_p3")
-                        e_m_std = st.checkbox("Can Edit Student Profiles", value=bool(meta_row.get('can_modify_student_data', False)), key="e_p4")
-                    with eg2:
-                        st.caption("📊 Academic & Report Engine")
-                        e_m_att = st.checkbox("Can Manage Attendance Matrix", value=bool(meta_row.get('can_manage_attendance', True)), key="e_p5")
-                        e_m_ent = st.checkbox("Can Enter New Marks", value=bool(meta_row.get('can_enter_marks', True)), key="e_p6")
-                        e_m_mrk = st.checkbox("Can Override/Edit Marks", value=bool(meta_row.get('can_edit_marks', False)), key="e_p7")
-                        e_m_res = st.checkbox("Can Compile Result Cards & Summaries", value=bool(meta_row.get('can_generate_results', True)), key="e_p8")
-                        e_m_rep = st.checkbox("Can Fetch All Reports", value=bool(meta_row.get('can_view_all_reports', False)), key="e_p9")
+                    
+                    e_1 = st.checkbox("Can access and control app users (Full Control)", value=bool(meta_row.get('can_control_users', False)), key="er_1")
+                    e_2 = st.checkbox("Can fetch all types of institutional reports", value=bool(meta_row.get('can_fetch_all_reports', False)), key="er_2")
+                    e_3 = st.checkbox("Can enter all types of system data configurations", value=bool(meta_row.get('can_enter_all_data', False)), key="er_3")
+                    e_4 = st.checkbox("Can mark / edit attendance of all sections & mark absent students", value=bool(meta_row.get('can_manage_all_attendance', False)), key="er_4")
+                    e_5 = st.checkbox("Can view and edit student baseline biographical profiles", value=bool(meta_row.get('can_edit_student_data', False)), key="er_5")
+                    e_6 = st.checkbox("Can enter and edit marks for all available subjects", value=bool(meta_row.get('can_manage_all_marks', False)), key="er_6")
+                    e_7 = st.checkbox("Can generate Student Result Cards, Multi-Test, and Section Summaries", value=bool(meta_row.get('can_generate_exam_reports', False)), key="er_7")
+                    e_8 = st.checkbox("Can only mark attendance/marks for explicitly allotted incharge areas", value=bool(meta_row.get('can_only_allotted_fields', True)), key="er_8")
+                    e_9 = st.checkbox("Strictly lock and prevent editing of marks once entered", value=bool(meta_row.get('lock_marks_after_entry', True)), key="er_9")
 
                 if st.button("💾 Save Updated Profile Configurations", type="primary", use_container_width=True):
                     conflicting_user = users_df[(users_df["username"] == edit_username) & (users_df["id"] != int(meta_row['id']))]
@@ -6458,17 +6448,16 @@ elif menu_choice == "⚙️ Settings":
                                 conn.execute(text("""
                                     UPDATE app_users 
                                     SET username = :new_usr, password = :new_pwd, role = :new_role,
-                                        can_manage_users = CAST(:mu AS BOOLEAN), can_manage_settings = CAST(:ms AS BOOLEAN), 
-                                        can_manage_faculty = CAST(:mf AS BOOLEAN), can_manage_attendance = CAST(:ma AS BOOLEAN),
-                                        can_enter_marks = CAST(:en AS BOOLEAN), can_edit_marks = CAST(:em AS BOOLEAN),
-                                        can_generate_results = CAST(:gr AS BOOLEAN), can_modify_student_data = CAST(:rs AS BOOLEAN),
-                                        can_view_all_reports = CAST(:vr AS BOOLEAN)
+                                        can_control_users = CAST(:c1 AS BOOLEAN), can_fetch_all_reports = CAST(:c2 AS BOOLEAN), 
+                                        can_enter_all_data = CAST(:c3 AS BOOLEAN), can_manage_all_attendance = CAST(:c4 AS BOOLEAN),
+                                        can_edit_student_data = CAST(:c5 AS BOOLEAN), can_manage_all_marks = CAST(:c6 AS BOOLEAN),
+                                        can_generate_exam_reports = CAST(:c7 AS BOOLEAN), can_only_allotted_fields = CAST(:c8 AS BOOLEAN),
+                                        lock_marks_after_entry = CAST(:c9 AS BOOLEAN)
                                     WHERE id = :target_id
                                 """), {
                                     "new_usr": edit_username, "new_pwd": edit_password, "new_role": edit_role,
-                                    "mu": bool(e_m_usr), "ms": bool(e_m_set), "mf": bool(e_m_fac), "ma": bool(e_m_att),
-                                    "en": bool(e_m_ent), "em": bool(e_m_mrk), "gr": bool(e_m_res), "rs": bool(e_m_std),
-                                    "vr": bool(e_m_rep), "target_id": int(meta_row['id'])
+                                    "c1": bool(e_1), "c2": bool(e_2), "c3": bool(e_3), "c4": bool(e_4), "c5": bool(e_5),
+                                    "c6": bool(e_6), "c7": bool(e_7), "c8": bool(e_8), "c9": bool(e_9), "target_id": int(meta_row['id'])
                                 })
                             st.success(f"🔒 Profile updated successfully for user: **{edit_username}**.")
                             import time; time.sleep(1.0); st.rerun()
