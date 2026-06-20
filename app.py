@@ -846,7 +846,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
         except Exception as e:
             st.error(f"Error executing database transactions: {e}")
  # ==============================================================================
-# 📊 DEDICATED SUBJECT TEACHER SECTION: RESULT ANALYSIS (FACULTY FLOW INTERCEPT)
+# 📊 DEDICATED SUBJECT TEACHER SECTION: RESULT ANALYSIS (MULTI-SELECT MODE)
 # ==============================================================================
 elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice or "📊" in menu_choice):
     import pandas as pd
@@ -854,10 +854,9 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
     
     st.title("📊 Subject Faculty Performance Analysis")
     
-    # Capture Logged-In Teacher Identity
     active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
     
-    st.info(f"🔒 **Logged in as:** {active_faculty_name} (Multi-Section Analytics Engine)")
+    st.info(f"🔒 **Logged in as:** {active_faculty_name} (Multi-Subject/Multi-Section Analytics)")
     st.markdown("---")
 
     # 1. Fetch Teacher-Specific Course Allocations
@@ -876,142 +875,93 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
         teacher_rights = pd.DataFrame()
 
     if teacher_rights.empty:
-        st.warning(f"🚨 No individual subject course allocations were identified for '{active_faculty_name}'.")
-        st.caption("Please ask your Administrator to verify your name inside the **Subject Allocations** table.")
+        st.warning(f"🚨 No allocations identified for '{active_faculty_name}'.")
     else:
-        # Extract unique sections allocated to this teacher
-        allowed_secs = sorted(list(teacher_rights['section'].unique()))
+        # Multi-select UI for Sections and Subjects
+        all_secs = sorted(list(teacher_rights['section'].unique()))
+        all_subs = sorted(list(teacher_rights['subject'].unique()))
         
         c1, c2 = st.columns(2)
         with c1:
-            # MULTI-SELECT: Allows selecting one or multiple sections at the same time
-            sel_sections = st.multiselect(
-                "Select Target Section Allocation(s):", 
-                options=allowed_secs, 
-                default=[allowed_secs[0]] if allowed_secs else [],
-                key="ra_sec_select"
-            )
-        
-        # Dynamically filter subjects assigned to ANY of the selected sections
-        if sel_sections:
-            filtered_subs = sorted(list(
-                teacher_rights[teacher_rights['section'].isin(sel_sections)]['subject'].unique()
-            ))
-        else:
-            filtered_subs = sorted(list(teacher_rights['subject'].unique()))
-        
+            sel_sections = st.multiselect("Select Target Section(s):", all_secs, key="ra_sec_multisel")
         with c2:
-            sel_subject = st.selectbox("Select Allocated Course Subject:", filtered_subs, key="ra_sub_select")
+            sel_subjects = st.multiselect("Select Subject(s):", all_subs, key="ra_sub_multisel")
             
-        target_sub_slug = str(sel_subject).strip().upper().replace(" ", "_")
-
-        if not sel_sections:
-            st.info("💡 Please select at least one Section from the dropdown above to view performance analysis.")
+        if not sel_sections or not sel_subjects:
+            st.info("💡 Please select at least one Section AND one Subject to view performance.")
         else:
-            # Format the list of sections for inclusion in SQL execution
-            clean_sections = [str(sec).strip().upper() for sec in sel_sections]
-
-            # 2. Extract Comprehensive Grade Metrics Ledger across selected sections
-            try:
-                # Query aggregates high-level metrics grouped by exam cycle
-                analysis_data = run_query("""
-                    SELECT 
-                        m.exam_type AS "Exam Cycle",
-                        COUNT(m.id) AS "Total Registered",
-                        SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'A' THEN 1 ELSE 0 END) AS "Absentees",
-                        SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'NC' THEN 1 ELSE 0 END) AS "Not Cleared",
-                        MAX(m.total_marks) AS "Max Out Of"
-                    FROM marks m
-                    JOIN students s ON m.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) IN :sections
-                      AND UPPER(TRIM(m.subject)) = :subject
-                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                    GROUP BY m.exam_type
-                """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
-                
-                # Fetch raw scores for detailed statistical computing and graph rendering
-                raw_scores_df = run_query("""
-                    SELECT m.exam_type, m.marks_obtained, m.total_marks, TRIM(s.section) AS section
-                    FROM marks m
-                    JOIN students s ON m.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) IN :sections
-                      AND UPPER(TRIM(m.subject)) = :subject
-                      AND UPPER(TRIM(m.marks_obtained)) NOT IN ('A', 'NC')
-                      AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
-
-            except Exception as e:
-                st.error(f"Error querying examination analytics backend: {e}")
-                analysis_data = pd.DataFrame()
-                raw_scores_df = pd.DataFrame()
-
-            if analysis_data.empty:
-                sections_str = ", ".join(sel_sections)
-                st.info(f"💡 No student examination marks entries have been captured or saved yet for **{sel_subject}** in Section(s): **{sections_str}**.")
-            else:
-                sections_title = ", ".join(sel_sections)
-                st.markdown(f"### 📈 Combined Analysis: {sel_subject} — Sections ({sections_title})")
+            clean_sections = tuple([str(s).strip().upper() for s in sel_sections])
+            clean_subjects = tuple([str(s).strip().upper() for s in sel_subjects])
+            
+            # Loop through each selected subject to provide clean, isolated analysis
+            for sub in sel_subjects:
                 st.markdown("---")
+                st.subheader(f"📖 Analysis for: **{sub}**")
                 
-                # Process metrics for each active exam cycle tracked in database
-                for _, row in analysis_data.iterrows():
-                    exam_code = row["Exam Cycle"]
-                    total_records = int(row["Total Registered"])
-                    absent_count = int(row["Absentees"])
-                    nc_count = int(row["Not Cleared"])
-                    scale_max = float(row["Max Out Of"]) if row["Max Out Of"] else 100.0
+                target_sub = str(sub).strip().upper()
+                
+                try:
+                    # Query metrics for the specific subject across selected sections
+                    analysis_data = run_query("""
+                        SELECT 
+                            m.exam_type AS "Exam Cycle",
+                            COUNT(m.id) AS "Total Registered",
+                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'A' THEN 1 ELSE 0 END) AS "Absentees",
+                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'NC' THEN 1 ELSE 0 END) AS "Not Cleared",
+                            MAX(m.total_marks) AS "Max Out Of"
+                        FROM marks m
+                        JOIN students s ON m.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) IN :sections
+                          AND UPPER(TRIM(m.subject)) = :subject
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                        GROUP BY m.exam_type
+                    """, {"sections": clean_sections, "subject": target_sub})
                     
-                    # Filter matching numeric values for this cycle
-                    cycle_scores = pd.DataFrame()
-                    if not raw_scores_df.empty:
-                        cycle_scores = raw_scores_df[raw_scores_df['exam_type'] == exam_code].copy()
-                        cycle_scores['numeric_marks'] = pd.to_numeric(cycle_scores['marks_obtained'], errors='coerce')
-                        cycle_scores = cycle_scores.dropna(subset=['numeric_marks'])
+                    raw_scores = run_query("""
+                        SELECT m.exam_type, m.marks_obtained, m.total_marks, TRIM(s.section) AS section
+                        FROM marks m
+                        JOIN students s ON m.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) IN :sections
+                          AND UPPER(TRIM(m.subject)) = :subject
+                          AND UPPER(TRIM(m.marks_obtained)) NOT IN ('A', 'NC')
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                    """, {"sections": clean_sections, "subject": target_sub})
+                    
+                except Exception as e:
+                    st.error(f"Error for {sub}: {e}")
+                    continue
 
-                    # Compute baseline metrics
-                    if not cycle_scores.empty:
-                        valid_marks = cycle_scores['numeric_marks'].values
-                        avg_score = np.mean(valid_marks)
-                        highest_score = np.max(valid_marks)
+                if analysis_data.empty:
+                    st.warning(f"No marks data found for {sub} in the selected sections.")
+                else:
+                    for _, row in analysis_data.iterrows():
+                        exam_code = row["Exam Cycle"]
+                        total = int(row["Total Registered"])
+                        absent = int(row["Absentees"])
+                        nc = int(row["Not Cleared"])
+                        scale = float(row["Max Out Of"]) or 100.0
                         
-                        # Pass Benchmark calculations (Standard 40% benchmark metric threshold)
-                        pass_threshold = scale_max * 0.40
-                        passed_count = np.sum(valid_marks >= pass_threshold)
-                        failed_count = np.sum(valid_marks < pass_threshold) + nc_count
-                        pass_rate = (passed_count / total_records) * 100
-                    else:
-                        avg_score, highest_score, pass_rate, failed_count = 0.0, 0.0, 0.0, nc_count
-
-                    # Display Visual Metrics Breakdown Card
-                    with st.expander(f"🏅 Exam Cycle: {exam_code} (Max Marks Scope: {int(scale_max)})", expanded=True):
-                        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-                        m_col1.metric("Combined Class Average", f"{avg_score:.1f} / {int(scale_max)}")
-                        m_col2.metric("Highest Achieved Marks", f"{int(highest_score)}")
-                        m_col3.metric("Combined Pass Percentage", f"{pass_rate:.1f}%")
-                        m_col4.metric("Total Failure Count", f"{int(failed_count)} Students")
-
-                        # Performance Status Table distribution framework
-                        st.markdown("##### 📊 Evaluation distribution index (Aggregated)")
-                        d_col1, d_col2, d_col3, d_col4, d_col5 = st.columns(5)
-                        d_col1.markdown(f"**Total Records:** `{total_records}`")
-                        d_col2.markdown(f"**Absentees (A):** `{absent_count}`")
-                        d_col3.markdown(f"**Not Cleared (NC):** `{nc_count}`")
-                        d_col4.markdown(f"**Passed (≥40%):** `{int(total_records - absent_count - failed_count)}`")
-                        d_col5.markdown(f"**Failed (<40%):** `{int(failed_count)}`")
+                        scores = raw_scores[raw_scores['exam_type'] == exam_code].copy()
+                        scores['numeric_marks'] = pd.to_numeric(scores['marks_obtained'], errors='coerce')
+                        scores = scores.dropna(subset=['numeric_marks'])
                         
-                        # Multi-section Side-by-Side Performance Comparison Graph
-                        if not cycle_scores.empty:
-                            st.markdown("<br>##### 🏢 Cross-Section Cohort Comparison Graph", unsafe_allow_html=True)
+                        avg = np.mean(scores['numeric_marks']) if not scores.empty else 0
+                        passed = np.sum(scores['numeric_marks'] >= (scale * 0.4)) if not scores.empty else 0
+                        fail_rate = (total - absent - passed)
+                        
+                        with st.expander(f"🏅 Exam: {exam_code} | Avg: {avg:.1f}/{int(scale)}", expanded=False):
+                            m1, m2, m3, m4 = st.columns(4)
+                            m1.metric("Avg Score", f"{avg:.1f}")
+                            m2.metric("Pass Rate", f"{((passed/total)*100):.1f}%" if total > 0 else "0%")
+                            m3.metric("Fails", f"{fail_rate}")
+                            m4.metric("Absent/NC", f"{absent + nc}")
                             
-                            bins = [0, scale_max*0.4, scale_max*0.6, scale_max*0.75, scale_max*0.9, scale_max+1]
-                            labels = ['Fails (<40%)', 'Grade C (40-60%)', 'Grade B (60-75%)', 'Grade A (75-90%)', 'Merit A+ (>90%)']
-                            
-                            cycle_scores['Performance Range'] = pd.cut(cycle_scores['numeric_marks'], bins=bins, labels=labels, right=False)
-                            
-                            # Pivot data to structure it seamlessly for streamlit's native bar chart
-                            chart_data = cycle_scores.groupby(['Performance Range', 'section'], observed=False).size().unstack(fill_value=0)
-                            
-                            st.bar_chart(chart_data, use_container_width=True)
+                            if not scores.empty:
+                                bins = [0, scale*0.4, scale*0.6, scale*0.75, scale*0.9, scale+1]
+                                labels = ['<40%', '40-60%', '60-75%', '75-90%', '>90%']
+                                scores['Range'] = pd.cut(scores['numeric_marks'], bins=bins, labels=labels, right=False)
+                                chart_data = scores.groupby(['Range', 'section'], observed=False).size().unstack(fill_value=0)
+                                st.bar_chart(chart_data)
 # ==============================================================================
 # 📅 GLOBAL ADMINISTRATIVE WORKFLOW: ATTENDANCE ENTRY MANAGEMENT
 # ==============================================================================
