@@ -1134,7 +1134,14 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     import time
     st.title("🗓️ Global Attendance Entry Management Panel")
     
-    att_sub_type = st.segmented_control("Mode:", ["📅 Daily Attendance Entry", "👤 By Single Student Roll Number"], default="📅 Daily Attendance Entry", key="adm_interval_ctrl")
+    # Three explicit top-level operational entry options under Mode
+    att_sub_type = st.segmented_control(
+        "Mode:", 
+        ["📅 Daily Attendance Entry", "👤 Single Student Attendance", "⏰ Mark Late Arrival"], 
+        default="📅 Daily Attendance Entry", 
+        key="adm_interval_ctrl"
+    )
+    
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     default_index = 1 if "2025-27" in session_options else 0
 
@@ -1202,9 +1209,9 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                     st.success("🟢 Every student in this section scope is marked present.")
 
     # --------------------------------------------------------------------------
-    # MODE 2: EXCLUSIVE SINGLE STUDENT ATTENDANCE & LATE ENTRY INTERFACE
+    # MODE 2: SINGLE STUDENT ATTENDANCE ENTRY WORKFLOW
     # --------------------------------------------------------------------------
-    elif att_sub_type == "👤 By Single Student Roll Number":
+    elif att_sub_type == "👤 Single Student Attendance":
         sc1, sc2, sc3 = st.columns(3)
         with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="s_sess")
         with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="s_sys")
@@ -1234,9 +1241,8 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
             
             if student_matches.empty:
                 st.error(f"❌ No active profiles match '{search_input}' within chosen parameters.")
-            
             elif len(student_matches) > 1:
-                st.warning("⚠️ Multiple data entries matches discovered. Narrow profile choice:")
+                st.warning("⚠️ Multiple student matches discovered. Narrow profile choice:")
                 selected_student_str = st.selectbox(
                     "Select Target Profile:",
                     options=[f"ID: {row['id']} — {row['name'].upper()} ({row['section']})" for _, row in student_matches.iterrows()]
@@ -1254,45 +1260,99 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 st.info(f"👤 **Selected Student:** {s_name} (Roll No: `{single_id}`) | Section: {s_section}")
                 dt = st.date_input("Target Date:", value=datetime.date.today(), key="s_operation_dt")
                 
-                # Split action entry criteria cleanly using Tabs
-                action_tab1, action_tab2 = st.tabs(["🟢 Mark Single Student Attendance", "⏰ Mark Single Student Late"])
+                with st.form("single_attendance_entry_form"):
+                    stat = st.selectbox("Select Status:", ["Present (P)", "Absent (A)"], key="form_s_stat")
+                    
+                    # Conditionally ask for reason: hidden or disabled if marked Present
+                    if "Present" in stat:
+                        s_rem = ""
+                        st.markdown("✏️ *No reason parameters required for Present status.*")
+                    else:
+                        s_rem = st.text_input("Absence Reason / Notes:", placeholder="Reason for status choice...", key="form_s_rem")
+                    
+                    if st.form_submit_button("💾 Save Status Entry", use_container_width=True):
+                        status_flag = "P" if "Present" in stat else "A"
+                        clean_rem = s_rem.strip() if "Absent" in stat else ""
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO daily_attendance (student_id, attendance_date, status, remarks) 
+                                VALUES (:id, :dt, :st, :rem) 
+                                ON CONFLICT (student_id, attendance_date) 
+                                DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks
+                            """), {"id": single_id, "dt": str(dt), "st": status_flag, "rem": clean_rem})
+                        st.success(f"Status changed successfully for {s_name}!")
+                        time.sleep(0.4)
+                        st.rerun()
+
+    # --------------------------------------------------------------------------
+    # MODE 3: MARK LATE ARRIVAL ENTRY WORKFLOW
+    # --------------------------------------------------------------------------
+    elif att_sub_type == "⏰ Mark Late Arrival":
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="l_sess")
+        with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="l_sys")
+        with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="l_cls")
+        
+        search_input = st.text_input("🔍 Search Student to Mark Late by ID Roll Number OR Full Name:", key="late_student_search_input").strip()
+        
+        if search_input:
+            conds = {"sess": str(s_sess).strip()}
+            base_sql = """
+                SELECT id, name, section, session, class FROM students 
+                WHERE UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))
+                  AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            """
+            if search_input.isdigit():
+                base_sql += " AND id = :search_val"
+                conds["search_val"] = int(search_input)
+            else:
+                base_sql += " AND UPPER(name) LIKE UPPER(:search_val)"
+                conds["search_val"] = f"%{search_input}%"
                 
-                # ACTION OPTION 1: MARK ATTENDANCE
-                with action_tab1:
-                    with st.form("single_attendance_entry_form"):
-                        stat = st.selectbox("Select Status:", ["Present (P)", "Absent (A)"], key="form_s_stat")
-                        s_rem = st.text_input("Attendance Remarks / Notes:", placeholder="Reason for status choice...", key="form_s_rem")
-                        
-                        if st.form_submit_button("💾 Save Status Entry", use_container_width=True):
-                            status_flag = "P" if "Present" in stat else "A"
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO daily_attendance (student_id, attendance_date, status, remarks) 
-                                    VALUES (:id, :dt, :st, :rem) 
-                                    ON CONFLICT (student_id, attendance_date) 
-                                    DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks
-                                """), {"id": single_id, "dt": str(dt), "st": status_flag, "rem": s_rem.strip()})
-                            st.success(f"Status changed successfully for {s_name}!")
-                            time.sleep(0.4)
-                            st.rerun()
-                            
-                # ACTION OPTION 2: MARK LATE ENTRY
-                with action_tab2:
-                    with st.form("single_late_entry_form"):
-                        late_mins = st.number_input("Late Arrival Duration (Minutes):", min_value=0, max_value=480, value=0, step=5, key="form_s_late")
-                        late_rem = st.text_input("Late Warning Reason / Comment:", placeholder="e.g., Late transit bus, Medical delay...", key="form_s_late_rem")
-                        
-                        if st.form_submit_button("⏰ Log Late Duration", use_container_width=True):
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO daily_attendance (student_id, attendance_date, status, remarks, late_arrival_minutes) 
-                                    VALUES (:id, :dt, 'P', :rem, :late) 
-                                    ON CONFLICT (student_id, attendance_date) 
-                                    DO UPDATE SET status = 'P', remarks = EXCLUDED.remarks, late_arrival_minutes = EXCLUDED.late_arrival_minutes
-                                """), {"id": single_id, "dt": str(dt), "rem": late_rem.strip(), "late": int(late_mins)})
-                            st.success(f"Late entry metric logged successfully for {s_name}!")
-                            time.sleep(0.4)
-                            st.rerun()
+            if s_cls != "ALL":
+                base_sql += " AND UPPER(TRIM(class)) = :cls"
+                conds["cls"] = str(s_cls).strip().upper()
+                
+            student_matches = run_query(base_sql, conds)
+            
+            if student_matches.empty:
+                st.error(f"❌ No active profiles match '{search_input}' within chosen parameters.")
+            elif len(student_matches) > 1:
+                st.warning("⚠️ Multiple student matches discovered. Narrow profile choice:")
+                selected_student_str = st.selectbox(
+                    "Select Target Profile:",
+                    options=[f"ID: {row['id']} — {row['name'].upper()} ({row['section']})" for _, row in student_matches.iterrows()]
+                )
+                chosen_id = int(selected_student_str.split("ID: ")[1].split(" —")[0])
+                student_info = student_matches[student_matches['id'] == chosen_id]
+            else:
+                student_info = student_matches
+
+            if not student_matches.empty:
+                single_id = int(student_info['id'].iloc[0])
+                s_name = student_info['name'].iloc[0].upper()
+                s_section = student_info['section'].iloc[0].upper().strip()
+                
+                st.info(f"👤 **Selected Student:** {s_name} (Roll No: `{single_id}`) | Section: {s_section}")
+                dt = st.date_input("Target Date:", value=datetime.date.today(), key="l_operation_dt")
+                
+                with st.form("single_late_entry_form"):
+                    late_mins = st.number_input("Late Arrival Duration (Minutes):", min_value=0, max_value=480, value=0, step=5, key="form_s_late")
+                    
+                    # Late arrivals are implicitly marked Present; reasons are kept as completely optional remarks
+                    late_rem = st.text_input("Late Comment / Notes (Optional):", placeholder="e.g., Transit delay, weather...", key="form_s_late_rem")
+                    
+                    if st.form_submit_button("⏰ Log Late Duration", use_container_width=True):
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO daily_attendance (student_id, attendance_date, status, remarks, late_arrival_minutes) 
+                                VALUES (:id, :dt, 'P', :rem, :late) 
+                                ON CONFLICT (student_id, attendance_date) 
+                                DO UPDATE SET status = 'P', remarks = EXCLUDED.remarks, late_arrival_minutes = EXCLUDED.late_arrival_minutes
+                            """), {"id": single_id, "dt": str(dt), "rem": late_rem.strip(), "late": int(late_mins)})
+                        st.success(f"Late entry metric logged successfully for {s_name}!")
+                        time.sleep(0.4)
+                        st.rerun()
 
 # ==============================================================================
 # ❌ ULTIMATE STANDALONE SIDEBAR ROUTER FOR ABSENT STUDENTS REMARKS
