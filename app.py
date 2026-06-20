@@ -1578,6 +1578,12 @@ elif menu_choice == "➕ Add Students":
     st.markdown("---")
     st.markdown("## 🛠️ Part 2: Manage Existing Records Hub")
     
+    # Initialize Persistent Audit Trail Session States
+    if "control_board_history_logs" not in st.session_state:
+        st.session_state["control_board_history_logs"] = pd.DataFrame(columns=[
+            "Log ID", "Timestamp", "Action Executed", "Scope Mode", "Target Entity/Count", "Justification Reason"
+        ])
+
     # Global state selectors for contextual operations
     col_g1, col_g2 = st.columns(2)
     with col_g1:
@@ -1593,6 +1599,22 @@ elif menu_choice == "➕ Add Students":
     
     all_sessions = ["2024-26", "2025-27", "2026-28", "2027-29"]
     all_classes = ["11th", "12th", "Semester 1", "Semester 2", "Semester 3", "Semester 4", "Graduated"]
+
+    # Helper function to append tracking actions dynamically to persistent session audit tracking rows
+    def log_audit_trail(action_name, scope_mode, target_summary, justification_remarks):
+        import datetime
+        import random
+        new_row = pd.DataFrame([{
+            "Log ID": f"LOG-{random.randint(1000, 9999)}",
+            "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Action Executed": action_name,
+            "Scope Mode": scope_mode,
+            "Target Entity/Count": target_summary,
+            "Justification Reason": justification_remarks.strip() if justification_remarks.strip() else "N/A"
+        }])
+        st.session_state["control_board_history_logs"] = pd.concat(
+            [new_row, st.session_state["control_board_history_logs"]], ignore_index=True
+        )
 
     # --------------------------------------------------------------------------------
     # SCOPE A: SINGLE STUDENT TARGETING SUITE
@@ -1623,6 +1645,7 @@ elif menu_choice == "➕ Add Students":
                         current_session = str(student['session'])
                         current_class = str(student['class'])
                         current_section = str(student['section'])
+                        student_identity_string = f"{str(student['name']).upper()} ({student_native_id})"
                         
                         st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {current_class} | Section: {current_section} | Session: {current_session} | Status: `{student['status']}`")
                         
@@ -1685,7 +1708,7 @@ elif menu_choice == "➕ Add Students":
                         with col_meta1:
                             ind_action_date = st.date_input("📆 Execution Date Target:", value=datetime.date.today(), key="ind_action_date")
                         with col_meta2:
-                            ind_action_remarks = st.text_input("💬 Operational Processing Remarks / Notes:", placeholder="Provide single-profile alteration context", key="ind_action_remarks")
+                            ind_action_remarks = st.text_input("💬 Operational Processing Remarks / Notes (Mandatory):", placeholder="Provide modification context or reason...", key="ind_action_remarks")
 
                         st.markdown(" ") # Spacer
 
@@ -1695,7 +1718,7 @@ elif menu_choice == "➕ Add Students":
                         with btn_col1:
                             if st.button("🔀 Execute Base Relocations", use_container_width=True):
                                 if not ind_action_remarks.strip():
-                                    st.warning("⚠️ Action Blocked: Please enter remarks before executing a relocation.")
+                                    st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before executing a relocation.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
@@ -1709,6 +1732,7 @@ elif menu_choice == "➕ Add Students":
                                                 "sec": str(ind_dest_section).strip().upper(), 
                                                 "id": student_native_id
                                             })
+                                        log_audit_trail("Single Profile Relocation", "Single Student", student_identity_string, ind_action_remarks)
                                         st.success(f"🚀 Student {student_native_id} relocated successfully on {ind_action_date}!")
                                         st.rerun()
                                     except Exception as e:
@@ -1717,7 +1741,7 @@ elif menu_choice == "➕ Add Students":
                         with btn_col2:
                             if st.button("🚀 Promote Student", use_container_width=True, type="primary"):
                                 if not ind_action_remarks.strip():
-                                    st.warning("⚠️ Action Blocked: Please enter remarks before executing a promotion.")
+                                    st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before executing a promotion.")
                                 else:
                                     try:
                                         next_class = "12th" if current_class == "11th" else "Graduated"
@@ -1730,6 +1754,7 @@ elif menu_choice == "➕ Add Students":
                                                 "cls": next_class, 
                                                 "id": student_native_id
                                             })
+                                        log_audit_trail(f"Promotion to {next_class}", "Single Student", student_identity_string, ind_action_remarks)
                                         st.success(f"🎉 Student promoted to {next_class} on {ind_action_date}!")
                                         st.rerun()
                                     except Exception as e:
@@ -1738,7 +1763,7 @@ elif menu_choice == "➕ Add Students":
                         with btn_col3:
                             if st.button("🔴 Set Left", use_container_width=True, help="Mark this student status indicator as LEFT"):
                                 if not ind_action_remarks.strip():
-                                    st.warning("⚠️ Action Blocked: Please enter remarks before setting profile status to LEFT.")
+                                    st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before setting profile status to LEFT.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
@@ -1749,6 +1774,7 @@ elif menu_choice == "➕ Add Students":
                                             """), {
                                                 "id": student_native_id
                                             })
+                                        log_audit_trail("Status Altered to LEFT", "Single Student", student_identity_string, ind_action_remarks)
                                         st.warning(f"📉 Student {student_native_id} status altered to LEFT on {ind_action_date}.")
                                         st.rerun()
                                     except Exception as e:
@@ -1757,15 +1783,15 @@ elif menu_choice == "➕ Add Students":
                         with btn_col4:
                             if st.button("🗑️ Permanently Delete Profile Entry", use_container_width=True, type="secondary"):
                                 if not ind_action_remarks.strip():
-                                    st.warning("⚠️ Action Blocked: Please enter remarks to justify this permanent deletion.")
+                                    st.warning("⚠️ Action Blocked: Please provide a structural justification in remarks first.")
                                 elif ind_action_remarks.strip().upper() != "CONFIRM DELETE":
-                                    st.error("❌ Safety Lockout: Type 'CONFIRM DELETE' in the remarks field to execute profile purge.")
+                                    st.error("❌ Safety Lockout: To perform deletion, explicitly input 'CONFIRM DELETE' into the operational remarks window.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
-                                            # ✅ CHANGED FROM daily_attendance TO attendance
                                             conn.execute(text("DELETE FROM attendance WHERE student_id = :id"), {"id": student_native_id})
                                             conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
+                                        log_audit_trail("Permanent Record Purge", "Single Student", student_identity_string, "Forced safety clearance authorization sequence used.")
                                         st.error(f"💥 Profile record corresponding to ID {student_native_id} was permanently purged on {ind_action_date}.")
                                         st.rerun()
                                     except Exception as e:
@@ -1832,68 +1858,84 @@ elif menu_choice == "➕ Add Students":
                         key="b_dest_sec"
                     )
                 
+                # Bulk action justification text box requirement input
+                bulk_action_remarks = st.text_input("💬 Bulk Action Processing Remarks / Authorization Justification:", placeholder="Why is this section being altered collectively? (Mandatory for all operations)", key="bulk_action_remarks")
+
                 # Mass Execution Pipelines
                 c_btn1, c_btn2, c_btn3 = st.columns(3)
+                cohort_identifier = f"Session: {global_session} | Sec: {source_section} | Sys: {clean_global_system}"
                 
                 with c_btn1:
                     if st.button("🔄 Execute Mass Relocations", use_container_width=True, help="Updates Session, Class, and Section indicators across the target segment group", key="bulk_relo_btn"):
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                UPDATE students 
-                                SET session = :dest_sess, class = :dest_cls, section = :dest_sec
-                                WHERE session = :src_sess 
-                                AND system_type = :src_syst 
-                                AND section = :src_sec 
-                                AND UPPER(status) = 'ACTIVE'
-                            """), {
-                                "dest_sess": str(batch_dest_session), "dest_cls": str(batch_dest_class), "dest_sec": str(batch_dest_section),
-                                "src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section
-                            })
-                        st.success(f"⚡ Batch shifting processing executed on {batch_count} profiles.")
-                        st.rerun()
-                        
-                with c_btn2:
-                    if st.button("🚀 Group Mass Promotion", use_container_width=True, type="primary", key="bulk_promo_btn"):
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                UPDATE students 
-                                SET class = CASE WHEN class = '11th' THEN '12th' ELSE 'Graduated' END
-                                WHERE session = :src_sess 
-                                AND system_type = :src_syst 
-                                AND section = :src_sec 
-                                AND UPPER(status) = 'ACTIVE'
-                            """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                        st.success("🎉 Complete group advancement framework successfully processed!")
-                        st.balloons()
-                        st.rerun()
-                        
-                with c_btn3:
-                    if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
-                        try:
+                        if not bulk_action_remarks.strip():
+                            st.warning("⚠️ Action Blocked: Please provide bulk operation context or reasons inside the remarks input prior to execution.")
+                        else:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    DELETE FROM daily_attendance 
-                                    WHERE student_id IN (
-                                        SELECT id FROM students 
-                                        WHERE session = :src_sess 
-                                        AND system_type = :src_syst 
-                                        AND section = :src_sec 
-                                        AND UPPER(status) = 'ACTIVE'
-                                    )
-                                """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                                
+                                    UPDATE students 
+                                    SET session = :dest_sess, class = :dest_cls, section = :dest_sec
+                                    WHERE session = :src_sess 
+                                    AND system_type = :src_syst 
+                                    AND section = :src_sec 
+                                    AND UPPER(status) = 'ACTIVE'
+                                """), {
+                                    "dest_sess": str(batch_dest_session), "dest_cls": str(batch_dest_class), "dest_sec": str(batch_dest_section),
+                                    "src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section
+                                })
+                            log_audit_trail("Bulk Mass Relocation", "Cohort Group", f"{batch_count} Students ({cohort_identifier})", bulk_action_remarks)
+                            st.success(f"⚡ Batch shifting processing executed on {batch_count} profiles.")
+                            st.rerun()
+                            
+                with c_btn2:
+                    if st.button("🚀 Group Mass Promotion", use_container_width=True, type="primary", key="bulk_promo_btn"):
+                        if not bulk_action_remarks.strip():
+                            st.warning("⚠️ Action Blocked: Please provide bulk operation context or reasons inside the remarks input prior to promotion.")
+                        else:
+                            with engine.begin() as conn:
                                 conn.execute(text("""
-                                    DELETE FROM students 
+                                    UPDATE students 
+                                    SET class = CASE WHEN class = '11th' THEN '12th' ELSE 'Graduated' END
                                     WHERE session = :src_sess 
                                     AND system_type = :src_syst 
                                     AND section = :src_sec 
                                     AND UPPER(status) = 'ACTIVE'
                                 """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
-                                
-                            st.error(f"💥 Complete Purge Success! Section '{source_section}' and all associated attendance histories were entirely deleted.")
+                            log_audit_trail("Cohort Group Advancement Promotion", "Cohort Group", f"{batch_count} Students ({cohort_identifier})", bulk_action_remarks)
+                            st.success("🎉 Complete group advancement framework successfully processed!")
+                            st.balloons()
                             st.rerun()
-                        except Exception as batch_del_err:
-                            st.error(f"❌ Failed to drop section database records: {batch_del_err}")
+                            
+                with c_btn3:
+                    if st.button("🗑️ Purge Complete Section", use_container_width=True, type="secondary", key="bulk_del_btn", help="Permanently delete entire section and all connected attendance logs"):
+                        if bulk_action_remarks.strip().upper() != "CONFIRM DELETE SECTION":
+                            st.error("❌ Safety Lockout Action Denied: Type 'CONFIRM DELETE SECTION' in the remarks window box field to authorize dropping the cohort data arrays.")
+                        else:
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        DELETE FROM daily_attendance 
+                                        WHERE student_id IN (
+                                            SELECT id FROM students 
+                                            WHERE session = :src_sess 
+                                            AND system_type = :src_syst 
+                                            AND section = :src_sec 
+                                            AND UPPER(status) = 'ACTIVE'
+                                        )
+                                    """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                                    
+                                    conn.execute(text("""
+                                        DELETE FROM students 
+                                        WHERE session = :src_sess 
+                                        AND system_type = :src_syst 
+                                        AND section = :src_sec 
+                                        AND UPPER(status) = 'ACTIVE'
+                                    """), {"src_sess": global_session, "src_syst": clean_global_system, "src_sec": source_section})
+                                    
+                                log_audit_trail("Permanent Section Bulk Purge", "Cohort Group", f"{batch_count} Students ({cohort_identifier})", "Hard Drop Override Verification Code Received.")
+                                st.error(f"💥 Complete Purge Success! Section '{source_section}' and all associated attendance histories were entirely deleted.")
+                                st.rerun()
+                            except Exception as batch_del_err:
+                                st.error(f"❌ Failed to drop section database records: {batch_del_err}")
 
                 # Complete Section Inline Data Grid Editing Mechanism
                 st.markdown("---")
@@ -1983,10 +2025,44 @@ elif menu_choice == "➕ Add Students":
                                     "c2": str(r['contact_2']).strip(), 
                                     "id": int(r['id'])
                                 })
+                        log_audit_trail("Bulk Grid Cells Inline Correction", "Cohort Group", f"Active Section Matrix Row Mutation ({source_section})", "Data verification cleanup run.")
                         st.success("🎉 Complete batch modifications and manual sequencing index layout updated successfully!")
                         st.rerun()
                     except Exception as grid_save_err:
                         st.error(f"Error compiling structural changes to relational data storage arrays: {grid_save_err}")
+
+    # ====================================================================================
+    # 📊 AUDIT TRAILS & MODIFICATION HISTORY LOG COMPONENT VIEW
+    # ====================================================================================
+    st.markdown("---")
+    st.markdown("### 📋 System Operations Tracking & Audit Log")
+    
+    col_hist_lbl, col_hist_btn = st.columns([3, 1])
+    with col_hist_lbl:
+        st.markdown("<p style='font-size:13px; color:#888;'>View or export actions executed on record states since initializing your session context layer.</p>", unsafe_allow_html=True)
+    with col_hist_btn:
+        # Programmatic Spreadsheet Export Anchor Row
+        if not st.session_state["control_board_history_logs"].empty:
+            csv_data = st.session_state["control_board_history_logs"].to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Export Data (CSV)",
+                data=csv_data,
+                file_name=f"Control_Board_Audit_Trail_{datetime.date.today().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.button("📥 Export Data (CSV)", disabled=True, use_container_width=True)
+
+    # Render dynamic on-screen history log view block
+    if st.session_state["control_board_history_logs"].empty:
+        st.info("💡 Audit trail matrix is currently empty. Performed core control operations will log transactional tracking paths live.")
+    else:
+        st.dataframe(
+            st.session_state["control_board_history_logs"],
+            use_container_width=True,
+            hide_index=True
+        )
 
 # ====================================================================================
 # MODULE 1: ACADEMIC EXAM MARKS ENTRY
