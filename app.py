@@ -6245,6 +6245,9 @@ elif menu_choice == "⚙️ Settings":
         st.subheader("👥 Dynamic User Access & Rights Matrix")
         st.markdown("Architect custom user profiles and allocate granular application security parameters.")
         
+        # Define the exact core role choices
+        role_choices = ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty"]
+        
         # 🛠️ INIT DB SCHEMA PATCH: PostgreSQL Native Syntax (SERIAL + BOOLEAN)
         try:
             with engine.begin() as conn:
@@ -6320,7 +6323,7 @@ elif menu_choice == "⚙️ Settings":
                     
                 new_password = st.text_input("🔑 Account Secret Password:", type="password", key="c_pass_in").strip()
             with c_col2:
-                new_role = st.selectbox("🏷️ Core Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], key="c_role_sel")
+                new_role = st.selectbox("🏷️ Core Identity Role:", options=role_choices, key="c_role_sel")
             with c_col3:
                 st.markdown("**Granular Access Rights:**")
                 c_m_usr = st.checkbox("Can Control App Users", value=False, key="c_p1")
@@ -6368,8 +6371,8 @@ elif menu_choice == "⚙️ Settings":
                         
                     edit_password = st.text_input("🔑 Password:", value=str(meta_row['password']), type="password", key="e_pass_in").strip()
                 with e_col2:
-                    current_role_idx = ["Admin", "Faculty", "Co-Ordinator"].index(meta_row['role']) if meta_row['role'] in ["Admin", "Faculty", "Co-Ordinator"] else 0
-                    edit_role = st.selectbox("🏷️ Identity Role:", ["Admin", "Faculty", "Co-Ordinator"], index=current_role_idx, key="e_role_sel")
+                    current_role_idx = role_choices.index(meta_row['role']) if meta_row['role'] in role_choices else 0
+                    edit_role = st.selectbox("🏷️ Identity Role:", options=role_choices, index=current_role_idx, key="e_role_sel")
                 with e_col3:
                     st.markdown("**Rights Controls:**")
                     e_m_usr = st.checkbox("Can Control App Users", value=bool(meta_row['can_manage_users']), key="e_p1")
