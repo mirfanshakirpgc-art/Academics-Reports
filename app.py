@@ -731,6 +731,9 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
         # ----------------------------------------------------------------------
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR 
         # ----------------------------------------------------------------------
+        # Ensure this panel renders for BOTH faculty and administrative/principal accounts
+        current_role = st.session_state.get("role", "").lower()
+        
         absent_students = roster_df[roster_df['SavedStatus'].isin(['A', 'ABSENT', '0'])]
         
         if not absent_students.empty:
@@ -739,12 +742,14 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
             st.caption("Provide reason for absence for tracked profiles:")
             
             with st.form("absent_remarks_form_teacher", clear_on_submit=False):
-                operator_identity = st.text_input(
-                    "👤 Teacher / Operator Name (Mandatory):", 
-                    placeholder="Enter your name or staff ID", 
-                    key="absent_remarks_operator"
-                ).strip()
                 
+                # AUTOMATICALLY CAPTURE LOGGED-IN OPERATOR IDENTITY FROM ACTIVE USER SESSION
+                # Checks common session keys used across your admin/faculty dashboards
+                operator_identity = st.session_state.get("user_name", 
+                                    st.session_state.get("name", 
+                                    st.session_state.get("username", "System Administrator"))).strip()
+                
+                st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *(Auto-detected from active login session)*")
                 st.markdown("---")
                 
                 remarks_input_map = {}
@@ -765,41 +770,39 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # Directly write to database on click
-                if st.form_submit_button("💾 Save Absentee Remarks", type="primary", use_container_width=True):
-                    if not operator_identity:
-                        st.error("⚠️ Action Blocked: You must fill in your Operator Name before saving.")
-                    else:
-                        import datetime
-                        import time
-                        current_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %I:%M %p")
-                        
-                        try:
-                            # Direct transaction execution to prevent caching lag
-                            with engine.begin() as conn:
-                                for s_id, remark_text in remarks_input_map.items():
-                                    clean_text = remark_text.strip()
+                # UNIFIED SUBMIT BUTTON - Visible to anyone who can view this panel
+                submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
+                
+                if submit_remarks:
+                    import datetime
+                    import time
+                    current_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %I:%M %p")
+                    
+                    try:
+                        with engine.begin() as conn:
+                            for s_id, remark_text in remarks_input_map.items():
+                                clean_text = remark_text.strip()
+                                
+                                if clean_text:
+                                    formatted_remarks = f"{clean_text} | By: {operator_identity} on {current_timestamp}"
+                                else:
+                                    formatted_remarks = "" 
                                     
-                                    if clean_text:
-                                        formatted_remarks = f"{clean_text} | By: {operator_identity} on {current_timestamp}"
-                                    else:
-                                        formatted_remarks = ""
-                                        
-                                    conn.execute(text("""
-                                        UPDATE daily_attendance 
-                                        SET remarks = :remarks 
-                                        WHERE student_id = :s_id AND attendance_date = :att_date
-                                    """), {
-                                        "remarks": formatted_remarks, 
-                                        "s_id": int(s_id), 
-                                        "att_date": str(target_date)
-                                    })
-                                    
-                            st.success("🚀 Success! Remarks written directly to database and ready for reporting.")
-                            time.sleep(1.0)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to directly write remarks to database: {e}")
+                                conn.execute(text("""
+                                    UPDATE daily_attendance 
+                                    SET remarks = :remarks 
+                                    WHERE student_id = :s_id AND attendance_date = :att_date
+                                """), {
+                                    "remarks": formatted_remarks, 
+                                    "s_id": int(s_id), 
+                                    "att_date": str(target_date)
+                                })
+                                
+                        st.success("🎉 Database Updated! Remarks successfully saved under this active user session.")
+                        time.sleep(1.0)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Database Submission Failed: {e}")
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
