@@ -2477,14 +2477,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             # --- TAB A: FILE UPLOADER ---
             with tab_upload:
-                st.caption("Upload a layout containing columns: `student_id` and `marks_obtained`")
-                uploaded_file = st.file_uploader("Choose spreadsheet file:", type=["csv", "xlsx"], key="bulk_file_uploader_v3")
+                st.caption("Upload a layout containing columns: `student_id` and `marks_obtained` (or mapping variations)")
+                uploaded_file = st.file_uploader("Choose spreadsheet file:", type=["csv", "xlsx"], key="bulk_file_uploader_v4")
                 if uploaded_file is not None:
                     try:
                         if uploaded_file.name.endswith('.csv'):
                             uploaded_df = pd.read_csv(uploaded_file)
                         else:
-                            uploaded_df = pd.read_excel(uploaded_file)
+                            # Explicitly handle openpyxl dependency check safely
+                            try:
+                                uploaded_df = pd.read_excel(uploaded_file, engine='openpyxl')
+                            except ImportError:
+                                st.error("❌ **Missing Environment Engine:** `openpyxl` library is required to read Excel `.xlsx` files.")
+                                st.code("pip install openpyxl", language="bash")
+                                st.info("💡 **Quick Workaround:** Save your Excel sheet as a CSV file and upload that instead!")
+                                uploaded_df = None
                     except Exception as e:
                         st.error(f"Error reading file: {e}")
 
@@ -2507,16 +2514,36 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
             # --- STEP 4: CONDITIONAL SUBMISSION BUTTON & MATRIX PREVIEW ---
             if uploaded_df is not None and not uploaded_df.empty:
+                # 1. Force clean column headers to uniform lowercase strings
                 uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
                 
-                if "student_id" not in uploaded_df.columns and len(uploaded_df.columns) >= 2:
-                    uploaded_df.columns = ["student_id", "marks_obtained"] + list(uploaded_df.columns[2:])
+                # 2. Smart mapping: translation layers for human column variations
+                mapping = {
+                    "student_id": ["student_id", "roll_no", "rollno", "id", "student id", "roll number"],
+                    "marks_obtained": ["marks_obtained", "marks", "score", "marks obtained", "obtained marks"]
+                }
+                
+                for target_col, variations in mapping.items():
+                    if target_col not in uploaded_df.columns:
+                        for variant in variations:
+                            if variant in uploaded_df.columns:
+                                uploaded_df.rename(columns={variant: target_col}, inplace=True)
+                                break
 
+                # 3. Positional Fallback: If translations failed but we have at least 2 columns, assume columns 1 & 2
+                if "student_id" not in uploaded_df.columns or "marks_obtained" not in uploaded_df.columns:
+                    if len(uploaded_df.columns) >= 2:
+                        uploaded_df.rename(columns={
+                            uploaded_df.columns[0]: "student_id",
+                            uploaded_df.columns[1]: "marks_obtained"
+                        }, inplace=True)
+
+                # 4. Final verification check
                 required_headers = ["student_id", "marks_obtained"]
                 missing_headers = [col for col in required_headers if col not in uploaded_df.columns]
                 
                 if missing_headers:
-                    st.error(f"❌ Structural Failure: Missing columns {missing_headers}. Verify layout matches expected formats.")
+                    st.error(f"❌ Structural Failure: Missing mandatory column mappings for {missing_headers}. Verify your spreadsheet layout.")
                 else:
                     st.markdown("##### 🔍 Record Parsing Preview")
                     st.dataframe(uploaded_df.head(15), use_container_width=True)
