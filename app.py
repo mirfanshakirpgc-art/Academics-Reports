@@ -557,7 +557,6 @@ if menu_choice == "📊 Home Dashboard":
                     total_sections = int(sections_df.iloc[0]['total']) if not sections_df.empty else 0
                     
                     # 2. Get sections where attendance has been recorded for TODAY
-                    # (Adjust CURRENT_DATE if your database uses a different timestamp helper)
                     marked_df = pd.read_sql_query(text("""
                         SELECT COUNT(DISTINCT s.section) as marked 
                         FROM attendance a 
