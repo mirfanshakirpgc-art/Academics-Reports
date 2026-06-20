@@ -660,7 +660,6 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
     
     # 1. Capture Logged-In Teacher Identity
     active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
-    current_user_id = st.session_state.get('user_id', -1)
     
     st.info(f"🔒 **Logged in as:** {active_faculty_name} (Subject Faculty Mode)")
     st.markdown("---")
@@ -674,19 +673,16 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
 
     session_options = ["2025-27", "2026-28", "2027-29"]
 
-    # 3. Precise Allocation Fetching Engine
-    # Finds precisely which subjects and sections are assigned to this specific teacher name
+    # 3. Precise Allocation Fetching Engine (FIXED: Removed non-existent user_id column)
     try:
         teacher_rights = run_query("""
             SELECT DISTINCT TRIM(subject_name) AS subject, TRIM(section) AS section 
             FROM subject_allocations 
             WHERE LOWER(TRIM(teacher_name)) = LOWER(TRIM(:tname)) 
                OR LOWER(TRIM(teacher_name)) LIKE LOWER(TRIM(:tname_like))
-               OR user_id = :uid
         """, {
             "tname": active_faculty_name, 
-            "tname_like": f"%{active_faculty_name}%",
-            "uid": int(current_user_id) if current_user_id is not None else -1
+            "tname_like": f"%{active_faculty_name}%"
         })
     except Exception as e:
         st.error(f"Error accessing allocation schema: {e}")
@@ -694,7 +690,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
 
     if teacher_rights.empty:
         st.warning(f"🚨 No individual subject course allocations were identified for '{active_faculty_name}'.")
-        st.caption("Please ask your Administrator to link your account name inside the **Subject Allocations** table.")
+        st.caption("Please ask your Administrator to verify your name inside the **Subject Allocations** table configuration.")
     else:
         # Extract unique allocations specific to this teacher
         allowed_secs = sorted(list(teacher_rights['section'].unique()))
