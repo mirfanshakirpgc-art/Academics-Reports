@@ -3326,56 +3326,90 @@ elif menu_choice == "📋 Section Summary Report":
             st.warning("⚠️ No active evaluation frameworks registered for this academic track.")
             sel_exam = None
 
-    # --- 3. SUBJECT TRANSLATION GLOSSARY ---
+    # --- 3. SUBJECT TRANSLATION GLOSSARY (ALIGNED WITH MARKS ENTRY DATABASE SLUGS) ---
+    # The keys here are exact uppercase database slugs produced by .replace(" ", "_")
     SHORT_SUBJECTS_MAP = {
-        "MATHEMATICS": "MATH", "COMPUTER SCIENCE": "COMP", "COMPUTER": "COMP",
-        "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS", "STATS": "STATS",
-        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIAT": "ISL", "PAKISTAN STUDIES": "PAK.ST",
-        "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN",
-        "PRINCIPLES OF ACCOUNTING": "ACC", "ECONOMICS": "ECO", "COMMERCE": "COMM",
-        "ICT": "ICT", "INTRODUCTION TO MS-OFFICE": "OFFICE", "COMPUTER NETWORKS": "NETWORKS",
-        "OPERATING SYSTEM": "O.S", "INTRODUCTION TO PROGRAMMING": "PROG",
-        "DATA BASE SYSTEM": "DBMS", "VIDEO EDITING": "VIDEO", "WEB DEVELOPMENT ESSENTIAL": "WEB",
-        "GRAPHICS DESIGN": "DESIGN", "PROJECT": "PROJ"
+        "MATHEMATICS": "MATH", 
+        "COMPUTER_SCIENCE": "COMP", 
+        "COMPUTER": "COMP",
+        "PHYSICS": "PHY", 
+        "CHEMISTRY": "CHEM", 
+        "BIOLOGY": "BIO", 
+        "STATISTICS": "STATS",
+        "ENGLISH": "ENG", 
+        "URDU": "URDU", 
+        "ISLAMIC_STUDIES": "ISL", 
+        "PAK_ST": "PAK.ST", 
+        "PAKISTAN_STUDIES": "PAK.ST",
+        "ISL_ETH": "ISL", 
+        "T_QURAN": "QURAN", 
+        "T_QUANT": "QURAN",
+        "PRINCIPLES_OF_ACCOUNTING": "ACC", 
+        "PRINCIPLES_OF_COMMERCE": "COMM",
+        "PRINCIPLES_OF_ECONOMICS": "ECO",
+        "BUSINESS_MATHEMATICS": "B.MATH",
+        "BANKING": "BANK",
+        "COMMERCIAL_GEOGRAPHY": "GEOG",
+        "BUSINESS_STATISTICS": "B.STATS",
+        "EDUCATION": "EDU",
+        "ISL_ELC": "ISL.E",
+        # Semester System Mappings
+        "ICT": "ICT", 
+        "OFFICE_AUTOMATION": "OFFICE", 
+        "INFORMATION_TECHNOLOGY": "I.T",
+        "COMPUTER_NETWORKS": "NETWORKS", 
+        "NETWORKING": "NET",
+        "C-PROGRAMMING": "PROG",
+        "OPERATING_SYSTEM": "O.S", 
+        "INTRODUCTION_TO_PROGRAMMING": "PROG",
+        "DATA_BASE_SYSTEM": "DBMS", 
+        "VIDEO_EDITING": "VIDEO", 
+        "WEB_DEVELOPMENT_ESSENTIAL": "WEB",
+        "GRAPHICS_DESIGN": "DESIGN", 
+        "PROJECT": "PROJ"
     }
     
     # --- 4. DYNAMIC SUBJECT LIST ROUTING ---
-    # FIXED: Realigned structural keys with upper dropdown formats to stop breaking test lists
+    # These match the exact formats that the teacher inputs into the database
     DISCIPLINE_MAP = {
         "MEDICAL": {
-            "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISL_ETH", "T_QURAN"],
+            "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISLAMIC_STUDIES", "T_QURAN"],
             "12th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "PAK_ST", "T_QURAN"]
         },
         "ENGINEERING": {
-            "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISL_ETH", "T_QURAN"],
+            "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "ISLAMIC_STUDIES", "T_QURAN"],
             "12th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
         "ICS (PHYSICS)": {
-            "11th": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"],
-            "12th": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER", "MATHEMATICS", "PAK_ST", "T_QURAN"]
+            "11th": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER_SCIENCE", "MATHEMATICS", "ISLAMIC_STUDIES", "T_QURAN"],
+            "12th": ["ENGLISH", "URDU", "PHYSICS", "COMPUTER_SCIENCE", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
         "ICS (STATS)": {
-            "11th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "ISL_ETH", "T_QURAN"],
-            "12th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER", "MATHEMATICS", "PAK_ST", "T_QURAN"]
+            "11th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER_SCIENCE", "MATHEMATICS", "ISLAMIC_STUDIES", "T_QURAN"],
+            "12th": ["ENGLISH", "URDU", "STATISTICS", "COMPUTER_SCIENCE", "MATHEMATICS", "PAK_ST", "T_QURAN"]
         },
         "COMMERCE": {
-            "11th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "PRINCIPLES OF COMMERCE", "PRINCIPLES OF ECONOMICS", "BUSINESS MATHEMATICS", "ISL_ETH", "T_QURAN"],
-            "12th": ["ENGLISH", "URDU", "PRINCIPLES OF ACCOUNTING", "BANKING", "COMMERCIAL GEOGRAPHY", "BUSINESS STATISTICS", "PAK_ST", "T_QURAN"]
+            "11th": ["ENGLISH", "URDU", "ISLAMIC_STUDIES", "PRINCIPLES_OF_ACCOUNTING", "PRINCIPLES_OF_COMMERCE", "PRINCIPLES_OF_ECONOMICS", "BUSINESS_MATHEMATICS", "T_QURAN"],
+            "12th": ["ENGLISH", "URDU", "PAK_ST", "PRINCIPLES_OF_ACCOUNTING", "BANKING", "COMMERCIAL_GEOGRAPHY", "BUSINESS_STATISTICS", "T_QURAN"]
         },
         "HUMANITIES": {
-            "11th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ELC", "ISL_ETH", "T_QURAN"],
+            "11th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ELC", "ISLAMIC_STUDIES", "T_QURAN"],
             "12th": ["ENGLISH", "URDU", "EDUCATION", "COMPUTER", "ISL_ELC", "PAK_ST", "T_QURAN"]
         },
     }
 
     if academic_system == "Annual System":
         disc_key = sel_disc.upper().strip()
+        # Ensure we check the map keys properly fallback if not found
         subjects = DISCIPLINE_MAP.get(disc_key, {}).get(selected_class, ["ENGLISH", "URDU"])
     else:
-        if "Semester 1" in selected_class:
-            subjects = ["ICT", "OFFICE AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING SYSTEM", "PROJECT"]
+        # Semester System context normalized with case-insensitive containment checks
+        if "1ST SEMESTER" in str(selected_class).upper() or "SEMESTER_1" in str(selected_class).upper() or "SEMESTER 1" in str(selected_class).upper():
+            subjects = ["INFORMATION_TECHNOLOGY", "OFFICE_AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING_SYSTEM", "PROJECT"]
+        elif "2ND SEMESTER" in str(selected_class).upper() or "SEMESTER 2" in str(selected_class).upper():
+            subjects = ["DATA_BASE_SYSTEM", "VIDEO_EDITING", "WEB_DEVELOPMENT_ESSENTIAL", "GRAPHICS_DESIGN", "PROJECT"]
         else:
-            subjects = ["ICT", "OFFICE AUTOMATION"]
+            subjects = ["ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
     # --- 5. DATABASE INTEGRATION ENGINE ---
     students_df = run_query("""
