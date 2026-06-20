@@ -971,59 +971,100 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
                                 scores['Range'] = pd.cut(scores['numeric_marks'], bins=bins, labels=labels, right=False)
                                 chart_data = scores.groupby(['Range', 'section'], observed=False).size().unstack(fill_value=0)
                                 st.bar_chart(chart_data)
-                # ----------------------------------------------------------------------
-                # ❌ DYNAMIC IN-PAGE ABSENT STUDENTS DETECTOR
-                # ----------------------------------------------------------------------
-                absent_student_ids = [s_id for s_id, is_present in chk_map.items() if not is_present]
-                if absent_student_ids:
-                    absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
-                    st.markdown("---")
-                    st.subheader("❌ Dynamic Unsaved Absentee Remarks Tracker")
-                    with st.form("adm_absent_remarks_form"):
-                        for idx, ab_row in absent_students.iterrows():
-                            r_c1, r_c2 = st.columns([2, 3])
-                            r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
-                            r_c2.text_input("Reason:", key=f"adm_rem_box_{ab_row['ID']}", placeholder="e.g., Sick, Unexcused")
-                        
-                        if st.form_submit_button("💾 Cache Temporary Form Remarks", use_container_width=True):
-                            st.success("🎉 Session remarks verified successfully!")
-                else:
-                    st.markdown("---")
-                    st.success("🟢 Every student in this section scope is marked present.")
+ # ----------------------------------------------------------------------
+# 🛡️ SECURE IN-PAGE ABSENT STUDENTS DETECTOR & REMARKS PERSISTENCE
+# ----------------------------------------------------------------------
+# Detect absent profiles safely based on currently saved database status
+absent_students = roster_df[roster_df['SavedStatus'].str.upper().fillna('').isin(['A', 'ABSENT', '0'])]
 
-    elif att_sub_type == "👤 By Single Student Roll Number":
-        sc1, sc2, sc3 = st.columns(3)
-        with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="s_sess")
-        with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="s_sys")
-        with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="s_cls")
-        single_id = st.text_input("🔍 Roll Number:", key="s_id")
+if not absent_students.empty:
+    st.markdown("---")
+    st.subheader("❌ Dynamic Absentee Remarks Tracker")
+    
+    with st.form("adm_absent_remarks_form", clear_on_submit=False):
+        remarks_input_map = {}
         
-        if single_id and single_id.isdigit():
-            conds = {"id": int(single_id), "sess": str(s_sess).strip()}
-            sql = "SELECT name, section, session, class FROM students WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))"
-            if s_cls != "ALL":
-                sql += " AND UPPER(TRIM(class)) = :cls"
-                conds["cls"] = str(s_cls).strip().upper()
-                
-            student_info = run_query(sql, conds)
-            if not student_info.empty:
-                st.info(f"👤 {student_info['name'].iloc[0].upper()} | Section: {student_info['section'].iloc[0]}")
-                ca1, ca2, ca3 = st.columns([1.5, 1.5, 2])
-                with ca1: dt = st.date_input("Date:", value=datetime.date.today(), key="s_dt")
-                with ca2: stat = st.selectbox("Status:", ["Present (P)", "Absent (A)"], key="s_stat")
-                with ca3: s_rem = st.text_input("Remarks:", key="s_rem_input", placeholder="Reason if Absent")
-                
-                if st.button("💾 Log Entry", key="s_save", use_container_width=True):
+        for idx, ab_row in absent_students.iterrows():
+            r_c1, r_c2 = st.columns([2, 3])
+            r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
+            
+            # Extract existing database remarks if present in your dataframe context
+            current_remark = ab_row['Remarks'] if 'Remarks' in ab_row and pd.notna(ab_row['Remarks']) else ""
+            
+            remarks_input_map[ab_row['ID']] = r_c2.text_input(
+                "Reason:", 
+                value=current_remark,
+                key=f"adm_rem_box_{ab_row['ID']}", 
+                placeholder="e.g., Sick, Unexcused"
+            )
+        
+        if st.form_submit_button("💾 Save Absentee Remarks Across Selected Scope", use_container_width=True):
+            try:
+                with engine.begin() as conn:
+                    for s_id, remark_text in remarks_input_map.items():
+                        conn.execute(text("""
+                            UPDATE daily_attendance 
+                            SET remarks = :remarks 
+                            WHERE student_id = :s_id AND attendance_date = :att_date
+                        """), {
+                            "remarks": remark_text.strip(), 
+                            "s_id": int(s_id), 
+                            "att_date": str(target_date)
+                        })
+                st.success("🎉 Session remarks saved successfully to the database!")
+                time.sleep(0.5)
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Database Write Error: {e}")
+else:
+    st.markdown("---")
+    st.success("🟢 Every student in this section scope is marked present.")
+
+# ----------------------------------------------------------------------
+# WORKFLOW 2: BY SINGLE STUDENT ROLL NUMBER
+# ----------------------------------------------------------------------
+elif att_sub_type == "👤 By Single Student Roll Number":
+    sc1, sc2, sc3 = st.columns(3)
+    with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="s_sess")
+    with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="s_sys")
+    with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="s_cls")
+    single_id = st.text_input("🔍 Roll Number:", key="s_id")
+    
+    if single_id and single_id.isdigit():
+        conds = {"id": int(single_id), "sess": str(s_sess).strip()}
+        sql = "SELECT name, section, session, class FROM students WHERE id = :id AND UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))"
+        if s_cls != "ALL":
+            sql += " AND UPPER(TRIM(class)) = :cls"
+            conds["cls"] = str(s_cls).strip().upper()
+            
+        student_info = run_query(sql, conds)
+        if not student_info.empty:
+            st.info(f"👤 {student_info['name'].iloc[0].upper()} | Section: {student_info['section'].iloc[0]}")
+            ca1, ca2, ca3 = st.columns([1.5, 1.5, 2])
+            with ca1: dt = st.date_input("Date:", value=datetime.date.today(), key="s_dt")
+            with ca2: stat = st.selectbox("Status:", ["Present (P)", "Absent (A)"], key="s_stat")
+            with ca3: s_rem = st.text_input("Remarks:", key="s_rem_input", placeholder="Reason if Absent")
+            
+            if st.button("💾 Log Entry", key="s_save", use_container_width=True):
+                try:
                     with engine.begin() as conn:
                         status_flag = "P" if "Present" in stat else "A"
                         conn.execute(text("""
-                            INSERT INTO daily_attendance (student_id, attendance_date, status) 
-                            VALUES (:id, :dt, :st) 
-                            ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
-                        """), {"id": int(single_id), "dt": str(dt), "st": status_flag})
+                            INSERT INTO daily_attendance (student_id, attendance_date, status, remarks) 
+                            VALUES (:id, :dt, :st, :remarks) 
+                            ON CONFLICT (student_id, attendance_date) 
+                            DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks
+                        """), {
+                            "id": int(single_id), 
+                            "dt": str(dt), 
+                            "st": status_flag, 
+                            "remarks": s_rem.strip()
+                        })
                     st.success("Saved single record successfully!")
                     time.sleep(0.5)
                     st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Single Entry Logging Error: {e}")
 
 # ==============================================================================
 # ❌ ULTIMATE STANDALONE SIDEBAR ROUTER FOR ABSENT STUDENTS REMARKS
