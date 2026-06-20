@@ -2644,28 +2644,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
 
-if "Attendance Entry Management" in menu_choice:
-    import datetime  
-    import pandas as pd
-    from sqlalchemy import text
-    
-    st.title("🗓️ Attendance Entry Management Panel")
-    
-    att_sub_type = st.segmented_control(
-        "Select Attendance Interval Mode:",
-        ["📅 Daily Attendance Entry", "👤 By Single Student Roll Number"],
-        default="📅 Daily Attendance Entry",
-        key="attendance_interval_segmented_control"
-    )
-    st.markdown("###")
-
-    # 🚀 CLEAN STATE INTEGRATION: Read strictly from settings to prevent duplicates
-    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-    active_session = st.session_state.get("current_session", "2026-28")
-    
-    # Force the selector index to point right to your active session choice
-    default_index = session_options.index(active_session) if active_session in session_options else 0
-
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
