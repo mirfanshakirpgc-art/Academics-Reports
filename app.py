@@ -971,61 +971,6 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
                                 scores['Range'] = pd.cut(scores['numeric_marks'], bins=bins, labels=labels, right=False)
                                 chart_data = scores.groupby(['Range', 'section'], observed=False).size().unstack(fill_value=0)
                                 st.bar_chart(chart_data)
-# ==============================================================================
-# 📅 GLOBAL ADMINISTRATIVE WORKFLOW: ATTENDANCE ENTRY MANAGEMENT
-# ==============================================================================
-elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Management"]:
-    import datetime
-    import time
-    st.title("🗓️ Global Attendance Entry Management Panel")
-    
-    att_sub_type = st.segmented_control("Mode:", ["📅 Daily Attendance Entry", "👤 By Single Student Roll Number"], default="📅 Daily Attendance Entry", key="adm_interval_ctrl")
-    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-    default_index = 1 if "2025-27" in session_options else 0
-
-    if att_sub_type == "📅 Daily Attendance Entry":
-        d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
-        with d1: sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
-        with d2: academic_system = st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
-        with d3: sel_class = st.selectbox("Class:", ["11th", "12th"], key="adm_daily_cls")
-        with d4: sel_section = st.selectbox("Section:", ["IG", "IB", "FB", "FG", "MG_BLUE"], key="adm_daily_sec")
-        target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
-
-        if sel_section and sel_session:
-            roster_df = run_query("""
-                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", NULL AS "Remarks" 
-                FROM students s 
-                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date 
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
-                  AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)) 
-                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT')) 
-                ORDER BY s.id ASC
-            """, {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
-            
-            if not roster_df.empty:
-                master_toggle = st.checkbox("🟢 Check All Present by Default", value=True, key="adm_master_toggle")
-                with st.form("adm_daily_form"):
-                    chk_map = {}
-                    for idx, row in roster_df.iterrows():
-                        c1, c2, c3 = st.columns([1, 3, 1])
-                        c1.write(f"`{row['ID']}`")
-                        c2.write(f"**{row['Student Name']}**")
-                        saved = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
-                        state = True if saved in ['P', 'PRESENT', '1'] else (False if saved in ['A', 'ABSENT', '0'] else master_toggle)
-                        chk_map[row['ID']] = c3.checkbox("Present", value=state, key=f"adm_chk_{row['ID']}", label_visibility="collapsed")
-                    
-                    if st.form_submit_button("💾 Save Changes"):
-                        with engine.begin() as conn:
-                            for s_id, chk in chk_map.items():
-                                conn.execute(text("""
-                                    INSERT INTO daily_attendance (student_id, attendance_date, status) 
-                                    VALUES (:s_id, :dt, :st) 
-                                    ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
-                                """), {"s_id": int(s_id), "dt": str(target_date), "st": "P" if chk else "A"})
-                        st.success("Saved successfully!")
-                        time.sleep(0.5)
-                        st.rerun()
-
                 # ----------------------------------------------------------------------
                 # ❌ DYNAMIC IN-PAGE ABSENT STUDENTS DETECTOR
                 # ----------------------------------------------------------------------
