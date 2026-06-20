@@ -3549,7 +3549,88 @@ elif menu_choice == "📋 Daily Attendance Report":
                 ws.set_column('D:G', 10)
                 ws.set_default_row(25)
                 
-            st.download_button("📥 Download Excel", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
+            st.download_button("📥 Download Excel Overview", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
+
+        # ==============================================================================
+        # 🔍 ADDED SUB-COMPONENT: SINGLE STUDENT ATTENDANCE & LATE HISTORY LOOK-UP
+        # ==============================================================================
+        st.markdown("---")
+        st.subheader("🔍 Single Student Attendance & Late Arrival History Search")
+        st.caption("Look up a student by name or roll number to see their complete history of attendance, late minutes, and reasons.")
+
+        hc1, hc2 = st.columns([2, 1])
+        with hc1:
+            history_search = st.text_input("🔍 Enter Student ID Roll Number OR Full Name:", key="rep_history_search_input").strip()
+        with hc2:
+            history_session = st.selectbox("Scope Session Context:", session_choices, index=0, key="rep_history_sess")
+
+        if history_search:
+            h_conds = {"sess": str(history_session).strip()}
+            h_sql = """
+                SELECT id, name, section, session, class FROM students 
+                WHERE UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))
+                  AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            """
+            if history_search.isdigit():
+                h_sql += " AND id = :search_val"
+                h_conds["search_val"] = int(history_search)
+            else:
+                h_sql += " AND UPPER(name) LIKE UPPER(:search_val)"
+                h_conds["search_val"] = f"%{history_search}%"
+                
+            history_matches = run_query(h_sql, h_conds)
+            
+            if history_matches.empty:
+                st.error(f"❌ No matching student records found for '{history_search}' in session {history_session}.")
+            else:
+                if len(history_matches) > 1:
+                    st.warning("⚠️ Multiple matching records discovered. Select the specific student profile:")
+                    h_selected_str = st.selectbox(
+                        "Target Profile Selection:",
+                        options=[f"ID: {row['id']} — {row['name'].upper()} ({row['section']})" for _, row in history_matches.iterrows()],
+                        key="rep_h_exact_selector"
+                    )
+                    target_h_id = int(h_selected_str.split("ID: ")[1].split(" —")[0])
+                    chosen_h_student = history_matches[history_matches['id'] == target_h_id]
+                else:
+                    chosen_h_student = history_matches
+
+                h_student_id = int(chosen_h_student['id'].iloc[0])
+                h_student_name = chosen_h_student['name'].iloc[0].upper()
+                h_student_section = chosen_h_student['section'].iloc[0].upper().strip()
+                h_student_class = chosen_h_student['class'].iloc[0].upper().strip()
+                
+                st.info(f"👤 **Student Profile:** {h_student_name} | **Roll No:** `{h_student_id}` | **Class:** {h_student_class}-{h_student_section}")
+                
+                # Fetch complete log entries across dates including late durations
+                history_df = run_query("""
+                    SELECT 
+                        attendance_date AS "Date",
+                        CASE 
+                            WHEN UPPER(TRIM(status)) = 'P' THEN '🟢 Present'
+                            WHEN UPPER(TRIM(status)) = 'A' THEN '🔴 Absent'
+                            ELSE status 
+                        END AS "Status",
+                        CASE 
+                            WHEN late_arrival_minutes IS NULL OR late_arrival_minutes = 0 THEN '—'
+                            ELSE CAST(late_arrival_minutes AS VARCHAR) || ' Mins'
+                        END AS "Late Arrival Duration",
+                        COALESCE(remarks, '—') AS "Remarks / Reasons"
+                    FROM daily_attendance
+                    WHERE student_id = :id
+                    ORDER BY attendance_date DESC
+                """, {"id": h_student_id})
+                
+                if not history_df.empty:
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
+                    
+                    # Calculated tracking summaries
+                    tot = len(history_df)
+                    pres = len(history_df[history_df["Status"] == "🟢 Present"])
+                    absn = len(history_df[history_df["Status"] == "🔴 Absent"])
+                    st.markdown(f"📊 **Metrics Summary for this Student:** Total Records: `{tot}` | Present: `{pres}` | Absent: `{absn}`")
+                else:
+                    st.info("🍃 No past attendance history entries found in the database for this student profile.")
 
     with tab2:
         st.subheader("📋 Master Absent Student Remarks Report")
