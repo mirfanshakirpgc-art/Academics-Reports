@@ -918,15 +918,21 @@ live_subjects_computed = ["Global (All Subjects)"] + sorted(list(unique_master_s
 
 # ----------------- 📊 HOME DASHBOARD -----------------
 if menu_choice == "📊 Home Dashboard":
-    st.title("Concordia College Kasur")
-    try:
-        s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
-        m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
-    except Exception:
-        s_count, m_count = 0, 0
-    c1, c2 = st.columns(2)
-    c1.metric("Total Registered Students", s_count)
-    c2.metric("Total Grade Records Captured", m_count)
+    # Read the logged-in role from the session state
+    user_role = st.session_state.get("user_role", "Faculty")
+    
+    # Only render the global campus metrics and title if the user is an Admin
+    if user_role == "Admin":
+        st.title("Concordia College Kasur")
+        try:
+            s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
+            m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
+        except Exception:
+            s_count, m_count = 0, 0
+            
+        c1, c2 = st.columns(2)
+        c1.metric("Total Registered Students", s_count)
+        c2.metric("Total Grade Records Captured", m_count)
 
 # ------------------------------------------------------------------------------------
 # ➕ ADD STUDENTS MANAGEMENT SYSTEM SECTION
