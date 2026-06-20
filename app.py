@@ -4053,73 +4053,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     # ------------------------------------------------------------------
                     # ⚡ DYNAMIC ELECTIVE TRANSLATION & COLLAPSING UNIFICATION ENGINE
                     # ------------------------------------------------------------------
-                    distinct_subjects = sorted(list(set(s_marks["subject_name"].dropna().tolist())))
-                    
-                    exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
-                    exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
-                    
-                    for sub in distinct_subjects:
-                        sub_marks = s_marks[s_marks["subject_name"] == sub]
-                        row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
-                        subject_pct_accum = 0
-                        valid_exams_count = 0
-                        
-                        for exam in selected_exams_list:
-                            match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
-                                
-                            if not match_row.empty:
-                                target_record = match_row.iloc[0]
-                                raw_obt = str(target_record["marks_obtained"]).strip().upper()
-                                
-                                # --- DIRECT EVALUATION FOR 'A' OR 'NC' BEFORE FLOAT CONVERSION ---
-                                if raw_obt in ["A", "ABSENT"]:
-                                    row_tds += "<td style='color: #d32f2f; font-weight: bold;'>A</td>"
-                                elif raw_obt == "NC":
-                                    row_tds += "<td style='color: #757575; font-weight: bold;'>NC</td>"
-                                else:
-                                    try:
-                                        obt = float(raw_obt)
-                                        tot = float(target_record["total_marks"])
-                                        pct = int((obt / tot) * 100) if tot > 0 else 0
-                                        
-                                        row_tds += f"<td>{pct}%</td>"
-                                        
-                                        exam_totals_obtained[exam] += obt
-                                        exam_totals_possible[exam] += tot
-                                        subject_pct_accum += pct
-                                        valid_exams_count += 1
-                                    except:
-                                        row_tds += "<td>-</td>"
-                            else:
-                                row_tds += "<td>-</td>"
-                        
-                        sub_avg = int(subject_pct_accum / valid_exams_count) if valid_exams_count > 0 else 0
-                        row_tds += f"<td><strong>{sub_avg}%</strong></td>"
-                        table_rows_html += f"<tr>{row_tds}</tr>"
-                    
-                    total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
-                    total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
-                    total_pct_accum = 0
-                    total_counted = 0
-                    
-                    for exam in selected_exams_list:
-                        e_obt = exam_totals_obtained[exam]
-                        e_tot = exam_totals_possible[exam]
-                        if e_tot > 0:
-                            e_pct = int((e_obt / e_tot) * 100)
-                            total_obt_tds += f"<td><strong>{e_pct}%</strong></td>"
-                            total_pct_accum += e_pct
-                            total_counted += 1
-                        else:
-                            total_obt_tds += "<td>-</td>"
-                            
-                    grand_avg = int(total_pct_accum / total_counted) if total_counted > 0 else 0
-                    grand_total_percentages = [grand_avg]
-                    total_obt_tds += f"<td><span style='font-size:14px;'><strong>{grand_avg}%</strong></span></td>"
-                    total_row_html = f"<tr style='background-color:#fafafa;'>{total_obt_tds}</tr>"
-                    # ------------------------------------------------------------------
-                    # ⚡ DYNAMIC ELECTIVE TRANSLATION & COLLAPSING UNIFICATION ENGINE
-                    # ------------------------------------------------------------------
                     is_stats_section = s_section in ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
                     
                     # Ensure absolute string purity for this iteration slice
@@ -4134,7 +4067,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 s_marks.at[m_idx, 'display_subject'] = "Statistics"
                                 s_marks.at[m_idx, 'label_suffix'] = " (Phy)"
                     
-                    # Unique array will now strictly yield a single unified "Computer Science" row index
+                    # Unique array will now strictly yield a single unified row index
                     distinct_subjects = sorted(list(set(s_marks["display_subject"].dropna().tolist())))
                     
                     exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
@@ -4155,19 +4088,26 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                 
                             if not match_row.empty:
                                 try:
-                                    # Fallback safely to highest or first available metric if multiple rows intersect
                                     target_record = match_row.iloc[0]
-                                    obt = float(target_record["marks_obtained"])
-                                    tot = float(target_record["total_marks"])
-                                    pct = int((obt / tot) * 100) if tot > 0 else 0
-                                    
+                                    raw_obt = str(target_record["marks_obtained"]).strip().upper()
                                     suffix_tag = target_record.get('label_suffix', '')
-                                    row_tds += f"<td>{pct}%{suffix_tag}</td>"
                                     
-                                    exam_totals_obtained[exam] += obt
-                                    exam_totals_possible[exam] += tot
-                                    subject_pct_accum += pct
-                                    valid_exams_count += 1
+                                    # --- DIRECT EVALUATION FOR 'A' OR 'NC' BEFORE FLOAT CONVERSION ---
+                                    if raw_obt in ["A", "ABSENT"]:
+                                        row_tds += f"<td style='color: #d32f2f; font-weight: bold;'>A{suffix_tag}</td>"
+                                    elif raw_obt == "NC":
+                                        row_tds += f"<td style='color: #757575; font-weight: bold;'>NC{suffix_tag}</td>"
+                                    else:
+                                        obt = float(raw_obt)
+                                        tot = float(target_record["total_marks"])
+                                        pct = int((obt / tot) * 100) if tot > 0 else 0
+                                        
+                                        row_tds += f"<td>{pct}%{suffix_tag}</td>"
+                                        
+                                        exam_totals_obtained[exam] += obt
+                                        exam_totals_possible[exam] += tot
+                                        subject_pct_accum += pct
+                                        valid_exams_count += 1
                                 except:
                                     row_tds += "<td>-</td>"
                             else:
