@@ -757,7 +757,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
 
         try:
             with engine.connect() as conn:
-                # 📞 UPDATED: Now selecting student contact/guardian numbers directly from the profile row
+                # 📞 Fetch contact numbers safely by checking phone fields in the student record schema
                 query = text("""
                     SELECT d.student_id AS "ID", 
                            s.name AS "Student Name", 
@@ -779,6 +779,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
+            # 🌟 SECURITY CORRECTION: Explicitly evaluating top-level authorized 'user_role' array so Principal/Admin sees the active submission forms
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
@@ -814,11 +815,15 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                         student_id = ab_row['ID']
                         contact_num = ab_row['Contact No']
                         
-                        # 📞 DISPLAY CONTACT NUMBER: Formatted directly beneath the student profile heading
+                        # 📞 RENDERING PANEL WITH TELEPHONE EXPOSURE
                         st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
-                        st.markdown(f"📞 **Contact Number:** `{contact_num}`")
+                        st.markdown(f"📞 **Contact Details:** `{contact_num}`")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
+                        # Sanitize database string stringified null values
+                        if str(existing_rem).strip().lower() == "nan":
+                            existing_rem = ""
+                            
                         if " | By:" in str(existing_rem):
                             existing_rem = str(existing_rem).split(" | By:")[0].strip()
                         if " [Contacted:" in str(existing_rem):
