@@ -3463,7 +3463,7 @@ elif menu_choice == "📋 Daily Attendance Report":
 
         query_params = {"target_date": str(rem_report_date)}
         
-        # We process the underlying server database hardware timestamp safely into local PKT time via SQL
+        # FIXED: Modified to HH12:MI AM for bulletproof 12-hour AM/PM formatting extraction matching your UI layout
         sql_report = """
             SELECT 
                 s.id AS "Roll No",
@@ -3472,7 +3472,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 UPPER(TRIM(s.section)) AS "Section",
                 s.session AS "Session Batch",
                 d.remarks AS "Teacher Remarks",
-                to_char(d.remarks_updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Karachi', 'YYYY-MM-DD hh:mi AM') AS "Logged Timestamp"
+                to_char(d.remarks_updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Karachi', 'YYYY-MM-DD HH12:MI AM') AS "Logged Timestamp"
             FROM students s
             JOIN daily_attendance d ON s.id = d.student_id
             WHERE d.attendance_date = :target_date
@@ -3492,7 +3492,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             if remarks_report_df.empty:
                 st.info(f"🍃 No active absence remarks are logged by faculty for target selection on {rem_report_date.strftime('%d-%b-%Y')}.")
             else:
-                # Isolates text descriptions and author names safely while throwing away the broken un-localized string text segment
                 def split_remarks_metadata(remarks_str):
                     if not remarks_str or pd.isna(remarks_str):
                         return "", ""
@@ -3510,13 +3509,12 @@ elif menu_choice == "📋 Daily Attendance Report":
                 remarks_report_df["Teacher's Remarks"] = [x[0] for x in split_data]
                 remarks_report_df["Remarks By"] = [x[1] for x in split_data]
                 
-                # Tie the visual framework directly to our timezone-adjusted SQL calculation string
+                # Directly tie formatting to the rectified SQL output 
                 remarks_report_df["Date & Time"] = remarks_report_df["Logged Timestamp"].astype(str).str.upper()
                 
-                # Drop only the original raw 'Teacher Remarks' column to prevent duplicates
                 remarks_report_df = remarks_report_df.drop(columns=['Teacher Remarks', 'Logged Timestamp'], errors='ignore')
 
-                # Re-index explicitly to enforce perfect alignment matching image_4fa93d.png layout structure
+                # Hard enforced configuration blueprint matching production screenshots
                 column_sequence = ["Roll No", "Student Name", "Class Level", "Section", "Session Batch", "Teacher's Remarks", "Remarks By", "Date & Time"]
                 remarks_report_df = remarks_report_df[column_sequence]
 
@@ -3651,10 +3649,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     )
                 else:
                     st.info("ℹ️ No past attendance or late tracks recorded in the ledger for this student.")
-
-# ====================================================================================   
-# MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
-# ====================================================================================
             
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
