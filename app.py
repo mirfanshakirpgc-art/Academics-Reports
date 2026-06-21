@@ -644,9 +644,10 @@ if menu_choice == "📊 Home Dashboard":
         st.markdown("---")
 
 # ==============================================================================
-# 🎯 UNIFIED ATTENDANCE REMARKS ENGINE (FORCES WORKABLE ENTRY FOR PRINCIPAL & FACULTY)
+# 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
 # ==============================================================================
-elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
+# 🌟 UPDATED: Matches all operational dashboard navigation menus and user roles
+elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator", "Student", "Parent"] and menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
     import datetime
     import time
     import pandas as pd
@@ -656,7 +657,7 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    # 🌟 ADMINISTRATIVE OVERRIDE: Automatically assigns class scope so Principal is never locked out
+    # 🌟 ADMINISTRATIVE OVERRIDE: Expanded fallback view for ALL management profiles to prevent st.stop() locking
     if not scope_str and user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Admin", "Administrator"]:
         scope_str = "11th - IG"  
         
@@ -695,7 +696,7 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
     if roster_df.empty:
         st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
     else:
-        # 🛡️ INTERFACE SEGREGATION: Everyone in management gets edit access forms
+        # 🛡️ INTERFACE SEGREGATION: Management roles get entry forms, others get read-only summaries
         if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
             master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
             
@@ -740,7 +741,7 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
                     except Exception as e:
                         st.error(f"Write Failure: {e}")
         else:
-            # READ-ONLY VIEW FOR STUDENTS/PARENTS ONLY
+            # 🛡️ READ-ONLY SUMMARY SHEET FOR STUDENTS/PARENTS
             st.info("📋 Attendance Sheet View Mode")
             summary_data = []
             for idx, row in roster_df.iterrows():
@@ -750,12 +751,13 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
             st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
 
         # ----------------------------------------------------------------------
-        # ❌ REMARKS SECTION (RESTRUCTURED OUTSIDE OF FORM CONTEXT)
+        # ❌ DYNAMIC ABSENT REMARKS GENERATOR (Adaptive Visibility Engine)
         # ----------------------------------------------------------------------
         resolved_date = str(target_date)
 
         try:
             with engine.connect() as conn:
+                # 🌟 UPDATED QUERY: Included fallback contact profile collection logic
                 query = text("""
                     SELECT d.student_id AS "ID", 
                            s.name AS "Student Name", 
@@ -777,12 +779,11 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
+            # 🌟 FIX: Check 'user_role' (validated at top) instead of relying on 'current_role' session lookups
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
-                # Container instead of form means dropdown updates happen instantly!
-                remarks_container = st.container(border=True)
-                with remarks_container:
+                with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                     operator_identity = st.session_state.get("user_name", 
                                         st.session_state.get("name", 
                                         st.session_state.get("username", f"{user_role} Manager"))).strip()
@@ -791,10 +792,17 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
                     st.markdown("---")
                     
                     fixed_reasons = [
-                        "Medical / Health Issues", "Family Emergency", "Family Function",
-                        "Bereavement (Death in Family)", "Transportation Problems", "Out-of-Town Travel",
-                        "Official or Personal Work", "Household Responsibilities", "Religious Obligations",
-                        "Personal Reasons", "Other"
+                        "Medical / Health Issues",
+                        "Family Emergency",
+                        "Family Function",
+                        "Bereavement (Death in Family)",
+                        "Transportation Problems",
+                        "Out-of-Town Travel",
+                        "Official or Personal Work",
+                        "Household Responsibilities",
+                        "Religious Obligations",
+                        "Personal Reasons",
+                        "Other"
                     ]
                     
                     contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
@@ -808,12 +816,10 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
                         contact_num = ab_row['Contact No']
                         
                         st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
+                        # 🌟 ADDED: Renders phone info directly underneath the title row so teachers can view/call right away
                         st.markdown(f"📞 **Contact Details:** `{contact_num}`")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
-                        if str(existing_rem).strip().lower() == "nan":
-                            existing_rem = ""
-                            
                         if " | By:" in str(existing_rem):
                             existing_rem = str(existing_rem).split(" | By:")[0].strip()
                         if " [Contacted:" in str(existing_rem):
@@ -840,21 +846,20 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
                                 key=f"contact_sel_final_{student_id}"
                             )
                         
-                        # ✨ HERE IS THE INSTANT IMPACT FIX: Shows the box immediately!
                         custom_text_map[student_id] = ""
                         if reason_selection_map[student_id] == "Other":
                             default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
                             custom_text_map[student_id] = st.text_input(
-                                f"↳ Specify custom remarks for Roll No {student_id}:",
+                                "↳ Specify your custom remarks/reasons:",
                                 value=default_custom_val,
-                                placeholder="Enter custom reason here...",
+                                placeholder="Provide specific custom details here...",
                                 key=f"custom_txt_final_{student_id}"
                             ).strip()
                             
                         st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                     
                     st.markdown("<br>", unsafe_allow_html=True)
-                    submit_remarks = st.button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True, key="btn_remarks_submit_standalone")
+                    submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
                     
                     if submit_remarks:
                         validation_passed = True
@@ -896,12 +901,14 @@ elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"
                             except Exception as e:
                                 st.error(f"❌ Database Submission Failed: {e}")
             else:
+                # 🛡️ READ-ONLY SUMMARY SHEET FOR EXTERNAL VIEWS (Students/Parents)
                 st.caption("Official explanations logged for unsubmitted/absent profiles:")
                 for idx, ab_row in absent_students.iterrows():
                     logged_rem = ab_row['Remarks'] if ab_row['Remarks'] else "Awaiting dynamic verification from Section Incharge."
                     st.warning(f"📋 **Roll No {ab_row['ID']} — {ab_row['Student Name']}:** {logged_rem}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
+
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
