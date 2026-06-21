@@ -772,7 +772,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
         # 🩺 STEP C: RUN THE MULTI-CONTACT TARGETED FETCH
         try:
             with engine.connect() as conn:
-                # Build safe column strings depending on what was detected in your database schema
                 w_str = f"s.{whatsapp_col}" if whatsapp_col else "NULL"
                 c1_str = f"s.{contact1_col}" if contact1_col else "NULL"
                 c2_str = f"s.{contact2_col}" if contact2_col else "NULL"
@@ -795,7 +794,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                 """)
                 absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
         except Exception as query_error:
-            # Fallback block to ensure no screen crashes if schema strings mismatch
             try:
                 with engine.connect() as conn:
                     fallback_query = text("""
@@ -849,20 +847,34 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     for idx, ab_row in absent_students.iterrows():
                         student_id = ab_row['ID']
                         
-                        # 🌟 DYNAMIC STRING BUILDER: Assembles all 3 distinct phone entries neatly together
-                        contact_list = []
+                        # 🌟 DYNAMIC LINK GENERATOR: Builds active tel: links styled nicely for interaction
+                        html_links = []
+                        
                         if ab_row.get('WhatsApp') and str(ab_row['WhatsApp']).strip() != "":
-                            contact_list.append(f"💬 WA: {str(ab_row['WhatsApp']).strip()}")
+                            raw_wa = str(ab_row['WhatsApp']).strip()
+                            # Strip out spaces or dashes for clean protocol handling
+                            clean_wa = "".join(filter(str.isdigit, raw_wa))
+                            html_links.append(f"💬 <a href='tel:{clean_wa}' style='color: #25D366; font-weight: bold; text-decoration: none;'>WA: {raw_wa}</a>")
+                            
                         if ab_row.get('Contact 1') and str(ab_row['Contact 1']).strip() != "":
-                            contact_list.append(f"📞 C1: {str(ab_row['Contact 1']).strip()}")
+                            raw_c1 = str(ab_row['Contact 1']).strip()
+                            clean_c1 = "".join(filter(str.isdigit, raw_c1))
+                            html_links.append(f"📞 <a href='tel:{clean_c1}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 1: {raw_c1}</a>")
+                            
                         if ab_row.get('Contact 2') and str(ab_row['Contact 2']).strip() != "":
-                            contact_list.append(f"📞 C2: {str(ab_row['Contact 2']).strip()}")
+                            raw_c2 = str(ab_row['Contact 2']).strip()
+                            clean_c2 = "".join(filter(str.isdigit, raw_c2))
+                            html_links.append(f"📞 <a href='tel:{clean_c2}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 2: {raw_c2}</a>")
                         
-                        contact_banner = " | ".join(contact_list) if contact_list else "No Phone Data Found"
-                        
-                        # Displays the student info alongside the compiled list of numbers
+                        # Display Student Info Header
                         st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
-                        st.caption(f"📱 **Available Contacts:** `{contact_banner}`")
+                        
+                        # 🌟 RENDER THE HYPERLINKS: Renders the elements safely using markdown component injection
+                        if html_links:
+                            links_joined = " &nbsp;|&nbsp; ".join(html_links)
+                            st.markdown(f"<div style='font-size: 14px; background-color: #f9f9f9; padding: 6px 12px; border-radius: 4px; border-left: 3px solid #ff4b4b; margin-bottom: 10px;'>📱 Click to Dial: {links_joined}</div>", unsafe_allow_html=True)
+                        else:
+                            st.caption("📱 *No Phone Data Logged for Profile*")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
                         if " | By:" in str(existing_rem):
