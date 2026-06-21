@@ -646,7 +646,7 @@ if menu_choice == "📊 Home Dashboard":
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
 # ==============================================================================
-# 🌟 UPDATED: Matches all operational dashboard navigation menus and user roles
+# 🌟 UPDATED: Removed interactive elements from form context for instant rendering
 elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator", "Student", "Parent"] and menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
     import datetime
     import time
@@ -657,7 +657,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    # 🌟 ADMINISTRATIVE OVERRIDE: Expanded fallback view for ALL management profiles to prevent st.stop() locking
+    # 🌟 ADMINISTRATIVE OVERRIDE: Fallback defaults for upper-level admin groups
     if not scope_str and user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Admin", "Administrator"]:
         scope_str = "11th - IG"  
         
@@ -781,7 +781,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
-                # Containerized outside of a blocking form context so interactive updates trigger immediately
+                # ⚡ CONTAINER INSTEAD OF FORM: Allows inputs to react immediately on user change
                 remarks_container = st.container(border=True)
                 with remarks_container:
                     operator_identity = st.session_state.get("user_name", 
@@ -848,7 +848,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                                 key=f"contact_sel_final_{student_id}"
                             )
                         
-                        # ⚡ LIVE REACTION TAB: Instantly evaluates live selectbox configurations 
+                        # ⚡ LIVE REACTIVE TAB SLOT: Instantly renders text block when "Other" is picked
                         custom_text_map[student_id] = ""
                         if reason_selection_map[student_id] == "Other":
                             default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
@@ -861,7 +861,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                             
                         st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                     
-                    # Submission pipeline wrapped at baseline execution point
                     st.markdown("<br>", unsafe_allow_html=True)
                     submit_remarks = st.button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True, key="btn_remarks_submit_standalone")
                     
