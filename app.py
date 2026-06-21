@@ -756,7 +756,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
         resolved_date = str(target_date)
         detected_columns = []
 
-        # 🩺 STEP A: DIAGNOSTIC SCHEMA CHECK (Find what your database columns are actually named)
+        # 🩺 STEP A: DIAGNOSTIC SCHEMA CHECK
         try:
             with engine.connect() as conn:
                 sample_df = pd.read_sql("SELECT * FROM students LIMIT 1", conn)
@@ -764,74 +764,57 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
         except Exception as diag_err:
             pass
 
-        # 🩺 STEP B: AUTOMATICALLY MATCH COLUMNS BASED ON THE ADMISSIONS FORM
-        contact_column_to_use = None
-        
-        # Look for variations of Contact Number 1
-        for candidate in ["contact_number_1", "contact_no_1", "contact1", "contactnumber1", "contact_1", "phone_1", "phone"]:
-            if candidate in detected_columns:
-                contact_column_to_use = candidate
-                break
-                
-        # Fallback to variations of WhatsApp if Contact 1 wasn't found
-        if not contact_column_to_use:
-            for candidate in ["whatsapp_number", "whatsapp", "whatsapp_no", "whatsappnumber"]:
-                if candidate in detected_columns:
-                    contact_column_to_use = candidate
-                    break
+        # 🩺 STEP B: DYNAMICALLY IDENTIFY ALL CONTACT FIELDS FROM ADMISSIONS
+        whatsapp_col = "whatsapp_number" if "whatsapp_number" in detected_columns else ("whatsapp" if "whatsapp" in detected_columns else None)
+        contact1_col = "contact_number_1" if "contact_number_1" in detected_columns else ("contact_no_1" if "contact_no_1" in detected_columns else ("contact_1" if "contact_1" in detected_columns else None))
+        contact2_col = "contact_number_2" if "contact_number_2" in detected_columns else ("contact_no_2" if "contact_no_2" in detected_columns else ("contact_2" if "contact_2" in detected_columns else None))
 
-        # Fallback to variations of Contact Number 2
-        if not contact_column_to_use:
-            for candidate in ["contact_number_2", "contact_no_2", "contact2", "contactnumber2", "contact_2"]:
-                if candidate in detected_columns:
-                    contact_column_to_use = candidate
-                    break
-
-        # 🩺 STEP C: RUN THE TARGETED FETCH
+        # 🩺 STEP C: RUN THE MULTI-CONTACT TARGETED FETCH
         try:
             with engine.connect() as conn:
-                if contact_column_to_use:
-                    # Securely inject the verified database column name
-                    query = text(f"""
-                        SELECT 
-                            d.student_id AS "ID", 
-                            s.name AS "Student Name", 
-                            s.{contact_column_to_use} AS "Contact No",
-                            d.status AS "SavedStatus", 
-                            d.remarks AS "Remarks"
-                        FROM daily_attendance d
-                        JOIN students s ON d.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                          AND d.attendance_date = :att_date
-                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
-                        ORDER BY d.student_id ASC
-                    """)
-                else:
-                    # If absolutely no matching contact column is found, fallback gracefully
-                    query = text("""
-                        SELECT d.student_id AS "ID", s.name AS "Student Name", 'Column Not Found' AS "Contact No", d.status AS "SavedStatus", d.remarks AS "Remarks"
-                        FROM daily_attendance d
-                        JOIN students s ON d.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                          AND d.attendance_date = :att_date
-                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
-                        ORDER BY d.student_id ASC
-                    """)
+                # Build safe column strings depending on what was detected in your database schema
+                w_str = f"s.{whatsapp_col}" if whatsapp_col else "NULL"
+                c1_str = f"s.{contact1_col}" if contact1_col else "NULL"
+                c2_str = f"s.{contact2_col}" if contact2_col else "NULL"
+                
+                query = text(f"""
+                    SELECT 
+                        d.student_id AS "ID", 
+                        s.name AS "Student Name", 
+                        {w_str} AS "WhatsApp",
+                        {c1_str} AS "Contact 1",
+                        {c2_str} AS "Contact 2",
+                        d.status AS "SavedStatus", 
+                        d.remarks AS "Remarks"
+                    FROM daily_attendance d
+                    JOIN students s ON d.student_id = s.id
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                      AND d.attendance_date = :att_date
+                      AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+                    ORDER BY d.student_id ASC
+                """)
                 absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
         except Exception as query_error:
-            absent_students = pd.DataFrame()
+            # Fallback block to ensure no screen crashes if schema strings mismatch
+            try:
+                with engine.connect() as conn:
+                    fallback_query = text("""
+                        SELECT d.student_id AS "ID", s.name AS "Student Name", NULL AS "WhatsApp", NULL AS "Contact 1", NULL AS "Contact 2", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                        FROM daily_attendance d
+                        JOIN students s ON d.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                          AND d.attendance_date = :att_date
+                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+                        ORDER BY d.student_id ASC
+                    """)
+                    absent_students = pd.read_sql(fallback_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
+            except:
+                absent_students = pd.DataFrame()
 
         if not absent_students.empty:
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
-            # 🛠️ SCHEMA HELP WINDOW: Only shows up if 'Column Not Found' occurs to tell you the exact fields available
-            if contact_column_to_use is None and detected_columns:
-                with st.expander("🔍 System Database Diagnosis: Click to view student fields"):
-                    st.write("The fields available in your `students` table are:")
-                    st.code(", ".join(detected_columns))
-                    st.caption("Locate your phone/whatsapp field above and rename your schema matching candidates accordingly.")
-
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
@@ -865,9 +848,21 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     
                     for idx, ab_row in absent_students.iterrows():
                         student_id = ab_row['ID']
-                        contact_no = ab_row['Contact No'] if ab_row['Contact No'] else "No Phone Found"
                         
-                        st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}** | 📞 Contact: `{contact_no}`")
+                        # 🌟 DYNAMIC STRING BUILDER: Assembles all 3 distinct phone entries neatly together
+                        contact_list = []
+                        if ab_row.get('WhatsApp') and str(ab_row['WhatsApp']).strip() != "":
+                            contact_list.append(f"💬 WA: {str(ab_row['WhatsApp']).strip()}")
+                        if ab_row.get('Contact 1') and str(ab_row['Contact 1']).strip() != "":
+                            contact_list.append(f"📞 C1: {str(ab_row['Contact 1']).strip()}")
+                        if ab_row.get('Contact 2') and str(ab_row['Contact 2']).strip() != "":
+                            contact_list.append(f"📞 C2: {str(ab_row['Contact 2']).strip()}")
+                        
+                        contact_banner = " | ".join(contact_list) if contact_list else "No Phone Data Found"
+                        
+                        # Displays the student info alongside the compiled list of numbers
+                        st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
+                        st.caption(f"📱 **Available Contacts:** `{contact_banner}`")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
                         if " | By:" in str(existing_rem):
