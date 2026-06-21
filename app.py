@@ -677,7 +677,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
     with col_date:
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
-    # Fetch initial student roster matrix
+    # Fetch initial student roster matrix joining with daily_attendance
     roster_df = run_query("""
         SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
         FROM students s
@@ -718,26 +718,16 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                     with engine.begin() as conn:
                         for s_id, checked_present in attendance_checkbox_map.items():
                             status_val = "P" if checked_present else "A"
+                            # FIXED: Strictly using only existing database schema columns
                             conn.execute(text("""
-                                INSERT INTO daily_attendance (student_id, attendance_date, status, class, section, session, student_name) 
-                                VALUES (
-                                    :s_id, 
-                                    :att_date, 
-                                    :status, 
-                                    :cls, 
-                                    :sec, 
-                                    :sess,
-                                    (SELECT name FROM students WHERE id = :s_id LIMIT 1)
-                                )
+                                INSERT INTO daily_attendance (student_id, attendance_date, status) 
+                                VALUES (:s_id, :att_date, :status)
                                 ON CONFLICT (student_id, attendance_date) 
                                 DO UPDATE SET status = EXCLUDED.status
                             """), {
                                 "s_id": int(s_id), 
                                 "att_date": str(target_date), 
-                                "status": status_val,
-                                "cls": str(forced_class),
-                                "sec": str(forced_section),
-                                "sess": str(target_session)
+                                "status": status_val
                             })
                     st.success(f"🎉 Attendance updated for {target_date.strftime('%d-%b-%Y')}!")
                     time.sleep(0.5)
@@ -751,22 +741,23 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
         current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
 
-        # Pull directly from database context based on actively recorded absentees
+        # Look up recorded absentees by joining with the students table for filter boundaries
         try:
             with engine.connect() as conn:
                 query = text("""
-                    SELECT student_id AS "ID", student_name AS "Student Name", status AS "SavedStatus", remarks AS "Remarks"
-                    FROM daily_attendance
-                    WHERE UPPER(TRIM(section)) = UPPER(TRIM(:sec)) 
-                      AND attendance_date = :att_date
-                      AND status IN ('A', 'ABSENT', '0')
-                    ORDER BY student_id ASC
+                    SELECT d.student_id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                    FROM daily_attendance d
+                    JOIN students s ON d.student_id = s.id
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                      AND d.attendance_date = :att_date
+                      AND d.status IN ('A', 'ABSENT', '0')
+                    ORDER BY d.student_id ASC
                 """)
                 absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
         except Exception as e:
             absent_students = pd.DataFrame()
 
-        # Render panel if absent students exist for the selected section and date
+        # Render panel if absent students exist
         if not absent_students.empty:
             st.markdown("###")
             st.error("❌ Absent Student Remarks Panel")
