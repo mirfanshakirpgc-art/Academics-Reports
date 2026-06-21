@@ -514,20 +514,21 @@ if menu_choice == "⚙️ Examination Control":
                 allowed_days = st.number_input("Allowed Days for Marking (From Exam Date)", min_value=1, max_value=30, value=3)
                 base_exam_date = st.date_input("Reference Exam Commencement Date", datetime.date.today())
                 
-        if st.form_submit_button("🚀 Deploy Teacher Allocation Window"):
-            if exam_sel and class_sel and sub_sel and teacher_sel:
-                calc_deadline = base_exam_date + datetime.timedelta(days=int(allowed_days))
-                try:
-                    execute_db_command("""
-                        INSERT INTO teacher_marking_deadlines (exam_type, class_level, subject_name, teacher_name, deadline_date)
-                        VALUES (:et, :cl, :sub, :tn, :dl)
-                        ON CONFLICT (exam_type, class_level, subject_name, teacher_name) DO UPDATE SET deadline_date = :dl
-                    """, {"et": exam_sel, "cl": class_sel, "sub": sub_sel, "tn": teacher_sel, "dl": calc_deadline})
-                    st.success(f"Deadline locked! {teacher_sel} must submit marks by {calc_deadline.strftime('%Y-%m-%d')}")
-                except Exception as e:
-                    st.error(f"Error establishing submission timeline: {e}")
-            else:
-                st.warning("Please verify all input configuration tracks before allocation.")
+            # FIXED INDENTATION: Button now structurally localized INSIDE the form element block context
+            if st.form_submit_button("🚀 Deploy Teacher Allocation Window"):
+                if exam_sel and class_sel and sub_sel and teacher_sel:
+                    calc_deadline = base_exam_date + datetime.timedelta(days=int(allowed_days))
+                    try:
+                        execute_db_command("""
+                            INSERT INTO teacher_marking_deadlines (exam_type, class_level, subject_name, teacher_name, deadline_date)
+                            VALUES (:et, :cl, :sub, :tn, :dl)
+                            ON CONFLICT (exam_type, class_level, subject_name, teacher_name) DO UPDATE SET deadline_date = :dl
+                        """, {"et": exam_sel, "cl": class_sel, "sub": sub_sel, "tn": teacher_sel, "dl": calc_deadline})
+                        st.success(f"Deadline locked! {teacher_sel} must submit marks by {calc_deadline.strftime('%Y-%m-%d')}")
+                    except Exception as e:
+                        st.error(f"Error establishing submission timeline: {e}")
+                else:
+                    st.warning("Please verify all input configuration tracks before allocation.")
 
     with tab3:
         st.markdown("### 📊 Live Evaluation Submission Compliance Matrix")
