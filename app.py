@@ -3398,23 +3398,26 @@ elif menu_choice == "📋 Daily Attendance Report":
 
     st.title("📋 Daily Attendance Report")
 
-    # Create layout tabs to cleanly separate rosters from remarks
-    tab1, tab2 = st.tabs(["📊 Attendance Overview Records", "❌ Absentee Teacher Remarks Audit Log"])
+    # Updated parallel operational tabs with the requested simplified history name
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Attendance Overview Records", 
+        "❌ Absentee Teacher Remarks Audit Log",
+        "🔍 Student Attendance History"
+    ])
 
+    # --------------------------------------------------------------------------
+    # TAB 1: ATTENDANCE OVERVIEW RECORDS
+    # --------------------------------------------------------------------------
     with tab1:
-        # 1. SETUP (Dynamically linked to Settings)
         try:
-            # Queries active sessions directly from your settings configuration table
             session_data = run_query("SELECT session_name FROM sessions WHERE status = 'ACTIVE' ORDER BY session_name DESC")
             session_choices = session_data["session_name"].tolist() if not session_data.empty else []
         except Exception:
-            # Emergency fallback if database connection drops or table name varies
             try:
                 session_choices = sorted(list(set(AVAILABLE_SESSIONS)))
             except NameError:
                 session_choices = ["2025-27", "2026-28", "2027-29"]
                 
-        # Quick sanity filter: eliminate 2024-26 if it bypassed settings
         if "2024-26" in session_choices:
             session_choices.remove("2024-26")
             
@@ -3428,7 +3431,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             st.warning("Please select at least one session.")
             st.stop()
 
-        # 2. DATA FETCHING (Robust)
         session_tuple = tuple(report_sessions) if len(report_sessions) > 1 else (report_sessions[0],)
         
         query = "SELECT id, class, section, status FROM students WHERE session IN :sessions"
@@ -3439,7 +3441,6 @@ elif menu_choice == "📋 Daily Attendance Report":
         if raw_students.empty:
             st.info("ℹ️ No student records found for the selected sessions.")
         else:
-            # DATA PROCESSING
             df = raw_students.merge(raw_att, left_on='id', right_on='student_id', how='left')
             teacher_map = dict(zip(raw_alloc['section_name'].astype(str).str.replace(" ", "").str.upper(), raw_alloc['assigned_teacher_name']))
             
@@ -3464,7 +3465,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                 Absent=('Attendance_Status', lambda x: x.isin(['A', 'ABSENT', '0']).sum())
             ).reset_index()
 
-            # 3. HTML PRINT ENGINE
             table_rows = ""
             grand_total = {"Total": 0, "Present": 0, "Absent": 0}
             
@@ -3497,7 +3497,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                           f'<td colspan="3" style="text-align:left; padding-left:10px;">GRAND TOTAL</td>' \
                           f'<td>{grand_total["Total"]}</td><td>{grand_total["Present"]}</td><td>{grand_total["Absent"]}</td><td>{grand_pct}</td></tr>'
 
-            # Render complete layout
             html_template = f"""
             <html>
             <head>
@@ -3506,11 +3505,9 @@ elif menu_choice == "📋 Daily Attendance Report":
                     .header-container {{ display: flex; align-items: center; margin-bottom: 20px; }}
                     .logo {{ width: 80px; }}
                     .title-group {{ flex-grow: 1; text-align: center; }}
-                    
                     table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
                     th, td {{ border: 1px solid #000; padding: 4px; text-align: center; font-size: 11px; }}
                     th {{ background: #eee; }}
-                    
                     @media print {{ 
                         @page {{ size: A4 portrait; margin: 10mm; }}
                         .print-btn {{ display: none; }} 
@@ -3519,7 +3516,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             </head>
             <body>
                 <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
-                
                 <div class="header-container">
                     <img src="https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png" class="logo">
                     <div class="title-group">
@@ -3527,7 +3523,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         <h3 style="font-size: 16px; margin: 0;">Daily Attendance Report - {report_date}</h3>
                     </div>
                 </div>
-                
                 <table>
                     <tr><th>Class</th><th>Section</th><th>In Charge</th><th>Total</th><th>Present</th><th>Absent</th><th>%age</th></tr>
                     {table_rows}
@@ -3538,7 +3533,6 @@ elif menu_choice == "📋 Daily Attendance Report":
             """
             components.html(html_template, height=800, scrolling=True)
 
-            # 4. EXCEL EXPORT
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 summary.to_excel(writer, index=False, sheet_name='Attendance')
@@ -3551,93 +3545,14 @@ elif menu_choice == "📋 Daily Attendance Report":
                 
             st.download_button("📥 Download Excel Overview", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
 
-        # ==============================================================================
-        # 🔍 ADDED SUB-COMPONENT: SINGLE STUDENT ATTENDANCE & LATE HISTORY LOOK-UP
-        # ==============================================================================
-        st.markdown("---")
-        st.subheader("🔍 Single Student Attendance & Late Arrival History Search")
-        st.caption("Look up a student by name or roll number to see their complete history of attendance, late minutes, and reasons.")
-
-        hc1, hc2 = st.columns([2, 1])
-        with hc1:
-            history_search = st.text_input("🔍 Enter Student ID Roll Number OR Full Name:", key="rep_history_search_input").strip()
-        with hc2:
-            history_session = st.selectbox("Scope Session Context:", session_choices, index=0, key="rep_history_sess")
-
-        if history_search:
-            h_conds = {"sess": str(history_session).strip()}
-            h_sql = """
-                SELECT id, name, section, session, class FROM students 
-                WHERE UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))
-                  AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-            """
-            if history_search.isdigit():
-                h_sql += " AND id = :search_val"
-                h_conds["search_val"] = int(history_search)
-            else:
-                h_sql += " AND UPPER(name) LIKE UPPER(:search_val)"
-                h_conds["search_val"] = f"%{history_search}%"
-                
-            history_matches = run_query(h_sql, h_conds)
-            
-            if history_matches.empty:
-                st.error(f"❌ No matching student records found for '{history_search}' in session {history_session}.")
-            else:
-                if len(history_matches) > 1:
-                    st.warning("⚠️ Multiple matching records discovered. Select the specific student profile:")
-                    h_selected_str = st.selectbox(
-                        "Target Profile Selection:",
-                        options=[f"ID: {row['id']} — {row['name'].upper()} ({row['section']})" for _, row in history_matches.iterrows()],
-                        key="rep_h_exact_selector"
-                    )
-                    target_h_id = int(h_selected_str.split("ID: ")[1].split(" —")[0])
-                    chosen_h_student = history_matches[history_matches['id'] == target_h_id]
-                else:
-                    chosen_h_student = history_matches
-
-                h_student_id = int(chosen_h_student['id'].iloc[0])
-                h_student_name = chosen_h_student['name'].iloc[0].upper()
-                h_student_section = chosen_h_student['section'].iloc[0].upper().strip()
-                h_student_class = chosen_h_student['class'].iloc[0].upper().strip()
-                
-                st.info(f"👤 **Student Profile:** {h_student_name} | **Roll No:** `{h_student_id}` | **Class:** {h_student_class}-{h_student_section}")
-                
-                # Fetch complete log entries across dates including late durations
-                history_df = run_query("""
-                    SELECT 
-                        attendance_date AS "Date",
-                        CASE 
-                            WHEN UPPER(TRIM(status)) = 'P' THEN '🟢 Present'
-                            WHEN UPPER(TRIM(status)) = 'A' THEN '🔴 Absent'
-                            ELSE status 
-                        END AS "Status",
-                        CASE 
-                            WHEN late_arrival_minutes IS NULL OR late_arrival_minutes = 0 THEN '—'
-                            ELSE CAST(late_arrival_minutes AS VARCHAR) || ' Mins'
-                        END AS "Late Arrival Duration",
-                        COALESCE(remarks, '—') AS "Remarks / Reasons"
-                    FROM daily_attendance
-                    WHERE student_id = :id
-                    ORDER BY attendance_date DESC
-                """, {"id": h_student_id})
-                
-                if not history_df.empty:
-                    st.dataframe(history_df, use_container_width=True, hide_index=True)
-                    
-                    # Calculated tracking summaries
-                    tot = len(history_df)
-                    pres = len(history_df[history_df["Status"] == "🟢 Present"])
-                    absn = len(history_df[history_df["Status"] == "🔴 Absent"])
-                    st.markdown(f"📊 **Metrics Summary for this Student:** Total Records: `{tot}` | Present: `{pres}` | Absent: `{absn}`")
-                else:
-                    st.info("🍃 No past attendance history entries found in the database for this student profile.")
-
+    # --------------------------------------------------------------------------
+    # TAB 2: ABSENTEE TEACHER REMARKS AUDIT LOG
+    # --------------------------------------------------------------------------
     with tab2:
         st.subheader("📋 Master Absent Student Remarks Report")
         st.caption("Live tracking timeline displaying unalterable teacher feedback submissions with server timestamps.")
         st.markdown("---")
         
-        # 🌟 DYNAMIC SECTION EXTRACTION FROM YOUR MASTER DISCIPLINE MAP
         all_possible_sections = set()
         for discipline, classes in DISCIPLINE_SECTIONS_MAP.items():
             for class_tier, sections_list in classes.items():
@@ -3647,14 +3562,12 @@ elif menu_choice == "📋 Daily Attendance Report":
         
         sorted_admin_sections = ["ALL"] + sorted(list(all_possible_sections))
         
-        # Filters for Admin Overview
         adm_col1, adm_col2 = st.columns(2)
         with adm_col1:
             rem_report_date = adm_col1.date_input("Filter Report Date:", value=datetime.date.today(), key="adm_rem_report_date")
         with adm_col2:
             rem_report_section = adm_col2.selectbox("Filter Section Mapping:", sorted_admin_sections, key="adm_rem_report_sec")
 
-        # Query structure to dynamically fetch teacher logs matching any section choice setup
         query_params = {"target_date": str(rem_report_date)}
         
         sql_report = """
@@ -3685,13 +3598,9 @@ elif menu_choice == "📋 Daily Attendance Report":
             if remarks_report_df.empty:
                 st.info(f"🍃 No active absence remarks are logged by faculty for target selection on {rem_report_date.strftime('%d-%b-%Y')}.")
             else:
-                # ==============================================================================
-                # 🔥 DYNAMIC SPLITTING PATCH FOR SEPARATE COLUMNS
-                # ==============================================================================
                 def split_remarks_metadata(remarks_str):
                     if not remarks_str or pd.isna(remarks_str):
                         return "", "", ""
-                    
                     remarks_str = str(remarks_str)
                     if " | By: " in remarks_str and " on " in remarks_str:
                         try:
@@ -3702,43 +3611,24 @@ elif menu_choice == "📋 Daily Attendance Report":
                             return remarks_str, "", ""
                     return remarks_str, "N/A", "N/A"
 
-                # Parse the "Teacher Remarks" row column into independent components
                 split_data = remarks_report_df['Teacher Remarks'].apply(split_remarks_metadata)
-                
                 remarks_report_df["Teacher's Remarks"] = [x[0] for x in split_data]
                 remarks_report_df["Remarks By"] = [x[1] for x in split_data]
                 remarks_report_df["Date & Time"] = [x[2] for x in split_data]
                 
-                # Drop old monolithic columns to keep reports looking beautifully formatted
                 remarks_report_df = remarks_report_df.drop(columns=['Teacher Remarks', 'Logged Timestamp'], errors='ignore')
-                # ==============================================================================
 
-                # Render clean split dataframe to admin view
                 st.dataframe(remarks_report_df, use_container_width=True, hide_index=True)
                 
-                # Professional Styled Excel Export Engine
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
                     remarks_report_df.to_excel(writer, index=False, sheet_name='Absence Remarks Audit')
-                    
-                    # Formatting worksheet styles
                     workbook = writer.book
                     worksheet = writer.sheets['Absence Remarks Audit']
-                    
-                    header_format = workbook.add_format({
-                        'bold': True,
-                        'text_wrap': True,
-                        'valign': 'top',
-                        'fg_color': '#D32F2F',
-                        'font_color': '#FFFFFF',
-                        'border': 1
-                    })
-                    
-                    # Format layout spacing columns
+                    header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D32F2F', 'font_color': '#FFFFFF', 'border': 1})
                     for col_num, col_name in enumerate(remarks_report_df.columns):
                         worksheet.write(0, col_num, col_name, header_format)
                         worksheet.set_column(col_num, col_num, 22)
-                        
                     worksheet.set_default_row(24)
 
                 st.download_button(
@@ -3750,6 +3640,119 @@ elif menu_choice == "📋 Daily Attendance Report":
                 )
         except Exception as e:
             st.error(f"Could not load the admin remarks data view grid: {e}")
+
+    # --------------------------------------------------------------------------
+    # TAB 3: STUDENT ATTENDANCE HISTORY
+    # --------------------------------------------------------------------------
+    with tab3:
+        st.subheader("🔍 Student Attendance History")
+        st.caption("Look up a specific student by roll number or name to extract a complete historical tracking sheet.")
+        st.markdown("---")
+
+        hc1, hc2 = st.columns([2, 1])
+        with hc1:
+            history_search = st.text_input("🔍 Enter Student ID Roll Number OR Full Name:", key="rep_tab3_search_input").strip()
+        with hc2:
+            history_session = st.selectbox("Scope Session Context:", session_choices, index=0, key="rep_tab3_sess")
+
+        if history_search:
+            h_conds = {"sess": str(history_session).strip()}
+            h_sql = """
+                SELECT id, name, section, session, class FROM students 
+                WHERE UPPER(TRIM(CAST(session AS VARCHAR))) = UPPER(TRIM(:sess))
+                  AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            """
+            if history_search.isdigit():
+                h_sql += " AND id = :search_val"
+                h_conds["search_val"] = int(history_search)
+            else:
+                h_sql += " AND UPPER(name) LIKE UPPER(:search_val)"
+                h_conds["search_val"] = f"%{history_search}%"
+                
+            history_matches = run_query(h_sql, h_conds)
+            
+            if history_matches.empty:
+                st.error(f"❌ No matching student records found for '{history_search}' in session {history_session}.")
+            else:
+                if len(history_matches) > 1:
+                    st.warning("⚠️ Multiple matching records discovered. Select the specific student profile:")
+                    h_selected_str = st.selectbox(
+                        "Target Profile Selection:",
+                        options=[f"ID: {row['id']} — {row['name'].upper()} ({row['section']})" for _, row in history_matches.iterrows()],
+                        key="rep_tab3_exact_selector"
+                    )
+                    target_h_id = int(h_selected_str.split("ID: ")[1].split(" —")[0])
+                    chosen_h_student = history_matches[history_matches['id'] == target_h_id]
+                else:
+                    chosen_h_student = history_matches
+
+                h_student_id = int(chosen_h_student['id'].iloc[0])
+                h_student_name = chosen_h_student['name'].iloc[0].upper()
+                h_student_section = chosen_h_student['section'].iloc[0].upper().strip()
+                h_student_class = chosen_h_student['class'].iloc[0].upper().strip()
+                
+                st.info(f"👤 **Selected Student:** {h_student_name} | **Roll No:** `{h_student_id}` | **Class:** {h_student_class}-{h_student_section}")
+                
+                history_df = run_query("""
+                    SELECT 
+                        attendance_date AS "Date",
+                        CASE 
+                            WHEN UPPER(TRIM(status)) = 'P' THEN '🟢 Present'
+                            WHEN UPPER(TRIM(status)) = 'A' THEN '🔴 Absent'
+                            ELSE status 
+                        END AS "Status",
+                        CASE 
+                            WHEN late_arrival_minutes IS NULL OR late_arrival_minutes = 0 THEN '—'
+                            ELSE CAST(late_arrival_minutes AS VARCHAR) || ' Mins'
+                        END AS "Late Arrival Duration",
+                        COALESCE(remarks, '—') AS "Remarks / Reasons"
+                    FROM daily_attendance
+                    WHERE student_id = :id
+                    ORDER BY attendance_date DESC
+                """, {"id": h_student_id})
+                
+                if not history_df.empty:
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
+                    
+                    tot = len(history_df)
+                    pres = len(history_df[history_df["Status"] == "🟢 Present"])
+                    absn = len(history_df[history_df["Status"] == "🔴 Absent"])
+                    st.markdown(f"📊 **Metrics Summary:** Total Records: `{tot}` | Present: `{pres}` | Absent: `{absn}`")
+                    
+                    h_excel_buffer = BytesIO()
+                    with pd.ExcelWriter(h_excel_buffer, engine='xlsxwriter') as h_writer:
+                        history_df.to_excel(h_writer, index=False, sheet_name='Student History Log')
+                        h_book = h_writer.book
+                        h_sheet = h_writer.sheets['Student History Log']
+                        
+                        h_header_format = h_book.add_format({
+                            'bold': True,
+                            'text_wrap': True,
+                            'valign': 'middle',
+                            'fg_color': '#1E3A8A',
+                            'font_color': '#FFFFFF',
+                            'border': 1
+                        })
+                        
+                        for col_num, col_name in enumerate(history_df.columns):
+                            h_sheet.write(0, col_num, col_name, h_header_format)
+                            h_sheet.set_column(col_num, col_num, 22)
+                            
+                        h_sheet.set_default_row(24)
+
+                    st.download_button(
+                        label=f"📥 Download History Report ({h_student_id})",
+                        data=h_excel_buffer.getvalue(),
+                        file_name=f"History_Report_RollNo_{h_student_id}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="student_history_excel_dl"
+                    )
+                else:
+                    st.info("ℹ️ No past attendance or late tracks recorded in the ledger for this student.")
+
+# ====================================================================================   
+# MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
+# ====================================================================================
             
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
