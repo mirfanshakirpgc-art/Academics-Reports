@@ -644,10 +644,9 @@ if menu_choice == "📊 Home Dashboard":
         st.markdown("---")
 
 # ==============================================================================
-# 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
+# 🎯 UNIFIED ATTENDANCE REMARKS ENGINE (FORCES WORKABLE ENTRY FOR PRINCIPAL & FACULTY)
 # ==============================================================================
-# 🌟 UPDATED: Removed interactive elements from form context for instant rendering
-elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator", "Student", "Parent"] and menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
+elif menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
     import datetime
     import time
     import pandas as pd
@@ -657,7 +656,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    # 🌟 ADMINISTRATIVE OVERRIDE: Fallback defaults for upper-level admin groups
+    # 🌟 ADMINISTRATIVE OVERRIDE: Automatically assigns class scope so Principal is never locked out
     if not scope_str and user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Admin", "Administrator"]:
         scope_str = "11th - IG"  
         
@@ -696,7 +695,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     if roster_df.empty:
         st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
     else:
-        # 🛡️ INTERFACE SEGREGATION: Management roles get entry forms, others get read-only summaries
+        # 🛡️ INTERFACE SEGREGATION: Everyone in management gets edit access forms
         if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
             master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
             
@@ -741,7 +740,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     except Exception as e:
                         st.error(f"Write Failure: {e}")
         else:
-            # 🛡️ READ-ONLY SUMMARY SHEET FOR STUDENTS/PARENTS
+            # READ-ONLY VIEW FOR STUDENTS/PARENTS ONLY
             st.info("📋 Attendance Sheet View Mode")
             summary_data = []
             for idx, row in roster_df.iterrows():
@@ -751,7 +750,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
 
         # ----------------------------------------------------------------------
-        # ❌ DYNAMIC ABSENT REMARKS GENERATOR (Adaptive Visibility Engine)
+        # ❌ REMARKS SECTION (RESTRUCTURED OUTSIDE OF FORM CONTEXT)
         # ----------------------------------------------------------------------
         resolved_date = str(target_date)
 
@@ -781,7 +780,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
-                # ⚡ CONTAINER INSTEAD OF FORM: Allows inputs to react immediately on user change
+                # Container instead of form means dropdown updates happen instantly!
                 remarks_container = st.container(border=True)
                 with remarks_container:
                     operator_identity = st.session_state.get("user_name", 
@@ -792,17 +791,10 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     st.markdown("---")
                     
                     fixed_reasons = [
-                        "Medical / Health Issues",
-                        "Family Emergency",
-                        "Family Function",
-                        "Bereavement (Death in Family)",
-                        "Transportation Problems",
-                        "Out-of-Town Travel",
-                        "Official or Personal Work",
-                        "Household Responsibilities",
-                        "Religious Obligations",
-                        "Personal Reasons",
-                        "Other"
+                        "Medical / Health Issues", "Family Emergency", "Family Function",
+                        "Bereavement (Death in Family)", "Transportation Problems", "Out-of-Town Travel",
+                        "Official or Personal Work", "Household Responsibilities", "Religious Obligations",
+                        "Personal Reasons", "Other"
                     ]
                     
                     contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
@@ -848,14 +840,14 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                                 key=f"contact_sel_final_{student_id}"
                             )
                         
-                        # ⚡ LIVE REACTIVE TAB SLOT: Instantly renders text block when "Other" is picked
+                        # ✨ HERE IS THE INSTANT IMPACT FIX: Shows the box immediately!
                         custom_text_map[student_id] = ""
                         if reason_selection_map[student_id] == "Other":
                             default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
                             custom_text_map[student_id] = st.text_input(
                                 f"↳ Specify custom remarks for Roll No {student_id}:",
                                 value=default_custom_val,
-                                placeholder="Enter custom verification reason details here...",
+                                placeholder="Enter custom reason here...",
                                 key=f"custom_txt_final_{student_id}"
                             ).strip()
                             
@@ -904,14 +896,12 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                             except Exception as e:
                                 st.error(f"❌ Database Submission Failed: {e}")
             else:
-                # 🛡️ READ-ONLY SUMMARY SHEET FOR EXTERNAL VIEWS (Students/Parents)
                 st.caption("Official explanations logged for unsubmitted/absent profiles:")
                 for idx, ab_row in absent_students.iterrows():
                     logged_rem = ab_row['Remarks'] if ab_row['Remarks'] else "Awaiting dynamic verification from Section Incharge."
                     st.warning(f"📋 **Roll No {ab_row['ID']} — {ab_row['Student Name']}:** {logged_rem}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
-
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
