@@ -816,6 +816,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
+                # 🌟 IMPORTANT: Form contains the inputs, but interactive visibility relies on clear state handling
                 with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                     operator_identity = st.session_state.get("user_name", 
                                         st.session_state.get("name", 
@@ -847,29 +848,23 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     for idx, ab_row in absent_students.iterrows():
                         student_id = ab_row['ID']
                         
-                        # 🌟 DYNAMIC LINK GENERATOR: Builds active tel: links styled nicely for interaction
+                        # Generate interactive click-to-dial phone links
                         html_links = []
-                        
                         if ab_row.get('WhatsApp') and str(ab_row['WhatsApp']).strip() != "":
                             raw_wa = str(ab_row['WhatsApp']).strip()
-                            # Strip out spaces or dashes for clean protocol handling
                             clean_wa = "".join(filter(str.isdigit, raw_wa))
                             html_links.append(f"💬 <a href='tel:{clean_wa}' style='color: #25D366; font-weight: bold; text-decoration: none;'>WA: {raw_wa}</a>")
-                            
                         if ab_row.get('Contact 1') and str(ab_row['Contact 1']).strip() != "":
                             raw_c1 = str(ab_row['Contact 1']).strip()
                             clean_c1 = "".join(filter(str.isdigit, raw_c1))
                             html_links.append(f"📞 <a href='tel:{clean_c1}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 1: {raw_c1}</a>")
-                            
                         if ab_row.get('Contact 2') and str(ab_row['Contact 2']).strip() != "":
                             raw_c2 = str(ab_row['Contact 2']).strip()
                             clean_c2 = "".join(filter(str.isdigit, raw_c2))
                             html_links.append(f"📞 <a href='tel:{clean_c2}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 2: {raw_c2}</a>")
                         
-                        # Display Student Info Header
                         st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
                         
-                        # 🌟 RENDER THE HYPERLINKS: Renders the elements safely using markdown component injection
                         if html_links:
                             links_joined = " &nbsp;|&nbsp; ".join(html_links)
                             st.markdown(f"<div style='font-size: 14px; background-color: #f9f9f9; padding: 6px 12px; border-radius: 4px; border-left: 3px solid #ff4b4b; margin-bottom: 10px;'>📱 Click to Dial: {links_joined}</div>", unsafe_allow_html=True)
@@ -903,9 +898,13 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                                 key=f"contact_sel_final_{student_id}"
                             )
                         
+                        # 🌟 FIX: Instantly look at the widget's active selection session state value
+                        current_selection = st.session_state.get(f"reason_sel_final_{student_id}", fixed_reasons[default_reason_idx])
+                        
                         custom_text_map[student_id] = ""
-                        if reason_selection_map[student_id] == "Other":
+                        if current_selection == "Other":
                             default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                            # 🎯 The text input box now renders dynamically inside the form row
                             custom_text_map[student_id] = st.text_input(
                                 "↳ Specify your custom remarks/reasons:",
                                 value=default_custom_val,
@@ -921,7 +920,9 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     if submit_remarks:
                         validation_passed = True
                         for s_id, main_reason in reason_selection_map.items():
-                            if main_reason == "Other" and not custom_text_map[s_id]:
+                            # Re-verify layout choice against state rules
+                            actual_reason = st.session_state.get(f"reason_sel_final_{s_id}", main_reason)
+                            if actual_reason == "Other" and not custom_text_map[s_id]:
                                 st.error(f"⚠️ Missing parameters: Enter custom details for student Roll No `{s_id}`.")
                                 validation_passed = False
                         
@@ -934,7 +935,9 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                                 with engine.begin() as conn:
                                     for s_id, main_reason in reason_selection_map.items():
                                         chosen_contact = contact_selection_map[s_id]
-                                        final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
+                                        actual_reason = st.session_state.get(f"reason_sel_final_{s_id}", main_reason)
+                                        
+                                        final_reason_phrase = custom_text_map[s_id] if actual_reason == "Other" else actual_reason
                                         
                                         if final_reason_phrase:
                                             formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}"
