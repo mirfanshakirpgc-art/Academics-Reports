@@ -3546,11 +3546,11 @@ elif menu_choice == "📋 Daily Attendance Report":
             st.download_button("📥 Download Excel Overview", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
 
     # --------------------------------------------------------------------------
-    # TAB 2: ABSENTEE TEACHER REMARKS AUDIT LOG
+    # TAB 2: ABSENTEE TEACHER REMARKS AUDIT LOG (PARSING & TIMEZONE RECTIFIED)
     # --------------------------------------------------------------------------
     with tab2:
         st.subheader("📋 Master Absent Student Remarks Report")
-        st.caption("Live tracking timeline displaying unalterable teacher feedback submissions with server timestamps.")
+        st.caption("Live tracking timeline displaying unalterable teacher feedback submissions with local timezone timestamps.")
         st.markdown("---")
         
         all_possible_sections = set()
@@ -3570,6 +3570,7 @@ elif menu_choice == "📋 Daily Attendance Report":
 
         query_params = {"target_date": str(rem_report_date)}
         
+        # We process the underlying server database hardware timestamp safely into local PKT time via SQL
         sql_report = """
             SELECT 
                 s.id AS "Roll No",
@@ -3578,7 +3579,7 @@ elif menu_choice == "📋 Daily Attendance Report":
                 UPPER(TRIM(s.section)) AS "Section",
                 s.session AS "Session Batch",
                 d.remarks AS "Teacher Remarks",
-                to_char(d.remarks_updated_at, 'DD-Mon-YYYY HH:MI AM') AS "Logged Timestamp"
+                to_char(d.remarks_updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Karachi', 'YYYY-MM-DD hh:mi AM') AS "Logged Timestamp"
             FROM students s
             JOIN daily_attendance d ON s.id = d.student_id
             WHERE d.attendance_date = :target_date
@@ -3598,25 +3599,33 @@ elif menu_choice == "📋 Daily Attendance Report":
             if remarks_report_df.empty:
                 st.info(f"🍃 No active absence remarks are logged by faculty for target selection on {rem_report_date.strftime('%d-%b-%Y')}.")
             else:
+                # Isolates text descriptions and author names safely while throwing away the broken un-localized string text segment
                 def split_remarks_metadata(remarks_str):
                     if not remarks_str or pd.isna(remarks_str):
-                        return "", "", ""
+                        return "", ""
                     remarks_str = str(remarks_str)
-                    if " | By: " in remarks_str and " on " in remarks_str:
+                    if " | By: " in remarks_str:
                         try:
                             base_text, metadata = remarks_str.split(" | By: ", 1)
-                            operator, timestamp = metadata.split(" on ", 1)
-                            return base_text.strip(), operator.strip(), timestamp.strip()
+                            operator = metadata.split(" on ", 1)[0] if " on " in metadata else metadata
+                            return base_text.strip(), operator.strip()
                         except Exception:
-                            return remarks_str, "", ""
-                    return remarks_str, "N/A", "N/A"
+                            return remarks_str, ""
+                    return remarks_str, "N/A"
 
                 split_data = remarks_report_df['Teacher Remarks'].apply(split_remarks_metadata)
                 remarks_report_df["Teacher's Remarks"] = [x[0] for x in split_data]
                 remarks_report_df["Remarks By"] = [x[1] for x in split_data]
-                remarks_report_df["Date & Time"] = [x[2] for x in split_data]
                 
+                # Tie the visual framework directly to our timezone-adjusted SQL calculation string
+                remarks_report_df["Date & Time"] = remarks_report_df["Logged Timestamp"].astype(str).str.upper()
+                
+                # Drop only the original raw 'Teacher Remarks' column to prevent duplicates
                 remarks_report_df = remarks_report_df.drop(columns=['Teacher Remarks', 'Logged Timestamp'], errors='ignore')
+
+                # Re-index explicitly to enforce perfect alignment matching image_4fa93d.png layout structure
+                column_sequence = ["Roll No", "Student Name", "Class Level", "Section", "Session Batch", "Teacher's Remarks", "Remarks By", "Date & Time"]
+                remarks_report_df = remarks_report_df[column_sequence]
 
                 st.dataframe(remarks_report_df, use_container_width=True, hide_index=True)
                 
