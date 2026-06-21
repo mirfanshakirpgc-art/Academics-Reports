@@ -3556,7 +3556,7 @@ elif menu_choice == "📋 Daily Attendance Report":
             if remarks_report_df.empty:
                 st.info(f"🍃 No active absence remarks are logged by faculty for target selection on {rem_report_date.strftime('%d-%b-%Y')}.")
             else:
-                # UPDATED: Enhanced parsing to handle "[Contacted: X]" metadata seamlessly
+                # Decodes: "Reason [Contacted: Person] | By: Faculty"
                 def split_remarks_metadata(remarks_str):
                     if not remarks_str or pd.isna(remarks_str):
                         return "", "", ""
@@ -3565,7 +3565,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                     base_text = remarks_str
                     operator = "N/A"
                     
-                    # 1. Isolate Faculty Author
                     if " | By: " in remarks_str:
                         try:
                             base_text, metadata = remarks_str.split(" | By: ", 1)
@@ -3574,7 +3573,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                         except Exception:
                             pass
                     
-                    # 2. Extract Contacted Person from brackets
                     contacted_person = "Not Specified"
                     if "[Contacted:" in base_text and "]" in base_text:
                         try:
@@ -3583,7 +3581,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                             inner_content = base_text[start_idx + 11:end_idx].strip()
                             if inner_content:
                                 contacted_person = inner_content
-                            # Clean the reason description by dropping the brackets token
                             base_text = base_text[:start_idx] + base_text[end_idx + 1:]
                         except Exception:
                             pass
@@ -3598,7 +3595,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                 remarks_report_df["Date & Time"] = remarks_report_df["Logged Timestamp"].astype(str).str.upper()
                 remarks_report_df = remarks_report_df.drop(columns=['Teacher Remarks', 'Logged Timestamp'], errors='ignore')
 
-                # UPDATED: Sequence updated to match new column requirements
                 column_sequence = ["Roll No", "Student Name", "Class Level", "Section", "Session Batch", "Teacher's Remarks", "Contacted Person", "Remarks By", "Date & Time"]
                 remarks_report_df = remarks_report_df[column_sequence]
 
