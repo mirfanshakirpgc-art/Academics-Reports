@@ -753,7 +753,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
         # ----------------------------------------------------------------------
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR (Adaptive Visibility Engine)
         # ----------------------------------------------------------------------
-        current_role = st.session_state.get("role", "").strip()
         resolved_date = str(target_date)
 
         try:
@@ -775,16 +774,16 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
-            # Show interactive submission panel if user has operational clearance
-            if current_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
+            # 🌟 FIX: Check 'user_role' (validated at top) instead of relying on 'current_role' session lookups
+            if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
                 with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                     operator_identity = st.session_state.get("user_name", 
                                         st.session_state.get("name", 
-                                        st.session_state.get("username", f"{current_role} Manager"))).strip()
+                                        st.session_state.get("username", f"{user_role} Manager"))).strip()
                     
-                    st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({current_role} Session)*")
+                    st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({user_role} Session)*")
                     st.markdown("---")
                     
                     fixed_reasons = [
