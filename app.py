@@ -1081,7 +1081,9 @@ elif menu_choice == "👥 Admissions Operational Workspace":
     except Exception:
         st.error("Roster query error.")
 
-# --- 🍎 5. FACULTY / TEACHER DASHBOARD RENDERER ---
+# ==============================================================================
+# 🍎 5. FACULTY / TEACHER DASHBOARD RENDERER
+# ==============================================================================
 elif menu_choice == "📊 Faculty Home Dashboard":
     st.markdown(f"## 🏫 Welcome, {username_current}")
     st.markdown("Logged in workspace role: **Faculty**")
@@ -1229,6 +1231,52 @@ elif menu_choice == "📊 Faculty Home Dashboard":
                 st.markdown("- Pending Core Attendance Registers: **None (All Closed)**")
             with tab_c2:
                 st.info("No active student authorization exceptions require review today.")
+
+    # ==============================================================================
+    # ⏳ REQUIRED RESULT SUBMISSIONS DEADLINES
+    # ==============================================================================
+    st.markdown("---")
+    st.markdown("### ⏳ Required Result Submissions Deadlines")
+    
+    try:
+        deadline_tasks = run_query("""
+            SELECT id, exam_name, class_name, section, subject, exam_date, submission_deadline 
+            FROM date_sheet_deadlines 
+            WHERE UPPER(TRIM(assigned_teacher)) = UPPER(TRIM(:tname)) AND is_submitted = FALSE 
+            ORDER BY submission_deadline ASC
+        """, {"tname": clean_name})
+        
+        if not deadline_tasks.empty:
+            today = date.today()
+            for idx, row in deadline_tasks.iterrows():
+                deadline_val = pd.to_datetime(row['submission_deadline']).date()
+                days_diff = (deadline_val - today).days
+                
+                if days_diff >= 0:
+                    status_html = f"<span style='color: #25D366; font-weight: bold;'>⏳ {days_diff} Days Remaining</span>"
+                    box_style = "border-left: 5px solid #25D366; background-color: #f4fbf7;"
+                else:
+                    status_html = f"<span style='color: #FF4B4B; font-weight: bold;'>🚨 OVERDUE BY {abs(days_diff)} LATE DAYS</span>"
+                    box_style = "border-left: 5px solid #FF4B4B; background-color: #fdf5f5;"
+                
+                st.markdown(f"""
+                    <div style='padding: 14px 20px; border-radius: 6px; {box_style} margin-bottom: 12px;'>
+                        <h4 style='margin: 0; color: #111;'>📚 {row['subject']} — {row['class_name']} (Sec: {row['section']})</h4>
+                        <p style='margin: 0; color: #666; font-size: 14px;'><strong>Assessment Context:</strong> {row['exam_name']}</p>
+                        <p style='margin: 0; font-size: 14px; margin-top: 4px;'>🎯 <strong>Submission Due Target:</strong> {row['submission_deadline']} &nbsp;&nbsp;•&nbsp;&nbsp; {status_html}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button(f"Mark {row['subject']} Submitted", key=f"fac_task_submit_{row['id']}", use_container_width=True):
+                    execute_db_command("""
+                        UPDATE date_sheet_deadlines SET is_submitted = TRUE WHERE id = :task_id
+                    """, {"task_id": int(row['id'])})
+                    st.success(f"Submission status logged for {row['subject']}!")
+                    st.rerun()
+        else:
+            st.success("✅ All clear! You have no pending result submissions scheduled.")
+    except Exception:
+        st.caption("No pending workflows.")
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
 # ==============================================================================
