@@ -336,7 +336,7 @@ db_class_scope = st.session_state.get("db_class_scope", None)
 # ------------------------------------------------------------------------------
 if user_role in ["Teacher", "Faculty"]:
     # 🍎 SPECIALIZED TEACHER PORTAL SIDEBAR ROUTING
-    allowed_menus = ["📊 Home Dashboard", "📝 Marks Entry", "📅 Marks Attendance", "❌ Absent Student Remarks", "📊 Result Analysis"]
+    allowed_menus = ["📊 Home Dashboard", "📝 Marks Entry", "📅 Marks Attendance", "📊 Result Analysis"]
 else:
     # 👑 INSTITUTION MANAGEMENT AND SYSTEM ADMIN ROUTING
     allowed_menus = ["📊 Home Dashboard"]
