@@ -757,12 +757,12 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
 
         try:
             with engine.connect() as conn:
-                # 🌟 ROBUST QUERY: Grabs ID, Name, Remarks, and handles contact number safely
+                # 🌟 MATCHED TO REGISTRATION SCHEMA: Checking Contact Number 1 & WhatsApp Number
                 query = text("""
                     SELECT 
                         d.student_id AS "ID", 
                         s.name AS "Student Name", 
-                        COALESCE(s.sms_mobile, s.phone, s.parent_phone, 'No Contact') AS "Contact No",
+                        COALESCE(s.contact_number_1, s.whatsapp_number, s.contact_number_2, 'No Contact') AS "Contact No",
                         d.status AS "SavedStatus", 
                         d.remarks AS "Remarks"
                     FROM daily_attendance d
@@ -774,11 +774,16 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                 """)
                 absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
         except Exception as query_error:
-            # 🔄 EMERGENCY FALLBACK: If the contact columns above don't exist, fetch basic info so the app doesn't break
+            # 🔄 EMERGENCY ALTERNATIVE COLS: Try lowercase short abbreviations if the above throws an error
             try:
                 with engine.connect() as conn:
                     fallback_query = text("""
-                        SELECT d.student_id AS "ID", s.name AS "Student Name", 'Click Roster to View' AS "Contact No", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                        SELECT 
+                            d.student_id AS "ID", 
+                            s.name AS "Student Name", 
+                            COALESCE(s.contact_1, s.whatsapp, s.contact_no_1, 'No Contact') AS "Contact No", 
+                            d.status AS "SavedStatus", 
+                            d.remarks AS "Remarks"
                         FROM daily_attendance d
                         JOIN students s ON d.student_id = s.id
                         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
@@ -788,8 +793,21 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     """)
                     absent_students = pd.read_sql(fallback_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
             except Exception as e:
-                st.error(f"⚠️ Query Error: {e}")
-                absent_students = pd.DataFrame()
+                # Safest fallback: Display data even if contact numbers are broken
+                try:
+                    with engine.connect() as conn:
+                        safe_query = text("""
+                            SELECT d.student_id AS "ID", s.name AS "Student Name", 'Ref. Roster' AS "Contact No", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                            FROM daily_attendance d
+                            JOIN students s ON d.student_id = s.id
+                            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                              AND d.attendance_date = :att_date
+                              AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+                            ORDER BY d.student_id ASC
+                        """)
+                        absent_students = pd.read_sql(safe_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
+                except:
+                    absent_students = pd.DataFrame()
 
         if not absent_students.empty:
             st.markdown("###")
