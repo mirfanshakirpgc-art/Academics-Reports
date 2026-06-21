@@ -657,8 +657,8 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    # 🌟 ADMINISTRATIVE OVERRIDE: Fallback view if a management account logs in without a set class scope
-    if not scope_str and user_role in ["Principal", "Vice Principal", "Admin", "Administrator"]:
+    # 🌟 ADMINISTRATIVE OVERRIDE: Expanded fallback view for ALL management profiles to prevent st.stop() locking
+    if not scope_str and user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Admin", "Administrator"]:
         scope_str = "11th - IG"  
         
     if not scope_str:
@@ -777,7 +777,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             
             # Show interactive submission panel if user has operational clearance
             if current_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
-                st.caption("Provide reason for absence for tracked profiles:")
+                st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
                 with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                     operator_identity = st.session_state.get("user_name", 
