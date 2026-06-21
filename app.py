@@ -850,15 +850,16 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                                 key=f"contact_sel_final_{student_id}"
                             )
                         
-                        custom_text_map[student_id] = ""
-                        if reason_selection_map[student_id] == "Other":
-                            default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
-                            custom_text_map[student_id] = st.text_input(
-                                "↳ Specify your custom remarks/reasons:",
-                                value=default_custom_val,
-                                placeholder="Provide specific custom details here...",
-                                key=f"custom_txt_final_{student_id}"
-                            ).strip()
+                        # 🌟 DYNAMIC SLOT FIX: Forms block conditional component updates.
+                        # Instead, we always provide the entry field when "Other" is active or pre-saved.
+                        default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                        
+                        custom_text_map[student_id] = st.text_input(
+                            f"↳ Specify custom remarks (Only applies if 'Other' is chosen above for Roll No {student_id}):",
+                            value=default_custom_val,
+                            placeholder="Type specific custom reason here...",
+                            key=f"custom_txt_final_{student_id}"
+                        ).strip()
                             
                         st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                     
