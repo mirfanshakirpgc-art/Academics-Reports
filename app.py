@@ -1185,7 +1185,7 @@ elif menu_choice == "📊 Faculty Home Dashboard":
             st.warning("⚠️ No active Class Incharge roles allocated to your profile.")
 
     # ==============================================================================
-    # 🔍 DYNAMIC DETAILED DRILLDOWN (Triggers below on card click event)
+    # 🔍 DYNAMIC DETAILED DRILLDOWN DRAWER (Injected Right Underneath Content Nodes)
     # ==============================================================================
     if st.session_state.fac_active_section_click is not None:
         st.markdown("---")
@@ -1193,10 +1193,10 @@ elif menu_choice == "📊 Faculty Home Dashboard":
         
         if click_data["type"] == "teaching":
             st.markdown(f"### 📋 Student Roster Matrix: Section {click_data['section']} ({click_data['class']})")
-            st.caption(f"Course Parameter: **{click_data['subject']}**")
+            st.caption(f"Course Parameter Track: **{click_data['subject']}**")
             
-            # Safe live database pull for students within clicked parameters
             try:
+                # Live dynamic SQL data fetch for the clicked section block
                 roster_df = run_query("""
                     SELECT roll_number AS "Roll No", student_name AS "Student Name", enrollment_status AS "Status" 
                     FROM students 
@@ -1210,7 +1210,7 @@ elif menu_choice == "📊 Faculty Home Dashboard":
                 else:
                     st.info("No explicit student profiles registered under this unique section block.")
             except Exception:
-                # Local safe sandbox mock table if database connection cuts out
+                # Local baseline mock data view if active network stream drops out
                 mock_roster = pd.DataFrame({
                     "Roll No": ["CON-2026-01", "CON-2026-02", "CON-2026-03"],
                     "Student Name": ["Ahmad Ali", "Fatima Raza", "Muhammad Bilal"],
@@ -1229,51 +1229,6 @@ elif menu_choice == "📊 Faculty Home Dashboard":
                 st.markdown("- Pending Core Attendance Registers: **None (All Closed)**")
             with tab_c2:
                 st.info("No active student authorization exceptions require review today.")
-
-    # --- Required Result Submissions Deadlines ---
-    st.markdown("---")
-    st.markdown("### ⏳ Required Result Submissions Deadlines")
-    
-    try:
-        deadline_tasks = run_query("""
-            SELECT id, exam_name, class_name, section, subject, exam_date, submission_deadline 
-            FROM date_sheet_deadlines 
-            WHERE UPPER(TRIM(assigned_teacher)) = UPPER(TRIM(:tname)) AND is_submitted = FALSE 
-            ORDER BY submission_deadline ASC
-        """, {"tname": clean_name})
-        
-        if not deadline_tasks.empty:
-            today = date.today()
-            for idx, row in deadline_tasks.iterrows():
-                deadline_val = pd.to_datetime(row['submission_deadline']).date()
-                days_diff = (deadline_val - today).days
-                
-                if days_diff >= 0:
-                    status_html = f"<span style='color: #25D366; font-weight: bold;'>⏳ {days_diff} Days Remaining</span>"
-                    box_style = "border-left: 5px solid #25D366; background-color: #f4fbf7;"
-                else:
-                    status_html = f"<span style='color: #FF4B4B; font-weight: bold;'>🚨 OVERDUE BY {abs(days_diff)} LATE DAYS</span>"
-                    box_style = "border-left: 5px solid #FF4B4B; background-color: #fdf5f5;"
-                
-                st.markdown(f"""
-                    <div style='padding: 14px 20px; border-radius: 6px; {box_style} margin-bottom: 12px;'>
-                        <h4 style='margin: 0; color: #111;'>📚 {row['subject']} — {row['class_name']} (Sec: {row['section']})</h4>
-                        <p style='margin: 0; color: #666; font-size: 14px;'><strong>Assessment Context:</strong> {row['exam_name']}</p>
-                        <p style='margin: 0; font-size: 14px; margin-top: 4px;'>🎯 <strong>Submission Due Target:</strong> {row['submission_deadline']} &nbsp;&nbsp;•&nbsp;&nbsp; {status_html}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                if st.button(f"Mark {row['subject']} Submitted", key=f"fac_task_submit_{row['id']}", use_container_width=True):
-                    execute_db_command("""
-                        UPDATE date_sheet_deadlines SET is_submitted = TRUE, submitted_at = :now WHERE id = :task_id
-                    """, {"now": datetime.now(), "task_id": int(row['id'])})
-                    st.success("Submission tracked successfully!")
-                    time.sleep(0.4)
-                    st.rerun()
-        else:
-            st.success("✅ All clear! You have no pending result submissions scheduled.")
-    except Exception as deadline_error:
-        st.caption("No pending academic assessment deadline tracking trees found.")
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
 # ==============================================================================
