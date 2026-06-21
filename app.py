@@ -646,20 +646,20 @@ if menu_choice == "📊 Home Dashboard":
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
 # ==============================================================================
-# 🌟 Added "Student" and "Parent" roles so they can hit this block and see their remarks panels!
-elif user_role in ["Teacher", "Faculty", "Admin", "Administrator", "Student", "Parent"] and menu_choice == "📅 Marks Attendance":
+# 🌟 UPDATED: Matches all operational dashboard navigation menus and user roles
+elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator", "Student", "Parent"] and menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
     import datetime
     import time
     import pandas as pd
     
-    st.title("📅 Section Incharge Attendance Panel")
+    st.title("📅 Section Attendance Management Panel")
     
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    # 🌟 ADMIN OVERRIDE: Automatically assign a default view if an Admin logs in without a specific scope
-    if not scope_str and user_role in ["Admin", "Administrator"]:
-        scope_str = "11th - IG"  # Change this to whatever your default class/section should be for Admins
+    # 🌟 ADMINISTRATIVE OVERRIDE: Fallback view if a management account logs in without a set class scope
+    if not scope_str and user_role in ["Principal", "Vice Principal", "Admin", "Administrator"]:
+        scope_str = "11th - IG"  
         
     if not scope_str:
         st.warning("⚠️ No active class section incharge allocation profile detected for your user account.")
@@ -696,8 +696,8 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator", "Student", "P
     if roster_df.empty:
         st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
     else:
-        # 🛡️ CONDITIONAL INTERFACE: Roster modification tool is restricted to management staff
-        if user_role in ["Teacher", "Faculty", "Admin", "Administrator"]:
+        # 🛡️ INTERFACE SEGREGATION: Management roles get entry forms, others get read-only summaries
+        if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
             master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
             
             with st.form("teacher_direct_attendance_form", clear_on_submit=False):
@@ -775,16 +775,16 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator", "Student", "P
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
-            # Show interactive submission panel ONLY to teachers/admins
-            if current_role in ["Teacher", "Faculty", "Admin", "Administrator"]:
+            # Show interactive submission panel if user has operational clearance
+            if current_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide reason for absence for tracked profiles:")
                 
                 with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                     operator_identity = st.session_state.get("user_name", 
                                         st.session_state.get("name", 
-                                        st.session_state.get("username", "System Administrator"))).strip()
+                                        st.session_state.get("username", f"{current_role} Manager"))).strip()
                     
-                    st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *(Auto-detected from active login session)*")
+                    st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({current_role} Session)*")
                     st.markdown("---")
                     
                     fixed_reasons = [
@@ -893,7 +893,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator", "Student", "P
                             except Exception as e:
                                 st.error(f"❌ Database Submission Failed: {e}")
             else:
-                # 🛡️ CLEAN DISPLAY OUTPUT FOR STUDENTS / PARENTS (Read-Only)
+                # 🛡️ READ-ONLY SUMMARY SHEET FOR EXTERNAL VIEWS (Students/Parents)
                 st.caption("Official explanations logged for unsubmitted/absent profiles:")
                 for idx, ab_row in absent_students.iterrows():
                     logged_rem = ab_row['Remarks'] if ab_row['Remarks'] else "Awaiting dynamic verification from Section Incharge."
