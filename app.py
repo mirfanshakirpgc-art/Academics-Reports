@@ -847,6 +847,14 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     
                     if validation_passed:
                         try:
+                            # Import packages locally to ensure timezone accuracy
+                            from datetime import datetime
+                            import pytz
+                            
+                            # Generate an uncorrupted, exact Pakistan local timestamp
+                            pk_tz = pytz.timezone('Asia/Karachi')
+                            current_local_time = datetime.now(pk_tz)
+                            
                             with engine.begin() as conn:
                                 for s_id, main_reason in reason_selection_map.items():
                                     chosen_contact = contact_selection_map[s_id]
@@ -860,12 +868,13 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                                     conn.execute(text("""
                                         UPDATE daily_attendance 
                                         SET remarks = :remarks,
-                                            remarks_updated_at = NOW() AT TIME ZONE 'Asia/Karachi'
+                                            remarks_updated_at = :current_time
                                         WHERE student_id = :s_id AND attendance_date = :att_date
                                     """), {
                                         "remarks": formatted_remarks, 
                                         "s_id": int(s_id), 
-                                        "att_date": resolved_date
+                                        "att_date": resolved_date,
+                                        "current_time": current_local_time
                                     })
                             st.success("🎉 Success! Structured reasons and contact data saved successfully.")
                             time.sleep(0.5)
