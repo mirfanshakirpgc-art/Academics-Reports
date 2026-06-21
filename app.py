@@ -973,40 +973,51 @@ else:
         "📊 Result Analysis"
     ]
 
-# --- SIDEBAR BRANDING RENDERING ---
-st.sidebar.markdown("""
-    <style>
-        div[data-testid="stSidebarUserContent"] {
-            display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 60px);
-        }
-        .sidebar-logout-footer { margin-top: auto; padding-bottom: 10px; }
-        .faculty-profile-box { padding: 5px 0px; margin-bottom: 5px; }
-    </style>
-""", unsafe_allow_html=True)
+# --- UNIFIED SIDEBAR CONTEXT RENDERING ---
+with st.sidebar:
+    # 1. Global CSS Injector
+    st.markdown("""
+        <style>
+            div[data-testid="stSidebarUserContent"] {
+                display: flex; 
+                flex-direction: column; 
+                justify-content: space-between; 
+                min-height: calc(100vh - 60px);
+            }
+            .faculty-profile-box { padding: 5px 0px; margin-bottom: 5px; }
+        </style>
+    """, unsafe_allow_html=True)
 
-if os.path.exists("logo.png"):
-    st.sidebar.image("logo.png", use_container_width=True)
+    # 2. Top Alignment Branding Container
+    top_container = st.container()
+    with top_container:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", use_container_width=True)
+            
+        if username_current:
+            st.markdown(
+                f"""
+                <div class="faculty-profile-box">
+                    <h3 style='margin: 0; color: #212529;'>👋 {username_current}</h3>
+                    <p style='margin: 2px 0 0 0; color: #6c757d; font-size: 0.85rem;'>Workspace Privilege: <b>{user_role}</b></p>
+                </div>
+                <hr style='margin-top: 5px; margin-bottom: 15px;'>
+                """, 
+                unsafe_allow_html=True
+            )
+            
+        # Navigation element
+        menu_choice = st.radio("Go To Module:", allowed_menus, key="portal_navigation_rail")
 
-if username_current:
-    st.sidebar.markdown(
-        f"""
-        <div class="faculty-profile-box">
-            <h3 style='margin: 0; color: #212529;'>👋 {username_current}</h3>
-            <p style='margin: 2px 0 0 0; color: #6c757d; font-size: 0.85rem;'>Workspace Privilege: <b>{user_role}</b></p>
-        </div>
-        <hr style='margin-top: 5px; margin-bottom: 15px;'>
-        """, 
-        unsafe_allow_html=True
-    )
-
-menu_choice = st.sidebar.radio("Go To Module:", allowed_menus)
-
-st.sidebar.markdown('<div class="sidebar-logout-footer">', unsafe_allow_html=True)
-st.sidebar.markdown("---")
-if st.sidebar.button("🚪 Log Out", type="secondary", use_container_width=True, key="unified_logout"):
-    for key in list(st.session_state.keys()): del st.session_state[key]
-    st.rerun()
-st.sidebar.markdown('</div>', unsafe_allow_html=True)
+    # 3. Bottom-Anchored Footer Container
+    footer_container = st.container()
+    with footer_container:
+        st.markdown("---")
+        if st.button("🚪 Log Out", type="secondary", use_container_width=True, key="unified_logout"):
+            # Completely clear session layout footprint cleanly
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
 
 # ==============================================================================
 # 🎛️ CROSS-CONNECTED CORE LIVE DASHBOARDS LAYOUTS
