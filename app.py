@@ -754,34 +754,49 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR (Adaptive Visibility Engine)
         # ----------------------------------------------------------------------
         resolved_date = str(target_date)
+        detected_columns = []
 
+        # 🩺 STEP A: DIAGNOSTIC SCHEMA CHECK (Find what your database columns are actually named)
         try:
             with engine.connect() as conn:
-                # 🌟 MATCHED TO REGISTRATION SCHEMA: Checking Contact Number 1 & WhatsApp Number
-                query = text("""
-                    SELECT 
-                        d.student_id AS "ID", 
-                        s.name AS "Student Name", 
-                        COALESCE(s.contact_number_1, s.whatsapp_number, s.contact_number_2, 'No Contact') AS "Contact No",
-                        d.status AS "SavedStatus", 
-                        d.remarks AS "Remarks"
-                    FROM daily_attendance d
-                    JOIN students s ON d.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                      AND d.attendance_date = :att_date
-                      AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
-                    ORDER BY d.student_id ASC
-                """)
-                absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-        except Exception as query_error:
-            # 🔄 EMERGENCY ALTERNATIVE COLS: Try lowercase short abbreviations if the above throws an error
-            try:
-                with engine.connect() as conn:
-                    fallback_query = text("""
+                sample_df = pd.read_sql("SELECT * FROM students LIMIT 1", conn)
+                detected_columns = [col.lower() for col in sample_df.columns]
+        except Exception as diag_err:
+            pass
+
+        # 🩺 STEP B: AUTOMATICALLY MATCH COLUMNS BASED ON THE ADMISSIONS FORM
+        contact_column_to_use = None
+        
+        # Look for variations of Contact Number 1
+        for candidate in ["contact_number_1", "contact_no_1", "contact1", "contactnumber1", "contact_1", "phone_1", "phone"]:
+            if candidate in detected_columns:
+                contact_column_to_use = candidate
+                break
+                
+        # Fallback to variations of WhatsApp if Contact 1 wasn't found
+        if not contact_column_to_use:
+            for candidate in ["whatsapp_number", "whatsapp", "whatsapp_no", "whatsappnumber"]:
+                if candidate in detected_columns:
+                    contact_column_to_use = candidate
+                    break
+
+        # Fallback to variations of Contact Number 2
+        if not contact_column_to_use:
+            for candidate in ["contact_number_2", "contact_no_2", "contact2", "contactnumber2", "contact_2"]:
+                if candidate in detected_columns:
+                    contact_column_to_use = candidate
+                    break
+
+        # 🩺 STEP C: RUN THE TARGETED FETCH
+        try:
+            with engine.connect() as conn:
+                if contact_column_to_use:
+                    # Securely inject the verified database column name
+                    query = text(f"""
                         SELECT 
                             d.student_id AS "ID", 
                             s.name AS "Student Name", 
-                            COALESCE(s.contact_1, s.whatsapp, s.contact_no_1, 'No Contact') AS "Contact No", 
+                            s.{contact_column_to_use} AS "Contact No",
                             d.status AS "SavedStatus", 
                             d.remarks AS "Remarks"
                         FROM daily_attendance d
@@ -791,28 +806,32 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                           AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
                         ORDER BY d.student_id ASC
                     """)
-                    absent_students = pd.read_sql(fallback_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-            except Exception as e:
-                # Safest fallback: Display data even if contact numbers are broken
-                try:
-                    with engine.connect() as conn:
-                        safe_query = text("""
-                            SELECT d.student_id AS "ID", s.name AS "Student Name", 'Ref. Roster' AS "Contact No", d.status AS "SavedStatus", d.remarks AS "Remarks"
-                            FROM daily_attendance d
-                            JOIN students s ON d.student_id = s.id
-                            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                              AND d.attendance_date = :att_date
-                              AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
-                            ORDER BY d.student_id ASC
-                        """)
-                        absent_students = pd.read_sql(safe_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-                except:
-                    absent_students = pd.DataFrame()
+                else:
+                    # If absolutely no matching contact column is found, fallback gracefully
+                    query = text("""
+                        SELECT d.student_id AS "ID", s.name AS "Student Name", 'Column Not Found' AS "Contact No", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                        FROM daily_attendance d
+                        JOIN students s ON d.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                          AND d.attendance_date = :att_date
+                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+                        ORDER BY d.student_id ASC
+                    """)
+                absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
+        except Exception as query_error:
+            absent_students = pd.DataFrame()
 
         if not absent_students.empty:
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
+            # 🛠️ SCHEMA HELP WINDOW: Only shows up if 'Column Not Found' occurs to tell you the exact fields available
+            if contact_column_to_use is None and detected_columns:
+                with st.expander("🔍 System Database Diagnosis: Click to view student fields"):
+                    st.write("The fields available in your `students` table are:")
+                    st.code(", ".join(detected_columns))
+                    st.caption("Locate your phone/whatsapp field above and rename your schema matching candidates accordingly.")
+
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
