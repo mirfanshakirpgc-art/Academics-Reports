@@ -755,24 +755,28 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     # ----------------------------------------------------------------------
     resolved_date = str(target_date)
 
-    try:
-        with engine.connect() as conn:
-            query = text("""
-                SELECT d.student_id AS "ID", 
-                       s.name AS "Student Name", 
-                       COALESCE(s.phone, s.guardian_contact, s.mobile, 'N/A') AS "Contact No",
-                       d.status AS "SavedStatus", 
-                       d.remarks AS "Remarks"
-                FROM daily_attendance d
-                JOIN students s ON d.student_id = s.id
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                  AND d.attendance_date = :att_date
-                  AND d.status IN ('A', 'ABSENT', '0')
-                ORDER BY d.student_id ASC
-            """)
-            absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-    except Exception as e:
-        absent_students = pd.DataFrame()
+    # 🌟 EXTRA SAFE REMARKS FETCHING ENGINE HELPER
+    def fetch_absent_students(sec_val, date_val):
+        try:
+            with engine.connect() as conn:
+                query = text("""
+                    SELECT d.student_id AS "ID", 
+                           s.name AS "Student Name", 
+                           COALESCE(s.phone, s.guardian_contact, s.mobile, 'N/A') AS "Contact No",
+                           d.status AS "SavedStatus", 
+                           d.remarks AS "Remarks"
+                    FROM daily_attendance d
+                    JOIN students s ON d.student_id = s.id
+                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                      AND d.attendance_date = :att_date
+                      AND d.status IN ('A', 'ABSENT', '0')
+                    ORDER BY d.student_id ASC
+                """)
+                return pd.read_sql(query, conn, params={"sec": sec_val.strip().upper(), "att_date": date_val})
+        except Exception as e:
+            return pd.DataFrame()
+
+    absent_students = fetch_absent_students(forced_section, resolved_date)
 
     if not absent_students.empty:
         st.markdown("###")
