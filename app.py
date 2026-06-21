@@ -757,8 +757,14 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
 
         try:
             with engine.connect() as conn:
+                # 🌟 UPDATED: Fetches phone numbers directly from the student registration schema
                 query = text("""
-                    SELECT d.student_id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                    SELECT 
+                        d.student_id AS "ID", 
+                        s.name AS "Student Name", 
+                        s.sms_mobile AS "Contact No", -- Adjust column name if it is 'phone' or 'parent_phone'
+                        d.status AS "SavedStatus", 
+                        d.remarks AS "Remarks"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
@@ -774,7 +780,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
-            # 🌟 FIX: Check 'user_role' (validated at top) instead of relying on 'current_role' session lookups
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
@@ -808,7 +813,10 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     
                     for idx, ab_row in absent_students.iterrows():
                         student_id = ab_row['ID']
-                        st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
+                        contact_no = ab_row['Contact No'] if ab_row['Contact No'] else "No Phone Found"
+                        
+                        # 🌟 VISUAL UPGRADE: Displays Roll No, Name, and the fetched Contact Number clearly for the Incharge
+                        st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}** | 📞 Contact: `{contact_no}`")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
                         if " | By:" in str(existing_rem):
@@ -899,7 +907,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     st.warning(f"📋 **Roll No {ab_row['ID']} — {ab_row['Student Name']}:** {logged_rem}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
-
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
