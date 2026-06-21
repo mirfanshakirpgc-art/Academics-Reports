@@ -816,150 +816,142 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
-                # 🌟 IMPORTANT: Form contains the inputs, but interactive visibility relies on clear state handling
-                with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
-                    operator_identity = st.session_state.get("user_name", 
-                                        st.session_state.get("name", 
-                                        st.session_state.get("username", f"{user_role} Manager"))).strip()
+                fixed_reasons = [
+                    "Medical / Health Issues",
+                    "Family Emergency",
+                    "Family Function",
+                    "Bereavement (Death in Family)",
+                    "Transportation Problems",
+                    "Out-of-Town Travel",
+                    "Official or Personal Work",
+                    "Household Responsibilities",
+                    "Religious Obligations",
+                    "Personal Reasons",
+                    "Other"
+                ]
+                
+                contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
+                
+                reason_selection_map = {}
+                contact_selection_map = {}
+                custom_text_map = {}
+                
+                operator_identity = st.session_state.get("user_name", 
+                                    st.session_state.get("name", 
+                                    st.session_state.get("username", f"{user_role} Manager"))).strip()
+                
+                st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({user_role} Session)*")
+                st.markdown("---")
+                
+                # 🌟 FIX: We loop through fields outside a strict form first or use interactive selectboxes with state to capture changes dynamically!
+                for idx, ab_row in absent_students.iterrows():
+                    student_id = ab_row['ID']
                     
-                    st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({user_role} Session)*")
-                    st.markdown("---")
+                    # Generate click-to-dial links
+                    html_links = []
+                    if ab_row.get('WhatsApp') and str(ab_row['WhatsApp']).strip() != "":
+                        raw_wa = str(ab_row['WhatsApp']).strip()
+                        clean_wa = "".join(filter(str.isdigit, raw_wa))
+                        html_links.append(f"💬 <a href='tel:{clean_wa}' style='color: #25D366; font-weight: bold; text-decoration: none;'>WA: {raw_wa}</a>")
+                    if ab_row.get('Contact 1') and str(ab_row['Contact 1']).strip() != "":
+                        raw_c1 = str(ab_row['Contact 1']).strip()
+                        clean_c1 = "".join(filter(str.isdigit, raw_c1))
+                        html_links.append(f"📞 <a href='tel:{clean_c1}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 1: {raw_c1}</a>")
+                    if ab_row.get('Contact 2') and str(ab_row['Contact 2']).strip() != "":
+                        raw_c2 = str(ab_row['Contact 2']).strip()
+                        clean_c2 = "".join(filter(str.isdigit, raw_c2))
+                        html_links.append(f"📞 <a href='tel:{clean_c2}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 2: {raw_c2}</a>")
                     
-                    fixed_reasons = [
-                        "Medical / Health Issues",
-                        "Family Emergency",
-                        "Family Function",
-                        "Bereavement (Death in Family)",
-                        "Transportation Problems",
-                        "Out-of-Town Travel",
-                        "Official or Personal Work",
-                        "Household Responsibilities",
-                        "Religious Obligations",
-                        "Personal Reasons",
-                        "Other"
-                    ]
+                    st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
+                    if html_links:
+                        links_joined = " &nbsp;|&nbsp; ".join(html_links)
+                        st.markdown(f"<div style='font-size: 14px; background-color: #f9f9f9; padding: 6px 12px; border-radius: 4px; border-left: 3px solid #ff4b4b; margin-bottom: 10px;'>📱 Click to Dial: {links_joined}</div>", unsafe_allow_html=True)
                     
-                    contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
+                    existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
+                    if " | By:" in str(existing_rem):
+                        existing_rem = str(existing_rem).split(" | By:")[0].strip()
+                    if " [Contacted:" in str(existing_rem):
+                        existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
+                        
+                    default_reason_idx = 0
+                    if existing_rem in fixed_reasons:
+                        default_reason_idx = fixed_reasons.index(existing_rem)
+                    elif existing_rem != "":
+                        default_reason_idx = fixed_reasons.index("Other")
                     
-                    reason_selection_map = {}
-                    contact_selection_map = {}
-                    custom_text_map = {}
+                    r_c1, r_c2 = st.columns(2)
+                    with r_c1:
+                        # Placing this with a clear key outside or inside cleanly
+                        reason_selection_map[student_id] = st.selectbox(
+                            f"Reason for Absence (Roll No: {student_id}):",
+                            options=fixed_reasons,
+                            index=default_reason_idx,
+                            key=f"reason_sel_final_{student_id}"
+                        )
+                    with r_c2:
+                        contact_selection_map[student_id] = st.selectbox(
+                            f"Contacted Person (Roll No: {student_id}):",
+                            options=contacted_persons,
+                            key=f"contact_sel_final_{student_id}"
+                        )
                     
-                    for idx, ab_row in absent_students.iterrows():
-                        student_id = ab_row['ID']
-                        
-                        # Generate interactive click-to-dial phone links
-                        html_links = []
-                        if ab_row.get('WhatsApp') and str(ab_row['WhatsApp']).strip() != "":
-                            raw_wa = str(ab_row['WhatsApp']).strip()
-                            clean_wa = "".join(filter(str.isdigit, raw_wa))
-                            html_links.append(f"💬 <a href='tel:{clean_wa}' style='color: #25D366; font-weight: bold; text-decoration: none;'>WA: {raw_wa}</a>")
-                        if ab_row.get('Contact 1') and str(ab_row['Contact 1']).strip() != "":
-                            raw_c1 = str(ab_row['Contact 1']).strip()
-                            clean_c1 = "".join(filter(str.isdigit, raw_c1))
-                            html_links.append(f"📞 <a href='tel:{clean_c1}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 1: {raw_c1}</a>")
-                        if ab_row.get('Contact 2') and str(ab_row['Contact 2']).strip() != "":
-                            raw_c2 = str(ab_row['Contact 2']).strip()
-                            clean_c2 = "".join(filter(str.isdigit, raw_c2))
-                            html_links.append(f"📞 <a href='tel:{clean_c2}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 2: {raw_c2}</a>")
-                        
-                        st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
-                        
-                        if html_links:
-                            links_joined = " &nbsp;|&nbsp; ".join(html_links)
-                            st.markdown(f"<div style='font-size: 14px; background-color: #f9f9f9; padding: 6px 12px; border-radius: 4px; border-left: 3px solid #ff4b4b; margin-bottom: 10px;'>📱 Click to Dial: {links_joined}</div>", unsafe_allow_html=True)
-                        else:
-                            st.caption("📱 *No Phone Data Logged for Profile*")
-                        
-                        existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
-                        if " | By:" in str(existing_rem):
-                            existing_rem = str(existing_rem).split(" | By:")[0].strip()
-                        if " [Contacted:" in str(existing_rem):
-                            existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
-                            
-                        default_reason_idx = 0
-                        if existing_rem in fixed_reasons:
-                            default_reason_idx = fixed_reasons.index(existing_rem)
-                        elif existing_rem != "":
-                            default_reason_idx = fixed_reasons.index("Other")
-                            
-                        r_c1, r_c2 = st.columns(2)
-                        with r_c1:
-                            reason_selection_map[student_id] = st.selectbox(
-                                f"Reason for Absence (Roll No: {student_id}):",
-                                options=fixed_reasons,
-                                index=default_reason_idx,
-                                key=f"reason_sel_final_{student_id}"
-                            )
-                        with r_c2:
-                            contact_selection_map[student_id] = st.selectbox(
-                                f"Contacted Person (Roll No: {student_id}):",
-                                options=contacted_persons,
-                                key=f"contact_sel_final_{student_id}"
-                            )
-                        
-                        # 🌟 FIX: Instantly look at the widget's active selection session state value
-                        current_selection = st.session_state.get(f"reason_sel_final_{student_id}", fixed_reasons[default_reason_idx])
-                        
+                    # 🎯 FIXED: Instantly read the drop down state choice directly to toggle field visibility live!
+                    if reason_selection_map[student_id] == "Other":
+                        default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                        custom_text_map[student_id] = st.text_input(
+                            "↳ Specify your custom remarks/reasons:",
+                            value=default_custom_val,
+                            placeholder="Provide specific custom details here...",
+                            key=f"custom_txt_final_{student_id}"
+                        ).strip()
+                    else:
                         custom_text_map[student_id] = ""
-                        if current_selection == "Other":
-                            default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
-                            # 🎯 The text input box now renders dynamically inside the form row
-                            custom_text_map[student_id] = st.text_input(
-                                "↳ Specify your custom remarks/reasons:",
-                                value=default_custom_val,
-                                placeholder="Provide specific custom details here...",
-                                key=f"custom_txt_final_{student_id}"
-                            ).strip()
-                            
-                        st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
-                    
-                    if submit_remarks:
-                        validation_passed = True
-                        for s_id, main_reason in reason_selection_map.items():
-                            # Re-verify layout choice against state rules
-                            actual_reason = st.session_state.get(f"reason_sel_final_{s_id}", main_reason)
-                            if actual_reason == "Other" and not custom_text_map[s_id]:
-                                st.error(f"⚠️ Missing parameters: Enter custom details for student Roll No `{s_id}`.")
-                                validation_passed = False
                         
-                        if validation_passed:
-                            try:
-                                from datetime import datetime, timezone, timedelta
-                                pkt_timezone = timezone(timedelta(hours=5))
-                                current_local_time = datetime.now(pkt_timezone)
-                                
-                                with engine.begin() as conn:
-                                    for s_id, main_reason in reason_selection_map.items():
-                                        chosen_contact = contact_selection_map[s_id]
-                                        actual_reason = st.session_state.get(f"reason_sel_final_{s_id}", main_reason)
+                    st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
+                
+                # Use a cleaner standalone action button layout instead of st.form to ensure live element reactivity works natively!
+                st.markdown("<br>", unsafe_allow_html=True)
+                submit_remarks = st.button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
+                
+                if submit_remarks:
+                    validation_passed = True
+                    for s_id, main_reason in reason_selection_map.items():
+                        if main_reason == "Other" and not custom_text_map.get(s_id):
+                            st.error(f"⚠️ Missing parameters: Enter custom details for student Roll No `{s_id}`.")
+                            validation_passed = False
+                    
+                    if validation_passed:
+                        try:
+                            from datetime import datetime, timezone, timedelta
+                            pkt_timezone = timezone(timedelta(hours=5))
+                            current_local_time = datetime.now(pkt_timezone)
+                            
+                            with engine.begin() as conn:
+                                for s_id, main_reason in reason_selection_map.items():
+                                    chosen_contact = contact_selection_map[s_id]
+                                    final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
+                                    
+                                    if final_reason_phrase:
+                                        formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}"
+                                    else:
+                                        formatted_remarks = f"Unspecified Absence [Contacted: {chosen_contact}] | By: {operator_identity}"
                                         
-                                        final_reason_phrase = custom_text_map[s_id] if actual_reason == "Other" else actual_reason
-                                        
-                                        if final_reason_phrase:
-                                            formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}"
-                                        else:
-                                            formatted_remarks = f"Unspecified Absence [Contacted: {chosen_contact}] | By: {operator_identity}"
-                                            
-                                        conn.execute(text("""
-                                            UPDATE daily_attendance 
-                                            SET remarks = :remarks,
-                                                remarks_updated_at = :current_time
-                                            WHERE student_id = :s_id AND attendance_date = :att_date
-                                        """), {
-                                            "remarks": formatted_remarks, 
-                                            "s_id": int(s_id), 
-                                            "att_date": resolved_date,
-                                            "current_time": current_local_time
-                                        })
-                                st.success("🎉 Success! Structured reasons and contact data saved successfully.")
-                                time.sleep(0.5)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Database Submission Failed: {e}")
+                                    conn.execute(text("""
+                                        UPDATE daily_attendance 
+                                        SET remarks = :remarks,
+                                            remarks_updated_at = :current_time
+                                        WHERE student_id = :s_id AND attendance_date = :att_date
+                                    """), {
+                                        "remarks": formatted_remarks, 
+                                        "s_id": int(s_id), 
+                                        "att_date": resolved_date,
+                                        "current_time": current_local_time
+                                    })
+                            st.success("🎉 Success! Structured reasons and contact data saved successfully.")
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Database Submission Failed: {e}")
             else:
                 st.caption("Official explanations logged for unsubmitted/absent profiles:")
                 for idx, ab_row in absent_students.iterrows():
