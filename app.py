@@ -731,20 +731,50 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
         # ----------------------------------------------------------------------
 # ❌ DYNAMIC ABSENT REMARKS GENERATOR 
 # ----------------------------------------------------------------------
-# Ensure this panel renders for BOTH faculty and administrative/principal accounts
 current_role = st.session_state.get("role", "").lower()
 
-absent_students = roster_df[roster_df['SavedStatus'].isin(['A', 'ABSENT', '0'])]
+# --- FIX: Dynamically read filters from your top UI inputs if target_variables aren't global ---
+# We look for whatever names your app uses for Class, Section, and Date widgets
+active_class = selected_class if 'selected_class' in locals() else "11th"
+active_section = selected_section if 'selected_section' in locals() else "IG"
 
+# Date safety fallback
+resolved_date = None
+if 'target_date' in locals():
+    resolved_date = str(target_date)
+elif 'selected_date' in locals():
+    resolved_date = str(selected_date)
+elif 'attendance_date' in locals():
+    resolved_date = str(attendance_date)
+else:
+    resolved_date = "2026-06-21" # Matches your UI screenshot date
+
+# --- FIX: Pull directly from database instead of relying on missing roster_df ---
+try:
+    with engine.connect() as conn:
+        # This query finds all students marked absent ('A') for this specific class, section, and date
+        query = text("""
+            SELECT student_id AS "ID", student_name AS "Student Name", status AS "SavedStatus", remarks AS "Remarks"
+            FROM daily_attendance
+            WHERE class = :cls 
+              AND section = :sec 
+              AND attendance_date = :att_date
+              AND status IN ('A', 'ABSENT', '0')
+        """)
+        import pandas as pd
+        absent_students = pd.read_sql(query, conn, params={"cls": active_class, "sec": active_section, "att_date": resolved_date})
+except Exception as e:
+    st.error(f"⚠️ Could not load absent student list: {e}")
+    absent_students = pd.DataFrame()
+
+# Only render if we found absent students in the database
 if not absent_students.empty:
     st.markdown("###")
     st.error("❌ Absent Student Remarks Panel")
     st.caption("Provide reason for absence for tracked profiles:")
     
-    # Using unique form key to prevent overlapping with state refreshes
     with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
         
-        # AUTOMATICALLY CAPTURE LOGGED-IN OPERATOR IDENTITY FROM ACTIVE USER SESSION
         operator_identity = st.session_state.get("user_name", 
                             st.session_state.get("name", 
                             st.session_state.get("username", "System Administrator"))).strip()
@@ -752,7 +782,6 @@ if not absent_students.empty:
         st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *(Auto-detected from active login session)*")
         st.markdown("---")
         
-        # Predefined options lists
         fixed_reasons = [
             "Medical / Health Issues",
             "Family Emergency",
@@ -769,7 +798,6 @@ if not absent_students.empty:
         
         contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
         
-        # Form state management dictionaries
         reason_selection_map = {}
         contact_selection_map = {}
         custom_text_map = {}
@@ -777,7 +805,6 @@ if not absent_students.empty:
         for idx, ab_row in absent_students.iterrows():
             st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}**")
             
-            # Clean historical entries safely to prevent visual breakage
             existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
             if " | By:" in str(existing_rem):
                 existing_rem = str(existing_rem).split(" | By:")[0].strip()
@@ -790,7 +817,6 @@ if not absent_students.empty:
             elif existing_rem != "":
                 default_reason_idx = fixed_reasons.index("Other")
                 
-            # Split into two clean user input columns per student row
             r_c1, r_c2 = st.columns(2)
             
             with r_c1:
@@ -808,7 +834,6 @@ if not absent_students.empty:
                     key=f"contact_sel_final_{ab_row['ID']}"
                 )
             
-            # Custom text field appears if "Other" is picked
             if reason_selection_map[ab_row['ID']] == "Other":
                 default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
                 custom_text_map[ab_row['ID']] = st.text_input(
@@ -838,18 +863,6 @@ if not absent_students.empty:
             
             if validation_passed:
                 try:
-                    # Robust Date Safety Fallback Check
-                    resolved_date = None
-                    if 'target_date' in locals():
-                        resolved_date = str(target_date)
-                    elif 'selected_date' in locals():
-                        resolved_date = str(selected_date)
-                    elif 'attendance_date' in locals():
-                        resolved_date = str(attendance_date)
-                    else:
-                        # Fallback parsing directly out of your dashboard input state if variable names differ
-                        resolved_date = str(datetime.date.today())
-
                     with engine.begin() as conn:
                         for s_id, main_reason in reason_selection_map.items():
                             chosen_contact = contact_selection_map[s_id]
@@ -876,6 +889,9 @@ if not absent_students.empty:
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Database Submission Failed: {e}")
+else:
+    if 'absent_students' in locals() and absent_students.empty:
+        st.info("ℹ️ No absent students recorded for this class selection and date.")
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
