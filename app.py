@@ -757,7 +757,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
 
         try:
             with engine.connect() as conn:
-                # 📞 Fetch contact numbers safely by checking phone fields in the student record schema
                 query = text("""
                     SELECT d.student_id AS "ID", 
                            s.name AS "Student Name", 
@@ -779,11 +778,12 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
-            # 🌟 SECURITY CORRECTION: Explicitly evaluating top-level authorized 'user_role' array so Principal/Admin sees the active submission forms
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
-                with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
+                # Containerized outside of a blocking form context so interactive updates trigger immediately
+                remarks_container = st.container(border=True)
+                with remarks_container:
                     operator_identity = st.session_state.get("user_name", 
                                         st.session_state.get("name", 
                                         st.session_state.get("username", f"{user_role} Manager"))).strip()
@@ -815,12 +815,10 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                         student_id = ab_row['ID']
                         contact_num = ab_row['Contact No']
                         
-                        # 📞 RENDERING PANEL WITH TELEPHONE EXPOSURE
                         st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
                         st.markdown(f"📞 **Contact Details:** `{contact_num}`")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
-                        # Sanitize database string stringified null values
                         if str(existing_rem).strip().lower() == "nan":
                             existing_rem = ""
                             
@@ -850,21 +848,22 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                                 key=f"contact_sel_final_{student_id}"
                             )
                         
-                        # 🌟 DYNAMIC SLOT FIX: Forms block conditional component updates.
-                        # Instead, we always provide the entry field when "Other" is active or pre-saved.
-                        default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
-                        
-                        custom_text_map[student_id] = st.text_input(
-                            f"↳ Specify custom remarks (Only applies if 'Other' is chosen above for Roll No {student_id}):",
-                            value=default_custom_val,
-                            placeholder="Type specific custom reason here...",
-                            key=f"custom_txt_final_{student_id}"
-                        ).strip()
+                        # ⚡ LIVE REACTION TAB: Instantly evaluates live selectbox configurations 
+                        custom_text_map[student_id] = ""
+                        if reason_selection_map[student_id] == "Other":
+                            default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                            custom_text_map[student_id] = st.text_input(
+                                f"↳ Specify custom remarks for Roll No {student_id}:",
+                                value=default_custom_val,
+                                placeholder="Enter custom verification reason details here...",
+                                key=f"custom_txt_final_{student_id}"
+                            ).strip()
                             
                         st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                     
+                    # Submission pipeline wrapped at baseline execution point
                     st.markdown("<br>", unsafe_allow_html=True)
-                    submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
+                    submit_remarks = st.button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True, key="btn_remarks_submit_standalone")
                     
                     if submit_remarks:
                         validation_passed = True
