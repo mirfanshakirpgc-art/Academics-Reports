@@ -3463,7 +3463,6 @@ elif menu_choice == "📋 Daily Attendance Report":
 
         query_params = {"target_date": str(rem_report_date)}
         
-        # FIXED: Modified to HH12:MI AM for bulletproof 12-hour AM/PM formatting extraction matching your UI layout
         sql_report = """
             SELECT 
                 s.id AS "Roll No",
@@ -3492,30 +3491,50 @@ elif menu_choice == "📋 Daily Attendance Report":
             if remarks_report_df.empty:
                 st.info(f"🍃 No active absence remarks are logged by faculty for target selection on {rem_report_date.strftime('%d-%b-%Y')}.")
             else:
+                # UPDATED: Enhanced parsing to handle "[Contacted: X]" metadata seamlessly
                 def split_remarks_metadata(remarks_str):
                     if not remarks_str or pd.isna(remarks_str):
-                        return "", ""
+                        return "", "", ""
                     remarks_str = str(remarks_str)
+                    
+                    base_text = remarks_str
+                    operator = "N/A"
+                    
+                    # 1. Isolate Faculty Author
                     if " | By: " in remarks_str:
                         try:
                             base_text, metadata = remarks_str.split(" | By: ", 1)
                             operator = metadata.split(" on ", 1)[0] if " on " in metadata else metadata
-                            return base_text.strip(), operator.strip()
+                            operator = operator.strip()
                         except Exception:
-                            return remarks_str, ""
-                    return remarks_str, "N/A"
+                            pass
+                    
+                    # 2. Extract Contacted Person from brackets
+                    contacted_person = "Not Specified"
+                    if "[Contacted:" in base_text and "]" in base_text:
+                        try:
+                            start_idx = base_text.find("[Contacted:")
+                            end_idx = base_text.find("]", start_idx)
+                            inner_content = base_text[start_idx + 11:end_idx].strip()
+                            if inner_content:
+                                contacted_person = inner_content
+                            # Clean the reason description by dropping the brackets token
+                            base_text = base_text[:start_idx] + base_text[end_idx + 1:]
+                        except Exception:
+                            pass
+                            
+                    return base_text.strip(), contacted_person, operator
 
                 split_data = remarks_report_df['Teacher Remarks'].apply(split_remarks_metadata)
                 remarks_report_df["Teacher's Remarks"] = [x[0] for x in split_data]
-                remarks_report_df["Remarks By"] = [x[1] for x in split_data]
+                remarks_report_df["Contacted Person"] = [x[1] for x in split_data]
+                remarks_report_df["Remarks By"] = [x[2] for x in split_data]
                 
-                # Directly tie formatting to the rectified SQL output 
                 remarks_report_df["Date & Time"] = remarks_report_df["Logged Timestamp"].astype(str).str.upper()
-                
                 remarks_report_df = remarks_report_df.drop(columns=['Teacher Remarks', 'Logged Timestamp'], errors='ignore')
 
-                # Hard enforced configuration blueprint matching production screenshots
-                column_sequence = ["Roll No", "Student Name", "Class Level", "Section", "Session Batch", "Teacher's Remarks", "Remarks By", "Date & Time"]
+                # UPDATED: Sequence updated to match new column requirements
+                column_sequence = ["Roll No", "Student Name", "Class Level", "Section", "Session Batch", "Teacher's Remarks", "Contacted Person", "Remarks By", "Date & Time"]
                 remarks_report_df = remarks_report_df[column_sequence]
 
                 st.dataframe(remarks_report_df, use_container_width=True, hide_index=True)
