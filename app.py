@@ -757,8 +757,13 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
 
         try:
             with engine.connect() as conn:
+                # 📞 UPDATED: Now selecting student contact/guardian numbers directly from the profile row
                 query = text("""
-                    SELECT d.student_id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                    SELECT d.student_id AS "ID", 
+                           s.name AS "Student Name", 
+                           COALESCE(s.phone, s.guardian_contact, s.mobile, 'N/A') AS "Contact No",
+                           d.status AS "SavedStatus", 
+                           d.remarks AS "Remarks"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
@@ -774,7 +779,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
-            # 🌟 FIX: Check 'user_role' (validated at top) instead of relying on 'current_role' session lookups
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
@@ -808,7 +812,11 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     
                     for idx, ab_row in absent_students.iterrows():
                         student_id = ab_row['ID']
+                        contact_num = ab_row['Contact No']
+                        
+                        # 📞 DISPLAY CONTACT NUMBER: Formatted directly beneath the student profile heading
                         st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
+                        st.markdown(f"📞 **Contact Number:** `{contact_num}`")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
                         if " | By:" in str(existing_rem):
