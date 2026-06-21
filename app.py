@@ -646,16 +646,20 @@ if menu_choice == "📊 Home Dashboard":
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (FACULTY FLOW INTERCEPT)
 # ==============================================================================
-elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendance":
+elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choice == "📅 Marks Attendance":
     import datetime
     import time
     import pandas as pd
     
     st.title("📅 Section Incharge Attendance Panel")
     
-    scope_str = st.session_state.get("db_class_scope", db_class_scope)
+    scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
+    # 🌟 ADMIN OVERRIDE: Automatically assign a default view if an Admin logs in without a specific scope
+    if not scope_str and user_role in ["Admin", "Administrator"]:
+        scope_str = "11th - IG"  # Change this to whatever your default class/section should be for Admins
+        
     if not scope_str:
         st.warning("⚠️ No active class section incharge allocation profile detected for your user account.")
         st.stop()
