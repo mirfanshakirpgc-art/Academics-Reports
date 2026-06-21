@@ -105,7 +105,6 @@ def initialize_database():
             );
         """))
 
-        # FIXED: Removed SQLite AUTOINCREMENT syntax, correctly implemented PostgreSQL SERIAL primary key
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS subject_allocations (
                 id SERIAL PRIMARY KEY,
@@ -138,6 +137,31 @@ def initialize_database():
                 total_days INT DEFAULT 0,
                 present_days INT DEFAULT 0,
                 UNIQUE(student_id, month_name)
+            );
+        """))
+
+        # --- EXAMINATION CONTROL SCHEMA TABLES ---
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS examination_datesheets (
+                id SERIAL PRIMARY KEY,
+                exam_type VARCHAR(100) NOT NULL,
+                class_level VARCHAR(100) NOT NULL,
+                subject_name VARCHAR(100) NOT NULL,
+                exam_date DATE NOT NULL,
+                UNIQUE(exam_type, class_level, subject_name)
+            );
+        """))
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS teacher_marking_deadlines (
+                id SERIAL PRIMARY KEY,
+                exam_type VARCHAR(100) NOT NULL,
+                class_level VARCHAR(100) NOT NULL,
+                subject_name VARCHAR(100) NOT NULL,
+                teacher_name VARCHAR(255) NOT NULL,
+                deadline_date DATE NOT NULL,
+                is_submitted BOOLEAN DEFAULT FALSE,
+                UNIQUE(exam_type, class_level, subject_name, teacher_name)
             );
         """))
 
@@ -318,7 +342,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ==============================================================================
-# SIDEBAR NAVIGATION MODULE (ROLE-BASED + ISOLATED TEACHER INTERFACE)
+# SIDEBAR NAVIGATION MODULE (ROLE-BASED CONFIGURATION)
 # ==============================================================================
 user_role = st.session_state.user_role
 username_current = st.session_state.username
@@ -327,18 +351,16 @@ can_manage_settings = st.session_state.can_manage_settings
 can_manage_faculty = st.session_state.can_manage_faculty
 can_edit_marks = st.session_state.can_edit_marks
 
-# --- FIXED: Now pulling perfectly from synchronized table calculations ---
 is_class_incharge = st.session_state.get("is_class_incharge", False)
 db_class_scope = st.session_state.get("db_class_scope", None)
 
-# ------------------------------------------------------------------------------
-# 🗺️ DYNAMIC MENU MAPPING ROUTER
-# ------------------------------------------------------------------------------
+allowed_menus = []
+exam_menus = []
+
+# --- MULTI-ROLE ROUTER ALLOCATIONS ---
 if user_role in ["Teacher", "Faculty"]:
-    # 🍎 SPECIALIZED TEACHER PORTAL SIDEBAR ROUTING
     allowed_menus = ["📊 Home Dashboard", "📝 Marks Entry", "📅 Marks Attendance", "📊 Result Analysis"]
 else:
-    # 👑 INSTITUTION MANAGEMENT AND SYSTEM ADMIN ROUTING
     allowed_menus = ["📊 Home Dashboard"]
     allowed_menus += ["➕ Add Students"] if (user_role in ['Admin', 'controller'] or can_manage_users) else []
     allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role in ['Admin', 'controller'] or can_edit_marks) else []
@@ -347,50 +369,61 @@ else:
     allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role in ['Admin', 'controller'] or can_manage_faculty) else []
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
     
+    # 🎯 ASSIGN EXAM CONTROL MODULE ACCESS
+    if user_role in ["Admin", "Principal", "controller", "Exam Officer", "Examination Control Officer"]:
+        exam_menus = ["⚙️ Examination Control"]
+
     allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
 
-# ------------------------------------------------------------------------------
-# 🎨 SIDEBAR VISUAL DESIGN & BRANDING RENDERING
-# ------------------------------------------------------------------------------
-st.sidebar.markdown("""
-    <style>
-        div[data-testid="stSidebarUserContent"] {
-            display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 60px);
-        }
-        .sidebar-logout-footer { margin-top: auto; padding-bottom: 10px; }
-        .faculty-profile-box {
-            padding: 5px 0px;
-            margin-bottom: 5px;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# --- UNIFIED SIDEBAR CONTEXT RENDERING ---
+with st.sidebar:
+    st.markdown("""
+        <style>
+            div[data-testid="stSidebarUserContent"] {
+                display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100vh - 60px);
+            }
+            .faculty-profile-box { padding: 5px 0px; margin-bottom: 5px; }
+            .sidebar-section-header { 
+                color: #2b6cb0; font-size: 0.8rem; text-transform: uppercase; 
+                letter-spacing: 0.05em; font-weight: 700; margin-top: 20px; margin-bottom: 5px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
-# 🏛️ Render the College Logo inside the sidebar header
-if os.path.exists("logo.png"):
-    st.sidebar.image("logo.png", use_container_width=True)
+    top_container = st.container()
+    with top_container:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", use_container_width=True)
+            
+        if username_current:
+            st.markdown(
+                f"""
+                <div class="faculty-profile-box">
+                    <h3 style='margin: 0; color: #212529;'>👋 {username_current}</h3>
+                    <p style='margin: 2px 0 0 0; color: #6c757d; font-size: 0.85rem;'>Workspace: <b>{user_role}</b></p>
+                </div>
+                <hr style='margin-top: 5px; margin-bottom: 15px;'>
+                """, 
+                unsafe_allow_html=True
+            )
 
-# 👤 Render the Dynamic User/Teacher identity header banner
-if username_current:
-    st.sidebar.markdown(
-        f"""
-        <div class="faculty-profile-box">
-            <h3 style='margin: 0; color: #212529;'>👋 {username_current}</h3>
-            <p style='margin: 2px 0 0 0; color: #6c757d; font-size: 0.85rem;'>Logged in as: <b>{user_role}</b></p>
-        </div>
-        <hr style='margin-top: 5px; margin-bottom: 15px;'>
-        """, 
-        unsafe_allow_html=True
-    )
+        # Standard Modules Select
+        menu_choice = st.radio("Go To Module:", allowed_menus, key="portal_navigation_rail")
+        
+        # Examination Specialized Subsection
+        if exam_menus:
+            st.markdown('<div class="sidebar-section-header">🛡️ Examination Authority</div>', unsafe_allow_html=True)
+            selected_exam_tool = st.radio("Management Panels:", exam_menus, key="exam_navigation_rail", index=None)
+            if selected_exam_tool:
+                menu_choice = selected_exam_tool
 
-menu_choice = st.sidebar.radio("Go To Module:", allowed_menus)
-
-st.sidebar.markdown('<div class="sidebar-logout-footer">', unsafe_allow_html=True)
-st.sidebar.markdown("---")
-if st.sidebar.button("🚪 Log Out", type="secondary", use_container_width=True, key="unified_logout"):
-    for key in list(st.session_state.keys()): del st.session_state[key]
-    st.rerun()
-st.sidebar.markdown('</div>', unsafe_allow_html=True)
-
+    footer_container = st.container()
+    with footer_container:
+        st.markdown("---")
+        if st.button("🚪 Log Out", type="secondary", use_container_width=True, key="unified_logout"):
+            for key in list(st.session_state.keys()): 
+                del st.session_state[key]
+            st.rerun()
 
 # ==============================================================================
 # 📊 METRICS SETUP & USER IDENTITY EXTRACTION LOOKUP
@@ -399,7 +432,6 @@ clean_name = username_current.strip() if username_current else "Faculty Member"
 if " - " in clean_name:
     clean_name = clean_name.split(" - ", 1)[-1].strip()
 
-# Always sync structural layout details if missing
 if user_role in ["Teacher", "Faculty"]:
     try:
         incharge_check = run_query("""
@@ -421,55 +453,126 @@ if user_role in ["Teacher", "Faculty"]:
     except Exception:
         pass
 
-
 # ==============================================================================
 # 🎛️ CORE ROUTING LOGIC GATEWAYS (MAIN WORKSPACE CONTAINER)
 # ==============================================================================
 
-if menu_choice == "📊 Home Dashboard":
-    # --------------------------------------------------------------------------
-    # DASHBOARD DATA CALCULATIONS
-    # --------------------------------------------------------------------------
+# --- EXAMINATION CONTROL HUB ---
+if menu_choice == "⚙️ Examination Control":
+    st.markdown("## ⚙️ Examination Control Board")
+    st.markdown("Design upcoming datesheets, assign paper grading deadlines, and review real-time compliance.")
+    st.markdown("---")
+    
+    tab1, tab2, tab3 = st.tabs(["📅 Design Date Sheet", "⏳ Assign Grading Turnaround", "📊 Tracking & Compliance Overview"])
+    
+    with tab1:
+        st.markdown("### 📝 Draft Date Sheet Entry")
+        with st.form("datesheet_form", clear_on_submit=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                exam_type_ds = st.text_input("Exam Cycle Title (e.g., Mid Term Dec 2026)")
+                class_lvl_ds = st.text_input("Class Level (e.g., 1st Year)")
+            with col2:
+                subject_ds = st.text_input("Subject Title")
+            with col3:
+                date_ds = st.date_input("Exam Date", datetime.date.today())
+            
+            if st.form_submit_button("🔒 Save Schedule Entry"):
+                if exam_type_ds and class_lvl_ds and subject_ds:
+                    try:
+                        execute_db_command("""
+                            INSERT INTO examination_datesheets (exam_type, class_level, subject_name, exam_date)
+                            VALUES (:et, :cl, :sub, :dt)
+                            ON CONFLICT (exam_type, class_level, subject_name) DO UPDATE SET exam_date = :dt
+                        """, {"et": exam_type_ds, "cl": class_lvl_ds, "sub": subject_ds, "dt": date_ds})
+                        st.success(f"Successfully posted schedule: {subject_ds} ({class_lvl_ds})")
+                    except Exception as e:
+                        st.error(f"Error publishing: {e}")
+                else:
+                    st.warning("Please complete all inputs.")
+                    
+        st.markdown("#### 📋 Current Scheduled Exams")
+        ds_records = run_query("SELECT exam_type, class_level, subject_name, exam_date FROM examination_datesheets ORDER BY exam_date ASC")
+        if not ds_records.empty:
+            st.dataframe(ds_records, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No datesheets designed yet.")
+
+    with tab2:
+        st.markdown("### ⏳ Assign Evaluation Window & Deadlines")
+        with st.form("marking_deadline_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                exam_sel = st.text_input("Exam Cycle matching Date Sheet", value=exam_type_ds if 'exam_type_ds' in locals() else "")
+                class_sel = st.text_input("Target Class Level", value=class_lvl_ds if 'class_lvl_ds' in locals() else "")
+                sub_sel = st.text_input("Target Subject")
+            with col2:
+                teachers_df = run_query("SELECT DISTINCT teacher_name FROM system_teachers ORDER BY teacher_name")
+                teacher_options = teachers_df['teacher_name'].tolist() if not teachers_df.empty else ["Select Teacher"]
+                teacher_sel = st.selectbox("Assign Grading Evaluator", teacher_options)
+                
+                allowed_days = st.number_input("Allowed Days for Marking (From Exam Date)", min_value=1, max_value=30, value=3)
+                base_exam_date = st.date_input("Reference Exam Commencement Date", datetime.date.today())
+                
+        if st.form_submit_button("🚀 Deploy Teacher Allocation Window"):
+            if exam_sel and class_sel and sub_sel and teacher_sel:
+                calc_deadline = base_exam_date + datetime.timedelta(days=int(allowed_days))
+                try:
+                    execute_db_command("""
+                        INSERT INTO teacher_marking_deadlines (exam_type, class_level, subject_name, teacher_name, deadline_date)
+                        VALUES (:et, :cl, :sub, :tn, :dl)
+                        ON CONFLICT (exam_type, class_level, subject_name, teacher_name) DO UPDATE SET deadline_date = :dl
+                    """, {"et": exam_sel, "cl": class_sel, "sub": sub_sel, "tn": teacher_sel, "dl": calc_deadline})
+                    st.success(f"Deadline locked! {teacher_sel} must submit marks by {calc_deadline.strftime('%Y-%m-%d')}")
+                except Exception as e:
+                    st.error(f"Error establishing submission timeline: {e}")
+            else:
+                st.warning("Please verify all input configuration tracks before allocation.")
+
+    with tab3:
+        st.markdown("### 📊 Live Evaluation Submission Compliance Matrix")
+        comp_df = run_query("SELECT exam_type, class_level, subject_name, teacher_name, deadline_date, is_submitted FROM teacher_marking_deadlines ORDER BY deadline_date ASC")
+        if not comp_df.empty:
+            total_allocated = len(comp_df)
+            submitted_count = len(comp_df[comp_df['is_submitted'] == True])
+            pending_count = total_allocated - submitted_count
+            
+            c_m1, c_m2, c_m3 = st.columns(3)
+            c_m1.metric("📌 Total Lists Monitored", f"{total_allocated} Allocations")
+            c_m2.metric("✅ Submitted Award Lists", f"{submitted_count} Subjects")
+            c_m3.metric("🚨 Outstandings / Pending", f"{pending_count} Subjects")
+            st.markdown("---")
+            st.dataframe(comp_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No teaching turnaround deadlines are currently being tracked.")
+
+# --- MAIN HOME DASHBOARD OVERVIEW RENDERER ---
+elif menu_choice == "📊 Home Dashboard":
     assigned_subs_raw = st.session_state.get("assigned_subject", "")
     teacher_subjects = [s.strip() for s in assigned_subs_raw.split(",")] if assigned_subs_raw and isinstance(assigned_subs_raw, str) else []
     student_count, overall_pass_rate, class_attendance_avg = 0, 0.0, None
     
-    try:
-        with engine.connect() as conn:
-            if teacher_subjects:
-                subs_tuple = tuple(teacher_subjects) if len(teacher_subjects) > 1 else (teacher_subjects[0],)
-                student_df = pd.read_sql_query(text("SELECT COUNT(DISTINCT student_id) FROM marks WHERE subject IN :subs"), conn, params={"subs": subs_tuple})
-                if not student_df.empty and int(student_df.iloc[0][0]) > 0:
-                    student_count = int(student_df.iloc[0][0])
-                else:
-                    fallback_df = pd.read_sql_query(text("SELECT COUNT(DISTINCT id) FROM students WHERE class = :cls OR section IN (SELECT DISTINCT section_name FROM academic_allocations WHERE subject_title IN :subs)"), conn, params={"cls": str(db_class_scope), "subs": subs_tuple})
-                    student_count = int(fallback_df.iloc[0][0]) if not fallback_df.empty else 0
-
-                marks_df = pd.read_sql_query(text("SELECT marks_obtained, total_marks FROM marks WHERE subject IN :subs"), conn, params={"subs": subs_tuple})
-                if not marks_df.empty:
-                    marks_df['obtained'] = pd.to_numeric(marks_df['marks_obtained'], errors='coerce').fillna(0)
-                    marks_df['total'] = pd.to_numeric(marks_df['total_marks'], errors='coerce').fillna(100)
-                    marks_df = marks_df[marks_df['total'] > 0]
-                    if len(marks_df) > 0:
-                        pass_count = sum((marks_df['obtained'] / marks_df['total']) >= 0.40)
-                        overall_pass_rate = (pass_count / len(marks_df)) * 100
-            
-            if is_class_incharge and db_class_scope:
-                att_df = pd.read_sql_query(text("SELECT SUM(present_days) as total_present, SUM(total_days) as total_bound FROM attendance a JOIN students s ON a.student_id = s.id WHERE (s.class = :class_scope OR s.section = :class_scope) AND a.total_days > 0"), conn, params={"class_scope": db_class_scope})
-                if not att_df.empty and att_df.iloc[0]['total_bound']:
-                    class_attendance_avg = (float(att_df.iloc[0]['total_present']) / float(att_df.iloc[0]['total_bound'])) * 100
-    except Exception:
-        pass
-
-    # --------------------------------------------------------------------------
-    # VIEW RENDERING: ROLE-BASED DASHBOARDS
-    # --------------------------------------------------------------------------
     st.markdown(f"## 🏫 Welcome, {username_current}")
     st.markdown(f"Logged in workspace role: **{user_role}**")
     st.markdown("---")
 
-    # 🍎 1. FACULTY / TEACHER DASHBOARD
+    # 🍎 1. FACULTY / TEACHER PORTAL DEADLINE ALERTS & VIEWS
     if user_role in ["Teacher", "Faculty"]:
+        st.markdown("### 🚨 Your Active Marking Deadlines")
+        teacher_deadlines = run_query("""
+            SELECT exam_type, class_level, subject_name, deadline_date, is_submitted 
+            FROM teacher_marking_deadlines 
+            WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) AND is_submitted = FALSE
+            ORDER BY deadline_date ASC
+        """, {"tname": clean_name})
+        
+        if not teacher_deadlines.empty:
+            for _, dl in teacher_deadlines.iterrows():
+                st.error(f"⏳ **{dl['exam_type']}** | Subject: `{dl['subject_name']}` ({dl['class_level']}) — **Submission Deadline:** {dl['deadline_date']}")
+        else:
+            st.success("🎉 All clear! You have no outstanding or pending award list deadlines.")
+        st.markdown("---")
+
         try:
             taught_df = run_query("SELECT DISTINCT subject_name, section, class_level FROM subject_allocations WHERE UPPER(TRIM(teacher_name)) = UPPER(TRIM(:tname)) OR UPPER(TRIM(teacher_name)) LIKE CONCAT('%', UPPER(TRIM(:tname)))", {"tname": clean_name})
             if not taught_df.empty:
@@ -525,123 +628,70 @@ if menu_choice == "📊 Home Dashboard":
                 st.caption("You are currently not designated as an Incharge.")
         st.markdown("---")
 
-    # 📝 2. EXAMINATION CONTROL OFFICER DASHBOARD
-    elif user_role in ["controller", "Exam Officer"]:
-        st.markdown("### 🎯 Exam Control Analytics Overview")
+    # 🎯 2. EXAMINATION CONTROL OFFICER / ADMIN DASHBOARD VIEW
+    elif user_role in ["controller", "Exam Officer", "Admin"]:
+        st.markdown("### 🎯 Central Exam Tracking Overview")
         try:
             total_marks_entered = run_query("SELECT COUNT(*) as count FROM marks").iloc[0]['count']
             distinct_exams = run_query("SELECT COUNT(DISTINCT exam_type) as count FROM marks").iloc[0]['count']
+            
+            comp_metrics = run_query("SELECT is_submitted, COUNT(*) as count FROM teacher_marking_deadlines GROUP BY is_submitted")
+            sub_map = dict(zip(comp_metrics['is_submitted'], comp_metrics['count']))
+            sub_count = sub_map.get(True, 0)
+            pend_count = sub_map.get(False, 0)
         except Exception:
-            total_marks_entered, distinct_exams = 0, 0
+            total_marks_entered, distinct_exams, sub_count, pend_count = 0, 0, 0, 0
 
-        ec_col1, ec_col2, ec_col3 = st.columns(3)
+        ec_col1, ec_col2, ec_col3, ec_col4 = st.columns(4)
         ec_col1.metric("📝 Total Marks Recorded", f"{total_marks_entered} Entries")
         ec_col2.metric("📋 Active Exam Cycles", f"{distinct_exams} Cycles")
-        ec_col3.metric("⚠️ Pending Tabulations", "Calculated Live")
-
+        ec_col3.metric("✅ Submitted Award Lists", f"{sub_count} Subjects")
+        ec_col4.metric("🚨 Pending Lists Outstanding", f"{pend_count} Teacher Lists")
         st.markdown("---")
-        st.markdown("#### ⚙️ Quick Actions & Reminders")
-        st.info("💡 **Controller Notice:** Remember to lock marks sheets before publishing final student result cards.")
 
-    # 👥 3. ADMISSION OFFICER DASHBOARD
+    # 👥 3. ADMISSION OFFICER DASHBOARD VIEW
     elif user_role in ["Admission Officer", "Registrar"]:
         st.markdown("### 🚀 Admissions & Daily Attendance Track")
-        
-        # Fetch daily metrics and lists from the database safely
         try:
             with engine.connect() as conn:
-                # 1. Get ALL unique sections from students table
                 all_sections_df = pd.read_sql_query(text("""
-                    SELECT DISTINCT section 
-                    FROM students 
-                    WHERE section IS NOT NULL 
-                    AND TRIM(section) != ''
+                    SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND TRIM(section) != ''
                 """), conn)
-                
                 all_sections_set = set(all_sections_df.iloc[:, 0].dropna().astype(str).str.strip().str.upper().tolist()) if not all_sections_df.empty else set()
                 total_sections = len(all_sections_set)
                 
-                # 2. Get sections marked TODAY (using standard timezone safe lookup)
-                import datetime
                 today_str = datetime.date.today().strftime('%Y-%m-%d')
-                
                 marked_sections_df = pd.read_sql_query(text("""
-                    SELECT DISTINCT UPPER(TRIM(s.section)) as marked_section 
-                    FROM attendance a 
-                    JOIN students s ON a.student_id = s.id 
-                    WHERE CAST(a.date AS DATE) = CAST(:today AS DATE)
-                    AND s.section IS NOT NULL 
-                    AND TRIM(s.section) != ''
+                    SELECT DISTINCT UPPER(TRIM(s.section)) as marked_section FROM attendance a 
+                    JOIN students s ON a.student_id = s.id WHERE CAST(a.date AS DATE) = CAST(:today AS DATE)
+                    AND s.section IS NOT NULL AND TRIM(s.section) != ''
                 """), conn, params={"today": today_str})
                 
                 marked_sections_set = set(marked_sections_df['marked_section'].dropna().tolist()) if not marked_sections_df.empty else set()
                 sections_marked = len(marked_sections_set)
-                
-                # 3. Calculate pending sections cleanly
                 pending_sections_list = sorted(list(all_sections_set - marked_sections_set))
                 marked_sections_list = sorted(list(marked_sections_set))
                 sections_pending = len(pending_sections_list)
-                
-        except Exception as e:
-            # Safe localized demo tracking if database structural items aren't mapped yet
-            total_sections, sections_marked, sections_pending = 12, 0, 12
+        except Exception:
+            total_sections, sections_marked, sections_pending = 4, 0, 4
             marked_sections_list = []
-            # Try to grab whatever sections exist in students table for the pending list
-            try:
-                with engine.connect() as conn:
-                    fallback_sec = pd.read_sql_query(text("SELECT DISTINCT section FROM students WHERE section IS NOT NULL"), conn)
-                    pending_sections_list = sorted(fallback_sec.iloc[:, 0].dropna().astype(str).unique().tolist())
-                    total_sections = len(pending_sections_list)
-                    sections_pending = total_sections
-            except Exception:
-                pending_sections_list = ["FSc-PreMed-A", "FSc-PreEng-B", "ICS-Physics-A", "ICom-A"]
-                total_sections, sections_pending = 4, 4
+            pending_sections_list = ["FSc-PreMed-A", "FSc-PreEng-B", "ICS-Physics-A", "ICom-A"]
 
-        # Render Metric Layout Row
         adm_col1, adm_col2, adm_col3 = st.columns(3)
         adm_col1.metric("📚 Total Sections", f"{total_sections} Sections")
-        adm_col2.metric("✅ Attendance Marked", f"{sections_marked} Sections", delta=f"{sections_marked} Complete", delta_color="normal")
-        adm_col3.metric("⏳ Attendance Pending", f"{sections_pending} Sections", delta=f"-{sections_pending} Remaining", delta_color="inverse")
-
+        adm_col2.metric("✅ Attendance Marked", f"{sections_marked} Sections")
+        adm_col3.metric("⏳ Attendance Pending", f"{sections_pending} Sections")
+        
         st.markdown("---")
-        
-        # 🔍 INTERACTIVE DETAILS ACCORDIONS
-        st.markdown("### 🔍 View Sections Breakdowns")
-        
         col_detail_1, col_detail_2 = st.columns(2)
-        
         with col_detail_1:
-            with st.expander(f"🟢 View Marked Sections ({sections_marked})", expanded=False):
+            with st.expander(f"🟢 View Marked Sections ({sections_marked})"):
                 if marked_sections_list:
-                    for sec in marked_sections_list:
-                        st.markdown(f"✅ **Section:** `{sec}`")
-                else:
-                    st.info("No attendance entries submitted yet today.")
-                    
+                    for sec in marked_sections_list: st.markdown(f"✅ **Section:** `{sec}`")
+                else: st.info("No attendance entries submitted yet today.")
         with col_detail_2:
             with st.expander(f"🔴 View Pending Sections ({sections_pending})", expanded=True):
-                if pending_sections_list:
-                    for sec in pending_sections_list:
-                        st.markdown(f"⏳ **Section:** `{sec}`")
-                else:
-                    st.success("Perfect score! All classroom registers are fully filed.")
-
-        st.markdown("---")
-        st.markdown("#### 📥 Latest Registration Activity")
-        st.success("✅ System operational. Daily attendance matrices sync directly with Supabase cloud infrastructure.")
-
-    # 👑 4. SYSTEM SUPER ADMIN DASHBOARD
-    else:
-        st.markdown(f"## 🛠️ Super Admin Control Center")
-        st.markdown("Global administrative overview. You have complete database override privileges.")
-        try:
-            stu_count = run_query("SELECT COUNT(*) as count FROM students").iloc[0]['count']
-            user_count = run_query("SELECT COUNT(*) as count FROM app_users").iloc[0]['count']
-            st.columns(2)[0].metric("Global Student Count", f"{stu_count} Records")
-            st.columns(2)[1].metric("System App Users", f"{user_count} Users")
-        except Exception:
-            pass
-        st.markdown("---")
+                for sec in pending_sections_list: st.markdown(f"⏳ **Section:** `{sec}`")
 
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
