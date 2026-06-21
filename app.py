@@ -757,24 +757,39 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
 
         try:
             with engine.connect() as conn:
-                # 🌟 UPDATED: Fetches phone numbers directly from the student registration schema
+                # 🌟 ROBUST QUERY: Grabs ID, Name, Remarks, and handles contact number safely
                 query = text("""
                     SELECT 
                         d.student_id AS "ID", 
                         s.name AS "Student Name", 
-                        s.sms_mobile AS "Contact No", -- Adjust column name if it is 'phone' or 'parent_phone'
+                        COALESCE(s.sms_mobile, s.phone, s.parent_phone, 'No Contact') AS "Contact No",
                         d.status AS "SavedStatus", 
                         d.remarks AS "Remarks"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
                       AND d.attendance_date = :att_date
-                      AND d.status IN ('A', 'ABSENT', '0')
+                      AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
                     ORDER BY d.student_id ASC
                 """)
                 absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-        except Exception as e:
-            absent_students = pd.DataFrame()
+        except Exception as query_error:
+            # 🔄 EMERGENCY FALLBACK: If the contact columns above don't exist, fetch basic info so the app doesn't break
+            try:
+                with engine.connect() as conn:
+                    fallback_query = text("""
+                        SELECT d.student_id AS "ID", s.name AS "Student Name", 'Click Roster to View' AS "Contact No", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                        FROM daily_attendance d
+                        JOIN students s ON d.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                          AND d.attendance_date = :att_date
+                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+                        ORDER BY d.student_id ASC
+                    """)
+                    absent_students = pd.read_sql(fallback_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
+            except Exception as e:
+                st.error(f"⚠️ Query Error: {e}")
+                absent_students = pd.DataFrame()
 
         if not absent_students.empty:
             st.markdown("###")
@@ -815,7 +830,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                         student_id = ab_row['ID']
                         contact_no = ab_row['Contact No'] if ab_row['Contact No'] else "No Phone Found"
                         
-                        # 🌟 VISUAL UPGRADE: Displays Roll No, Name, and the fetched Contact Number clearly for the Incharge
                         st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}** | 📞 Contact: `{contact_no}`")
                         
                         existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
@@ -900,7 +914,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                             except Exception as e:
                                 st.error(f"❌ Database Submission Failed: {e}")
             else:
-                # 🛡️ READ-ONLY SUMMARY SHEET FOR EXTERNAL VIEWS (Students/Parents)
                 st.caption("Official explanations logged for unsubmitted/absent profiles:")
                 for idx, ab_row in absent_students.iterrows():
                     logged_rem = ab_row['Remarks'] if ab_row['Remarks'] else "Awaiting dynamic verification from Section Incharge."
