@@ -741,7 +741,8 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
             st.error("❌ Absent Student Remarks Panel")
             st.caption("Provide reason for absence for tracked profiles:")
             
-            with st.form("absent_remarks_form_teacher", clear_on_submit=False):
+            # Using unique form key to prevent overlapping with state refreshes
+            with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                 
                 # AUTOMATICALLY CAPTURE LOGGED-IN OPERATOR IDENTITY FROM ACTIVE USER SESSION
                 operator_identity = st.session_state.get("user_name", 
@@ -751,7 +752,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                 st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *(Auto-detected from active login session)*")
                 st.markdown("---")
                 
-                # Predefined options blueprints
+                # Predefined options lists
                 fixed_reasons = [
                     "Medical / Health Issues",
                     "Family Emergency",
@@ -768,7 +769,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                 
                 contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
                 
-                # Storage maps for form outputs
+                # Form state management dictionaries
                 reason_selection_map = {}
                 contact_selection_map = {}
                 custom_text_map = {}
@@ -776,54 +777,53 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                 for idx, ab_row in absent_students.iterrows():
                     st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}**")
                     
-                    # Read and clean old database remarks string safely if it already exists
+                    # Clean historical entries safely to prevent visual breakage
                     existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
                     if " | By:" in str(existing_rem):
                         existing_rem = str(existing_rem).split(" | By:")[0].strip()
                     if " [Contacted:" in str(existing_rem):
                         existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
                         
-                    # Establish selection defaults based on historical values if found
                     default_reason_idx = 0
                     if existing_rem in fixed_reasons:
                         default_reason_idx = fixed_reasons.index(existing_rem)
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
                         
+                    # Split into two clean user input columns per student row
                     r_c1, r_c2 = st.columns(2)
                     
                     with r_c1:
                         reason_selection_map[ab_row['ID']] = st.selectbox(
-                            "Reason for Absence:",
+                            f"Reason for Absence (Roll No: {ab_row['ID']}):",
                             options=fixed_reasons,
                             index=default_reason_idx,
-                            key=f"reason_sel_{ab_row['ID']}"
+                            key=f"reason_sel_final_{ab_row['ID']}"
                         )
                         
                     with r_c2:
                         contact_selection_map[ab_row['ID']] = st.selectbox(
-                            "Contacted Person:",
+                            f"Contacted Person (Roll No: {ab_row['ID']}):",
                             options=contacted_persons,
-                            key=f"contact_sel_{ab_row['ID']}"
+                            key=f"contact_sel_final_{ab_row['ID']}"
                         )
                     
-                    # Conditional sub-field input: standard text block triggers if 'Other' option selected
+                    # Custom text field appears if "Other" is picked
                     if reason_selection_map[ab_row['ID']] == "Other":
                         default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
                         custom_text_map[ab_row['ID']] = st.text_input(
-                            "↳ Specify custom details:",
+                            "↳ Specify your custom remarks/reasons:",
                             value=default_custom_val,
-                            placeholder="Type custom details here...",
-                            key=f"custom_txt_{ab_row['ID']}"
+                            placeholder="Provide specific custom details here...",
+                            key=f"custom_txt_final_{ab_row['ID']}"
                         ).strip()
                     else:
                         custom_text_map[ab_row['ID']] = ""
                         
-                    st.markdown("<div style='padding-bottom: 10px;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # UNIFIED SUBMIT BUTTON
                 submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
                 
                 if submit_remarks:
@@ -831,10 +831,9 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                     import time
                     
                     validation_passed = True
-                    # Check for empty custom fields before writing to database
                     for s_id, main_reason in reason_selection_map.items():
                         if main_reason == "Other" and not custom_text_map[s_id]:
-                            st.error(f"⚠️ Please specify custom details for student Roll No `{s_id}`.")
+                            st.error(f"⚠️ Missing parameters: Enter custom details for student Roll No `{s_id}`.")
                             validation_passed = False
                     
                     if validation_passed:
@@ -842,12 +841,9 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                             with engine.begin() as conn:
                                 for s_id, main_reason in reason_selection_map.items():
                                     chosen_contact = contact_selection_map[s_id]
-                                    
-                                    # Determine actual text string base value
                                     final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
                                     
                                     if final_reason_phrase:
-                                        # Formats structured string text: "Medical / Health Issues [Contacted: Mother] | By: Faculty"
                                         formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}"
                                     else:
                                         formatted_remarks = ""
@@ -863,7 +859,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📅 Marks Attendan
                                         "att_date": str(target_date)
                                     })
                                     
-                            st.success("🎉 Database Updated! Remarks successfully saved under this active user session.")
+                            st.success("🎉 Success! Structured reasons and contact data saved successfully.")
                             time.sleep(1.0)
                             st.rerun()
                         except Exception as e:
