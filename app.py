@@ -847,13 +847,12 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     
                     if validation_passed:
                         try:
-                            # Import packages locally to ensure timezone accuracy
-                            from datetime import datetime
-                            import pytz
+                            # Using purely built-in timezone models to avoid environment mismatches
+                            from datetime import datetime, timezone, timedelta
                             
-                            # Generate an uncorrupted, exact Pakistan local timestamp
-                            pk_tz = pytz.timezone('Asia/Karachi')
-                            current_local_time = datetime.now(pk_tz)
+                            # Explicitly force Pakistan Standard Time (UTC + 5 Hours)
+                            pkt_timezone = timezone(timedelta(hours=5))
+                            current_local_time = datetime.now(pkt_timezone)
                             
                             with engine.begin() as conn:
                                 for s_id, main_reason in reason_selection_map.items():
