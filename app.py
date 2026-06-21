@@ -6,6 +6,7 @@ import sqlite3
 import os
 import base64
 import datetime
+from datetime import date, datetime  # 🌟 ADDED THIS LINE TO FIX NAMEERROR
 from sqlalchemy import create_engine, text
 import streamlit.components.v1 as components
 
@@ -723,7 +724,7 @@ if menu_choice == "📊 Home Dashboard":
         
         st.markdown("---")
         
-        # 🌟 NEW: Tabbed Sub-Engines for Super Admin Control
+        # 🌟 Tabbed Sub-Engines for Super Admin Control
         admin_tab1, admin_tab2 = st.tabs(["📅 Exam Date Sheet Manager", "📊 Result Compliance Tracker"])
         
         with admin_tab1:
@@ -765,6 +766,7 @@ if menu_choice == "📊 Home Dashboard":
                                     "e_date": exam_date, "s_deadline": submission_deadline
                                 })
                             st.success(f"🎉 Exam schedule for {subject} ({class_name}-{section}) added successfully!")
+                            import time
                             time.sleep(0.5)
                             st.rerun()
                         except Exception as e:
@@ -773,16 +775,16 @@ if menu_choice == "📊 Home Dashboard":
         with admin_tab2:
             st.subheader("📋 Faculty Compliance Overview")
             try:
-                with engine.connect() as conn:
-                    global_df = pd.read_sql("""
-                        SELECT assigned_teacher AS "Teacher", exam_name AS "Exam", 
-                               class_name AS "Class", section AS "Section", subject AS "Subject", 
-                               submission_deadline AS "Deadline", is_submitted AS "Status"
-                        FROM date_sheet_deadlines
-                        ORDER BY assigned_teacher ASC, submission_deadline ASC
-                    """, conn)
-                    
-                if not global_df.empty:
+                # Using run_query to handle text compiling safely and cleanly
+                global_df = run_query("""
+                    SELECT assigned_teacher AS "Teacher", exam_name AS "Exam", 
+                           class_name AS "Class", section AS "Section", subject AS "Subject", 
+                           submission_deadline AS "Deadline", is_submitted AS "Status"
+                    FROM date_sheet_deadlines
+                    ORDER BY assigned_teacher ASC, submission_deadline ASC
+                """)
+                
+                if global_df is not None and not global_df.empty:
                     today = date.today()
                     processed_rows = []
                     
