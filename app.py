@@ -754,211 +754,152 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR (Adaptive Visibility Engine)
         # ----------------------------------------------------------------------
         resolved_date = str(target_date)
-        detected_columns = []
 
-        # 🩺 STEP A: DIAGNOSTIC SCHEMA CHECK
         try:
             with engine.connect() as conn:
-                sample_df = pd.read_sql("SELECT * FROM students LIMIT 1", conn)
-                detected_columns = [col.lower() for col in sample_df.columns]
-        except Exception as diag_err:
-            pass
-
-        # 🩺 STEP B: DYNAMICALLY IDENTIFY ALL CONTACT FIELDS FROM ADMISSIONS
-        whatsapp_col = "whatsapp_number" if "whatsapp_number" in detected_columns else ("whatsapp" if "whatsapp" in detected_columns else None)
-        contact1_col = "contact_number_1" if "contact_number_1" in detected_columns else ("contact_no_1" if "contact_no_1" in detected_columns else ("contact_1" if "contact_1" in detected_columns else None))
-        contact2_col = "contact_number_2" if "contact_number_2" in detected_columns else ("contact_no_2" if "contact_no_2" in detected_columns else ("contact_2" if "contact_2" in detected_columns else None))
-
-        # 🩺 STEP C: RUN THE MULTI-CONTACT TARGETED FETCH
-        try:
-            with engine.connect() as conn:
-                w_str = f"s.{whatsapp_col}" if whatsapp_col else "NULL"
-                c1_str = f"s.{contact1_col}" if contact1_col else "NULL"
-                c2_str = f"s.{contact2_col}" if contact2_col else "NULL"
-                
-                query = text(f"""
-                    SELECT 
-                        d.student_id AS "ID", 
-                        s.name AS "Student Name", 
-                        {w_str} AS "WhatsApp",
-                        {c1_str} AS "Contact 1",
-                        {c2_str} AS "Contact 2",
-                        d.status AS "SavedStatus", 
-                        d.remarks AS "Remarks"
+                query = text("""
+                    SELECT d.student_id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
                       AND d.attendance_date = :att_date
-                      AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+                      AND d.status IN ('A', 'ABSENT', '0')
                     ORDER BY d.student_id ASC
                 """)
                 absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-        except Exception as query_error:
-            try:
-                with engine.connect() as conn:
-                    fallback_query = text("""
-                        SELECT d.student_id AS "ID", s.name AS "Student Name", NULL AS "WhatsApp", NULL AS "Contact 1", NULL AS "Contact 2", d.status AS "SavedStatus", d.remarks AS "Remarks"
-                        FROM daily_attendance d
-                        JOIN students s ON d.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                          AND d.attendance_date = :att_date
-                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
-                        ORDER BY d.student_id ASC
-                    """)
-                    absent_students = pd.read_sql(fallback_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-            except:
-                absent_students = pd.DataFrame()
+        except Exception as e:
+            absent_students = pd.DataFrame()
 
         if not absent_students.empty:
             st.markdown("###")
             st.error("❌ Absent Student Remarks Summary")
             
+            # 🌟 FIX: Check 'user_role' (validated at top) instead of relying on 'current_role' session lookups
             if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
                 st.caption("Provide or upgrade reason for absence for tracked profiles:")
                 
-                fixed_reasons = [
-                    "Medical / Health Issues",
-                    "Family Emergency",
-                    "Family Function",
-                    "Bereavement (Death in Family)",
-                    "Transportation Problems",
-                    "Out-of-Town Travel",
-                    "Official or Personal Work",
-                    "Household Responsibilities",
-                    "Religious Obligations",
-                    "Personal Reasons",
-                    "Other"
-                ]
-                
-                contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
-                
-                reason_selection_map = {}
-                contact_selection_map = {}
-                custom_text_map = {}
-                
-                operator_identity = st.session_state.get("user_name", 
-                                    st.session_state.get("name", 
-                                    st.session_state.get("username", f"{user_role} Manager"))).strip()
-                
-                st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({user_role} Session)*")
-                st.markdown("---")
-                
-                # 🌟 FIX: We loop through fields outside a strict form first or use interactive selectboxes with state to capture changes dynamically!
-                for idx, ab_row in absent_students.iterrows():
-                    student_id = ab_row['ID']
+                with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
+                    operator_identity = st.session_state.get("user_name", 
+                                        st.session_state.get("name", 
+                                        st.session_state.get("username", f"{user_role} Manager"))).strip()
                     
-                    # Generate click-to-dial links
-                    html_links = []
-                    if ab_row.get('WhatsApp') and str(ab_row['WhatsApp']).strip() != "":
-                        raw_wa = str(ab_row['WhatsApp']).strip()
-                        clean_wa = "".join(filter(str.isdigit, raw_wa))
-                        html_links.append(f"💬 <a href='tel:{clean_wa}' style='color: #25D366; font-weight: bold; text-decoration: none;'>WA: {raw_wa}</a>")
-                    if ab_row.get('Contact 1') and str(ab_row['Contact 1']).strip() != "":
-                        raw_c1 = str(ab_row['Contact 1']).strip()
-                        clean_c1 = "".join(filter(str.isdigit, raw_c1))
-                        html_links.append(f"📞 <a href='tel:{clean_c1}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 1: {raw_c1}</a>")
-                    if ab_row.get('Contact 2') and str(ab_row['Contact 2']).strip() != "":
-                        raw_c2 = str(ab_row['Contact 2']).strip()
-                        clean_c2 = "".join(filter(str.isdigit, raw_c2))
-                        html_links.append(f"📞 <a href='tel:{clean_c2}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 2: {raw_c2}</a>")
+                    st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({user_role} Session)*")
+                    st.markdown("---")
                     
-                    st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
-                    if html_links:
-                        links_joined = " &nbsp;|&nbsp; ".join(html_links)
-                        st.markdown(f"<div style='font-size: 14px; background-color: #f9f9f9; padding: 6px 12px; border-radius: 4px; border-left: 3px solid #ff4b4b; margin-bottom: 10px;'>📱 Click to Dial: {links_joined}</div>", unsafe_allow_html=True)
+                    fixed_reasons = [
+                        "Medical / Health Issues",
+                        "Family Emergency",
+                        "Family Function",
+                        "Bereavement (Death in Family)",
+                        "Transportation Problems",
+                        "Out-of-Town Travel",
+                        "Official or Personal Work",
+                        "Household Responsibilities",
+                        "Religious Obligations",
+                        "Personal Reasons",
+                        "Other"
+                    ]
                     
-                    existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
-                    if " | By:" in str(existing_rem):
-                        existing_rem = str(existing_rem).split(" | By:")[0].strip()
-                    if " [Contacted:" in str(existing_rem):
-                        existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
+                    contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
+                    
+                    reason_selection_map = {}
+                    contact_selection_map = {}
+                    custom_text_map = {}
+                    
+                    for idx, ab_row in absent_students.iterrows():
+                        student_id = ab_row['ID']
+                        st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
                         
-                    default_reason_idx = 0
-                    if existing_rem in fixed_reasons:
-                        default_reason_idx = fixed_reasons.index(existing_rem)
-                    elif existing_rem != "":
-                        default_reason_idx = fixed_reasons.index("Other")
-                    
-                    r_c1, r_c2 = st.columns(2)
-                    with r_c1:
-                        # Placing this with a clear key outside or inside cleanly
-                        reason_selection_map[student_id] = st.selectbox(
-                            f"Reason for Absence (Roll No: {student_id}):",
-                            options=fixed_reasons,
-                            index=default_reason_idx,
-                            key=f"reason_sel_final_{student_id}"
-                        )
-                    with r_c2:
-                        contact_selection_map[student_id] = st.selectbox(
-                            f"Contacted Person (Roll No: {student_id}):",
-                            options=contacted_persons,
-                            key=f"contact_sel_final_{student_id}"
-                        )
-                    
-                    # 🎯 FIXED: Instantly read the drop down state choice directly to toggle field visibility live!
-                    if reason_selection_map[student_id] == "Other":
-                        default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
-                        custom_text_map[student_id] = st.text_input(
-                            "↳ Specify your custom remarks/reasons:",
-                            value=default_custom_val,
-                            placeholder="Provide specific custom details here...",
-                            key=f"custom_txt_final_{student_id}"
-                        ).strip()
-                    else:
-                        custom_text_map[student_id] = ""
-                        
-                    st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
-                
-                # Use a cleaner standalone action button layout instead of st.form to ensure live element reactivity works natively!
-                st.markdown("<br>", unsafe_allow_html=True)
-                submit_remarks = st.button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
-                
-                if submit_remarks:
-                    validation_passed = True
-                    for s_id, main_reason in reason_selection_map.items():
-                        if main_reason == "Other" and not custom_text_map.get(s_id):
-                            st.error(f"⚠️ Missing parameters: Enter custom details for student Roll No `{s_id}`.")
-                            validation_passed = False
-                    
-                    if validation_passed:
-                        try:
-                            from datetime import datetime, timezone, timedelta
-                            pkt_timezone = timezone(timedelta(hours=5))
-                            current_local_time = datetime.now(pkt_timezone)
+                        existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
+                        if " | By:" in str(existing_rem):
+                            existing_rem = str(existing_rem).split(" | By:")[0].strip()
+                        if " [Contacted:" in str(existing_rem):
+                            existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
                             
-                            with engine.begin() as conn:
-                                for s_id, main_reason in reason_selection_map.items():
-                                    chosen_contact = contact_selection_map[s_id]
-                                    final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
-                                    
-                                    if final_reason_phrase:
-                                        formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}"
-                                    else:
-                                        formatted_remarks = f"Unspecified Absence [Contacted: {chosen_contact}] | By: {operator_identity}"
+                        default_reason_idx = 0
+                        if existing_rem in fixed_reasons:
+                            default_reason_idx = fixed_reasons.index(existing_rem)
+                        elif existing_rem != "":
+                            default_reason_idx = fixed_reasons.index("Other")
+                            
+                        r_c1, r_c2 = st.columns(2)
+                        with r_c1:
+                            reason_selection_map[student_id] = st.selectbox(
+                                f"Reason for Absence (Roll No: {student_id}):",
+                                options=fixed_reasons,
+                                index=default_reason_idx,
+                                key=f"reason_sel_final_{student_id}"
+                            )
+                        with r_c2:
+                            contact_selection_map[student_id] = st.selectbox(
+                                f"Contacted Person (Roll No: {student_id}):",
+                                options=contacted_persons,
+                                key=f"contact_sel_final_{student_id}"
+                            )
+                        
+                        custom_text_map[student_id] = ""
+                        if reason_selection_map[student_id] == "Other":
+                            default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                            custom_text_map[student_id] = st.text_input(
+                                "↳ Specify your custom remarks/reasons:",
+                                value=default_custom_val,
+                                placeholder="Provide specific custom details here...",
+                                key=f"custom_txt_final_{student_id}"
+                            ).strip()
+                            
+                        st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
+                    
+                    if submit_remarks:
+                        validation_passed = True
+                        for s_id, main_reason in reason_selection_map.items():
+                            if main_reason == "Other" and not custom_text_map[s_id]:
+                                st.error(f"⚠️ Missing parameters: Enter custom details for student Roll No `{s_id}`.")
+                                validation_passed = False
+                        
+                        if validation_passed:
+                            try:
+                                from datetime import datetime, timezone, timedelta
+                                pkt_timezone = timezone(timedelta(hours=5))
+                                current_local_time = datetime.now(pkt_timezone)
+                                
+                                with engine.begin() as conn:
+                                    for s_id, main_reason in reason_selection_map.items():
+                                        chosen_contact = contact_selection_map[s_id]
+                                        final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
                                         
-                                    conn.execute(text("""
-                                        UPDATE daily_attendance 
-                                        SET remarks = :remarks,
-                                            remarks_updated_at = :current_time
-                                        WHERE student_id = :s_id AND attendance_date = :att_date
-                                    """), {
-                                        "remarks": formatted_remarks, 
-                                        "s_id": int(s_id), 
-                                        "att_date": resolved_date,
-                                        "current_time": current_local_time
-                                    })
-                            st.success("🎉 Success! Structured reasons and contact data saved successfully.")
-                            time.sleep(0.5)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Database Submission Failed: {e}")
+                                        if final_reason_phrase:
+                                            formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}"
+                                        else:
+                                            formatted_remarks = f"Unspecified Absence [Contacted: {chosen_contact}] | By: {operator_identity}"
+                                            
+                                        conn.execute(text("""
+                                            UPDATE daily_attendance 
+                                            SET remarks = :remarks,
+                                                remarks_updated_at = :current_time
+                                            WHERE student_id = :s_id AND attendance_date = :att_date
+                                        """), {
+                                            "remarks": formatted_remarks, 
+                                            "s_id": int(s_id), 
+                                            "att_date": resolved_date,
+                                            "current_time": current_local_time
+                                        })
+                                st.success("🎉 Success! Structured reasons and contact data saved successfully.")
+                                time.sleep(0.5)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Database Submission Failed: {e}")
             else:
+                # 🛡️ READ-ONLY SUMMARY SHEET FOR EXTERNAL VIEWS (Students/Parents)
                 st.caption("Official explanations logged for unsubmitted/absent profiles:")
                 for idx, ab_row in absent_students.iterrows():
                     logged_rem = ab_row['Remarks'] if ab_row['Remarks'] else "Awaiting dynamic verification from Section Incharge."
                     st.warning(f"📋 **Roll No {ab_row['ID']} — {ab_row['Student Name']}:** {logged_rem}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
+
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
