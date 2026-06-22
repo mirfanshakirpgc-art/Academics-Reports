@@ -3236,7 +3236,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
 # ==============================================================================
 
-    # --------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
 # --------------------------------------------------------------------------------
 if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_type') == "📅 Daily Attendance Entry":
@@ -3260,21 +3260,41 @@ if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_
             
     with d4:
         section_options = []
-        if academic_system == "Annual System":
-            try:
-                for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
-                    sections_list = class_map.get(sel_class, [])
-                    section_options.extend(sections_list)
-                section_options = sorted(list(set(section_options)))
-            except NameError:
-                if sel_class == "11th":
-                    section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
-                else:
-                    section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
+        
+        # 🌟 ROLE-BASED ACCESS CONTROL FILTER
+        # Resolves selection lock issues by checking if an administrative account is running the module
+        user_role = str(st.session_state.get("user_type", st.session_state.get("workspace_role", ""))).strip().lower()
+        
+        if user_role == "principal":
+            # Direct complete bypass array mapping for administrative profiles
+            if academic_system == "Annual System":
+                # Inject both fallback pathways simultaneously so the Principal has full institution-wide view access
+                section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", 
+                                   "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG",
+                                   "MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
+            else:
+                section_options = ["DIT_B", "DIT_G"]
         else:
-            section_options = ["DIT_B", "DIT_G"]
-            
-        sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
+            # Standard restrictive query processing logic loops for default Faculty accounts
+            if academic_system == "Annual System":
+                try:
+                    for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                        sections_list = class_map.get(sel_class, [])
+                        section_options.extend(sections_list)
+                    section_options = sorted(list(set(section_options)))
+                except NameError:
+                    if sel_class == "11th":
+                        section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
+                    else:
+                        section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
+            else:
+                section_options = ["DIT_B", "DIT_G"]
+        
+        # Sanitize list values and protect state machine via a dynamic key signature
+        section_options = sorted(list(set([str(s).strip() for s in section_options if s])))
+        dynamic_widget_key = f"daily_att_sec_widget_{user_role}_{academic_system}_{sel_class}"
+        
+        sel_section = st.selectbox("Select Target Section:", section_options, key=dynamic_widget_key)
 
     row_date_1, _ = st.columns([1.5, 2.5])
     with row_date_1:
@@ -3412,7 +3432,6 @@ if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_
 # WORKFLOW 2: SINGLE STUDENT ENTRY WORKSPACE
 # ----------------------------------------------------------------------
 if globals().get('entry_mode') == "👤 By Single Student Roll Number":
-    # Defensive Context Initialization Check
     has_valid_profile = (
         'student_matches' in locals() and student_matches is not None and not student_matches.empty and
         'student_info' in locals() and student_info is not None and not student_info.empty
@@ -3421,7 +3440,6 @@ if globals().get('entry_mode') == "👤 By Single Student Roll Number":
     if not has_valid_profile:
         st.info("🔍 Please enter a valid student Roll Number above to fetch profile records.")
     else:
-        # Variable extraction path executes safely here
         single_id = int(student_info['id'].iloc[0])
         s_name = student_info['name'].iloc[0].upper()
         s_section = student_info['section'].iloc[0].upper().strip()
@@ -3439,7 +3457,6 @@ if globals().get('entry_mode') == "👤 By Single Student Roll Number":
         with ca1:
             att_date = st.date_input("Target Date:", value=datetime.date.today(), key="single_att_date_pick")
         
-        # Fetch pre-existing database records to auto-populate defaults safely
         existing_record = run_query("""
             SELECT status, late_arrival_minutes 
             FROM daily_attendance 
@@ -3530,7 +3547,6 @@ if globals().get('entry_mode') == "👤 By Single Student Roll Number":
                 "Late Minutes", "Remarks By", "Date & Time Logged"
             ]]
             
-            # Compute key analytics summary metrics
             total_records = len(raw_logs)
             present_count = raw_logs["Status Code"].isin(['P', 'PRESENT', '1']).sum()
             absent_count = total_records - present_count
@@ -3545,6 +3561,7 @@ if globals().get('entry_mode') == "👤 By Single Student Roll Number":
             
             st.markdown("###")
             st.dataframe(history_display_df, use_container_width=True, hide_index=True)
+
 # ====================================================================================
 # MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE ROSTER ENGINE)
 # ====================================================================================
