@@ -857,19 +857,49 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         
         with st.form("teacher_direct_attendance_form", clear_on_submit=False):
             attendance_checkbox_map = {}
-            h_col1, h_col2, h_col3 = st.columns([1, 3.5, 1])
+            h_col1, h_col2, h_col3 = st.columns([1, 4.0, 1])
             h_col1.markdown("**Roll No**")
-            h_col2.markdown("**Student Name**")
+            h_col2.markdown("**Student Name & Active Registered Numbers**")
             h_col3.markdown("**Is Present?**")
             st.markdown("<hr style='margin:5px 0px 10px 0px;' />", unsafe_allow_html=True)
 
             for idx, row in roster_df.iterrows():
-                col_s1, col_s2, col_s3 = st.columns([1, 3.5, 1])
+                col_s1, col_s2, col_s3 = st.columns([1, 4.0, 1])
                 col_s1.write(f"`{row['ID']}`")
                 
+                raw_contacts = str(row['WhatsApp']).strip() if row['WhatsApp'] else ""
+                
                 with col_s2:
-                    # CLEAN: Only show the Student Name here. No contact tags cluttering the primary rows.
                     st.markdown(f"**{row['Student Name']}**")
+                    
+                    if raw_contacts and raw_contacts.upper() not in ["NONE", "N/A", "NAN", ""]:
+                        # Split string reliably by commas or periods
+                        parts = [p.strip() for p in re.split(r'[.,;]', raw_contacts.replace("(", "").replace(")", "")) if p.strip()]
+                        
+                        contact_items = []
+                        for part in parts:
+                            part_clean = part.strip()
+                            if "W-" in part_clean.upper():
+                                num = re.sub(r'(?i)W-\s*', '', part_clean).strip()
+                                contact_items.append(f"🟢 **WhatsApp:** {num}")
+                            elif "1-" in part_clean:
+                                num = part_clean.replace("1-", "").strip()
+                                contact_items.append(f"📞 **Contact 1:** {num}")
+                            elif "2-" in part_clean:
+                                num = part_clean.replace("2-", "").strip()
+                                contact_items.append(f"📞 **Contact 2:** {num}")
+                            elif "3-" in part_clean:
+                                num = part_clean.replace("3-", "").strip()
+                                contact_items.append(f"📞 **Contact 3:** {num}")
+                            else:
+                                if part_clean:
+                                    contact_items.append(f"📱 {part_clean}")
+                        
+                        # Render found numbers inline under the name row
+                        if contact_items:
+                            st.markdown(f"<div style='font-size: 12px; color: #555; margin-top: -4px;'>{' | '.join(contact_items)}</div>", unsafe_allow_html=True)
+                    else:
+                        st.caption("📂 No registered numbers found")
                 
                 saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                 initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
@@ -893,7 +923,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                                 "att_date": str(target_date), 
                                 "status": status_val
                             })
-                    st.success(f"🎉 Attendance updated for {target_date.strftime('%d-%b-%Y')}!")
+                    st.success(f"🎉 Attendance updated successfully!")
                     time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
@@ -928,7 +958,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         if not absent_students.empty:
             st.markdown("###")
             st.error("❌ Absent Student Remarks Panel")
-            st.caption("Provide reason for absence for tracked profiles:")
             
             with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                 operator_identity = st.session_state.get("user_name", 
@@ -966,38 +995,30 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
                     
-                    main_col_left, main_col_right = st.columns([1.6, 2])
+                    main_col_left, main_col_right = st.columns([1.5, 2])
                     
                     with main_col_left:
                         st.markdown("**📞 Click to Call**")
                         wa = str(ab_row.get('WhatsApp', '')).strip() if ab_row.get('WhatsApp') else ""
                         
-                        if wa and wa.upper() not in ["NONE", "N/A", "NAN"]:
-                            # Split perfectly on all punctuation layouts to capture independent items
+                        if wa and wa.upper() not in ["NONE", "N/A", "NAN", ""]:
                             parts = [p.strip() for p in re.split(r'[.,;]', wa.replace("(", "").replace(")", "")) if p.strip()]
                             
-                            found_any = False
                             for part in parts:
                                 label = "Phone"
                                 num = part.strip()
-                                
-                                # Isolate tags dynamically
                                 if "W-" in num.upper():
-                                    label, num = "🟢 WhatsApp", re.sub(r'(?i)W-\s*', '', num).strip()
+                                    label, num = "WhatsApp", re.sub(r'(?i)W-\s*', '', num).strip()
                                 elif "1-" in num:
-                                    label, num = "📞 Contact 1", num.replace("1-", "").strip()
+                                    label, num = "Contact 1", num.replace("1-", "").strip()
                                 elif "2-" in num:
-                                    label, num = "📞 Contact 2", num.replace("2-", "").strip()
+                                    label, num = "Contact 2", num.replace("2-", "").strip()
                                 elif "3-" in num:
-                                    label, num = "📞 Contact 3", num.replace("3-", "").strip()
+                                    label, num = "Contact 3", num.replace("3-", "").strip()
                                 
                                 clean_num = "".join(filter(str.isdigit, num))
                                 if clean_num:
                                     st.markdown(f"📱 **{label}:** [{num}](tel:{clean_num})")
-                                    found_any = True
-                                    
-                            if not found_any:
-                                st.caption("⚠️ No formatted numbers found")
                         else:
                             st.caption("⚠️ No numbers registered")
                             
