@@ -831,24 +831,28 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
     # Fetch initial student roster matrix joining with daily_attendance
-    # FIXED: Replaced named parameters with format markers to avoid read_sql_query bind errors
-    roster_df = run_query("""
-        SELECT 
-            s.id AS "ID", 
-            s.name AS "Student Name", 
-            d.status AS "SavedStatus", 
-            d.remarks AS "Remarks",
-            s.whatsapp_number AS "WhatsApp",
-            s.contact_number_1 AS "Contact1",
-            s.contact_number_2 AS "Contact2",
-            s.contact_number_3 AS "Contact3"
-        FROM students s
-        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = %(att_date)s
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(%(section)s))
-          AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(%(session)s))
-          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-        ORDER BY s.id ASC
-    """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
+    # FIXED: Sanitized parameter binding structure using explicit SQLAlchemy keywords
+    try:
+        roster_df = run_query("""
+            SELECT 
+                s.id AS "ID", 
+                s.name AS "Student Name", 
+                d.status AS "SavedStatus", 
+                d.remarks AS "Remarks",
+                s.whatsapp_number AS "WhatsApp",
+                s.contact_number_1 AS "Contact1",
+                s.contact_number_2 AS "Contact2",
+                s.contact_number_3 AS "Contact3"
+            FROM students s
+            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+              AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+              AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            ORDER BY s.id ASC
+        """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
+    except Exception as e:
+        st.error(f"⚠️ Query Processing Failure: {e}")
+        roster_df = pd.DataFrame()
 
     if roster_df.empty:
         st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
@@ -880,7 +884,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     with engine.begin() as conn:
                         for s_id, checked_present in attendance_checkbox_map.items():
                             status_val = "P" if checked_present else "A"
-                            # FIXED: Strictly using only existing database schema columns
                             conn.execute(text("""
                                 INSERT INTO daily_attendance (student_id, attendance_date, status) 
                                 VALUES (:s_id, :att_date, :status)
