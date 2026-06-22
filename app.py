@@ -832,13 +832,17 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
 
     # Fetch initial student roster matrix joining with daily_attendance
     try:
+        # 🌟 FIXED: Added contact_1, contact_2, contact_3 columns to the selection
         roster_df = run_query("""
             SELECT 
                 s.id AS "ID", 
                 s.name AS "Student Name", 
                 d.status AS "SavedStatus", 
                 d.remarks AS "Remarks",
-                s.whatsapp_number AS "WhatsApp"
+                s.whatsapp_number AS "WhatsApp",
+                s.contact_1 AS "Contact1",
+                s.contact_2 AS "Contact2",
+                s.contact_3 AS "Contact3"
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
@@ -906,13 +910,17 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
 
         try:
             with engine.connect() as conn:
+                # 🌟 FIXED: Added contact_1, contact_2, contact_3 here as well
                 query = text("""
                     SELECT 
                         d.student_id AS "ID", 
                         s.name AS "Student Name", 
                         d.status AS "SavedStatus", 
                         d.remarks AS "Remarks",
-                        s.whatsapp_number AS "WhatsApp"
+                        s.whatsapp_number AS "WhatsApp",
+                        s.contact_1 AS "Contact1",
+                        s.contact_2 AS "Contact2",
+                        s.contact_3 AS "Contact3"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
@@ -950,36 +958,32 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 custom_text_map = {}
                 
                 for idx, ab_row in absent_students.iterrows():
-                    wa = str(ab_row.get('WhatsApp', '')).strip() if ab_row.get('WhatsApp') else ""
                     contact_items = []
                     
-                    if wa and wa.upper() not in ["NONE", "N/A", "NAN", ""]:
-                        # 📝 DEBUG CAPTION: Show exactly what text is saved inside this student's column
-                        st.caption(f"🔍 Raw DB Value: `{wa}`")
-                        
-                        # Split string into pieces based on punctuation separators
-                        raw_parts = [p.strip() for p in re.split(r'[.,;]', wa.replace("(", "").replace(")", "")) if p.strip()]
-                        
-                        fallback_counter = 1
-                        for part in raw_parts:
-                            digits_only = "".join(filter(str.isdigit, part))
-                            
-                            # Only render click-to-call link if the section contains an actual phone number sequence
-                            if len(digits_only) >= 7:
-                                if "W-" in part.upper():
-                                    contact_items.append(f"🟢 [WhatsApp: {digits_only}](tel:{digits_only})")
-                                elif "1-" in part:
-                                    contact_items.append(f"📞 [Contact 1: {digits_only}](tel:{digits_only})")
-                                elif "2-" in part:
-                                    contact_items.append(f"📞 [Contact 2: {digits_only}](tel:{digits_only})")
-                                elif "3-" in part:
-                                    contact_items.append(f"📞 [Contact 3: {digits_only}](tel:{digits_only})")
-                                else:
-                                    if fallback_counter == 1 and not any("W-" in p.upper() for p in raw_parts):
-                                        contact_items.append(f"🟢 [WhatsApp: {digits_only}](tel:{digits_only})")
-                                    else:
-                                        contact_items.append(f"📞 [Contact {fallback_counter}: {digits_only}](tel:{digits_only})")
-                                    fallback_counter += 1
+                    # 🌟 FIXED: Process each separate column sequentially
+                    wa_val = str(ab_row.get('WhatsApp', '')).strip().split('.')[0] if pd.notna(ab_row.get('WhatsApp')) else ""
+                    c1_val = str(ab_row.get('Contact1', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact1')) else ""
+                    c2_val = str(ab_row.get('Contact2', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact2')) else ""
+                    c3_val = str(ab_row.get('Contact3', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact3')) else ""
+
+                    # Helper to clean non-numeric leftovers and validate length
+                    def get_digits(v):
+                        d = "".join(filter(str.isdigit, v))
+                        return d if len(d) >= 7 else ""
+
+                    wa_clean = get_digits(wa_val)
+                    c1_clean = get_digits(c1_val)
+                    c2_clean = get_digits(c2_val)
+                    c3_clean = get_digits(c3_val)
+
+                    if wa_clean:
+                        contact_items.append(f"🟢 [WhatsApp: {wa_clean}](tel:{wa_clean})")
+                    if c1_clean:
+                        contact_items.append(f"📞 [Contact 1: {c1_clean}](tel:{c1_clean})")
+                    if c2_clean:
+                        contact_items.append(f"📞 [Contact 2: {c2_clean}](tel:{c2_clean})")
+                    if c3_clean:
+                        contact_items.append(f"📞 [Contact 3: {c3_clean}](tel:{c3_clean})")
 
                     contacts_suffix = f" &nbsp;|&nbsp; {' &nbsp;•&nbsp; '.join(contact_items)}" if contact_items else " (No numbers logged)"
                     st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}** {contacts_suffix}", unsafe_allow_html=True)
