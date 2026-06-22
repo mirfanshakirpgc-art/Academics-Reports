@@ -1805,7 +1805,7 @@ elif menu_choice == "➕ Add Students":
             if cleaned_sections:
                 selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
             else:
-                selected_section = st.text_input("📋 4. Enter Target Section Manually:", value="CK2", key="add_stu_sec_annual_manual").strip().upper()
+                selected_section = st.text_input("📋 4. Enter Target Section Manual:", value="CK2", key="add_stu_sec_annual_manual").strip().upper()
     
     else:
         c3, c4 = st.columns(2)
@@ -1820,7 +1820,7 @@ elif menu_choice == "➕ Add Students":
             if cleaned_sections:
                 selected_section = st.selectbox("📋 3. Select Target Section:", cleaned_sections, key="add_stu_sec_semester")
             else:
-                selected_section = st.text_input("📋 3. Enter Target Section Manually:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
+                selected_section = st.text_input("📋 3. Enter Target Section Manual:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
 
     # ====================================================================================
     # 🧱 PART 1: NEW REGISTRATION SUITE (BULK + SINGLE UPLOAD)
@@ -1832,6 +1832,7 @@ elif menu_choice == "➕ Add Students":
     with intake_tab1:
         st.subheader(f"Bulk Import Rosters — Section ({selected_section})")
         
+        # Updated template data schema map to include CONTACT_3 column tracking
         template_data = {
             "ID": [101, 102],
             "NAME": ["ALI AHMED", "SARA KHAN"],
@@ -1839,6 +1840,7 @@ elif menu_choice == "➕ Add Students":
             "WHATSAPP": ["03001234567", "03007654321"],
             "CONTACT_1": ["03001234567", "03007654321"],
             "CONTACT_2": ["03020000000", "03050000000"],
+            "CONTACT_3": ["03030000000", "03060000000"],
             "ADDRESS": ["House 123, Street 4, Lahore", "Sector G-9/1, Islamabad"]
         }
         template_df = pd.DataFrame(template_data)
@@ -1881,18 +1883,19 @@ elif menu_choice == "➕ Add Students":
                             raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
                             raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
                             raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
+                            raw_c3 = str(row['CONTACT_3']).strip().split('.')[0] if 'CONTACT_3' in bulk_df.columns and pd.notna(row['CONTACT_3']) else ""
                             raw_address = str(row['ADDRESS']).strip().upper() if 'ADDRESS' in bulk_df.columns and pd.notna(row['ADDRESS']) else ""
 
                             if raw_id.isdigit() and raw_name != "":
                                 try:
                                     with engine.begin() as conn:
                                         conn.execute(text("""
-                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
+                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, contact_3, address)
+                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :c3, :address)
                                         """), {
                                             "id": int(raw_id), "name": raw_name, "fname": raw_fname, "class": selected_class,
                                             "section": selected_section, "session": selected_session, "system_type": clean_system_type,
-                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "address": raw_address
+                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "c3": raw_c3, "address": raw_address
                                         })
                                     success_count += 1
                                 except Exception:
@@ -1918,15 +1921,17 @@ elif menu_choice == "➕ Add Students":
             with r1_col3:
                 input_father_name = st.text_input("👨‍👧 3. Father's Name")
 
-            r2_col1, r2_col2, r2_col3 = st.columns(3)
+            # Upgraded Contact Section Row layout cleanly converted from st.columns(3) to st.columns(4)
+            r2_col1, r2_col2, r2_col3, r2_col4 = st.columns(4)
             with r2_col1:
                 input_wa = st.text_input("📱 4. WhatsApp Number")
             with r2_col2:
                 input_c1 = st.text_input("📞 5. Contact Number 1")
             with r2_col3:
                 input_c2 = st.text_input("📞 6. Contact Number 2")
+            with r2_col4:
+                input_c3 = st.text_input("📞 6. Contact Number 3")
             
-            # Address Row Selection Suite
             st.markdown("---")
             input_address = st.text_input("🏠 7. Residential Address", help="Provide the complete home physical address mapping.")
             
@@ -1945,19 +1950,18 @@ elif menu_choice == "➕ Add Students":
                         
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                                VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
+                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, contact_3, address)
+                                VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :c3, :address)
                             """), {
                                 "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
                                 "class": selected_class, "section": selected_section, "session": selected_session,
                                 "system_type": clean_system_type, "wa": input_wa.strip(),
-                                "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
+                                "c1": input_c1.strip(), "c2": input_c2.strip(), "c3": input_c3.strip(), "address": input_address.strip().upper()
                             })
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
                     except Exception as db_err:
                         st.error(f"❌ Database Exception Triggered: {db_err}")
-
     # ====================================================================================
     # 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
     # ====================================================================================
