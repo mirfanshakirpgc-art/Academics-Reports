@@ -889,16 +889,25 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     st.error(f"Write Failure: {e}")
 
         # ----------------------------------------------------------------------
-        # ❌ DYNAMIC ABSENT REMARKS GENERATOR 
+        # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH CLICK-TO-CALL LINKS
         # ----------------------------------------------------------------------
         current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
 
         # Look up recorded absentees by joining with the students table for filter boundaries
+        # Modified to fetch contact info directly from the database table fields
         try:
             with engine.connect() as conn:
                 query = text("""
-                    SELECT d.student_id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
+                    SELECT 
+                        d.student_id AS "ID", 
+                        s.name AS "Student Name", 
+                        d.status AS "SavedStatus", 
+                        d.remarks AS "Remarks",
+                        s.whatsapp_number AS "WhatsApp",
+                        s.contact_number_1 AS "Contact1",
+                        s.contact_number_2 AS "Contact2",
+                        s.contact_number_3 AS "Contact3"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
@@ -959,34 +968,54 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                         default_reason_idx = fixed_reasons.index(existing_rem)
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
-                        
-                    r_c1, r_c2 = st.columns(2)
                     
-                    with r_c1:
-                        reason_selection_map[ab_row['ID']] = st.selectbox(
-                            f"Reason for Absence (Roll No: {ab_row['ID']}):",
-                            options=fixed_reasons,
-                            index=default_reason_idx,
-                            key=f"reason_sel_final_{ab_row['ID']}"
-                        )
-                        
-                    with r_c2:
-                        contact_selection_map[ab_row['ID']] = st.selectbox(
-                            f"Contacted Person (Roll No: {ab_row['ID']}):",
-                            options=contacted_persons,
-                            key=f"contact_sel_final_{ab_row['ID']}"
-                        )
+                    # Create a main layout block: Left for dialing shortcuts, Right for dropdown selectors
+                    main_col_left, main_col_right = st.columns([1, 2])
                     
-                    if reason_selection_map[ab_row['ID']] == "Other":
-                        default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
-                        custom_text_map[ab_row['ID']] = st.text_input(
-                            "↳ Specify your custom remarks/reasons:",
-                            value=default_custom_val,
-                            placeholder="Provide specific custom details here...",
-                            key=f"custom_txt_final_{ab_row['ID']}"
-                        ).strip()
-                    else:
-                        custom_text_map[ab_row['ID']] = ""
+                    with main_col_left:
+                        st.markdown("**📞 Click to Call**")
+                        
+                        # Render active click-to-call anchor tags safely using markdown
+                        wa = str(ab_row.get('WhatsApp', '')).strip() if ab_row.get('WhatsApp') else ""
+                        c1 = str(ab_row.get('Contact1', '')).strip() if ab_row.get('Contact1') else ""
+                        c2 = str(ab_row.get('Contact2', '')).strip() if ab_row.get('Contact2') else ""
+                        c3 = str(ab_row.get('Contact3', '')).strip() if ab_row.get('Contact3') else ""
+                        
+                        if wa: st.markdown(f"📱 **WhatsApp:** [{wa}](tel:{wa})")
+                        if c1: st.markdown(f"📞 **Contact 1:** [{c1}](tel:{c1})")
+                        if c2: st.markdown(f"📞 **Contact 2:** [{c2}](tel:{c2})")
+                        if c3: st.markdown(f"📞 **Contact 3:** [{c3}](tel:{c3})")
+                        if not any([wa, c1, c2, c3]):
+                            st.caption("⚠️ No registered numbers found")
+                            
+                    with main_col_right:
+                        r_c1, r_c2 = st.columns(2)
+                        
+                        with r_c1:
+                            reason_selection_map[ab_row['ID']] = st.selectbox(
+                                f"Reason for Absence (Roll No: {ab_row['ID']}):",
+                                options=fixed_reasons,
+                                index=default_reason_idx,
+                                key=f"reason_sel_final_{ab_row['ID']}"
+                            )
+                            
+                        with r_c2:
+                            contact_selection_map[ab_row['ID']] = st.selectbox(
+                                f"Contacted Person (Roll No: {ab_row['ID']}):",
+                                options=contacted_persons,
+                                key=f"contact_sel_final_{ab_row['ID']}"
+                            )
+                        
+                        if reason_selection_map[ab_row['ID']] == "Other":
+                            default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                            custom_text_map[ab_row['ID']] = st.text_input(
+                                "↳ Specify your custom remarks/reasons:",
+                                value=default_custom_val,
+                                placeholder="Provide specific custom details here...",
+                                key=f"custom_txt_final_{ab_row['ID']}"
+                            ).strip()
+                        else:
+                            custom_text_map[ab_row['ID']] = ""
                         
                     st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                 
@@ -1031,7 +1060,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                             st.error(f"❌ Database Submission Failed: {e}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
-
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
