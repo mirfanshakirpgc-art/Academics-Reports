@@ -4833,7 +4833,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"])
                     for _, log_row in raw_logs_df.iterrows():
                         log_date = log_row["attendance_date"]
-                        if pd.isna(log_date): continue
+                        if pd.isna(log_date): 
+                            continue
                         log_month_int = log_date.month
                         log_status = str(log_row["att_status"]).strip()
 
@@ -4890,8 +4891,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 pct_days_row += "<td><strong>0%</strong></td>"
 
             remarks_text = "Satisfactory academic progress observed."
-            if grand_total_percentages and grand_total_percentages[-1] >= 85:
-                remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
+            if ('grand_total_percentages' in locals() or 'grand_total_percentages' in globals()) and grand_total_percentages:
+                if grand_total_percentages[-1] >= 85:
+                    remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
 
             column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
@@ -4914,7 +4916,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 </div>
                 <table class="cck-report-table">
                     <thead>
-                        <tr><th style="width: 25%;"></th>{thead_exams_th}<th style="font-weight: bold;">Average</th></tr>
+                        <tr><th style="width: 25%;">{column_header_title}</th>{thead_exams_th}<th style="font-weight: bold;">Average</th></tr>
                     </thead>
                     <tbody>
                         {table_rows_html}
@@ -4946,6 +4948,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             </div>
             """
 
+        # --- CLOSING OUTSIDE THE STUDENT MULTI-RECORD LOOP ENGINE BLOCK ---
         composite_html_payload += """
             </div>
             <script>
@@ -4980,7 +4983,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         
-        # Render the components into the user workspace view
+        # Render the components into the user workspace view safely
         st.components.html(composite_html_payload, height=900, scrolling=True)
 # ==============================================================================
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
