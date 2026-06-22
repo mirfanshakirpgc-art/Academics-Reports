@@ -807,7 +807,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
     
     # 🌟 ADMIN OVERRIDE: Automatically assign a default view if an Admin logs in without a specific scope
     if not scope_str and user_role in ["Admin", "Administrator"]:
-        scope_str = "11th - IG"  # Change this to whatever your default class/section should be for Admins
+        scope_str = "11th - IG"  
         
     if not scope_str:
         st.warning("⚠️ No active class section incharge allocation profile detected for your user account.")
@@ -831,7 +831,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
     # Fetch initial student roster matrix joining with daily_attendance
-    # FIXED: Columns matching verified database schema layout fields
+    # FIXED: Query strictly safe columns to avoid UndefinedColumn errors
     try:
         roster_df = run_query("""
             SELECT 
@@ -839,10 +839,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 s.name AS "Student Name", 
                 d.status AS "SavedStatus", 
                 d.remarks AS "Remarks",
-                s.whatsapp_number AS "WhatsApp",
-                s.contact_number_1 AS "Contact1",
-                s.contact_number_2 AS "Contact2",
-                s.contact_number_3 AS "Contact3"
+                s.whatsapp_number AS "WhatsApp"
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
@@ -906,7 +903,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
 
-        # Look up recorded absentees by joining with verified database field identifiers
+        # FIXED: Removed non-existent contact columns from selection query
         try:
             with engine.connect() as conn:
                 query = text("""
@@ -915,10 +912,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                         s.name AS "Student Name", 
                         d.status AS "SavedStatus", 
                         d.remarks AS "Remarks",
-                        s.whatsapp_number AS "WhatsApp",
-                        s.contact_number_1 AS "Contact1",
-                        s.contact_number_2 AS "Contact2",
-                        s.contact_number_3 AS "Contact3"
+                        s.whatsapp_number AS "WhatsApp"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
@@ -980,29 +974,24 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
                     
-                    # Create a main layout block: Left for dialing shortcuts, Right for dropdown selectors
+                    # Create a main layout block
                     main_col_left, main_col_right = st.columns([1, 2])
                     
                     with main_col_left:
                         st.markdown("**📞 Click to Call**")
                         
-                        # Render active click-to-call anchor tags safely using markdown
+                        # Render safely using existing elements fallback
                         wa = str(ab_row.get('WhatsApp', '')).strip() if ab_row.get('WhatsApp') else ""
-                        c1 = str(ab_row.get('Contact1', '')).strip() if ab_row.get('Contact1') else ""
-                        c2 = str(ab_row.get('Contact2', '')).strip() if ab_row.get('Contact2') else ""
-                        c3 = str(ab_row.get('Contact3', '')).strip() if ab_row.get('Contact3') else ""
                         
-                        if wa: st.markdown(f"📱 **WhatsApp:** [{wa}](tel:{wa})")
-                        if c1: st.markdown(f"📞 **Contact 1:** [{c1}](tel:{c1})")
-                        if c2: st.markdown(f"📞 **Contact 2:** [{c2}](tel:{c2})")
-                        if c3: st.markdown(f"📞 **Contact 3:** [{c3}](tel:{c3})")
-                        if not any([wa, c1, c2, c3]):
-                            st.caption("⚠️ No registered numbers found")
+                        if wa: 
+                            st.markdown(f"📱 **WhatsApp / Primary Contact:** [{wa}](tel:{wa})")
+                        else:
+                            st.caption("⚠️ No registered primary numbers found")
                             
                     with main_col_right:
-                        r_c1, r_c2 = st.columns(2)
+                        r_col1, r_col2 = st.columns(2)
                         
-                        with r_c1:
+                        with r_col1:
                             reason_selection_map[ab_row['ID']] = st.selectbox(
                                 f"Reason for Absence (Roll No: {ab_row['ID']}):",
                                 options=fixed_reasons,
@@ -1010,7 +999,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                                 key=f"reason_sel_final_{ab_row['ID']}"
                             )
                             
-                        with r_c2:
+                        with r_col2:
                             contact_selection_map[ab_row['ID']] = st.selectbox(
                                 f"Contacted Person (Roll No: {ab_row['ID']}):",
                                 options=contacted_persons,
@@ -1064,7 +1053,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                                         "att_date": resolved_date
                                     })
                                     
-                            st.success("🎉 Success! Structured reasons and contact data saved successfully.")
+                            st.success("🎉 Success! Structured reasons and data saved successfully.")
                             time.sleep(1.0)
                             st.rerun()
                         except Exception as e:
