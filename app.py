@@ -857,22 +857,44 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         
         with st.form("teacher_direct_attendance_form", clear_on_submit=False):
             attendance_checkbox_map = {}
-            h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
+            h_col1, h_col2, h_col3 = st.columns([1, 3.5, 1])
             h_col1.markdown("**Roll No**")
-            h_col2.markdown("**Student Name & Contacts**")
+            h_col2.markdown("**Student Name & Available Contacts**")
             h_col3.markdown("**Is Present?**")
             st.markdown("<hr style='margin:5px 0px 10px 0px;' />", unsafe_allow_html=True)
 
             for idx, row in roster_df.iterrows():
-                col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
+                col_s1, col_s2, col_s3 = st.columns([1, 3.5, 1])
                 col_s1.write(f"`{row['ID']}`")
                 
-                # 🌟 FIXED: Parse out text contacts and display them elegantly directly inside the student column frame
-                wa_val = str(row['WhatsApp']).strip() if row['WhatsApp'] else "N/A"
+                # Parsing the contact text components 
+                raw_contacts = str(row['WhatsApp']).strip() if row['WhatsApp'] else ""
+                
                 with col_s2:
                     st.markdown(f"**{row['Student Name']}**")
-                    if wa_val and wa_val != "N/A":
-                        st.caption(f"📞 Contact Numbers: {wa_val}")
+                    
+                    if raw_contacts and raw_contacts.upper() != "NONE" and raw_contacts.upper() != "N/A":
+                        # Normalize punctuation dividers into structured blocks
+                        clean_str = raw_contacts.replace("(", "").replace(")", "").replace(".", ",").strip()
+                        parts = [p.strip() for p in clean_str.split(",") if p.strip()]
+                        
+                        badge_html_list = []
+                        for part in parts:
+                            if part.startswith("W-"):
+                                badge_html_list.append(f"<span style='background-color:#25D366; color:white; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:5px;'>🟢 WhatsApp: {part.replace('W-', '')}</span>")
+                            elif part.startswith("1-"):
+                                badge_html_list.append(f"<span style='background-color:#007bff; color:white; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:5px;'>📞 Num 1: {part.replace('1-', '')}</span>")
+                            elif part.startswith("2-"):
+                                badge_html_list.append(f"<span style='background-color:#6c757d; color:white; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:5px;'>📞 Num 2: {part.replace('2-', '')}</span>")
+                            elif part.startswith("3-"):
+                                badge_html_list.append(f"<span style='background-color:#17a2b8; color:white; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:5px;'>📞 Num 3: {part.replace('3-', '')}</span>")
+                            else:
+                                badge_html_list.append(f"<span style='background-color:#e2e3e5; color:#383d41; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:5px;'>📞 {part}</span>")
+                        
+                        if badge_html_list:
+                            st.markdown(f"<div style='margin-top:2px; display:flex; flex-wrap:wrap; gap:4px;'>{''.join(badge_html_list)}</div>", unsafe_allow_html=True)
+                    else:
+                        st.caption("ℹ️ No registered database phone data logs found")
                 
                 saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                 initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
@@ -976,18 +998,34 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
                     
-                    main_col_left, main_col_right = st.columns([1, 2])
+                    main_col_left, main_col_right = st.columns([1.2, 2])
                     
                     with main_col_left:
                         st.markdown("**📞 Click to Call**")
                         wa = str(ab_row.get('WhatsApp', '')).strip() if ab_row.get('WhatsApp') else ""
                         
-                        if wa:
-                            # 🌟 Safely split standard numeric entities if present or output full block text
-                            cleaned_display = wa.replace("(", "").replace(")", "").replace("W-", "").strip()
-                            st.markdown(f"📱 **Primary Contact Link:**\n[{cleaned_display}](tel:{cleaned_display})")
+                        if wa and wa.upper() != "NONE" and wa.upper() != "N/A":
+                            clean_str = wa.replace("(", "").replace(")", "").replace(".", ",").strip()
+                            parts = [p.strip() for p in clean_str.split(",") if p.strip()]
+                            
+                            for part in parts:
+                                label = "Phone"
+                                num = part
+                                if part.startswith("W-"):
+                                    label, num = "WhatsApp", part.replace("W-", "")
+                                elif part.startswith("1-"):
+                                    label, num = "Contact 1", part.replace("1-", "")
+                                elif part.startswith("2-"):
+                                    label, num = "Contact 2", part.replace("2-", "")
+                                elif part.startswith("3-"):
+                                    label, num = "Contact 3", part.replace("3-", "")
+                                
+                                # Output individual hyperlinked phone protocols
+                                clean_num = "".join(filter(str.isdigit, num))
+                                if clean_num:
+                                    st.markdown(f"📱 **{label}:** [{num}](tel:{clean_num})")
                         else:
-                            st.caption("⚠️ No registered phone format variants found")
+                            st.caption("⚠️ No numbers registered")
                             
                     with main_col_right:
                         r_col1, r_col2 = st.columns(2)
