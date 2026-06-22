@@ -831,7 +831,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
     # Fetch initial student roster matrix joining with daily_attendance
-    # FIXED: Sanitized parameter binding structure using explicit SQLAlchemy keywords
+    # FIXED: Columns matching verified database schema layout fields
     try:
         roster_df = run_query("""
             SELECT 
@@ -899,13 +899,14 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     st.rerun()
                 except Exception as e:
                     st.error(f"Write Failure: {e}")
+
         # ----------------------------------------------------------------------
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH CLICK-TO-CALL LINKS
         # ----------------------------------------------------------------------
         current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
 
-        # Look up recorded absentees by joining with the students table for filter boundaries
+        # Look up recorded absentees by joining with verified database field identifiers
         try:
             with engine.connect() as conn:
                 query = text("""
