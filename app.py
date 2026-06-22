@@ -748,7 +748,6 @@ elif menu_choice == "📊 Home Dashboard":
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
 # ==============================================================================
-# 🌟 UPDATED: Matches all operational dashboard navigation menus and user roles
 elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator", "Student", "Parent"] and menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
     import datetime
     import time
@@ -756,25 +755,30 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     
     st.title("📅 Section Attendance Management Panel")
     
-    scope_str = st.session_state.get("db_class_scope", None)
-    target_session = st.session_state.get("db_assigned_session", "2025-27")
+    # 🌟 ADMINISTRATIVE BYPASS: Admins select the section; Others use their assigned scope
+    is_admin = user_role.lower() in ["admin", "administrator", "principal", "vice principal", "exam control officer"]
     
-    # 🌟 ADMINISTRATIVE OVERRIDE: Expanded fallback view for ALL management profiles to prevent st.stop() locking
-    if not scope_str and user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Admin", "Administrator"]:
-        scope_str = "11th - IG"  
+    if is_admin:
+        # Fetch all unique sections for the Admin
+        section_query = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND TRIM(section) != '' ORDER BY section")
+        all_sections = section_query['section'].tolist() if not section_query.empty else []
         
-    if not scope_str:
-        st.warning("⚠️ No active class section incharge allocation profile detected for your user account.")
-        st.stop()
-
-    forced_class, forced_section = "11th", "IG"
-    if scope_str:
-        clean_scope = str(scope_str).strip()
-        if " - " in clean_scope:
-            forced_class, forced_section = clean_scope.split(" - ")[0].strip(), clean_scope.split(" - ")[1].strip()
-        elif "(" in clean_scope:
-            forced_section = clean_scope.split("(")[0].strip()
-            forced_class = clean_scope.split("(")[1].replace(")", "").strip()
+        sel_sec = st.selectbox("Select Section to Manage:", all_sections)
+        forced_class = "All Classes" # Or you could fetch the class dynamically based on section
+        forced_section = sel_sec
+        target_session = st.session_state.get("current_session", "2026-28")
+    else:
+        # Existing logic for Faculty/Others
+        scope_str = st.session_state.get("db_class_scope", None)
+        target_session = st.session_state.get("db_assigned_session", "2025-27")
+        
+        if not scope_str:
+            st.warning("⚠️ No active class section incharge allocation profile detected.")
+            st.stop()
+            
+        forced_class, forced_section = "11th", "IG"
+        if " - " in scope_str:
+            forced_class, forced_section = scope_str.split(" - ")[0].strip(), scope_str.split(" - ")[1].strip()
 
     st.subheader(f"📋 Roster Sheet: Class **{forced_class}** | Section **{forced_section}**")
     st.markdown(f"**Session Scope:** {target_session}")
@@ -784,7 +788,7 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     with col_date:
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
-    # Fetch initial student roster matrix joining with daily_attendance
+    # Fetch initial student roster
     roster_df = run_query("""
         SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
         FROM students s
@@ -796,9 +800,9 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
     """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
 
     if roster_df.empty:
-        st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
+        st.error(f"⚠️ No active student profiles found under Section '{forced_section}'.")
     else:
-        # 🛡️ INTERFACE SEGREGATION: Management roles get entry forms, others get read-only summaries
+        # 🛡️ INTERFACE SEGREGATION
         if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
             master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
             
@@ -819,7 +823,6 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
                     attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_state, key=f"t_chk_{row['ID']}", label_visibility="collapsed")
 
-                st.markdown("###")
                 submit_attendance = st.form_submit_button("💾 Save & Lock Attendance Roster", type="primary", use_container_width=True)
                 
                 if submit_attendance:
@@ -837,21 +840,20 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                                     "att_date": str(target_date), 
                                     "status": status_val
                                 })
-                        st.success(f"🎉 Attendance updated for {target_date.strftime('%d-%b-%Y')}!")
-                        time.sleep(0.5)
+                        st.success("🎉 Attendance updated!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Write Failure: {e}")
         else:
-            # 🛡️ READ-ONLY SUMMARY SHEET FOR STUDENTS/PARENTS
-            st.info("📋 Attendance Sheet View Mode")
+            # READ-ONLY VIEW
             summary_data = []
             for idx, row in roster_df.iterrows():
                 saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else "🔴 NOT MARKED"
                 status_icon = "🟢 PRESENT" if saved_status in ['P', 'PRESENT', '1'] else ("❌ ABSENT" if saved_status in ['A', 'ABSENT', '0'] else saved_status)
                 summary_data.append({"Roll No": row['ID'], "Student Name": row['Student Name'], "Status": status_icon})
             st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
-
+    
+    # ... [Keep your existing Remarks Generator block here] ...
         # ----------------------------------------------------------------------
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR (Adaptive Visibility Engine)
         # ----------------------------------------------------------------------
