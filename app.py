@@ -954,15 +954,17 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     contact_items = []
                     
                     if wa and wa.upper() not in ["NONE", "N/A", "NAN", ""]:
-                        # 🌟 STEP 1: Split cleanly on commas/periods to isolate individual record blocks
+                        # 📝 DEBUG CAPTION: Show exactly what text is saved inside this student's column
+                        st.caption(f"🔍 Raw DB Value: `{wa}`")
+                        
+                        # Split string into pieces based on punctuation separators
                         raw_parts = [p.strip() for p in re.split(r'[.,;]', wa.replace("(", "").replace(")", "")) if p.strip()]
                         
                         fallback_counter = 1
                         for part in raw_parts:
-                            # STEP 2: Extract just the numeric components
                             digits_only = "".join(filter(str.isdigit, part))
                             
-                            # Only parse if there's a usable sequence of numbers
+                            # Only render click-to-call link if the section contains an actual phone number sequence
                             if len(digits_only) >= 7:
                                 if "W-" in part.upper():
                                     contact_items.append(f"🟢 [WhatsApp: {digits_only}](tel:{digits_only})")
@@ -973,7 +975,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                                 elif "3-" in part:
                                     contact_items.append(f"📞 [Contact 3: {digits_only}](tel:{digits_only})")
                                 else:
-                                    # Safe structural fallback for numbers saved without systematic token markers
                                     if fallback_counter == 1 and not any("W-" in p.upper() for p in raw_parts):
                                         contact_items.append(f"🟢 [WhatsApp: {digits_only}](tel:{digits_only})")
                                     else:
