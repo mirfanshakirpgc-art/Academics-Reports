@@ -2020,7 +2020,7 @@ elif menu_choice == "➕ Add Students":
                 try:
                     with engine.connect() as connection:
                         stu_query = text("""
-                            SELECT id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2 
+                            SELECT id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2, contact_3, address 
                             FROM students WHERE id = :id
                         """)
                         stu_df = pd.read_sql(stu_query, connection, params={"id": int(search_id)})
@@ -2038,6 +2038,48 @@ elif menu_choice == "➕ Add Students":
                         student_identity_string = f"{str(student['name']).upper()} ({student_native_id})"
                         
                         st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {current_class} | Section: {current_section} | Session: {current_session} | Status: `{student['status']}`")
+                        
+                        # --- DIRECT INDIVIDUAL FIELD LIVE EDITOR SUBSYSTEM ---
+                        st.markdown("##### 📝 Edit Student Core Profile Data Fields")
+                        with st.expander("🛠️ Open Profile Field Editor Workspace", expanded=False):
+                            col_ed1, col_ed2 = st.columns(2)
+                            with col_ed1:
+                                edit_single_name = st.text_input("👤 Full Name Identity:", value=str(student['name']).upper())
+                            with col_ed2:
+                                edit_single_fname = st.text_input("👨‍👦 Father's Name Identity:", value=str(student['father_name']).upper() if pd.notna(student['father_name']) else "")
+                            
+                            col_ed3, col_ed4, col_ed5, col_ed6 = st.columns(4)
+                            with col_ed3:
+                                edit_single_wa = st.text_input("📱 WhatsApp No:", value=str(student['whatsapp_number']) if pd.notna(student['whatsapp_number']) else "")
+                            with col_ed4:
+                                edit_single_c1 = st.text_input("📞 Contact Line 1:", value=str(student['contact_1']) if pd.notna(student['contact_1']) else "")
+                            with col_ed5:
+                                edit_single_c2 = st.text_input("📞 Contact Line 2:", value=str(student['contact_2']) if pd.notna(student['contact_2']) else "")
+                            with col_ed6:
+                                edit_single_c3 = st.text_input("📞 Contact Line 3:", value=str(student['contact_3']) if pd.notna(student['contact_3']) else "")
+                                
+                            edit_single_addr = st.text_input("🏠 Physical Home Address:", value=str(student['address']).upper() if pd.notna(student['address']) else "")
+                            
+                            if st.button("💾 Commit Profile Parameter Changes", use_container_width=True, type="secondary"):
+                                if not edit_single_name.strip():
+                                    st.error("❌ Action Blocked: Student Name identity details cannot be completely blank.")
+                                else:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET name = :name, father_name = :fname, whatsapp_number = :wa, 
+                                                contact_1 = :c1, contact_2 = :c2, contact_3 = :c3, address = :addr
+                                            WHERE id = :id
+                                        """), {
+                                            "name": edit_single_name.strip().upper(), "fname": edit_single_fname.strip().upper(),
+                                            "wa": edit_single_wa.strip(), "c1": edit_single_c1.strip(), "c2": edit_single_c2.strip(),
+                                            "c3": edit_single_c3.strip(), "addr": edit_single_addr.strip().upper(), "id": student_native_id
+                                        })
+                                    log_audit_trail("Direct Profile Fields Update", "Single Student", student_identity_string, "Profile parameters cleared/updated.")
+                                    st.success("🎉 Single profile structural details saved locally!")
+                                    st.rerun()
+
+                        st.markdown("---")
                         
                         # --------------------------------------------------------------------------------
                         # TARGETED INDIVIDUAL OPERATIONS CONTROL BOARD
@@ -2163,7 +2205,6 @@ elif menu_choice == "➕ Add Students":
                                         st.error(f"Execution Error: {e}")
 
                         with btn_col4:
-                            # 🟢 NEW COMPONENT: RE-ACTIVE PROFILE ENGINE
                             if st.button("🟢 Re-Active", use_container_width=True, help="Restore status to ACTIVE"):
                                 if not ind_action_remarks.strip():
                                     st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before executing a Re-Activation.")
@@ -2178,14 +2219,12 @@ elif menu_choice == "➕ Add Students":
                                         st.error(f"Execution Error: {e}")
 
                         with btn_col5:
-                            # 🗑️ FIX: RESTRICTIVE LOCK REMOVED
                             if st.button("🗑️ Purge Entry", use_container_width=True, type="secondary"):
                                 if not ind_action_remarks.strip():
                                     st.warning("⚠️ Action Blocked: Please enter operational remarks/justification to authorize permanent record purge.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
-                                            # Drop child cascading keys first
                                             conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
                                             conn.execute(text("DELETE FROM attendance WHERE student_id = :id"), {"id": student_native_id})
                                             conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
@@ -2362,7 +2401,7 @@ elif menu_choice == "➕ Add Students":
                 
                 with engine.connect() as connection:
                     raw_grid_query = text(f"""
-                        SELECT id, name, father_name, whatsapp_number, contact_1, contact_2 
+                        SELECT id, name, father_name, whatsapp_number, contact_1, contact_2, contact_3 
                         FROM students 
                         WHERE session = :sess 
                         AND system_type = :syst 
@@ -2413,7 +2452,8 @@ elif menu_choice == "➕ Add Students":
                             for _, r in edited_grid_df.iterrows():
                                 conn.execute(text("""
                                     UPDATE students 
-                                    SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2
+                                    SET name = :name, father_name = :fname, whatsapp_number = :wa, 
+                                        contact_1 = :c1, contact_2 = :c2, contact_3 = :c3
                                     WHERE id = :id
                                 """), {
                                     "name": str(r['name']).strip().upper(), 
@@ -2421,6 +2461,7 @@ elif menu_choice == "➕ Add Students":
                                     "wa": str(r['whatsapp_number']).strip(), 
                                     "c1": str(r['contact_1']).strip(),
                                     "c2": str(r['contact_2']).strip(), 
+                                    "c3": str(r['contact_3']).strip() if 'contact_3' in r and pd.notna(r['contact_3']) else "",
                                     "id": int(r['id'])
                                 })
                         log_audit_trail("Bulk Grid Cells Inline Correction", "Cohort Group", f"Active Section Matrix Row Mutation ({source_section})", "Data verification cleanup run.")
