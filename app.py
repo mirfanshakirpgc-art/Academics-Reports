@@ -832,7 +832,15 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
 
     # Fetch initial student roster matrix joining with daily_attendance
     roster_df = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
+        SELECT 
+            s.id AS "ID", 
+            s.name AS "Student Name", 
+            d.status AS "SavedStatus", 
+            d.remarks AS "Remarks",
+            s.whatsapp_number AS "WhatsApp",
+            s.contact_number_1 AS "Contact1",
+            s.contact_number_2 AS "Contact2",
+            s.contact_number_3 AS "Contact3"
         FROM students s
         LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
         WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
@@ -895,7 +903,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         resolved_date = str(target_date)
 
         # Look up recorded absentees by joining with the students table for filter boundaries
-        # Modified to fetch contact info directly from the database table fields
         try:
             with engine.connect() as conn:
                 query = text("""
