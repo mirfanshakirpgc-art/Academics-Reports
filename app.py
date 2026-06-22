@@ -1410,13 +1410,25 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     # --------------------------------------------------------------------------
     # MODE 1: BULK CLASSROOM MANAGEMENT ROSTER
     # --------------------------------------------------------------------------
-    if att_sub_type == "📅 Daily Attendance Entry":
-        d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
+    # 🟢 REPLACE: The old 4-column block layout with this 5-column structure
+        d1, d2, d3, d4, d5 = st.columns([1.2, 1.3, 1.3, 1.8, 1.5])
         with d1: sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
         with d2: academic_system = st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
-        with d3: sel_class = st.selectbox("Class:", ["11th", "12th"], key="adm_daily_cls")
-        with d4: sel_section = st.selectbox("Section:", ["IG", "IB", "FB", "FG", "MG_BLUE"], key="adm_daily_sec")
-        target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
+        
+        with d3: 
+            if academic_system == "Annual System":
+                sel_class = st.selectbox("Class:", ["11th", "12th"], key="adm_daily_cls")
+            else:
+                sel_class = st.selectbox("Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="adm_daily_cls")
+        
+        with d4:
+            if academic_system == "Annual System":
+                disc_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                raw_disc = st.selectbox("Discipline:", disc_options, key="adm_daily_disc")
+                sel_disc = str(raw_disc).strip().upper()
+            else:
+                sel_disc = "INFORMATION_TECHNOLOGY"
+                st.info("⚡ DIT System Active")
 
         if sel_section and sel_session:
             roster_df = run_query("""
