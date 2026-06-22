@@ -1,4 +1,5 @@
 # --- LINE 1: ALL IMPORTS MUST BE HERE ---
+import streamlit.components.v1 as components
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -4898,7 +4899,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
             column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
             
-            # CRITICAL FIX: Pre-compile the inner tracker table header sequence to prevent f-string bracket syntax confusion
+            # Pre-compile inner tracker list header sequences
             attendance_table_headers = "".join([f"<th>{m}</th>" for m in month_map.keys()])
 
             l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
@@ -4987,9 +4988,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         
-        # Guard clause check to ensure target is an actual initialized string data object type
+        # Explicit module declaration patch
+        import streamlit.components.v1 as components
+
         if isinstance(composite_html_payload, str) and len(composite_html_payload.strip()) > 0:
-            st.components.html(composite_html_payload, height=900, scrolling=True)
+            components.html(composite_html_payload, height=900, scrolling=True)
         else:
             st.error("Engine Error: The generated HTML workspace component assembly payload data object is invalid or empty.")
 
