@@ -1410,7 +1410,8 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     # --------------------------------------------------------------------------
     # MODE 1: BULK CLASSROOM MANAGEMENT ROSTER
     # --------------------------------------------------------------------------
-    # 🟢 REPLACE: The old 4-column block layout with this 5-column structure
+    if att_sub_type == "📅 Daily Attendance Entry":
+        # Expanded columns to handle session, system framework, class level, and discipline matrix maps
         d1, d2, d3, d4, d5 = st.columns([1.2, 1.3, 1.3, 1.8, 1.5])
         with d1: sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
         with d2: academic_system = st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
@@ -1430,57 +1431,107 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 sel_disc = "INFORMATION_TECHNOLOGY"
                 st.info("⚡ DIT System Active")
 
+        # 🚀 MAP LINKED DICTIONARY SECTIONS LOOKUP WITH FALLBACK INTEGRATION
+        map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(sel_class, [])
+        
+        # Intersection Query matching active students in selected ecosystem scope
+        if sel_session and sel_class:
+            try:
+                sections_df = run_query("""
+                    SELECT DISTINCT TRIM(section) as section_name 
+                    FROM students 
+                    WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
+                      AND TRIM(session) = TRIM(:sess_val)
+                      AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                    ORDER BY section_name ASC
+                """, {"class_val": str(sel_class).strip(), "sess_val": str(sel_session).strip()})
+                
+                db_sections = sections_df["section_name"].dropna().tolist() if not sections_df.empty else []
+            except Exception:
+                db_sections = []
+            
+            if db_sections:
+                dynamic_sections = [s for s in db_sections if s in map_sections]
+                if not dynamic_sections:
+                    dynamic_sections = map_sections
+            else:
+                dynamic_sections = map_sections
+        else:
+            dynamic_sections = map_sections
+
+        if not dynamic_sections:
+            dynamic_sections = ["FK"] if sel_disc == "HUMANITIES" else ["MG_BLUE"]
+
+        with d5: sel_section = st.selectbox("Section:", dynamic_sections, key="adm_daily_sec")
+        target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
+
         if sel_section and sel_session:
             roster_df = run_query("""
-                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", NULL AS "Remarks" 
+                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "SavedRemarks" 
                 FROM students s 
                 LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date 
                 WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
                   AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)) 
+                  AND UPPER(TRIM(s.class)) = UPPER(TRIM(:class_val))
                   AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT')) 
                 ORDER BY s.id ASC
-            """, {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(sel_session).strip()})
+            """, {
+                "att_date": str(target_date), 
+                "section": str(sel_section).strip().upper(), 
+                "session": str(sel_session).strip(),
+                "class_val": str(sel_class).strip()
+            })
             
             if not roster_df.empty:
                 master_toggle = st.checkbox("🟢 Check All Present by Default", value=True, key="adm_master_toggle")
-                with st.form("adm_daily_form"):
+                
+                with st.form("adm_daily_master_form"):
                     chk_map = {}
+                    rem_map = {}
+                    
+                    st.markdown("### 📋 Student Roster Checklist")
                     for idx, row in roster_df.iterrows():
                         c1, c2, c3 = st.columns([1, 3, 1])
                         c1.write(f"`{row['ID']}`")
                         c2.write(f"**{row['Student Name']}**")
+                        
                         saved = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                         state = True if saved in ['P', 'PRESENT', '1'] else (False if saved in ['A', 'ABSENT', '0'] else master_toggle)
                         chk_map[row['ID']] = c3.checkbox("Present", value=state, key=f"adm_chk_{row['ID']}", label_visibility="collapsed")
                     
-                    if st.form_submit_button("💾 Save Changes"):
+                    st.markdown("---")
+                    st.markdown("### ❌ Absentee Remarks")
+                    for idx, row in roster_df.iterrows():
+                        s_id = row['ID']
+                        r_c1, r_c2 = st.columns([2, 3])
+                        r_c1.write(f"🛑 Roll `{s_id}` — **{row['Student Name']}**")
+                        
+                        existing_rem = row['SavedRemarks'] if row['SavedRemarks'] else ""
+                        rem_map[s_id] = r_c2.text_input(
+                            "Reason:", 
+                            value=existing_rem,
+                            key=f"adm_rem_box_{s_id}", 
+                            placeholder="e.g., Sick, Unexcused, No Response"
+                        )
+                    
+                    if st.form_submit_button("💾 Save Full Attendance & Remarks Roster", use_container_width=True):
                         with engine.begin() as conn:
                             for s_id, chk in chk_map.items():
+                                status_flag = "P" if chk else "A"
+                                clean_remarks = rem_map[s_id].strip() if (not chk and rem_map[s_id]) else ""
+                                
                                 conn.execute(text("""
-                                    INSERT INTO daily_attendance (student_id, attendance_date, status) 
-                                    VALUES (:s_id, :dt, :st) 
-                                    ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
-                                """), {"s_id": int(s_id), "dt": str(target_date), "st": "P" if chk else "A"})
-                        st.success("Saved successfully!")
+                                    INSERT INTO daily_attendance (student_id, attendance_date, status, remarks) 
+                                    VALUES (:s_id, :dt, :st, :rem) 
+                                    ON CONFLICT (student_id, attendance_date) 
+                                    DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks
+                                """), {"s_id": int(s_id), "dt": str(target_date), "st": status_flag, "rem": clean_remarks})
+                        
+                        st.success("🎉 Roster metrics and emergency remarks synced successfully!")
                         time.sleep(0.5)
                         st.rerun()
-
-                absent_student_ids = [s_id for s_id, is_present in chk_map.items() if not is_present]
-                if absent_student_ids:
-                    absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
-                    st.markdown("---")
-                    st.subheader("❌ Dynamic Unsaved Absentee Remarks Tracker")
-                    with st.form("adm_absent_remarks_form"):
-                        for idx, ab_row in absent_students.iterrows():
-                            r_c1, r_c2 = st.columns([2, 3])
-                            r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
-                            r_c2.text_input("Reason:", key=f"adm_rem_box_{ab_row['ID']}", placeholder="e.g., Sick, Unexcused")
-                        
-                        if st.form_submit_button("💾 Cache Temporary Form Remarks", use_container_width=True):
-                            st.success("🎉 Session remarks verified successfully!")
-                else:
-                    st.markdown("---")
-                    st.success("🟢 Every student in this section scope is marked present.")
+            else:
+                st.info(f"ℹ️ No active student records found under Section '{sel_section}' ({sel_class}) for Session {sel_session}.")
 
     # --------------------------------------------------------------------------
     # MODE 2: SINGLE STUDENT ATTENDANCE ENTRY WORKFLOW
@@ -1489,7 +1540,11 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         sc1, sc2, sc3 = st.columns(3)
         with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="s_sess")
         with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="s_sys")
-        with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="s_cls")
+        with sc3: 
+            if s_sys == "Annual System":
+                s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="s_cls")
+            else:
+                s_cls = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4", "ALL"], key="s_cls")
         
         search_input = st.text_input("🔍 Search Student by ID Roll Number OR Full Name:", key="single_student_search_input").strip()
         
@@ -1536,8 +1591,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 
                 with st.form("single_attendance_entry_form"):
                     stat = st.selectbox("Select Status:", ["Present (P)", "Absent (A)"], key="form_s_stat")
-                    
-                    # Conditionally ask for reason: hidden or disabled if marked Present
                     if "Present" in stat:
                         s_rem = ""
                         st.markdown("✏️ *No reason parameters required for Present status.*")
@@ -1565,7 +1618,11 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         sc1, sc2, sc3 = st.columns(3)
         with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="l_sess")
         with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="l_sys")
-        with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="l_cls")
+        with sc3: 
+            if s_sys == "Annual System":
+                s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="l_cls")
+            else:
+                s_cls = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4", "ALL"], key="l_cls")
         
         search_input = st.text_input("🔍 Search Student to Mark Late by ID Roll Number OR Full Name:", key="late_student_search_input").strip()
         
@@ -1612,8 +1669,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 
                 with st.form("single_late_entry_form"):
                     late_mins = st.number_input("Late Arrival Duration (Minutes):", min_value=0, max_value=480, value=0, step=5, key="form_s_late")
-                    
-                    # Late arrivals are implicitly marked Present; reasons are kept as completely optional remarks
                     late_rem = st.text_input("Late Comment / Notes (Optional):", placeholder="e.g., Transit delay, weather...", key="form_s_late_rem")
                     
                     if st.form_submit_button("⏰ Log Late Duration", use_container_width=True):
@@ -1627,7 +1682,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         st.success(f"Late entry metric logged successfully for {s_name}!")
                         time.sleep(0.4)
                         st.rerun()
-
 # ==============================================================================
 # ❌ ULTIMATE STANDALONE SIDEBAR ROUTER FOR ABSENT STUDENTS REMARKS
 # ==============================================================================
