@@ -6,7 +6,6 @@ import sqlite3
 import os
 import base64
 import datetime
-from datetime import date, datetime  # 🌟 ADDED THIS LINE TO FIX NAMEERROR
 from sqlalchemy import create_engine, text
 import streamlit.components.v1 as components
 
@@ -139,22 +138,6 @@ def initialize_database():
                 total_days INT DEFAULT 0,
                 present_days INT DEFAULT 0,
                 UNIQUE(student_id, month_name)
-            );
-        """))
-
-        # 🌟 ADDED: Deadline tracker table structure
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS date_sheet_deadlines (
-                id SERIAL PRIMARY KEY,
-                exam_name VARCHAR(100) NOT NULL,
-                class_name VARCHAR(50) NOT NULL,
-                section VARCHAR(50) NOT NULL,
-                subject VARCHAR(100) NOT NULL,
-                assigned_teacher VARCHAR(100) NOT NULL,
-                exam_date DATE NOT NULL,
-                submission_deadline DATE NOT NULL,
-                is_submitted BOOLEAN DEFAULT FALSE,
-                submitted_at TIMESTAMP WITH TIME ZONE NULL
             );
         """))
 
@@ -540,66 +523,6 @@ if menu_choice == "📊 Home Dashboard":
                     st.success(f"⭐ **Incharge of Section:** `{r['section_name']}` ({r['class_level']}) — Session: *{r['session_term']}*")
             else:
                 st.caption("You are currently not designated as an Incharge.")
-                
-        # 🌟 NEW: RESULT SUBMISSION DEADLINE TRACKER WORKSPACE
-        st.markdown("---")
-        st.markdown("### ⏳ Required Result Submissions Deadlines")
-        
-        try:
-            # Query active deadlines specifically mapped to this faculty profile instance
-            deadline_tasks = run_query("""
-                SELECT id, exam_name, class_name, section, subject, exam_date, submission_deadline 
-                FROM date_sheet_deadlines 
-                WHERE (UPPER(TRIM(assigned_teacher)) = UPPER(TRIM(:tname)) 
-                   OR UPPER(TRIM(assigned_teacher)) LIKE CONCAT('%', UPPER(TRIM(:tname))))
-                  AND is_submitted = FALSE 
-                ORDER BY submission_deadline ASC
-            """, {"tname": clean_name})
-            
-            if not deadline_tasks.empty:
-                from datetime import date
-                today = date.today()
-                
-                # Dynamic visual columns to stack target cards neatly
-                for idx, row in deadline_tasks.iterrows():
-                    deadline_val = pd.to_datetime(row['submission_deadline']).date()
-                    days_diff = (deadline_val - today).days
-                    
-                    if days_diff >= 0:
-                        status_html = f"<span style='color: #25D366; font-weight: bold;'>⏳ {days_diff} Days Remaining</span>"
-                        box_style = "border-left: 5px solid #25D366; background-color: #f4fbf7;"
-                    else:
-                        status_html = f"<span style='color: #FF4B4B; font-weight: bold;'>🚨 OVERDUE BY {abs(days_diff)} LATE DAYS</span>"
-                        box_style = "border-left: 5px solid #FF4B4B; background-color: #fdf5f5;"
-                    
-                    st.markdown(f"""
-                        <div style='padding: 14px 20px; border-radius: 6px; {box_style} margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
-                            <h4 style='margin: 0; padding-bottom: 4px; color: #111;'>📚 {row['subject']} — {row['class_name']} (Sec: {row['section']})</h4>
-                            <p style='margin: 0; color: #666; font-size: 14px;'><strong>Assessment:</strong> {row['exam_name']} &nbsp;|&nbsp; 🗓️ <strong>Exam Date:</strong> {row['exam_date']}</p>
-                            <p style='margin: 0; font-size: 14px; margin-top: 4px;'>🎯 <strong>Submission Due:</strong> {row['submission_deadline']} &nbsp;&nbsp;•&nbsp;&nbsp; {status_html}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Direct check-off action button placement
-                    if st.button(f"Mark {row['subject']} ({row['class_name']}-{row['section']}) Submitted", key=f"fac_task_submit_{row['id']}", use_container_width=True):
-                        try:
-                            from datetime import datetime
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE date_sheet_deadlines 
-                                    SET is_submitted = TRUE, submitted_at = :now 
-                                    WHERE id = :task_id
-                                """), {"now": datetime.now(), "task_id": int(row['id'])})
-                            st.success(f"🎉 Verified! Submission for {row['subject']} logged.")
-                            time.sleep(0.4)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to submit target parameters: {e}")
-            else:
-                st.success("✅ All clear! You have no pending result submissions scheduled.")
-        except Exception as deadline_error:
-            st.caption("Unable to load performance deadline configurations.")
-            
         st.markdown("---")
 
     # 📝 2. EXAMINATION CONTROL OFFICER DASHBOARD
@@ -711,110 +634,15 @@ if menu_choice == "📊 Home Dashboard":
     else:
         st.markdown(f"## 🛠️ Super Admin Control Center")
         st.markdown("Global administrative overview. You have complete database override privileges.")
-        
         try:
             stu_count = run_query("SELECT COUNT(*) as count FROM students").iloc[0]['count']
             user_count = run_query("SELECT COUNT(*) as count FROM app_users").iloc[0]['count']
-            
-            m_c1, m_c2 = st.columns(2)
-            m_c1.metric("Global Student Count", f"{stu_count} Records")
-            m_c2.metric("System App Users", f"{user_count} Users")
+            st.columns(2)[0].metric("Global Student Count", f"{stu_count} Records")
+            st.columns(2)[1].metric("System App Users", f"{user_count} Users")
         except Exception:
             pass
-        
         st.markdown("---")
-        
-        # 🌟 Tabbed Sub-Engines for Super Admin Control
-        admin_tab1, admin_tab2 = st.tabs(["📅 Exam Date Sheet Manager", "📊 Result Compliance Tracker"])
-        
-        with admin_tab1:
-            st.subheader("📋 Schedule New Exam & Submission Deadline")
-            with st.form("create_datesheet_form", clear_on_submit=True):
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    exam_name = st.text_input("Exam Label/Name:", placeholder="e.g., Mid Term Exam 2026")
-                    class_name = st.selectbox("Class:", ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10"])
-                with col2:
-                    section = st.text_input("Section:", placeholder="e.g., A").strip().upper()
-                    subject = st.text_input("Subject Title:", placeholder="e.g., Mathematics")
-                with col3:
-                    assigned_teacher = st.text_input("Assigned Faculty Username:", placeholder="e.g., teacher_ahmed")
-                    
-                col_d1, col_d2 = st.columns(2)
-                with col_d1:
-                    exam_date = st.date_input("Exam Execution Date:", value=date.today())
-                with col_d2:
-                    submission_deadline = st.date_input("Result Submission Deadline:", value=date.today())
-                    
-                submit_btn = st.form_submit_button("💾 Publish Schedule & Deadline", type="primary", use_container_width=True)
-                
-                if submit_btn:
-                    if not exam_name or not section or not subject or not assigned_teacher:
-                        st.error("⚠️ All input criteria must be specified before deploying deadlines.")
-                    elif submission_deadline < exam_date:
-                        st.error("⚠️ Core Violation: Submission deadline cannot be earlier than the Exam Date.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO date_sheet_deadlines 
-                                    (exam_name, class_name, section, subject, assigned_teacher, exam_date, submission_deadline)
-                                    VALUES (:exam, :cls, :sec, :sub, :teacher, :e_date, :s_deadline)
-                                """), {
-                                    "exam": exam_name.strip(), "cls": class_name, "sec": section,
-                                    "sub": subject.strip(), "teacher": assigned_teacher.strip(),
-                                    "e_date": exam_date, "s_deadline": submission_deadline
-                                })
-                            st.success(f"🎉 Exam schedule for {subject} ({class_name}-{section}) added successfully!")
-                            import time
-                            time.sleep(0.5)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Database error occurred: {e}")
 
-        with admin_tab2:
-            st.subheader("📋 Faculty Compliance Overview")
-            try:
-                # Using run_query to handle text compiling safely and cleanly
-                global_df = run_query("""
-                    SELECT assigned_teacher AS "Teacher", exam_name AS "Exam", 
-                           class_name AS "Class", section AS "Section", subject AS "Subject", 
-                           submission_deadline AS "Deadline", is_submitted AS "Status"
-                    FROM date_sheet_deadlines
-                    ORDER BY assigned_teacher ASC, submission_deadline ASC
-                """)
-                
-                if global_df is not None and not global_df.empty:
-                    today = date.today()
-                    processed_rows = []
-                    
-                    for idx, row in global_df.iterrows():
-                        deadline_date = pd.to_datetime(row['Deadline']).date()
-                        is_done = row['Status']
-                        
-                        if is_done:
-                            compliance_label = "✅ Submitted On Time"
-                        else:
-                            days_left = (deadline_date - today).days
-                            if days_left >= 0:
-                                compliance_label = f"⏳ {days_left} Days Left"
-                            else:
-                                compliance_label = f"🚨 Late by {abs(days_left)} Days"
-                                
-                        processed_rows.append({
-                            "Faculty Member": row['Teacher'],
-                            "Exam Group": row['Exam'],
-                            "Target Scope": f"{row['Class']} - {row['Section']}",
-                            "Subject Field": row['Subject'],
-                            "Due Date": row['Deadline'],
-                            "Performance Status": compliance_label
-                        })
-                        
-                    st.dataframe(pd.DataFrame(processed_rows), use_container_width=True)
-                else:
-                    st.info("ℹ️ No active deadlines configured to monitor performance metrics yet.")
-            except Exception as e:
-                st.error(f"Error building global metric tables: {e}")
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
 # ==============================================================================
