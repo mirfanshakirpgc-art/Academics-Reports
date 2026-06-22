@@ -806,7 +806,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    # 🌟 ADMIN OVERRIDE: Automatically assign a default view if an Admin logs in without a specific scope
     if not scope_str and user_role in ["Admin", "Administrator"]:
         scope_str = "11th - IG"  
         
@@ -874,35 +873,34 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     st.markdown(f"**{row['Student Name']}**")
                     
                     if raw_contacts and raw_contacts.upper() not in ["NONE", "N/A", "NAN"]:
-                        # 🌟 FIXED: Use Regular Expressions to cleanly split on commas, periods, or semicolons
+                        # 🌟 RELIABLE PARSING ENGINE: Split cleanly on commas, periods, or semicolons
                         parts = [p.strip() for p in re.split(r'[.,;]', raw_contacts.replace("(", "").replace(")", "")) if p.strip()]
                         
                         badge_html_list = []
                         for part in parts:
-                            # Clean up padding spaces around prefixes
                             part_clean = part.strip()
                             
-                            if part_clean.upper().startswith("W-") or "W-" in part_clean.upper():
-                                num = part_clean.upper().replace("W-", "").strip()
+                            # Standardize dynamic label rendering across all 4 input states
+                            if "W-" in part_clean.upper():
+                                num = re.sub(r'(?i)W-\s*', '', part_clean).strip()
                                 badge_html_list.append(f"<span style='background-color:#25D366; color:white; padding:3px 6px; border-radius:4px; font-size:11px; font-weight:bold; margin-right:5px;'>🟢 WhatsApp: {num}</span>")
-                            elif part_clean.startswith("1-") or "1-" in part_clean:
+                            elif "1-" in part_clean:
                                 num = part_clean.replace("1-", "").strip()
                                 badge_html_list.append(f"<span style='background-color:#007bff; color:white; padding:3px 6px; border-radius:4px; font-size:11px; font-weight:bold; margin-right:5px;'>📞 Contact 1: {num}</span>")
-                            elif part_clean.startswith("2-") or "2-" in part_clean:
+                            elif "2-" in part_clean:
                                 num = part_clean.replace("2-", "").strip()
                                 badge_html_list.append(f"<span style='background-color:#6c757d; color:white; padding:3px 6px; border-radius:4px; font-size:11px; font-weight:bold; margin-right:5px;'>📞 Contact 2: {num}</span>")
-                            elif part_clean.startswith("3-") or "3-" in part_clean:
+                            elif "3-" in part_clean:
                                 num = part_clean.replace("3-", "").strip()
                                 badge_html_list.append(f"<span style='background-color:#17a2b8; color:white; padding:3px 6px; border-radius:4px; font-size:11px; font-weight:bold; margin-right:5px;'>📞 Contact 3: {num}</span>")
                             else:
-                                badge_html_list.append(f"<span style='background-color:#e2e3e5; color:#383d41; padding:3px 6px; border-radius:4px; font-size:11px; margin-right:5px;'>📞 {part_clean}</span>")
+                                if part_clean:
+                                    badge_html_list.append(f"<span style='background-color:#e2e3e5; color:#383d41; padding:3px 6px; border-radius:4px; font-size:11px; margin-right:5px;'>📞 Info: {part_clean}</span>")
                         
                         if badge_html_list:
                             st.markdown(f"<div style='margin-top:4px; display:flex; flex-wrap:wrap; gap:6px;'>{''.join(badge_html_list)}</div>", unsafe_allow_html=True)
-                        else:
-                            st.caption(f"ℹ️ Raw: {raw_contacts}")
                     else:
-                        st.caption("ℹ️ No registered database phone data logs found")
+                        st.caption("ℹ️ No numbers logged on profile")
                 
                 saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                 initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
@@ -972,17 +970,10 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 st.markdown("---")
                 
                 fixed_reasons = [
-                    "Medical / Health Issues",
-                    "Family Emergency",
-                    "Family Function",
-                    "Bereavement (Death in Family)",
-                    "Transportation Problems",
-                    "Out-of-Town Travel",
-                    "Official or Personal Work",
-                    "Household Responsibilities",
-                    "Religious Obligations",
-                    "Personal Reasons",
-                    "Other"
+                    "Medical / Health Issues", "Family Emergency", "Family Function", 
+                    "Bereavement (Death in Family)", "Transportation Problems", "Out-of-Town Travel", 
+                    "Official or Personal Work", "Household Responsibilities", "Religious Obligations", 
+                    "Personal Reasons", "Other"
                 ]
                 
                 contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
@@ -1018,13 +1009,13 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                             for part in parts:
                                 label = "Phone"
                                 num = part.strip()
-                                if num.upper().startswith("W-"):
-                                    label, num = "WhatsApp", num.upper().replace("W-", "").strip()
-                                elif num.startswith("1-"):
+                                if "W-" in num.upper():
+                                    label, num = "WhatsApp", re.sub(r'(?i)W-\s*', '', num).strip()
+                                elif "1-" in num:
                                     label, num = "Contact 1", num.replace("1-", "").strip()
-                                elif num.startswith("2-"):
+                                elif "2-" in num:
                                     label, num = "Contact 2", num.replace("2-", "").strip()
-                                elif num.startswith("3-"):
+                                elif "3-" in num:
                                     label, num = "Contact 3", num.replace("3-", "").strip()
                                 
                                 clean_num = "".join(filter(str.isdigit, num))
