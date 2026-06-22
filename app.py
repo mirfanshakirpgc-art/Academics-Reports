@@ -3238,7 +3238,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # --------------------------------------------------------------------------------
     # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
     # --------------------------------------------------------------------------------
-    if att_sub_type == "📅 Daily Attendance Entry":
+    if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_type') == "📅 Daily Attendance Entry":
         st.subheader("📅 Daily Attendance Roster Sheet")
         st.markdown("---")
         
