@@ -954,32 +954,31 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     contact_items = []
                     
                     if wa and wa.upper() not in ["NONE", "N/A", "NAN", ""]:
-                        # 🌟 BULLETPROOF EXTRACTION: Find all consecutive string number digits of 7-15 length
-                        raw_numbers = re.findall(r'\d+', wa)
+                        # 🌟 STEP 1: Split cleanly on commas/periods to isolate individual record blocks
+                        raw_parts = [p.strip() for p in re.split(r'[.,;]', wa.replace("(", "").replace(")", "")) if p.strip()]
                         
-                        if raw_numbers:
-                            # Handle labeled extraction scenarios or fallback to chronological ordering cleanly
-                            has_w = "W-" in wa.upper()
-                            has_1 = "1-" in wa
-                            has_2 = "2-" in wa
-                            has_3 = "3-" in wa
+                        fallback_counter = 1
+                        for part in raw_parts:
+                            # STEP 2: Extract just the numeric components
+                            digits_only = "".join(filter(str.isdigit, part))
                             
-                            for count, num in enumerate(raw_numbers):
-                                if len(num) >= 7:  # Avoid extracting tiny isolated database tracking codes
-                                    if count == 0 and has_w:
-                                        contact_items.append(f"🟢 [WhatsApp: {num}](tel:{num})")
-                                    elif count == 1 and has_1:
-                                        contact_items.append(f"📞 [Contact 1: {num}](tel:{num})")
-                                    elif count == 2 and has_2:
-                                        contact_items.append(f"📞 [Contact 2: {num}](tel:{num})")
-                                    elif count == 3 and has_3:
-                                        contact_items.append(f"📞 [Contact 3: {num}](tel:{num})")
+                            # Only parse if there's a usable sequence of numbers
+                            if len(digits_only) >= 7:
+                                if "W-" in part.upper():
+                                    contact_items.append(f"🟢 [WhatsApp: {digits_only}](tel:{digits_only})")
+                                elif "1-" in part:
+                                    contact_items.append(f"📞 [Contact 1: {digits_only}](tel:{digits_only})")
+                                elif "2-" in part:
+                                    contact_items.append(f"📞 [Contact 2: {digits_only}](tel:{digits_only})")
+                                elif "3-" in part:
+                                    contact_items.append(f"📞 [Contact 3: {digits_only}](tel:{digits_only})")
+                                else:
+                                    # Safe structural fallback for numbers saved without systematic token markers
+                                    if fallback_counter == 1 and not any("W-" in p.upper() for p in raw_parts):
+                                        contact_items.append(f"🟢 [WhatsApp: {digits_only}](tel:{digits_only})")
                                     else:
-                                        # Fallback sequentially if the custom string pattern didn't supply system tokens
-                                        if count == 0:
-                                            contact_items.append(f"🟢 [WhatsApp: {num}](tel:{num})")
-                                        else:
-                                            contact_items.append(f"📞 [Contact {count}: {num}](tel:{num})")
+                                        contact_items.append(f"📞 [Contact {fallback_counter}: {digits_only}](tel:{digits_only})")
+                                    fallback_counter += 1
 
                     contacts_suffix = f" &nbsp;|&nbsp; {' &nbsp;•&nbsp; '.join(contact_items)}" if contact_items else " (No numbers logged)"
                     st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}** {contacts_suffix}", unsafe_allow_html=True)
