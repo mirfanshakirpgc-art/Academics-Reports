@@ -831,7 +831,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
     # Fetch initial student roster matrix joining with daily_attendance
-    # FIXED: Query strictly safe columns to avoid UndefinedColumn errors
     try:
         roster_df = run_query("""
             SELECT 
@@ -860,14 +859,20 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
             attendance_checkbox_map = {}
             h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
             h_col1.markdown("**Roll No**")
-            h_col2.markdown("**Student Name**")
+            h_col2.markdown("**Student Name & Contacts**")
             h_col3.markdown("**Is Present?**")
             st.markdown("<hr style='margin:5px 0px 10px 0px;' />", unsafe_allow_html=True)
 
             for idx, row in roster_df.iterrows():
                 col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
                 col_s1.write(f"`{row['ID']}`")
-                col_s2.write(f"**{row['Student Name']}**")
+                
+                # 🌟 FIXED: Parse out text contacts and display them elegantly directly inside the student column frame
+                wa_val = str(row['WhatsApp']).strip() if row['WhatsApp'] else "N/A"
+                with col_s2:
+                    st.markdown(f"**{row['Student Name']}**")
+                    if wa_val and wa_val != "N/A":
+                        st.caption(f"📞 Contact Numbers: {wa_val}")
                 
                 saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                 initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
@@ -903,7 +908,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
 
-        # FIXED: Removed non-existent contact columns from selection query
         try:
             with engine.connect() as conn:
                 query = text("""
@@ -924,14 +928,12 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         except Exception as e:
             absent_students = pd.DataFrame()
 
-        # Render panel if absent students exist
         if not absent_students.empty:
             st.markdown("###")
             st.error("❌ Absent Student Remarks Panel")
             st.caption("Provide reason for absence for tracked profiles:")
             
             with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
-                
                 operator_identity = st.session_state.get("user_name", 
                                     st.session_state.get("name", 
                                     st.session_state.get("username", "System Administrator"))).strip()
@@ -974,19 +976,18 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
                     
-                    # Create a main layout block
                     main_col_left, main_col_right = st.columns([1, 2])
                     
                     with main_col_left:
                         st.markdown("**📞 Click to Call**")
-                        
-                        # Render safely using existing elements fallback
                         wa = str(ab_row.get('WhatsApp', '')).strip() if ab_row.get('WhatsApp') else ""
                         
-                        if wa: 
-                            st.markdown(f"📱 **WhatsApp / Primary Contact:** [{wa}](tel:{wa})")
+                        if wa:
+                            # 🌟 Safely split standard numeric entities if present or output full block text
+                            cleaned_display = wa.replace("(", "").replace(")", "").replace("W-", "").strip()
+                            st.markdown(f"📱 **Primary Contact Link:**\n[{cleaned_display}](tel:{cleaned_display})")
                         else:
-                            st.caption("⚠️ No registered primary numbers found")
+                            st.caption("⚠️ No registered phone format variants found")
                             
                     with main_col_right:
                         r_col1, r_col2 = st.columns(2)
@@ -1020,7 +1021,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
-                
                 submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
                 
                 if submit_remarks:
