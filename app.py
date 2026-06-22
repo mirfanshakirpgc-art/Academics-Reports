@@ -3407,15 +3407,16 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.markdown("---")
                     st.success("🟢 All students are currently marked present in the grid selection module.")
 
-    if not student_matches.empty:
-        # Isolate target context variables
-        single_id = int(student_info['id'].iloc[0])
-        s_name = student_info['name'].iloc[0].upper()
-        s_section = student_info['section'].iloc[0].upper().strip()
-        s_session = student_info['session'].iloc[0]
-        s_class = student_info['class'].iloc[0]
-        
-        st.info(f"👤 **Active Student Profile:** {s_name} (Roll No: `{single_id}`) | **Class/Sem:** {s_class} | **Section:** {s_section} | **Session:** {s_session}")
+    # Check if the variable actually exists in local/global memory before testing .empty
+if 'student_matches' in locals() and student_matches is not None and not student_matches.empty:
+    # Isolate target context variables
+    single_id = int(student_info['id'].iloc[0])
+    s_name = student_info['name'].iloc[0].upper()
+    s_section = student_info['section'].iloc[0].upper().strip()
+    s_session = student_info['session'].iloc[0]
+    s_class = student_info['class'].iloc[0]
+    
+    st.info(f"👤 **Active Student Profile:** {s_name} (Roll No: `{single_id}`) | **Class/Sem:** {s_class} | **Section:** {s_section} | **Session:** {s_session}")
         
         # ------------------------------------------------------------------
         # WORKFLOW 2A: LOG OR UPDATE SINGLE DAY RECORDS WITH LATE MINUTES
