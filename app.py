@@ -3237,207 +3237,209 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # ==============================================================================
 
     # --------------------------------------------------------------------------------
-    # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
-    # --------------------------------------------------------------------------------
-    if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_type') == "📅 Daily Attendance Entry":
-        st.subheader("📅 Daily Attendance Roster Sheet")
-        st.markdown("---")
+# WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
+# --------------------------------------------------------------------------------
+if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_type') == "📅 Daily Attendance Entry":
+    st.subheader("📅 Daily Attendance Roster Sheet")
+    st.markdown("---")
+    
+    d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
+    with d1:
+        sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
         
-        d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
-        with d1:
-            sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
+    with d2:
+        academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
+        
+    with d3:
+        if academic_system == "Annual System":
+            class_options = ["11th", "12th"]
+            sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
+        else:
+            class_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
+            sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
             
-        with d2:
-            academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
-            
-        with d3:
-            if academic_system == "Annual System":
-                class_options = ["11th", "12th"]
-                sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
-            else:
-                class_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
-                sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
-                
-        with d4:
-            section_options = []
-            if academic_system == "Annual System":
-                try:
-                    for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
-                        sections_list = class_map.get(sel_class, [])
-                        section_options.extend(sections_list)
-                    section_options = sorted(list(set(section_options)))
-                except NameError:
-                    if sel_class == "11th":
-                        section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
-                    else:
-                        section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
-            else:
-                section_options = ["DIT_B", "DIT_G"]
-                
-            sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
-
-        row_date_1, _ = st.columns([1.5, 2.5])
-        with row_date_1:
-            target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="daily_att_date")
-
-        if sel_section and sel_session:
-            roster_df = run_query("""
-                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
-                FROM students s
-                LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                  AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
-                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                ORDER BY s.id ASC
-            """, {
-                "att_date": str(target_date), 
-                "section": str(sel_section).strip().upper(), 
-                "session": str(sel_session).strip()
-            })
-
-            if roster_df.empty:
-                st.warning(f"⚠️ No active student profiles found under Section '{sel_section}' inside Session {sel_session}.")
-            else:
-                st.markdown(f"🔬 **Roster Grid Active:** {sel_class} Section {sel_section} — {target_date.strftime('%d-%b-%Y')} ({len(roster_df)} Students Loaded)")
-                
-                action_box_col, info_box_col = st.columns([2, 3])
-                with action_box_col:
-                    master_attendance_toggle = st.checkbox("🟢 Check All as Present (Default)", value=True, key="master_att_switch")
-                with info_box_col:
-                    st.caption("💡 Uncheck rows manually to mark students Absent (A).")
-
-                with st.form("interactive_daily_attendance_form", clear_on_submit=False):
-                    attendance_checkbox_map = {}
-                    h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
-                    h_col1.markdown("**Roll No / ID**")
-                    h_col2.markdown("**Student Name**")
-                    h_col3.markdown("**Is Present?**")
-                    st.markdown("<hr style='margin:0px; padding:0px; margin-bottom:10px;' />", unsafe_allow_html=True)
-
-                    for idx, row in roster_df.iterrows():
-                        col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
-                        col_s1.write(f"🆔 `{row['ID']}`")
-                        col_s2.write(f"👤 **{row['Student Name']}**")
-                        
-                        saved_db_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
-                        if saved_db_status in ['P', 'PRESENT', '1']:
-                            initial_checkbox_state = True
-                        elif saved_db_status in ['A', 'ABSENT', '0']:
-                            initial_checkbox_state = False
-                        else:
-                            initial_checkbox_state = master_attendance_toggle
-                            
-                        attendance_checkbox_map[row['ID']] = col_s3.checkbox(
-                            "Present", 
-                            value=initial_checkbox_state, 
-                            key=f"chk_student_{row['ID']}", 
-                            label_visibility="collapsed"
-                        )
-
-                    st.markdown("###")
-                    submit_roster = st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True)
-                    
-                    if submit_roster:
-                        try:
-                            with st.spinner("Writing records to database..."):
-                                with engine.begin() as conn:
-                                    for s_id, checked_present in attendance_checkbox_map.items():
-                                        status_code = "P" if checked_present else "A"
-                                        
-                                        conn.execute(text("""
-                                            INSERT INTO daily_attendance (student_id, attendance_date, status) 
-                                            VALUES (:s_id, :att_date, :status)
-                                            ON CONFLICT (student_id, attendance_date) 
-                                            DO UPDATE SET status = EXCLUDED.status
-                                        """), {
-                                            "s_id": int(s_id), 
-                                            "att_date": str(target_date), 
-                                            "status": status_code
-                                        })
-                                    
-                            st.success(f"🎉 Attendance roster saved successfully for Section {sel_section}!")
-                            st.toast(f"Saved roster for {target_date.strftime('%d-%b-%Y')}", icon="💾")
-                            import time
-                            time.sleep(1.2)
-                            st.rerun()
-
-                        except Exception as e:
-                            st.error(f"Error encountered during standard write cycle: {e}")
-
-                # ----------------------------------------------------------------------
-                # ❌ DYNAMIC ABSENT STUDENT REMARKS PANEL (FOR BATCH SELECTION)
-                # ----------------------------------------------------------------------
-                absent_student_ids = [s_id for s_id, is_present in attendance_checkbox_map.items() if not is_present]
-                
-                if absent_student_ids:
-                    absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
-                    
-                    st.markdown("---")
-                    st.subheader("❌ Absent Student Remarks Panel")
-                    st.caption(f"Log administrative reasons or comments for absent profiles on **{target_date.strftime('%d-%b-%Y')}**")
-                    
-                    with st.form("adm_absent_remarks_form"):
-                        remarks_input_map = {}
-                        for idx, ab_row in absent_students.iterrows():
-                            r_c1, r_c2 = st.columns([2, 3])
-                            r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
-                            remarks_input_map[ab_row['ID']] = r_c2.text_input(
-                                "Reason for absence:", 
-                                key=f"adm_rem_box_{ab_row['ID']}", 
-                                placeholder="e.g., Sick, Leave Form, Medical, Unexcused..."
-                            )
-                        
-                        if st.form_submit_button("💾 Save Absentee Remarks", type="secondary", use_container_width=True):
-                            try:
-                                with engine.begin() as conn:
-                                    for ab_id, remark_val in remarks_input_map.items():
-                                        if remark_val.strip():
-                                            conn.execute(text("""
-                                                UPDATE daily_attendance 
-                                                SET remarks = :remarks 
-                                                WHERE student_id = :id AND attendance_date = :dt
-                                            """), {"remarks": remark_val.strip(), "id": int(ab_id), "dt": str(target_date)})
-                                            
-                                st.success("🎉 Remarks saved permanently into the database logs!")
-                                import time
-                                time.sleep(1.0)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error persisting comments (Ensure 'remarks' column exists): {e}")
+    with d4:
+        section_options = []
+        if academic_system == "Annual System":
+            try:
+                for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                    sections_list = class_map.get(sel_class, [])
+                    section_options.extend(sections_list)
+                section_options = sorted(list(set(section_options)))
+            except NameError:
+                if sel_class == "11th":
+                    section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
                 else:
-                    st.markdown("---")
-                    st.success("🟢 All students are currently marked present in the grid selection module.")
+                    section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
+        else:
+            section_options = ["DIT_B", "DIT_G"]
+            
+        sel_section = st.selectbox("Select Target Section:", section_options, key="daily_att_sec")
+
+    row_date_1, _ = st.columns([1.5, 2.5])
+    with row_date_1:
+        target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="daily_att_date")
+
+    if sel_section and sel_session:
+        roster_df = run_query("""
+            SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+            FROM students s
+            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+              AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+              AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            ORDER BY s.id ASC
+        """, {
+            "att_date": str(target_date), 
+            "section": str(sel_section).strip().upper(), 
+            "session": str(sel_session).strip()
+        })
+
+        if roster_df.empty:
+            st.warning(f"⚠️ No active student profiles found under Section '{sel_section}' inside Session {sel_session}.")
+        else:
+            st.markdown(f"🔬 **Roster Grid Active:** {sel_class} Section {sel_section} — {target_date.strftime('%d-%b-%Y')} ({len(roster_df)} Students Loaded)")
+            
+            action_box_col, info_box_col = st.columns([2, 3])
+            with action_box_col:
+                master_attendance_toggle = st.checkbox("🟢 Check All as Present (Default)", value=True, key="master_att_switch")
+            with info_box_col:
+                st.caption("💡 Uncheck rows manually to mark students Absent (A).")
+
+            with st.form("interactive_daily_attendance_form", clear_on_submit=False):
+                attendance_checkbox_map = {}
+                h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
+                h_col1.markdown("**Roll No / ID**")
+                h_col2.markdown("**Student Name**")
+                h_col3.markdown("**Is Present?**")
+                st.markdown("<hr style='margin:0px; padding:0px; margin-bottom:10px;' />", unsafe_allow_html=True)
+
+                for idx, row in roster_df.iterrows():
+                    col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
+                    col_s1.write(f"🆔 `{row['ID']}`")
+                    col_s2.write(f"👤 **{row['Student Name']}**")
+                    
+                    saved_db_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
+                    if saved_db_status in ['P', 'PRESENT', '1']:
+                        initial_checkbox_state = True
+                    elif saved_db_status in ['A', 'ABSENT', '0']:
+                        initial_checkbox_state = False
+                    else:
+                        initial_checkbox_state = master_attendance_toggle
+                        
+                    attendance_checkbox_map[row['ID']] = col_s3.checkbox(
+                        "Present", 
+                        value=initial_checkbox_state, 
+                        key=f"chk_student_{row['ID']}", 
+                        label_visibility="collapsed"
+                    )
+
+                st.markdown("###")
+                submit_roster = st.form_submit_button("💾 Save & Lock Daily Attendance Sheet", type="primary", use_container_width=True)
+                
+                if submit_roster:
+                    try:
+                        with st.spinner("Writing records to database..."):
+                            with engine.begin() as conn:
+                                for s_id, checked_present in attendance_checkbox_map.items():
+                                    status_code = "P" if checked_present else "A"
+                                    
+                                    conn.execute(text("""
+                                        INSERT INTO daily_attendance (student_id, attendance_date, status) 
+                                        VALUES (:s_id, :att_date, :status)
+                                        ON CONFLICT (student_id, attendance_date) 
+                                        DO UPDATE SET status = EXCLUDED.status
+                                    """), {
+                                        "s_id": int(s_id), 
+                                        "att_date": str(target_date), 
+                                        "status": status_code
+                                    })
+                                
+                        st.success(f"🎉 Attendance roster saved successfully for Section {sel_section}!")
+                        st.toast(f"Saved roster for {target_date.strftime('%d-%b-%Y')}", icon="💾")
+                        import time
+                        time.sleep(1.2)
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Error encountered during standard write cycle: {e}")
+
+            # ----------------------------------------------------------------------
+            # ❌ DYNAMIC ABSENT STUDENT REMARKS PANEL (FOR BATCH SELECTION)
+            # ----------------------------------------------------------------------
+            absent_student_ids = [s_id for s_id, is_present in attendance_checkbox_map.items() if not is_present]
+            
+            if absent_student_ids:
+                absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
+                
+                st.markdown("---")
+                st.subheader("❌ Absent Student Remarks Panel")
+                st.caption(f"Log administrative reasons or comments for absent profiles on **{target_date.strftime('%d-%b-%Y')}**")
+                
+                with st.form("adm_absent_remarks_form"):
+                    remarks_input_map = {}
+                    for idx, ab_row in absent_students.iterrows():
+                        r_c1, r_c2 = st.columns([2, 3])
+                        r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
+                        remarks_input_map[ab_row['ID']] = r_c2.text_input(
+                            "Reason for absence:", 
+                            key=f"adm_rem_box_{ab_row['ID']}", 
+                            placeholder="e.g., Sick, Leave Form, Medical, Unexcused..."
+                        )
+                    
+                    if st.form_submit_button("💾 Save Absentee Remarks", type="secondary", use_container_width=True):
+                        try:
+                            with engine.begin() as conn:
+                                for ab_id, remark_val in remarks_input_map.items():
+                                    if remark_val.strip():
+                                        conn.execute(text("""
+                                            UPDATE daily_attendance 
+                                            SET remarks = :remarks 
+                                            WHERE student_id = :id AND attendance_date = :dt
+                                        """), {"remarks": remark_val.strip(), "id": int(ab_id), "dt": str(target_date)})
+                                        
+                            st.success("🎉 Remarks saved permanently into the database logs!")
+                            import time
+                            time.sleep(1.0)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error persisting comments (Ensure 'remarks' column exists): {e}")
+            else:
+                st.markdown("---")
+                st.success("🟢 All students are currently marked present in the grid selection module.")
 
 # ----------------------------------------------------------------------
-# # --- WORKFLOW 2: SINGLE STUDENT ENTRY WORKSPACE ---
-# Enforce scope check inside Workflow Mode execution block to block variable cross-talk
+# WORKFLOW 2: SINGLE STUDENT ENTRY WORKSPACE
 # ----------------------------------------------------------------------
 if globals().get('entry_mode') == "👤 By Single Student Roll Number":
-    if 'student_matches' in locals() and student_matches is not None and not student_matches.empty:
-        if 'student_info' in locals() and student_info is not None and not student_info.empty:
-            # Isolate target context variables safely
-            single_id = int(student_info['id'].iloc[0])
-            s_name = student_info['name'].iloc[0].upper()
-            s_section = student_info['section'].iloc[0].upper().strip()
-            s_session = student_info['session'].iloc[0]
-            s_class = student_info['class'].iloc[0]
-            
-            st.info(f"👤 **Active Student Profile:** {s_name} (Roll No: `{single_id}`) | **Class/Sem:** {s_class} | **Section:** {s_section} | **Session:** {s_session}")
-            
-            # ------------------------------------------------------------------
-            # WORKFLOW 2A: LOG OR UPDATE SINGLE DAY RECORDS WITH LATE MINUTES
-            # ------------------------------------------------------------------
-        else:
-            st.warning("⚠️ Profile context details missing or incomplete.")
-    else:
+    # Defensive Context Initialization Check
+    has_valid_profile = (
+        'student_matches' in locals() and student_matches is not None and not student_matches.empty and
+        'student_info' in locals() and student_info is not None and not student_info.empty
+    )
+    
+    if not has_valid_profile:
         st.info("🔍 Please enter a valid student Roll Number above to fetch profile records.")
+    else:
+        # Variable extraction path executes safely here
+        single_id = int(student_info['id'].iloc[0])
+        s_name = student_info['name'].iloc[0].upper()
+        s_section = student_info['section'].iloc[0].upper().strip()
+        s_session = student_info['session'].iloc[0]
+        s_class = student_info['class'].iloc[0]
+        
+        st.info(f"👤 **Active Student Profile:** {s_name} (Roll No: `{single_id}`) | **Class/Sem:** {s_class} | **Section:** {s_section} | **Session:** {s_session}")
+        
+        # ------------------------------------------------------------------
+        # WORKFLOW 2A: LOG OR UPDATE SINGLE DAY RECORDS WITH LATE MINUTES
+        # ------------------------------------------------------------------
         st.markdown("##### 📅 Log/Update Single Day Entry")
         
         ca1, ca2, ca3, ca4 = st.columns([1.5, 1.2, 1.2, 1.1])
         with ca1:
             att_date = st.date_input("Target Date:", value=datetime.date.today(), key="single_att_date_pick")
         
-        # Fetch pre-existing database layouts to auto-populate defaults
+        # Fetch pre-existing database records to auto-populate defaults safely
         existing_record = run_query("""
             SELECT status, late_arrival_minutes 
             FROM daily_attendance 
@@ -3480,7 +3482,7 @@ if globals().get('entry_mode') == "👤 By Single Student Roll Number":
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error updating record layout profile: {e}")
-                
+                    
         # ------------------------------------------------------------------
         # WORKFLOW 2B: COMPILED ATTENDANCE HISTORY TIMELINE VIA PARSING PATCH
         # ------------------------------------------------------------------
@@ -3543,7 +3545,6 @@ if globals().get('entry_mode') == "👤 By Single Student Roll Number":
             
             st.markdown("###")
             st.dataframe(history_display_df, use_container_width=True, hide_index=True)
-
 # ====================================================================================
 # MODULE: DAILY ATTENDANCE REPORT (FINAL COMPLETE ROSTER ENGINE)
 # ====================================================================================
