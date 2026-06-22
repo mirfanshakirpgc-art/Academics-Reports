@@ -345,12 +345,21 @@ if not st.session_state.logged_in:
 # ==============================================================================
 # SIDEBAR NAVIGATION MODULE (ROLE-BASED CONFIGURATION)
 # ==============================================================================
-user_role = st.session_state.user_role
-username_current = st.session_state.username
-can_manage_users = st.session_state.can_manage_users
-can_manage_settings = st.session_state.can_manage_settings
-can_manage_faculty = st.session_state.can_manage_faculty
-can_edit_marks = st.session_state.can_edit_marks
+# Safely assign and fall back across key naming variations
+raw_user_role = (
+    st.session_state.get("user_role") or 
+    st.session_state.get("user_type") or 
+    st.session_state.get("workspace_role") or 
+    st.session_state.get("role") or 
+    "Faculty"
+)
+user_role = str(raw_user_role).strip()
+
+username_current = st.session_state.get("username", "Faculty Member")
+can_manage_users = st.session_state.get("can_manage_users", False)
+can_manage_settings = st.session_state.get("can_manage_settings", False)
+can_manage_faculty = st.session_state.get("can_manage_faculty", False)
+can_edit_marks = st.session_state.get("can_edit_marks", False)
 
 is_class_incharge = st.session_state.get("is_class_incharge", False)
 db_class_scope = st.session_state.get("db_class_scope", None)
@@ -363,18 +372,19 @@ if user_role in ["Teacher", "Faculty"]:
     allowed_menus = ["📊 Home Dashboard", "📝 Marks Entry", "📅 Marks Attendance", "📊 Result Analysis"]
 else:
     allowed_menus = ["📊 Home Dashboard"]
-    allowed_menus += ["➕ Add Students"] if (user_role in ['Admin', 'controller'] or can_manage_users) else []
-    allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role in ['Admin', 'controller'] or can_edit_marks) else []
+    allowed_menus += ["➕ Add Students"] if (user_role.lower() in ['admin', 'controller'] or can_manage_users) else []
+    allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role.lower() in ['admin', 'controller'] or can_edit_marks) else []
     allowed_menus += ["📅 Attendance Entry Management", "📋 Daily Attendance Report"]
     allowed_menus += ["📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
-    allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role in ['Admin', 'controller'] or can_manage_faculty) else []
+    allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role.lower() in ['admin', 'controller'] or can_manage_faculty) else []
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
     
-    # 🎯 ASSIGN EXAM CONTROL MODULE ACCESS
-    if user_role in ["Admin", "Principal", "controller", "Exam Officer", "Examination Control Officer"]:
+    # 🎯 ASSIGN EXAM CONTROL MODULE ACCESS (Fuzzy case match protection)
+    if any(adm in user_role.lower() for adm in ["admin", "principal", "controller", "exam officer", "examination control officer"]):
         exam_menus = ["⚙️ Examination Control"]
 
-    allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
+    # Re-index to clean duplicate loops safely
+    allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: x)
 
 # --- UNIFIED SIDEBAR CONTEXT RENDERING ---
 with st.sidebar:
@@ -464,14 +474,12 @@ if menu_choice == "⚙️ Examination Control":
     st.markdown("---")
     
     # --- SHARED DATA EXTRACTION CORE ---
-    # 1. Fetch Exam Cycles / Test Categories
     try:
         active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
         all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
     except Exception:
         all_frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
         
-    # 2. Fetch Sessions
     try:
         session_options = AVAILABLE_SESSIONS
         if "2024-26" in session_options: session_options = [s for s in session_options if s != "2024-26"]
@@ -479,7 +487,6 @@ if menu_choice == "⚙️ Examination Control":
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
 
-    # 3. Reference Core Map to Extract Distinct Subjects and Classes
     DISCIPLINE_SUBJECTS_MAP = {
         "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
         "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
@@ -495,10 +502,8 @@ if menu_choice == "⚙️ Examination Control":
         "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
     }
 
-    # Flatten and deduplicate all subjects from the Map layout
     extracted_subjects = sorted(list(set([sub for sub_list in DISCIPLINE_SUBJECTS_MAP.values() for sub in sub_list])))
     
-    # Extract structural configuration arrays from active student entries
     try:
         class_query = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
         extracted_classes = sorted(class_query['class'].tolist()) if not class_query.empty else ["1st Year", "2nd Year"]
@@ -550,7 +555,6 @@ if menu_choice == "⚙️ Examination Control":
         with st.form("marking_deadline_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                # Dynamically match assigned configurations
                 exam_sel = st.selectbox("Select Scheduled Exam Cycle", all_frameworks, key="dl_exam_type")
                 class_sel = st.selectbox("Select Target Class Level", extracted_classes, key="dl_class")
                 sub_sel = st.selectbox("Select Target Subject", extracted_subjects, key="dl_subject")
@@ -677,7 +681,7 @@ elif menu_choice == "📊 Home Dashboard":
         st.markdown("---")
 
     # 🎯 2. EXAMINATION CONTROL OFFICER / ADMIN DASHBOARD VIEW
-    elif user_role in ["controller", "Exam Officer", "Admin"]:
+    elif user_role.lower() in ["controller", "exam officer", "admin", "principal"]:
         st.markdown("### 🎯 Central Exam Tracking Overview")
         try:
             total_marks_entered = run_query("SELECT COUNT(*) as count FROM marks").iloc[0]['count']
@@ -698,7 +702,7 @@ elif menu_choice == "📊 Home Dashboard":
         st.markdown("---")
 
     # 👥 3. ADMISSION OFFICER DASHBOARD VIEW
-    elif user_role in ["Admission Officer", "Registrar"]:
+    elif user_role.lower() in ["admission officer", "registrar"]:
         st.markdown("### 🚀 Admissions & Daily Attendance Track")
         try:
             with engine.connect() as conn:
