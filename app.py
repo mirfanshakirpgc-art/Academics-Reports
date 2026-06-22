@@ -868,7 +868,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 col_s1.write(f"`{row['ID']}`")
                 
                 with col_s2:
-                    # 🟢 CLEAN ROSTER VIEW: No numbers shown here to keep taking attendance fast and uncluttered
                     st.markdown(f"**{row['Student Name']}**")
                 
                 saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
@@ -928,7 +927,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         if not absent_students.empty:
             st.markdown("###")
             st.error("❌ Absent Student Remarks Panel")
-            st.caption("Registered phone context options appear below exclusively for absent records:")
             
             with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                 operator_identity = st.session_state.get("user_name", 
@@ -952,36 +950,37 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 custom_text_map = {}
                 
                 for idx, ab_row in absent_students.iterrows():
-                    # Parse the student numbers out 
                     wa = str(ab_row.get('WhatsApp', '')).strip() if ab_row.get('WhatsApp') else ""
                     contact_items = []
                     
                     if wa and wa.upper() not in ["NONE", "N/A", "NAN", ""]:
-                        parts = [p.strip() for p in re.split(r'[.,;]', wa.replace("(", "").replace(")", "")) if p.strip()]
-                        for part in parts:
-                            part_clean = part.strip()
-                            if "W-" in part_clean.upper():
-                                num = re.sub(r'(?i)W-\s*', '', part_clean).strip()
-                                clean_num = "".join(filter(str.isdigit, num))
-                                contact_items.append(f"🟢 [WhatsApp: {num}](tel:{clean_num})")
-                            elif "1-" in part_clean:
-                                num = part_clean.replace("1-", "").strip()
-                                clean_num = "".join(filter(str.isdigit, num))
-                                contact_items.append(f"📞 [Contact 1: {num}](tel:{clean_num})")
-                            elif "2-" in part_clean:
-                                num = part_clean.replace("2-", "").strip()
-                                clean_num = "".join(filter(str.isdigit, num))
-                                contact_items.append(f"📞 [Contact 2: {num}](tel:{clean_num})")
-                            elif "3-" in part_clean:
-                                num = part_clean.replace("3-", "").strip()
-                                clean_num = "".join(filter(str.isdigit, num))
-                                contact_items.append(f"📞 [Contact 3: {num}](tel:{clean_num})")
-                            else:
-                                if part_clean:
-                                    clean_num = "".join(filter(str.isdigit, part_clean))
-                                    contact_items.append(f"📱 [{part_clean}](tel:{clean_num})")
+                        # 🌟 BULLETPROOF EXTRACTION: Find all consecutive string number digits of 7-15 length
+                        raw_numbers = re.findall(r'\d+', wa)
+                        
+                        if raw_numbers:
+                            # Handle labeled extraction scenarios or fallback to chronological ordering cleanly
+                            has_w = "W-" in wa.upper()
+                            has_1 = "1-" in wa
+                            has_2 = "2-" in wa
+                            has_3 = "3-" in wa
+                            
+                            for count, num in enumerate(raw_numbers):
+                                if len(num) >= 7:  # Avoid extracting tiny isolated database tracking codes
+                                    if count == 0 and has_w:
+                                        contact_items.append(f"🟢 [WhatsApp: {num}](tel:{num})")
+                                    elif count == 1 and has_1:
+                                        contact_items.append(f"📞 [Contact 1: {num}](tel:{num})")
+                                    elif count == 2 and has_2:
+                                        contact_items.append(f"📞 [Contact 2: {num}](tel:{num})")
+                                    elif count == 3 and has_3:
+                                        contact_items.append(f"📞 [Contact 3: {num}](tel:{num})")
+                                    else:
+                                        # Fallback sequentially if the custom string pattern didn't supply system tokens
+                                        if count == 0:
+                                            contact_items.append(f"🟢 [WhatsApp: {num}](tel:{num})")
+                                        else:
+                                            contact_items.append(f"📞 [Contact {count}: {num}](tel:{num})")
 
-                    # Title Header containing Roll No, Student Name, and numbers side by side
                     contacts_suffix = f" &nbsp;|&nbsp; {' &nbsp;•&nbsp; '.join(contact_items)}" if contact_items else " (No numbers logged)"
                     st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}** {contacts_suffix}", unsafe_allow_html=True)
                     
@@ -997,7 +996,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
                     
-                    # Renders layout form configurations
                     r_col1, r_col2 = st.columns(2)
                     with r_col1:
                         reason_selection_map[ab_row['ID']] = st.selectbox(
