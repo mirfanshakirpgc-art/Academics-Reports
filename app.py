@@ -3243,7 +3243,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 # --------------------------------------------------------------------------------
 # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
 # --------------------------------------------------------------------------------
-if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_type') == "📅 Daily Attendance Entry":
+# 🟢 FIXED: Changed globals().get() to st.session_state.get()
+if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('att_sub_type') == "📅 Daily Attendance Entry":
     st.subheader("📅 Daily Attendance Roster Sheet")
     st.markdown("---")
     
@@ -3269,12 +3270,13 @@ if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_
         raw_user_type = st.session_state.get("user_type", "")
         raw_work_role = st.session_state.get("workspace_role", "")
         raw_generic_role = st.session_state.get("role", "")
+        raw_user_role = st.session_state.get("user_role", "") # 🟢 FIXED: Added explicit user_role check
         
         # Combine elements to form a fuzzy-matching verification layout string
-        combined_roles_footprint = f"{raw_user_type} | {raw_work_role} | {raw_generic_role}".strip().lower()
+        combined_roles_footprint = f"{raw_user_type} | {raw_work_role} | {raw_generic_role} | {raw_user_role}".strip().lower()
         
         # Trigger true if matching 'principal', 'admin', 'management', OR if the state table returns totally empty
-        is_admin_override = any(adm in combined_roles_footprint for adm in ["principal", "admin", "management", "coordinator", "boss"]) or combined_roles_footprint == "||" or combined_roles_footprint == ""
+        is_admin_override = any(adm in combined_roles_footprint for adm in ["principal", "admin", "management", "coordinator", "boss"]) or combined_roles_footprint.replace("|", "").strip() == ""
         
         # 🔓 ABSOLUTE BYPASS LOGIC
         if is_admin_override:
@@ -3445,7 +3447,8 @@ if menu_choice == "📅 Attendance Entry Management" and globals().get('att_sub_
 # ----------------------------------------------------------------------
 # WORKFLOW 2: SINGLE STUDENT ENTRY WORKSPACE
 # ----------------------------------------------------------------------
-if globals().get('entry_mode') == "👤 By Single Student Roll Number":
+# 🟢 FIXED: Changed globals().get() to st.session_state.get()
+if st.session_state.get('entry_mode') == "👤 By Single Student Roll Number":
     has_valid_profile = (
         'student_matches' in locals() and student_matches is not None and not student_matches.empty and
         'student_info' in locals() and student_info is not None and not student_info.empty
