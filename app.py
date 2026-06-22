@@ -4897,12 +4897,16 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
             column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
+            
+            # CRITICAL FIX: Pre-compile the inner tracker table header sequence to prevent f-string bracket syntax confusion
+            attendance_table_headers = "".join([f"<th>{m}</th>" for m in month_map.keys()])
 
             l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
             logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
+            safe_s_name = s_name.replace(' ', '_')
 
             composite_html_payload += f"""
-            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
+            <div class="cck-container student-card-record" data-index="{index}" data-name="{safe_s_name}" data-id="{s_id}">
                 <div class="cck-header-wrapper">
                     <div class="cck-logo-image-container">{logo_markup}</div>
                     <div class="cck-title-block"><div class="cck-main-title">CONCORDIA COLLEGE KASUR</div></div>
@@ -4928,7 +4932,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     <thead>
                         <tr>
                             <th style="width:25%; text-align:left; padding-left:8px; font-weight:bold;">Attendance Tracker</th>
-                            {" ".join([f"<th>{m}</th>" for m in month_map.keys()])}
+                            {attendance_table_headers}
                             <th style="font-weight:bold;">Total</th>
                         </tr>
                     </thead>
@@ -4983,8 +4987,12 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </html>
         """
         
-        # Render the components into the user workspace view safely
-        st.components.html(composite_html_payload, height=900, scrolling=True)
+        # Guard clause check to ensure target is an actual initialized string data object type
+        if isinstance(composite_html_payload, str) and len(composite_html_payload.strip()) > 0:
+            st.components.html(composite_html_payload, height=900, scrolling=True)
+        else:
+            st.error("Engine Error: The generated HTML workspace component assembly payload data object is invalid or empty.")
+
 # ==============================================================================
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
 # ==============================================================================
