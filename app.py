@@ -373,7 +373,22 @@ else:
     if user_role in ["Admin", "Principal", "controller", "Exam Officer", "Examination Control Officer"]:
         exam_menus = ["⚙️ Examination Control"]
 
+    # Keep structural sorting stable
     allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
+
+# --- 🔄 MUTUAL EXCLUSIVITY NAVIGATION BRIDGE ---
+# Initialize tracking variable so both menus know who had focus last
+if "nav_active_track" not in st.session_state:
+    st.session_state["nav_active_track"] = "main"
+
+def on_change_main_menu():
+    st.session_state["nav_active_track"] = "main"
+    # Safely clear the exam sub-menu state when clicking standard modules
+    if "exam_navigation_rail" in st.session_state:
+        st.session_state["exam_navigation_rail"] = None
+
+def on_change_exam_menu():
+    st.session_state["nav_active_track"] = "exam"
 
 # --- UNIFIED SIDEBAR CONTEXT RENDERING ---
 with st.sidebar:
@@ -407,15 +422,32 @@ with st.sidebar:
                 unsafe_allow_html=True
             )
 
-        # Standard Modules Select
-        menu_choice = st.radio("Go To Module:", allowed_menus, key="portal_navigation_rail")
+        # Standard Modules Select (Triggers callback reset on change)
+        main_selection = st.radio(
+            "Go To Module:", 
+            allowed_menus, 
+            key="portal_navigation_rail", 
+            on_change=on_change_main_menu
+        )
         
         # Examination Specialized Subsection
         if exam_menus:
             st.markdown('<div class="sidebar-section-header">🛡️ Examination Authority</div>', unsafe_allow_html=True)
-            selected_exam_tool = st.radio("Management Panels:", exam_menus, key="exam_navigation_rail", index=None)
-            if selected_exam_tool:
-                menu_choice = selected_exam_tool
+            exam_selection = st.radio(
+                "Management Panels:", 
+                exam_menus, 
+                key="exam_navigation_rail", 
+                index=None, 
+                on_change=on_change_exam_menu
+            )
+        else:
+            exam_selection = None
+
+        # --- FINAL SINGLE-SOURCE NAVIGATION ROUTER ---
+        if st.session_state["nav_active_track"] == "exam" and exam_selection is not None:
+            menu_choice = exam_selection
+        else:
+            menu_choice = main_selection
 
     footer_container = st.container()
     with footer_container:
