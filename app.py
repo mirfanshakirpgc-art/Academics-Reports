@@ -831,6 +831,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
     # Fetch initial student roster matrix joining with daily_attendance
+    # FIXED: Replaced named parameters with format markers to avoid read_sql_query bind errors
     roster_df = run_query("""
         SELECT 
             s.id AS "ID", 
@@ -842,9 +843,9 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
             s.contact_number_2 AS "Contact2",
             s.contact_number_3 AS "Contact3"
         FROM students s
-        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-          AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = %(att_date)s
+        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(%(section)s))
+          AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(%(session)s))
           AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
         ORDER BY s.id ASC
     """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
@@ -895,7 +896,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     st.rerun()
                 except Exception as e:
                     st.error(f"Write Failure: {e}")
-
         # ----------------------------------------------------------------------
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH CLICK-TO-CALL LINKS
         # ----------------------------------------------------------------------
