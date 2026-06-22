@@ -458,19 +458,52 @@ if user_role in ["Teacher", "Faculty"]:
 # ==============================================================================
 
 if menu_choice == "⚙️ Examination Control":
+    import datetime  # Ensure module-level import is safe here
     st.markdown("## ⚙️ Examination Control Board")
     st.markdown("Design upcoming datesheets, assign paper grading deadlines, and review real-time compliance.")
     st.markdown("---")
     
-    # --- SHARED DATA EXTRACTION CORE ---
-    # 1. Fetch Exam Cycles / Test Categories
-    try:
-        active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
-        all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
-    except Exception:
-        all_frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
-        
-    # 2. Fetch Sessions
+    # --- OPTIMIZED SHARED DATA EXTRACTION (CACHED TO PREVENT FREEZING) ---
+    @st.cache_data(ttl=60)  # Caches structural dropdown lists for 1 minute to prevent UI lagging
+    def fetch_examination_routing_metadata():
+        # 1. Fetch Exam Cycles
+        try:
+            active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
+            frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
+        except Exception:
+            frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
+            
+        if not frameworks:
+            frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
+
+        # 2. Fetch Class Levels & Sections
+        try:
+            class_query = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
+            classes = sorted(class_query['class'].tolist()) if not class_query.empty else ["1st Year", "2nd Year"]
+            
+            section_query = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
+            sections = sorted(section_query['section'].tolist()) if not section_query.empty else ["A", "B", "C"]
+        except Exception:
+            classes = ["1st Year", "2nd Year"]
+            sections = ["A", "B", "C"]
+
+        # 3. Fetch Teachers List
+        try:
+            teachers_df = run_query("SELECT DISTINCT teacher_name FROM system_teachers WHERE teacher_name IS NOT NULL ORDER BY teacher_name")
+            teachers = teachers_df['teacher_name'].tolist() if not teachers_df.empty else []
+        except Exception:
+            teachers = []
+            
+        return frameworks, classes, sections, teachers
+
+    # Execute non-blocking optimized metadata load
+    all_frameworks, extracted_classes, extracted_sections, teacher_options = fetch_examination_routing_metadata()
+    
+    # Ensure fallback teacher option is never empty
+    if not teacher_options:
+        teacher_options = ["Default Evaluator"]
+
+    # Handle Sessions configuration cleanly
     try:
         session_options = AVAILABLE_SESSIONS
         if "2024-26" in session_options: session_options = [s for s in session_options if s != "2024-26"]
@@ -478,7 +511,7 @@ if menu_choice == "⚙️ Examination Control":
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
 
-    # 3. Reference Core Map to Extract Distinct Subjects and Classes
+    # 3. Reference Core Map to Extract Distinct Subjects
     DISCIPLINE_SUBJECTS_MAP = {
         "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
         "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
@@ -493,20 +526,7 @@ if menu_choice == "⚙️ Examination Control":
         "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
         "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
     }
-
-    # Flatten and deduplicate all subjects from the Map layout
     extracted_subjects = sorted(list(set([sub for sub_list in DISCIPLINE_SUBJECTS_MAP.values() for sub in sub_list])))
-    
-    # Extract structural configuration arrays from active student entries
-    try:
-        class_query = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
-        extracted_classes = sorted(class_query['class'].tolist()) if not class_query.empty else ["1st Year", "2nd Year"]
-        
-        section_query = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
-        extracted_sections = sorted(section_query['section'].tolist()) if not section_query.empty else ["A", "B", "C"]
-    except Exception:
-        extracted_classes = ["1st Year", "2nd Year"]
-        extracted_sections = ["A", "B", "C"]
 
     # --- MAIN INTERFACE TABS ---
     tab1, tab2, tab3 = st.tabs(["📅 Design Date Sheet", "⏳ Assign Grading Turnaround", "📊 Tracking & Compliance Overview"])
@@ -523,7 +543,8 @@ if menu_choice == "⚙️ Examination Control":
                 subject_ds = st.selectbox("Subject Title", extracted_subjects, key="ds_subject")
                 date_ds = st.date_input("Exam Date", datetime.date.today(), key="ds_date")
             
-            if st.form_submit_button("🔒 Save Schedule Entry"):
+            submit_ds = st.form_submit_button("🔒 Save Schedule Entry")
+            if submit_ds:
                 if exam_type_ds and class_lvl_ds and subject_ds:
                     try:
                         execute_db_command("""
@@ -532,13 +553,15 @@ if menu_choice == "⚙️ Examination Control":
                             ON CONFLICT (exam_type, class_level, subject_name) DO UPDATE SET exam_date = :dt
                         """, {"et": f"{exam_type_ds} ({session_ds})", "cl": class_lvl_ds, "sub": subject_ds, "dt": date_ds})
                         st.success(f"Successfully posted schedule: {subject_ds} for {class_lvl_ds} ({exam_type_ds})")
+                        st.cache_data.clear() # Clear metadata cache to show new mutations instantly
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error publishing: {e}")
                 else:
                     st.warning("Please complete all inputs.")
                     
         st.markdown("#### 📋 Current Scheduled Exams")
-        ds_records = run_query("SELECT exam_type as \"Exam (Session)\", class_level as \"Class\", subject_name as \"Subject\", exam_date as \"Exam Date\" FROM examination_datesheets ORDER BY exam_date ASC")
+        ds_records = run_query('SELECT exam_type as "Exam (Session)", class_level as "Class", subject_name as "Subject", exam_date as "Exam Date" FROM examination_datesheets ORDER BY exam_date ASC')
         if not ds_records.empty:
             st.dataframe(ds_records, use_container_width=True, hide_index=True)
         else:
@@ -549,19 +572,16 @@ if menu_choice == "⚙️ Examination Control":
         with st.form("marking_deadline_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                # Dynamically match assigned configurations
                 exam_sel = st.selectbox("Select Scheduled Exam Cycle", all_frameworks, key="dl_exam_type")
                 class_sel = st.selectbox("Select Target Class Level", extracted_classes, key="dl_class")
                 sub_sel = st.selectbox("Select Target Subject", extracted_subjects, key="dl_subject")
             with col2:
-                teachers_df = run_query("SELECT DISTINCT teacher_name FROM system_teachers ORDER BY teacher_name")
-                teacher_options = teachers_df['teacher_name'].tolist() if not teachers_df.empty else ["Select Teacher"]
                 teacher_sel = st.selectbox("Assign Grading Evaluator (Teacher)", teacher_options, key="dl_teacher")
-                
                 allowed_days = st.number_input("Allowed Days for Marking (From Exam Date)", min_value=1, max_value=30, value=3)
                 base_exam_date = st.date_input("Reference Exam Commencement Date", datetime.date.today(), key="dl_base_date")
                 
-            if st.form_submit_button("🚀 Deploy Teacher Allocation Window"):
+            submit_dl = st.form_submit_button("🚀 Deploy Teacher Allocation Window")
+            if submit_dl:
                 if exam_sel and class_sel and sub_sel and teacher_sel:
                     calc_deadline = base_exam_date + datetime.timedelta(days=int(allowed_days))
                     try:
@@ -571,6 +591,8 @@ if menu_choice == "⚙️ Examination Control":
                             ON CONFLICT (exam_type, class_level, subject_name, teacher_name) DO UPDATE SET deadline_date = :dl
                         """, {"et": exam_sel, "cl": class_sel, "sub": sub_sel, "tn": teacher_sel, "dl": calc_deadline})
                         st.success(f"Deadline locked! {teacher_sel} must submit marks by {calc_deadline.strftime('%Y-%m-%d')}")
+                        st.cache_data.clear()
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error establishing submission timeline: {e}")
                 else:
@@ -578,7 +600,7 @@ if menu_choice == "⚙️ Examination Control":
 
     with tab3:
         st.markdown("### 📊 Live Evaluation Submission Compliance Matrix")
-        comp_df = run_query("SELECT exam_type as \"Exam Cycle\", class_level as \"Class\", subject_name as \"Subject\", teacher_name as \"Teacher\", deadline_date as \"Deadline\", is_submitted as \"Submitted Status\" FROM teacher_marking_deadlines ORDER BY deadline_date ASC")
+        comp_df = run_query('SELECT exam_type as "Exam Cycle", class_level as "Class", subject_name as "Subject", teacher_name as "Teacher", deadline_date as "Deadline", is_submitted as "Submitted Status" FROM teacher_marking_deadlines ORDER BY deadline_date ASC')
         if not comp_df.empty:
             total_allocated = len(comp_df)
             submitted_count = len(comp_df[comp_df['Submitted Status'] == True])
@@ -592,7 +614,6 @@ if menu_choice == "⚙️ Examination Control":
             st.dataframe(comp_df, use_container_width=True, hide_index=True)
         else:
             st.info("No teaching turnaround deadlines are currently being tracked.")
-
 # --- MAIN HOME DASHBOARD OVERVIEW RENDERER ---
 elif menu_choice == "📊 Home Dashboard":
     assigned_subs_raw = st.session_state.get("assigned_subject", "")
