@@ -1396,6 +1396,41 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     import time
     st.title("🗓️ Global Attendance Entry Management Panel")
     
+    # Ensure the mapping variable is available locally if not declared globally
+    if "DISCIPLINE_SECTIONS_MAP" not in globals() and "DISCIPLINE_SECTIONS_MAP" not in locals():
+        DISCIPLINE_SECTIONS_MAP = {
+            "MEDICAL": {
+                "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
+                "12th": ["MQ1", "MQ2", "MK"]
+            },
+            "ENGINEERING": {
+                "11th": ["EG_BLUE", "EB_BLUE"],
+                "12th": ["EQ", "EK"]
+            },
+            "ICS (PHYSICS)": {
+                "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
+                "12th": ["CQ1", "CQ2", "CK1", "CK2"]
+            },
+            "ICS (STATS)": {
+                "11th": ["CG_STATS", "CB_STATS"],
+                "12th": ["CQ3", "CK3"]
+            },
+            "COMMERCE": {
+                "11th": ["IG", "IB"],
+                "12th": ["IK", "IQ"]
+            },
+            "HUMANITIES": {
+                "11th": ["FB", "FG"],
+                "12th": ["FK", "FQ"]
+            },
+            "INFORMATION_TECHNOLOGY": {
+                "Semester 1": ["DIT_B", "DIT_G"],
+                "Semester 2": ["DIT_B", "DIT_G"],
+                "Semester 3": ["DIT_B", "DIT_G"],
+                "Semester 4": ["DIT_B", "DIT_G"]
+            }
+        }
+    
     # Three explicit top-level operational entry options under Mode
     att_sub_type = st.segmented_control(
         "Mode:", 
