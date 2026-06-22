@@ -3407,9 +3407,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     st.markdown("---")
                     st.success("🟢 All students are currently marked present in the grid selection module.")
 
-# --- WORKFLOW 2: SINGLE STUDENT ENTRY WORKSPACE ---
+# ----------------------------------------------------------------------
+# # --- WORKFLOW 2: SINGLE STUDENT ENTRY WORKSPACE ---
 # Enforce scope check inside Workflow Mode execution block to block variable cross-talk
-if entry_mode == "👤 By Single Student Roll Number":
+# ----------------------------------------------------------------------
+if globals().get('entry_mode') == "👤 By Single Student Roll Number":
     if 'student_matches' in locals() and student_matches is not None and not student_matches.empty:
         if 'student_info' in locals() and student_info is not None and not student_info.empty:
             # Isolate target context variables safely
