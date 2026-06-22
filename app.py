@@ -1504,8 +1504,10 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
 
         if sel_section and sel_session:
+            # Modified query to pull contact metrics directly for immediate administrative use
             roster_df = run_query("""
-                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "SavedRemarks" 
+                SELECT s.id AS "ID", s.name AS "Student Name", s.contact_number AS "Contact",
+                       d.status AS "SavedStatus", d.remarks AS "SavedRemarks" 
                 FROM students s 
                 LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date 
                 WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
@@ -1549,61 +1551,72 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         
                         saved = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                         state = True if saved in ['P', 'PRESENT', '1'] else (False if saved in ['A', 'ABSENT', '0'] else master_toggle)
+                        
+                        # Added on_change logic hook style workaround by mapping directly to dynamic evaluations
                         chk_map[row['ID']] = c3.checkbox("Present", value=state, key=f"adm_chk_{row['ID']}", label_visibility="collapsed")
                     
                     st.markdown("---")
-                    st.markdown("### ❌ Advanced Absentee Remarks Framework")
+                    st.markdown("### ❌ Live Absentee Tracking Desk & Remarks Logging")
                     
+                    absent_count = 0
                     for idx, row in roster_df.iterrows():
                         s_id = row['ID']
-                        st.markdown(f"🛑 **Roll No `{s_id}` — {row['Student Name']}**")
-                        
-                        # Strip previous metadata logs safely if modifying records
-                        existing_rem = row['SavedRemarks'] if row['SavedRemarks'] else ""
-                        if " | By:" in str(existing_rem):
-                            existing_rem = str(existing_rem).split(" | By:")[0].strip()
-                        if " [Contacted:" in str(existing_rem):
-                            existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
-                        
-                        default_reason_idx = 0
-                        if existing_rem in fixed_reasons:
-                            default_reason_idx = fixed_reasons.index(existing_rem)
-                        elif existing_rem != "":
-                            default_reason_idx = fixed_reasons.index("Other")
-                        
-                        r_col1, r_col2 = st.columns(2)
-                        with r_col1:
-                            reason_selection_map[s_id] = st.selectbox(
-                                f"Reason for Absence (Roll No: {s_id}):",
-                                options=fixed_reasons,
-                                index=default_reason_idx,
-                                key=f"adm_reason_sel_{s_id}"
-                            )
-                        with r_col2:
-                            contact_selection_map[s_id] = st.selectbox(
-                                f"Contacted Person (Roll No: {s_id}):",
-                                options=contacted_persons,
-                                key=f"adm_contact_sel_{s_id}"
-                            )
+                        # Check dynamic local value of the mapped dictionary element
+                        if not chk_map[s_id]:
+                            absent_count += 1
+                            s_contact = str(row['Contact']).strip() if row['Contact'] else "No Number Available"
                             
-                        if reason_selection_map[s_id] == "Other":
-                            default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
-                            custom_text_map[s_id] = st.text_input(
-                                "↳ Specify custom administrative reason:",
-                                value=default_custom_val,
-                                key=f"adm_custom_txt_{s_id}"
-                            ).strip()
-                        else:
-                            custom_text_map[s_id] = ""
-                        
-                        st.markdown("<div style='margin-bottom: 8px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
+                            st.markdown(f"🛑 **Roll No `{s_id}` — {row['Student Name']}**")
+                            st.markdown(f"📞 *Contact Number:* `{s_contact}`")
+                            
+                            # Strip previous metadata logs safely if modifying records
+                            existing_rem = row['SavedRemarks'] if row['SavedRemarks'] else ""
+                            if " | By:" in str(existing_rem):
+                                existing_rem = str(existing_rem).split(" | By:")[0].strip()
+                            if " [Contacted:" in str(existing_rem):
+                                existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
+                            
+                            default_reason_idx = 0
+                            if existing_rem in fixed_reasons:
+                                default_reason_idx = fixed_reasons.index(existing_rem)
+                            elif existing_rem != "":
+                                default_reason_idx = fixed_reasons.index("Other")
+                            
+                            r_col1, r_col2 = st.columns(2)
+                            with r_col1:
+                                reason_selection_map[s_id] = st.selectbox(
+                                    f"Reason for Absence (Roll No: {s_id}):",
+                                    options=fixed_reasons,
+                                    index=default_reason_idx,
+                                    key=f"adm_reason_sel_{s_id}"
+                                )
+                            with r_col2:
+                                contact_selection_map[s_id] = st.selectbox(
+                                    f"Contacted Person (Roll No: {s_id}):",
+                                    options=contacted_persons,
+                                    key=f"adm_contact_sel_{s_id}"
+                                )
+                                
+                            if reason_selection_map[s_id] == "Other":
+                                default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                                custom_text_map[s_id] = st.text_input(
+                                    "↳ Specify custom administrative reason:",
+                                    value=default_custom_val,
+                                    key=f"adm_custom_txt_{s_id}"
+                                ).strip()
+                            else:
+                                custom_text_map[s_id] = ""
+                            
+                            st.markdown("<div style='margin-bottom: 12px; border-bottom: 1px dotted #ccc;'></div>", unsafe_allow_html=True)
                     
+                    if absent_count == 0:
+                        st.info("🟢 Perfect attendance calculated! No absent student entries found.")
+                        
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.form_submit_button("💾 Save Full Attendance & Unified Remarks Roster", use_container_width=True):
                         validation_passed = True
                         for s_id, chk in chk_map.items():
-                            # Validate custom input fields only if student is marked absent
-                            if not chk and reason_selection_map[s_id] == "Other" and not custom_text_map[s_id]:
+                            if not chk and reason_selection_map.get(s_id) == "Other" and not custom_text_map.get(s_id):
                                 st.error(f"⚠️ Missing parameters for Student Roll No `{s_id}` since 'Other' was chosen.")
                                 validation_passed = False
                                 
@@ -1613,11 +1626,11 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                                     status_flag = "P" if chk else "A"
                                     
                                     if not chk:
-                                        main_reason = reason_selection_map[s_id]
-                                        chosen_contact = contact_selection_map[s_id]
-                                        final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
+                                        main_reason = reason_selection_map.get(s_id, "Personal Reasons")
+                                        chosen_contact = contact_selection_map.get(s_id, "Student")
+                                        final_reason_phrase = custom_text_map.get(s_id, "") if main_reason == "Other" else main_reason
                                         
-                                        formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}" if final_reason_phrase else ""
+                                        formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}" if final_reason_phrase else f"Absent [Contacted: {chosen_contact}] | By: {operator_identity}"
                                     else:
                                         formatted_remarks = ""
                                     
@@ -1635,7 +1648,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                                         "rem": formatted_remarks
                                     })
                             
-                            st.success("🎉 Roster metrics, system variables, and advanced logs synced successfully!")
+                            st.success("🎉 Roster metrics, contact variables, and absence logs synced successfully!")
                             time.sleep(0.5)
                             st.rerun()
             else:
