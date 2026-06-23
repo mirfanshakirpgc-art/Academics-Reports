@@ -4597,6 +4597,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
 
+    # Safe variable fallback initialization to prevent unintended cascading NameErrors
+    if "sel_exam" not in locals() and "sel_exam" not in globals():
+        sel_exam = "Not Selected"
+
     # CSS Injection for Print Isolation
     st.markdown("""
         <style>
@@ -4682,10 +4686,21 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
         with col_dyn2:
             annual_sections = []
+            
+            # --- DEFENSIVE GUARD INITIALIZATION FOR DISCIPLINE MAP ---
+            if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
+                DISCIPLINE_SECTIONS_MAP = {
+                    "FSC MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
+                    "FSC ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
+                    "ICS STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
+                    "ICOM COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]}
+                }
+            
             for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
                 if "DIT" not in discipline.upper():
-                    sections_list = class_data.get(sel_class_global, [])
-                    annual_sections.extend(sections_list)
+                    if isinstance(class_data, dict):
+                        sections_list = class_data.get(sel_class_global, [])
+                        annual_sections.extend(sections_list)
             
             annual_sections = sorted(list(set(annual_sections)))
             if not annual_sections:
@@ -4921,7 +4936,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     raw_obt = str(target_record["marks_obtained"]).strip().upper()
                                     suffix_tag = target_record.get('label_suffix', '')
                                     
-                                    # Handle explicit string tokens without dropping into errors
                                     if raw_obt in ["A", "ABSENT"]:
                                         row_tds += f"<td>A{suffix_tag}</td>"
                                     elif raw_obt in ["NC", "NOT CONDUCTING", "NONE", "NAN", ""]:
@@ -4936,7 +4950,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                         exam_totals_possible[exam] += tot
                                         subject_pct_accum += pct
                                         valid_exams_count += 1
-                                except Exception:
+                                catch Exception:
                                     row_tds += "<td>-</td>"
                             else:
                                 row_tds += "<td>-</td>"
@@ -5139,7 +5153,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     
                     html2canvas(node, { scale: 2, useCORS: true }).then(canvas => {
                         const link = document.createElement('a');
-                        link.download = `ReportCard_${roll}_${name}.png`;
+                        link.download = `Progress_Card_${roll}_${name}.png`;
                         link.href = canvas.toDataURL('image/png');
                         link.click();
                     });
@@ -5149,15 +5163,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </body>
         </html>
         """
-        
-        # Explicit module declaration patch
-        import streamlit.components.v1 as components
 
-        if isinstance(composite_html_payload, str) and len(composite_html_payload.strip()) > 0:
-            components.html(composite_html_payload, height=900, scrolling=True)
-        else:
-            st.error("Engine Error: The generated HTML workspace component assembly payload data object is invalid or empty.")
-
+        # Render the raw high-fidelity component wrapper directly inside Streamlit
+        st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ==============================================================================
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
 # ==============================================================================
