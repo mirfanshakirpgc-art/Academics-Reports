@@ -4129,9 +4129,14 @@ elif menu_choice == "📋 Daily Attendance Report":
 # ====================================================================================                   
 # PART 1: 📋 MULTI-TEST SUMMARY REPORT (LAYOUT & CONTROLS CHECK)
 # ====================================================================================
+# ====================================================================================                   
+# EMERGENCY HARDWARE DEBUG: LEVEL 1 ISOLATION
+# ====================================================================================
 elif menu_choice == "📋 Multi-Test Summary Report":
     import streamlit as st
-    import pandas as pd
+    
+    st.write("### 🚨 Diagnostic Checkpoint reached!")
+    st.info("If you can see this message, the routing engine is working, and the crash is happening inside the database variables.")
 
     st.title("📋 Multi-Test Summary Report Ledger")
 
