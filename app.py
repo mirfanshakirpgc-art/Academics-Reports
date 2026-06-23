@@ -4163,7 +4163,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 🎯 SMART MERGE: Keep standard map sections, but append any sections found in the DB (like MG_BLUE)
+        # 🎯 SMART MERGE: Keep standard map sections, but append any sections found in the DB
         sec_options = list(map_sections)
         for db_s in db_sections:
             if db_s not in sec_options:
@@ -4173,12 +4173,22 @@ elif menu_choice == "📋 Section Summary Report":
         if not sec_options:
             sec_options = ["MG_BLUE", "CG_WHITE"]
 
+        # 🧠 INTELLIGENT AUTO-FOCUS INDEX ENGINE
+        # If the default selection (index 0) has no student records, but discovered 
+        # active sections exist in the DB, auto-focus index onto the data-present option.
+        default_dropdown_index = 0
+        if db_sections:
+            for idx, option_name in enumerate(sec_options):
+                if option_name in db_sections:
+                    default_dropdown_index = idx
+                    break
+
         fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
 
         sel_sec = st.selectbox(
             "Select Section:", 
             sec_options, 
-            index=0, 
+            index=default_dropdown_index, 
             key=fixed_key
         )
         
