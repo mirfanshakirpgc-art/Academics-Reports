@@ -4133,9 +4133,9 @@ elif menu_choice == "📋 Section Summary Report":
         CAMPUS_MANUAL_MAP = {
             "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
             "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-            "COMMERCE": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+            "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
             "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-            "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+            "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
             "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}
         }
 
@@ -4173,22 +4173,24 @@ elif menu_choice == "📋 Section Summary Report":
         if not sec_options:
             sec_options = ["MG_BLUE", "CG_WHITE"]
 
-        # 🧠 INTELLIGENT AUTO-FOCUS INDEX ENGINE
-        # If the default selection (index 0) has no student records, but discovered 
-        # active sections exist in the DB, auto-focus index onto the data-present option.
-        default_dropdown_index = 0
-        if db_sections:
-            for idx, option_name in enumerate(sec_options):
-                if option_name in db_sections:
-                    default_dropdown_index = idx
-                    break
-
         fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
 
+        # 🧠 HARD STATE OVERRIDE HOOK
+        # Force Streamlit's Session State to register and select the live DB section 
+        # if the default choice would otherwise point to an empty section (like CG_WHITE).
+        if fixed_key not in st.session_state and db_sections:
+            for active_sec in db_sections:
+                if active_sec in sec_options:
+                    st.session_state[fixed_key] = active_sec
+                    break
+        elif fixed_key in st.session_state and st.session_state[fixed_key] not in sec_options:
+            # If changed disciplines and old selection doesn't match new choices, clear it out safely
+            st.session_state[fixed_key] = sec_options[0]
+
+        # Since state handles selection now, index=0 is used merely as a structural fallback requirement
         sel_sec = st.selectbox(
             "Select Section:", 
             sec_options, 
-            index=default_dropdown_index, 
             key=fixed_key
         )
         
