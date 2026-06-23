@@ -4127,7 +4127,7 @@ elif menu_choice == "📋 Daily Attendance Report":
 
 
 # ====================================================================================                   
-# MODULE: 📋 MULTI-TEST SUMMARY REPORT (FIXED EXAM-COLUMN MATCHING)
+# MODULE: 📋 MULTI-TEST SUMMARY REPORT (ULTRA-SAFE CONTAINMENT)
 # ====================================================================================
 elif menu_choice == "📋 Multi-Test Summary Report":
     import streamlit as st
@@ -4137,189 +4137,159 @@ elif menu_choice == "📋 Multi-Test Summary Report":
 
     st.title("📋 Multi-Test Summary Report Ledger")
 
-    # 🚀 CONNECT DROPDOWN ENGINE TO SYSTEM SESSION STATE Memory Tracking
-    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-    active_session = st.session_state.get("current_session", "2026-28")
-    
-    # Calculate matching index dynamically so it syncs with the Settings choice
-    default_index = session_options.index(active_session) if active_session in session_options else 0
+    # --- STRUCTURAL SAFETY FALLBACKS INITIALIZATION ---
+    session_options = ["2025-27", "2026-28", "2027-29"]
+    db_session_string = "2026-28"
+    academic_system = "Annual System"
+    selected_class = "11th"
+    sel_disc = "MEDICAL"
+    disc_upper = "MEDICAL"
+    sel_sec = "MG_BLUE"
+    selected_exams_list = ["Term-1"]
 
-    # --- 1. PARAMETERS CONFIGURATION ---
+    # --- CRITICAL LAYOUT & DROPDOWN CONTAINMENT ---
     try:
-        session_options = list(AVAILABLE_SESSIONS)
-        if "2024-26" in session_options:
-            session_options = [s for s in session_options if s != "2024-26"]
-    except NameError:
-        session_options = ["2025-27", "2026-28", "2027-29"]
-
-    # 🔧 PRE-DEFINE FALLBACKS TO PREVENT TOP-TO-BOTTOM NAMEERRORS
-    academic_system = st.session_state.get("summary_sys_type", "Annual System")
-    selected_class = "11th" if academic_system == "Annual System" else "Semester 1"
-    sel_disc = "MEDICAL" if academic_system == "Annual System" else "INFORMATION_TECHNOLOGY"
-
-    # --- 2. LAYOUT GENERATION & DISCIPLINE ROUTING ---
-    col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
-    
-    with col_sess:
-        selected_session = st.selectbox("Select Session:", session_options, index=default_index, key="summary_session")
-        db_session_string = str(selected_session).strip() if selected_session else "2025-27"
+        # Load available sessions safely from state or variable
+        if "available_sessions" in st.session_state:
+            session_options = st.session_state["available_sessions"]
+        elif "AVAILABLE_SESSIONS" in globals():
+            session_options = list(globals()["AVAILABLE_SESSIONS"])
+            if "2024-26" in session_options:
+                session_options = [s for s in session_options if s != "2024-26"]
         
-    with col_sys:
-        academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
+        active_session = st.session_state.get("current_session", "2026-28")
+        default_index = session_options.index(active_session) if active_session in session_options else 0
+
+        col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
         
-    with col_class:
-        if academic_system == "Annual System":
-            selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
-        else:
-            selected_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
-        
-    with col_a: 
-        if academic_system == "Annual System":
-            disc_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-            raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_report_discipline_key")
-            sel_disc = str(raw_disc).strip().upper()
-        else:
-            sel_disc = "INFORMATION_TECHNOLOGY"
-            st.info("⚡ DIT System Active")
-        
-    with col_b: 
-        CAMPUS_MANUAL_MAP = {
-            "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
-            "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-            "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
-            "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-            "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
-            "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}  
-        }
-
-        if "DISCIPLINE_SECTIONS_MAP" not in globals():
-            DISCIPLINE_SECTIONS_MAP = CAMPUS_MANUAL_MAP
-
-        disc_upper = str(sel_disc).strip().upper()
-        map_sections = DISCIPLINE_SECTIONS_MAP.get(disc_upper, {}).get(selected_class, [])
-
-        if academic_system != "Annual System":
-            map_sections = ["DIT_B", "DIT_G"]
-
-        try:
-            sec_lookup_df = run_query("""
-                SELECT DISTINCT TRIM(section) as section_name 
-                FROM students 
-                WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
-                  AND TRIM(session) = TRIM(:sess_val)
-                ORDER BY section_name ASC
-            """, {"class_val": selected_class, "sess_val": db_session_string})
+        with col_sess:
+            selected_session = st.selectbox("Select Session:", session_options, index=default_index, key="summary_session")
+            db_session_string = str(selected_session).strip() if selected_session else "2026-28"
             
-            db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
-        except Exception:
-            db_sections = []
+        with col_sys:
+            academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
+            
+        with col_class:
+            if academic_system == "Annual System":
+                selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
+            else:
+                selected_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
+            
+        with col_a: 
+            if academic_system == "Annual System":
+                disc_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_report_discipline_key")
+                sel_disc = str(raw_disc).strip().upper()
+            else:
+                sel_disc = "INFORMATION_TECHNOLOGY"
+                st.info("⚡ DIT System Active")
+            disc_upper = str(sel_disc).strip().upper()
+            
+        with col_b: 
+            CAMPUS_MANUAL_MAP = {
+                "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
+                "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
+                "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+                "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
+                "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+                "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}  
+            }
+            map_sections = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get(selected_class, ["MG_BLUE"])
+            if academic_system != "Annual System":
+                map_sections = ["DIT_B", "DIT_G"]
 
-        sec_options = list(map_sections)
-        allowed_prefixes = []
-        if "COMMERCE" in disc_upper: allowed_prefixes = ["IG", "IB", "IK", "IQ"]
-        elif "MEDICAL" in disc_upper: allowed_prefixes = ["MG", "MB", "MQ", "MK"]
-        elif "ENGINEERING" in disc_upper: allowed_prefixes = ["EG", "EB", "EQ", "EK"]
-        elif "PHYSICS" in disc_upper: allowed_prefixes = ["CG", "CB", "CQ", "CK"]
-        elif "STATS" in disc_upper: allowed_prefixes = ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
-        elif "HUMANITIES" in disc_upper: allowed_prefixes = ["FG", "FB", "FK", "FQ"]
+            # Safe Section Database Validation Check
+            try:
+                if "run_query" in globals():
+                    sec_lookup_df = run_query("""
+                        SELECT DISTINCT TRIM(section) as section_name 
+                        FROM students 
+                        WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
+                          AND TRIM(session) = TRIM(:sess_val)
+                        ORDER BY section_name ASC
+                    """, {"class_val": selected_class, "sess_val": db_session_string})
+                    db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
+                else:
+                    db_sections = []
+            except Exception:
+                db_sections = []
 
-        for db_s in db_sections:
-            db_s_upper = db_s.upper().strip()
-            if db_s not in sec_options:
-                if allowed_prefixes and any(db_s_upper.startswith(pref) for pref in allowed_prefixes):
+            sec_options = list(map_sections)
+            for db_s in db_sections:
+                if db_s not in sec_options:
                     sec_options.append(db_s)
 
-        if not sec_options:
-            sec_options = map_sections if map_sections else ["CG_WHITE"]
+            fixed_key = f"ledger_section_key_{disc_upper}_{selected_class}"
+            sel_sec = st.selectbox("Select Section:", sec_options, key=fixed_key)
 
-        fixed_key = f"ledger_section_key_{disc_upper}_{selected_class}"
-        default_idx = 0
-        if db_sections:
-            for idx, opt in enumerate(sec_options):
-                if opt in db_sections:
-                    default_idx = idx
-                    break
+        with col_c:
+            try:
+                if "run_query" in globals():
+                    exams_lookup_df = run_query("SELECT DISTINCT TRIM(exam_type) as exam_name FROM marks ORDER BY exam_name ASC", {})
+                    exam_options = exams_lookup_df["exam_name"].dropna().tolist() if not exams_lookup_df.empty else []
+                else:
+                    exam_options = []
+            except Exception:
+                exam_options = []
+                
+            if not exam_options:
+                exam_options = ["BISE-11th", "Pre-Board 11th", "Send-Up 11th", "Term-1", "Term-2", "Term-3"]
+                
+            selected_exams_list = st.multiselect(
+                "Select Exams:",
+                exam_options,
+                default=[exam_options[0]] if exam_options else ["Term-1"],
+                key=f"summary_report_multi_exam_dropdown_{disc_upper}_{selected_class}"
+            )
+            if not selected_exams_list:
+                selected_exams_list = ["Term-1"]
 
-        if fixed_key not in st.session_state:
-            st.session_state[fixed_key] = sec_options[default_idx]
-        elif st.session_state[fixed_key] not in sec_options:
-            st.session_state[fixed_key] = sec_options[default_idx]
+    except Exception as layout_error:
+        st.error(f"💥 Layout Configuration Component Error: {str(layout_error)}")
+        st.stop()
 
-        sel_sec = st.selectbox("Select Section:", sec_options, key=fixed_key)
-
-    with col_c:
+    # --- DATA SOURCE LAYER WITH FALLBACK CONTAINMENT ---
+    students_df = pd.DataFrame()
+    if "run_query" in globals():
         try:
-            exams_lookup_df = run_query("""
-                SELECT DISTINCT TRIM(exam_type) as exam_name 
-                FROM marks 
-                ORDER BY exam_name ASC
-            """, {})
-            exam_options = exams_lookup_df["exam_name"].dropna().tolist() if not exams_lookup_df.empty else []
-        except Exception:
-            exam_options = []
-            
-        if not exam_options:
-            exam_options = ["BISE-11th", "Pre-Board 11th", "Send-Up 11th", "Term-1", "Term-2", "Term-3"]
-            
-        selected_exams_list = st.multiselect(
-            "Select Exams:",
-            exam_options,
-            default=[exam_options[0]] if exam_options else ["Term-1"],
-            key=f"summary_report_multi_exam_dropdown_{disc_upper}_{selected_class}"
-        )
-
-    # --- 3. SUBJECT TRANSLATION GLOSSARY ---
-    SHORT_SUBJECTS_MAP = {
-        "MATHEMATICS": "MATH", "COMPUTER_SCIENCE": "COMP", "COMPUTER": "COMP",
-        "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS",
-        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIC_STUDIES": "ISL", "PAK_ST": "PAK.ST", 
-        "PAKISTAN_STUDIES": "PAK.ST", "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN"
-    }
-
-    # --- 4. DATA LOGIC ROUTING ---
-    students_df = run_query("""
-        SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
-        FROM students 
-        WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-          AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
-          AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
-          AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
-        ORDER BY id ASC
-    """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
-
-    # --- RENDERING CONFIGURATION ---
-    if students_df.empty:
-        st.info(f"💡 No active profiles found under Section '{sel_sec}'.")
+            students_df = run_query("""
+                SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
+                FROM students 
+                WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+                  AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
+                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
+                  AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
+                ORDER BY id ASC
+            """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
+        except Exception as query_err:
+            st.error(f"💥 Database extraction issue (Students): {str(query_err)}")
     else:
+        st.error("❌ Critical: Global query engine helper function `run_query` was not found.")
+        st.stop()
+
+    if students_df.empty:
+        st.info(f"💡 No data entries matching Session: {db_session_string} | Section: {sel_sec} | Class: {selected_class}")
+    else:
+        # Load marks records cleanly
         try:
-            marks_df = run_query("""
-                SELECT 
-                    CAST(student_id AS TEXT) as student_key, 
-                    UPPER(TRIM(subject)) as subject_name, 
-                    UPPER(TRIM(exam_type)) as exam_code,
-                    marks_obtained, 
-                    total_marks
-                FROM marks
-            """, {})
+            marks_df = run_query("SELECT CAST(student_id AS TEXT) as student_key, UPPER(TRIM(subject)) as subject_name, UPPER(TRIM(exam_type)) as exam_code, marks_obtained, total_marks FROM marks", {})
             if not marks_df.empty:
                 marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
         except Exception as e:
-            st.error(f"Error compiling database records: {str(e)}")
+            st.warning(f"⚠️ Marks mapping system failed to initialize: {str(e)}")
             marks_df = pd.DataFrame()
 
+        # Load attendance records cleanly
         try:
-            att_df = run_query("""
-                SELECT CAST(student_id AS TEXT) as student_key, status
-                FROM daily_attendance
-            """, {})
+            att_df = run_query("SELECT CAST(student_id AS TEXT) as student_key, status FROM daily_attendance", {})
             if not att_df.empty:
                 att_df["student_key"] = att_df["student_key"].astype(str).str.strip()
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER ---
+        # --- DATA FRAME MATRIX BUILDER ---
         summary_rows = []
-        columns_to_render = selected_exams_list if selected_exams_list else ["Term-1"]
+        columns_to_render = selected_exams_list
         
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
@@ -4338,10 +4308,7 @@ elif menu_choice == "📋 Multi-Test Summary Report":
                 item_upper = str(item).upper().strip()
                 
                 if not marks_df.empty:
-                    sub_match = marks_df[
-                        (marks_df["student_key"] == s_id) & 
-                        (marks_df["exam_code"] == item_upper)
-                    ]
+                    sub_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["exam_code"] == item_upper)]
                 else:
                     sub_match = pd.DataFrame()
                 
@@ -4396,35 +4363,38 @@ elif menu_choice == "📋 Multi-Test Summary Report":
             
         final_report_df = pd.DataFrame(summary_rows)
         
-        # --- Excel Payload Compiler Hub ---
-        excel_export_df = final_report_df.copy()
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
-            excel_export_df.to_excel(writer, index=False, sheet_name='Performance_Summary')
-        excel_data_payload = excel_buffer.getvalue()
+        # --- EXCEL SPREADSHEET ENGINE ---
+        try:
+            excel_export_df = final_report_df.copy()
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                excel_export_df.to_excel(writer, index=False, sheet_name='Performance_Summary')
+            excel_data_payload = excel_buffer.getvalue()
 
-        col_download_hook, _ = st.columns([2, 4])
-        with col_download_hook:
-            st.download_button(
-                label="📥 Download Excel Spreadsheet Summary",
-                data=excel_data_payload,
-                file_name=f"Multi_Test_Report_{sel_sec}_{selected_class}_{db_session_string}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="summary_excel_downloader_widget",
-                use_container_width=True
-            )
+            col_download_hook, _ = st.columns([2, 4])
+            with col_download_hook:
+                st.download_button(
+                    label="📥 Download Excel Spreadsheet Summary",
+                    data=excel_data_payload,
+                    file_name=f"Multi_Test_Report_{sel_sec}_{selected_class}_{db_session_string}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="summary_excel_downloader_widget",
+                    use_container_width=True
+                )
+        except Exception as excel_err:
+            st.warning(f"Excel Export Component is offline: {str(excel_err)}")
+
+        # --- NATIVE INTERFACE SAFETY CHECK ---
+        st.subheader("Data Table View")
+        st.dataframe(final_report_df, use_container_width=True)
         
-        # --- 7. HTML LIVE COMPONENT INTERFACE GENERATOR ---
+        # --- HTML ENGINE GENERATOR WITH DOUBLE EMBEDDING ESCAPES ---
         thead_exams_html = "".join([f'<th>{lbl}</th>' for lbl in columns_to_render])
         tbody_rows_html = ""
         
         for _, row in final_report_df.iterrows():
-            st_id = str(row["ID"]).strip()
             current_status = row["Status"]
-            
-            status_badge = ""
-            if current_status == "Re-Active":
-                status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>"
+            status_badge = " <span style='background: #e1f5fe; color: #0288d1; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;'>RE-JOIN</span>" if current_status == "Re-Active" else ""
             
             row_exams_cells = ""
             for lbl in columns_to_render:
@@ -4436,9 +4406,7 @@ elif menu_choice == "📋 Multi-Test Summary Report":
             tbody_rows_html += f"""
             <tr>
                 <td>{row['ID']}</td>
-                <td style="text-align: left; font-weight: bold; padding-left: 12px;">
-                    {row['Student Name']} {status_badge}
-                </td>
+                <td style="text-align: left; font-weight: bold; padding-left: 12px;">{row['Student Name']}{status_badge}</td>
                 <td>{row['Section']}</td>
                 <td>{row['Class']}</td>
                 {row_exams_cells}
@@ -4450,7 +4418,6 @@ elif menu_choice == "📋 Multi-Test Summary Report":
             
         logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
         
-        # 🟢 FIX: All CSS and Javascript brackets are now properly escaped with double braces {{ }}
         analytics_html_payload = f"""
         <!DOCTYPE html>
         <html>
@@ -4494,7 +4461,7 @@ elif menu_choice == "📋 Multi-Test Summary Report":
                         </div>
                     </div>
                     <div class="meta-details">
-                        <b>Session:</b> {selected_session}<br>
+                        <b>Session:</b> {db_session_string}<br>
                         <b>System Framework:</b> {academic_system}<br>
                         <b>Class Level / Scope:</b> {selected_class}<br>
                         <b>Discipline Category:</b> {sel_disc}<br>
