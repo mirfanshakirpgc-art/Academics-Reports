@@ -4388,32 +4388,22 @@ elif menu_choice == "📋 Section Summary Report":
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({current_display_class}) for Session {current_display_session}.")
     else:
         try:
-            # 1. 🟢 SQL-LEVEL TEXT CONVERSION ENGINE
-            # This handles NULL values at the database level and forces them to return as 'A' or 'NC' strings
-            raw_df = run_query("""
+            # Pull whatever numeric marks exist without filtering text values at the SQL level
+            marks_df = run_query("""
                 SELECT 
                     CAST(student_id AS TEXT) as student_key, 
-                    UPPER(TRIM(exam_type)) as exam_code,
                     UPPER(TRIM(subject)) as subject_name, 
-                    CASE 
-                        WHEN marks_obtained IS NULL THEN 'NC'
-                        WHEN CAST(marks_obtained AS TEXT) = '0' THEN 'A'
-                        ELSE UPPER(TRIM(CAST(marks_obtained AS TEXT)))
-                    END as marks_obtained,
-                    COALESCE(total_marks, 100) as total_marks
+                    UPPER(TRIM(exam_type)) as exam_code,
+                    marks_obtained, 
+                    total_marks
                 FROM marks
             """, {})
             
-            if not raw_df.empty:
-                raw_df["student_key"] = raw_df["student_key"].astype(str).str.strip()
-                raw_df["marks_obtained"] = raw_df["marks_obtained"].astype(str).str.strip().str.upper()
-                raw_df["exam_code"] = raw_df["exam_code"].astype(str).str.strip().str.upper()
-                raw_df["subject_name"] = raw_df["subject_name"].astype(str).str.strip().str.upper()
-            else:
-                raw_df = pd.DataFrame(columns=["student_key", "exam_code", "subject_name", "marks_obtained", "total_marks"])
+            if not marks_df.empty:
+                marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
         except Exception as e:
-            st.error(f"Database extraction error: {str(e)}")
-            raw_df = pd.DataFrame(columns=["student_key", "exam_code", "subject_name", "marks_obtained", "total_marks"])
+            st.error(f"Error compiling multi-test database records: {str(e)}")
+            marks_df = pd.DataFrame()
 
         try:
             att_df = run_query("""
@@ -4425,12 +4415,10 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 2. MATRIX NORMALIZATION ---
-        active_filter_list = selected_exams_list if ('selected_exams_list' in locals() and selected_exams_list) else subjects
-        active_filter_upper = [str(x).upper().strip() for x in active_filter_list]
-        
-        # --- 3. RENDERING PRE-PIVOTED DATAFRAME ---
+        # --- 6. PERFORMANCE GRID COMPILER (FORCED CONVERSION ENGINE) ---
         summary_rows = []
+        columns_to_render = selected_exams_list if ('selected_exams_list' in locals() and selected_exams_list) else subjects
+        
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
             s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
@@ -4442,43 +4430,52 @@ elif menu_choice == "📋 Section Summary Report":
             
             obtained_total = 0.0
             max_total = 0.0
-            has_valid_scores = False
+            has_valid_scores = False  
             
-            for item in active_filter_list:
+            for item in columns_to_render:
                 item_upper = str(item).upper().strip()
                 short_col = SHORT_SUBJECTS_MAP.get(item_upper, item_upper[:4]) if ('SHORT_SUBJECTS_MAP' in locals() and 'selected_exams_list' not in locals()) else item
                 
-                # Check for alternative naming variants matching Section Summary
                 alias_list = [item_upper]
                 if "STAT" in item_upper: alias_list.extend(["STATISTICS", "STATS"])
                 elif "PHYS" in item_upper: alias_list.extend(["PHYSICS"])
                 elif "COMP" in item_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER"])
                 
-                # Natively match record criteria inside our safe string dataframe
-                match_df = raw_df[
-                    (raw_df["student_key"] == s_id) & 
-                    ((raw_df["exam_code"] == item_upper) | (raw_df["subject_name"].isin(alias_list)))
-                ]
+                if not marks_df.empty:
+                    sub_match = marks_df[
+                        (marks_df["student_key"] == s_id) & 
+                        ((marks_df["subject_name"].isin(alias_list)) | (marks_df["exam_code"] == item_upper))
+                    ]
+                else:
+                    sub_match = pd.DataFrame()
                 
-                if not match_df.empty:
-                    val = str(match_df["marks_obtained"].iloc[0]).strip().upper()
-                    tot = float(match_df["total_marks"].iloc[0])
+                # 🟢 FORCE CONVERSION LOGIC FOR EMPTY/NUMERIC VALUES
+                if not sub_match.empty:
+                    raw_val = sub_match["marks_obtained"].iloc[0]
+                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
                     
-                    if val in ["NC", "None", "NAN"]:
-                        entry[short_col] = "NC"
-                    elif val in ["A", "ABSENT"]:
-                        entry[short_col] = "A"
-                        max_total += tot
-                        has_valid_scores = True
-                    elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        entry[short_col] = float(val)
-                        obtained_total += float(val)
+                    if pd.isna(raw_val) or str(raw_val).strip() == "":
+                        entry[short_col] = "NC"  # Null values mean test was not conducted
+                    elif str(raw_val).strip() == "0" or str(raw_val).strip() == "0.0":
+                        entry[short_col] = "A"   # A score of 0 means the student was absent
                         max_total += tot
                         has_valid_scores = True
                     else:
-                        entry[short_col] = val
+                        try:
+                            num_val = float(raw_val)
+                            entry[short_col] = num_val
+                            obtained_total += num_val
+                            max_total += tot
+                            has_valid_scores = True
+                        except ValueError:
+                            # Fallback protection if data contains text strings
+                            cleaned_str = str(raw_val).strip().upper()
+                            entry[short_col] = cleaned_str
+                            if cleaned_str in ["A", "ABSENT"]:
+                                max_total += tot
+                                has_valid_scores = True
                 else:
-                    # 🟢 FALLBACK VERIFICATION: If no row exists at all for this item, display 'NC'
+                    # 🟢 If no database entry exists at all for this row/column combo, force it to display NC
                     entry[short_col] = "NC"
 
             if has_valid_scores:
