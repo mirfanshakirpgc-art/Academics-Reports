@@ -4304,12 +4304,12 @@ elif menu_choice == "📋 Section Summary Report":
         else:
             subjects = ["ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
-    # --- 5. DATABASE INTEGRATION ENGINE ---
+    # --- 5. DATABASE INTEGRATION ENGINE (WITH REINFORCED WHITESPACE CLEANING) ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
         WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
-          AND TRIM(session) = TRIM(:session_str)
+          AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
           AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
