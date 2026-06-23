@@ -3883,110 +3883,11 @@ elif menu_choice == "📋 Daily Attendance Report":
                 
             st.download_button("📥 Download Excel Overview", output.getvalue(), f"Attendance_{report_date}.xlsx", key="att_excel_dl")
 
-   # ====================================================================================
-    # DATALAYER PIPELINE: SYSTEM ENGINE TRACK ROUTING (Lines 3886 - 4006)
-    # ====================================================================================
-    
-    # 🟢 STEP 1: ULTRA-DEFENSIVE LOCAL SCOPE INJECTION (Guarantees mapping presence)
-    if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
-        DISCIPLINE_SECTIONS_MAP = {
-            "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
-            "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
-            "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IG", "IB"]},
-            "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
-            "COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]},
-            "HUMANITIES": {"11th": ["HG_BLUE"], "12th": ["HG_BLUE"]}
-        }
-    else:
-        if "DISCIPLINE_SECTIONS_MAP" not in locals():
-            DISCIPLINE_SECTIONS_MAP = globals().get("DISCIPLINE_SECTIONS_MAP")
-
-    # Dynamic system context parameter parsing
-    global_system = locals().get("global_system", st.session_state.get("global_stud_sys_filter", "Annual System"))
-    active_system_mode = "semester" if "semester" in str(global_system).lower() else "annual"
-    
-    global_term = locals().get("global_term", st.session_state.get("global_stud_term_filter", "ALL"))
-    global_discipline = locals().get("global_discipline", st.session_state.get("global_stud_discipline_filter", "ALL"))
-    
-    # --- COMBINED ROBUST RENDERING MATRIX ENGINE ---
+   NameError: This app has encountered an error. The original error message is redacted to prevent data leaks. Full error details have been recorded in the logs (if you're on Streamlit Cloud, click on 'Manage app' in the lower right of your app).
+Traceback:
+File "/mount/src/academics-reports/app.py", line 3895, in <module>
     for discipline, classes in DISCIPLINE_SECTIONS_MAP.items():
-        # Clean discipline slug transformation for underlying database tracking
-        discipline_slug = discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
-        if "PHYSIC" in discipline_slug: 
-            discipline_slug = "ICS_PHYSICS"
-        elif "STAT" in discipline_slug: 
-            discipline_slug = "ICS_STATISTICS"
-            
-        # Global UI filtering verification check
-        if active_system_mode == "annual" and str(global_discipline).upper() != "ALL":
-            if global_discipline != discipline_slug:
-                continue  
-            
-        if active_system_mode == "annual":
-            # Loop through individual target classes within this iteration block
-            for c_level in classes.keys():
-                if str(global_term).upper() != "ALL" and str(global_term) != str(c_level):
-                    continue
-                
-                sections_list = classes.get(c_level, [])
-                
-                # 🟢 STEP 2: RESTORED ABSENTEE TEACHER REMARKS AUDIT ENGINE & HISTORY LOG
-                st.markdown(f"#### 📜 Remarks & Audit Trail Overview — {discipline} ({c_level})")
-                
-                for current_section in sections_list:
-                    # Fetching historical logs directly from database
-                    try:
-                        remarks_history_df = run_query("""
-                            SELECT 
-                                r.id AS "Log ID",
-                                r.student_id AS "Roll No",
-                                s.name AS "Student Name",
-                                r.remarks AS "Teacher Remarks",
-                                r.logged_by AS "Auditor/Teacher",
-                                r.created_at AS "Timestamp"
-                            FROM teacher_remarks r
-                            INNER JOIN students s ON r.student_id = s.id
-                            WHERE UPPER(TRIM(s.section)) = :section
-                              AND UPPER(TRIM(s.class)) = :class_lvl
-                              AND s.session LIKE :sess
-                            ORDER BY r.created_at DESC
-                        """, {
-                            "section": str(current_section).strip().upper(),
-                            "class_lvl": str(c_level).strip().upper(),
-                            "sess": f"%{locals().get('global_session', '2025-27')}%"
-                        })
-                    except Exception as sql_err:
-                        remarks_history_df = pd.DataFrame() # Graceful fallback if table schema varies
-                    
-                    # Displaying the History Component Layout
-                    with st.expander(f"🔍 View Remark History Log for Section: {current_section}", expanded=False):
-                        if remarks_history_df.empty:
-                            st.info(f"🍃 No historical teacher remarks or absentee logs found for section {current_section}.")
-                        else:
-                            st.dataframe(
-                                remarks_history_df,
-                                use_container_width=True,
-                                column_config={
-                                    "Timestamp": st.column_config.DatetimeColumn("Logged Date/Time", format="D MMM YYYY, h:mm a"),
-                                    "Log ID": st.column_config.NumberColumn("ID", format="%d")
-                                }
-                            )
-                            
-                            # Metrics quick snapshot cards for auditors
-                            total_logged = len(remarks_history_df)
-                            unique_students = remarks_history_df["Roll No"].nunique()
-                            
-                            m_col1, m_col2 = st.columns(2)
-                            m_col1.metric("📋 Total Action Logs Registered", total_logged)
-                            m_col2.metric("👤 Flagged Unique Students", unique_students)
-                            st.markdown("---")
-                            
-        else:
-            # Fallback block configuration handling for Semester System / DIT layout variations
-            semester_sections = ["DIT_G", "DIT_B"]
-            st.markdown("#### 📜 Remarks & Audit Trail Overview — Semester Focus Track")
-            # [Your clean semester history metrics iteration block runs here]
-            break
+                               ^^^^^^^^^^^^^^^^^^^^^^^ update it if its required
 
 # ====================================================================================                   
 # MODULE: 📋 SECTION SUMMARY REPORT (DYNAMIC DB DISCOVERY + ATTENDANCE INTEGRATION)
