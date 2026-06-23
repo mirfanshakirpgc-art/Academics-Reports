@@ -4450,8 +4450,7 @@ elif menu_choice == "📋 Multi-Test Summary Report":
             
         logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
         
-        # ⚠️ CRITICAL FIX: All standard single CSS and JavaScript braces are now double-escaped as {{ }} 
-        # so Python f-string rendering does not crash out with a blank screen error.
+        # 🟢 FIX: All CSS and Javascript brackets are now properly escaped with double braces {{ }}
         analytics_html_payload = f"""
         <!DOCTYPE html>
         <html>
