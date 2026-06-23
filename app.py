@@ -4092,13 +4092,17 @@ elif menu_choice == "📋 Section Summary Report":
     default_index = session_options.index(active_session) if active_session in session_options else 0
 
     # --- 1. PARAMETERS CONFIGURATION ---
-    # (Update your session selectbox below this to use: options=session_options, index=default_index)
     try:
         session_options = list(AVAILABLE_SESSIONS)
         if "2024-26" in session_options:
             session_options = [s for s in session_options if s != "2024-26"]
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
+
+    # 🔧 FIX: PRE-DEFINE FALLBACKS TO PREVENT TOP-TO-BOTTOM NAMEERRORS
+    academic_system = st.session_state.get("summary_sys_type", "Annual System")
+    selected_class = "11th" if academic_system == "Annual System" else "Semester 1"
+    sel_disc = "MEDICAL" if academic_system == "Annual System" else "INFORMATION_TECHNOLOGY"
 
     # --- 2. LAYOUT GENERATION & DISCIPLINE ROUTING ---
     col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
@@ -4127,7 +4131,12 @@ elif menu_choice == "📋 Section Summary Report":
         
     with col_b: 
         # Pull static sections directly from your mapping dictionary using structural lookup keys
-        map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(selected_class, [])
+        # Safe lookup using global configuration boundary mappings
+        try:
+            map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(selected_class, [])
+        except NameError:
+            # Fallback if DISCIPLINE_SECTIONS_MAP itself isn't loaded globally
+            map_sections = []
         
         # Query active profile records existing in your DB environment
         try:
@@ -4201,7 +4210,6 @@ elif menu_choice == "📋 Section Summary Report":
             sel_exam = None
 
     # --- 3. SUBJECT TRANSLATION GLOSSARY (ALIGNED WITH MARKS ENTRY DATABASE SLUGS) ---
-    # The keys here are exact uppercase database slugs produced by .replace(" ", "_")
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", 
         "COMPUTER_SCIENCE": "COMP", 
@@ -4227,7 +4235,6 @@ elif menu_choice == "📋 Section Summary Report":
         "BUSINESS_STATISTICS": "B.STATS",
         "EDUCATION": "EDU",
         "ISL_ELC": "ISL.E",
-        # Semester System Mappings
         "ICT": "ICT", 
         "OFFICE_AUTOMATION": "OFFICE", 
         "INFORMATION_TECHNOLOGY": "I.T",
@@ -4244,7 +4251,6 @@ elif menu_choice == "📋 Section Summary Report":
     }
     
     # --- 4. DYNAMIC SUBJECT LIST ROUTING ---
-    # These match the exact formats that the teacher inputs into the database
     DISCIPLINE_MAP = {
         "MEDICAL": {
             "11th": ["ENGLISH", "URDU", "PHYSICS", "CHEMISTRY", "BIOLOGY", "ISLAMIC_STUDIES", "T_QURAN"],
@@ -4274,10 +4280,8 @@ elif menu_choice == "📋 Section Summary Report":
 
     if academic_system == "Annual System":
         disc_key = sel_disc.upper().strip()
-        # Ensure we check the map keys properly fallback if not found
         subjects = DISCIPLINE_MAP.get(disc_key, {}).get(selected_class, ["ENGLISH", "URDU"])
     else:
-        # Semester System context normalized with case-insensitive containment checks
         if "1ST SEMESTER" in str(selected_class).upper() or "SEMESTER_1" in str(selected_class).upper() or "SEMESTER 1" in str(selected_class).upper():
             subjects = ["INFORMATION_TECHNOLOGY", "OFFICE_AUTOMATION", "NETWORKING", "C-PROGRAMMING", "OPERATING_SYSTEM", "PROJECT"]
         elif "2ND SEMESTER" in str(selected_class).upper() or "SEMESTER 2" in str(selected_class).upper():
