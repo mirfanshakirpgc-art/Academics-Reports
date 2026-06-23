@@ -4130,13 +4130,31 @@ elif menu_choice == "📋 Section Summary Report":
             st.info("⚡ DIT System Active")
         
     with col_b: 
-        # 1. Look up the static valid sections for this specific discipline & class from global configuration map
-        try:
-            map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(selected_class, [])
-        except NameError:
-            map_sections = []
+        # Create an explicit map based directly on your campus reference rules
+        # to ensure it changes strictly when discipline changes
+        CAMPUS_MANUAL_MAP = {
+            "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
+            "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
+            "COMMERCE": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+            "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
+            "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+            "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}
+        }
+
+        # 1. Resolve sections based on the selected discipline (sel_disc) and class
+        disc_upper = str(sel_disc).strip().upper()
         
-        # 2. Query active section options from the live database environment
+        # Pull from the real application configuration map if available, else use manual reference
+        try:
+            map_sections = DISCIPLINE_SECTIONS_MAP.get(disc_upper, {}).get(selected_class, [])
+        except NameError:
+            map_sections = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get(selected_class, [])
+
+        # If it's a semester system, override with DIT sections directly
+        if academic_system != "Annual System":
+            map_sections = ["DIT_B", "DIT_G"]
+
+        # 2. Query active section options from the live database environment to find what exists
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -4150,26 +4168,29 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 3. 🎯 DYNAMIC FILTERING INTERSECTION
+        # 3. 🎯 DYNAMIC FILTERING: Force sections to belong BOTH to this discipline and the DB entries
         if db_sections and map_sections:
             sec_options = [s for s in map_sections if s in db_sections]
+            # Fallback to the target discipline mapping if DB didn't match anything yet
             if not sec_options:
                 sec_options = map_sections
         else:
-            sec_options = map_sections if map_sections else ["MG_BLUE"]
+            sec_options = map_sections
 
-        # 4. Safe default fallbacks if lists are missing structural values
+        # Final ultra-safe guard fallback if something goes wrong, match by class list index
         if not sec_options:
-            sec_options = ["FK"] if sel_disc == "HUMANITIES" else ["MG_BLUE"]
+            if selected_class == "11th":
+                sec_options = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get("11th", ["CG_WHITE"])
+            else:
+                sec_options = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get("12th", ["CQ1"])
 
-        # 🔄 RE-KEYING DEVICE: Unique state string per configuration selection changes values reactively 
-        fixed_key = f"summary_report_section_key_{sel_disc}_{selected_class}"
-        default_index = 0
+        # 🔄 DYNAMIC RE-KEYING DEVICE: Destroys cached selection index instantly when choosing a new discipline
+        fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
 
         sel_sec = st.selectbox(
             "Select Section:", 
             sec_options, 
-            index=default_index, 
+            index=0, 
             key=fixed_key
         )
         
