@@ -4304,19 +4304,44 @@ elif menu_choice == "📋 Section Summary Report":
         else:
             subjects = ["ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
-    # --- 5. DATABASE INTEGRATION ENGINE (WITH REINFORCED WHITESPACE CLEANING) ---
+    # --- 5. DATABASE INTEGRATION ENGINE (FUZZY REINFORCED) ---
+    # Replaces dividers with wildcards so 'CG_WHITE' matches 'CG-WHITE' or 'CG_WHITE' flawlessly
+    fuzzy_section = str(sel_sec).replace("_", "%").replace("-", "%")
+
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
-        WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
+        WHERE (UPPER(TRIM(section)) LIKE UPPER(TRIM(:section)) OR UPPER(TRIM(section)) = UPPER(TRIM(:raw_section)))
           AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
           AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
+    """, {
+        "section": fuzzy_section, 
+        "raw_section": sel_sec,
+        "session_str": db_session_string, 
+        "class": selected_class
+    })
     
     if students_df.empty:
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
+        
+        # 🔍 AUTO-DEBUGGER EXPANDER
+        with st.expander("🛠️ Click to Inspect Live Database Records"):
+            st.write("Let's see exactly how sections and classes are saved in your database:")
+            try:
+                debug_df = run_query("""
+                    SELECT DISTINCT section, class, session 
+                    FROM students 
+                    WHERE UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
+                    LIMIT 15
+                """, {"session_str": db_session_string})
+                if not debug_df.empty:
+                    st.dataframe(debug_df)
+                else:
+                    st.warning("No records found at all for this session string in the database.")
+            except Exception as e:
+                st.error(f"Debug check failed: {e}")
     else:
         try:
             marks_df = run_query("""
