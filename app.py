@@ -4172,13 +4172,13 @@ elif menu_choice == "📋 Section Summary Report":
         # Isolate prefixes dynamically according to target selection criteria
         allowed_prefixes = []
         if "COMMERCE" in disc_upper: 
-            allowed_prefixes = ["CG", "CB", "CQ", "CK"]
+            allowed_prefixes = ["IG", "IB", "IK", "IQ"]
         elif "MEDICAL" in disc_upper: 
             allowed_prefixes = ["MG", "MB", "MQ", "MK"]
         elif "ENGINEERING" in disc_upper: 
             allowed_prefixes = ["EG", "EB", "EQ", "EK"]
         elif "PHYSICS" in disc_upper: 
-            allowed_prefixes = ["IG", "IB", "IK", "IQ"]
+            allowed_prefixes = ["CG", "CB", "CQ", "CK"]
         elif "STATS" in disc_upper: 
             allowed_prefixes = ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
         elif "HUMANITIES" in disc_upper: 
