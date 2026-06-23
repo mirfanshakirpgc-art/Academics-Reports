@@ -4170,10 +4170,10 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 🎯 FIX 3: STRICT PREFIX ENFORCEMENT FILTER
-        # This keeps sections like MG_BLUE from leaking into COMMERCE dashboards
+        # 🎯 SMART STRUCTURAL PREFIX FILTERING
         sec_options = list(map_sections)
         
+        # Isolate prefixes dynamically according to target selection criteria
         allowed_prefixes = []
         if "COMMERCE" in disc_upper: 
             allowed_prefixes = ["CG", "CB", "CQ", "CK"]
@@ -4188,18 +4188,38 @@ elif menu_choice == "📋 Section Summary Report":
         elif "HUMANITIES" in disc_upper: 
             allowed_prefixes = ["FG", "FB", "FK", "FQ"]
 
-        # Append runtime entries ONLY if they strictly belong to the selected discipline prefix
+        # 🛑 STRICT FILTER: Only merge database entries that match the allowed prefixes
         for db_s in db_sections:
             db_s_upper = db_s.upper().strip()
             if db_s not in sec_options:
-                if any(db_s_upper.startswith(pref) for pref in allowed_prefixes):
+                # Remove any loose fallback conditions; match the prefix strictly
+                if allowed_prefixes and any(db_s_upper.startswith(pref) for pref in allowed_prefixes):
                     sec_options.append(db_s)
 
         if not sec_options:
             sec_options = map_sections if map_sections else ["CG_WHITE"]
 
-        # Generate separate state key unique to selected discipline + class level combinations
         fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
+
+        # 🧠 INTELLIGENT AUTO-FOCUS INDEX FINDER
+        default_idx = 0
+        if db_sections:
+            for idx, opt in enumerate(sec_options):
+                if opt in db_sections:
+                    default_idx = idx
+                    break
+
+        # Maintain state stability cleanly
+        if fixed_key not in st.session_state:
+            st.session_state[fixed_key] = sec_options[default_idx]
+        elif st.session_state[fixed_key] not in sec_options:
+            st.session_state[fixed_key] = sec_options[default_idx]
+
+        sel_sec = st.selectbox(
+            "Select Section:", 
+            sec_options, 
+            key=fixed_key
+        )
 
         # 🧠 SMART AUTO-INDEX DETECTOR
         default_idx = 0
