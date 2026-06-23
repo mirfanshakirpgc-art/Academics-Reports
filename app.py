@@ -1394,15 +1394,6 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
 elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Management"]:
     import datetime
     import time
-    import pandas as pd
-    from sqlalchemy import text
-    
-    # ==============================================================================
-# 📅 GLOBAL ADMINISTRATIVE WORKFLOW: ATTENDANCE ENTRY MANAGEMENT
-# ==============================================================================
-elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Management"]:
-    import datetime
-    import time
     st.title("🗓️ Global Attendance Entry Management Panel")
     
     # Three explicit top-level operational entry options under Mode
@@ -1703,7 +1694,6 @@ elif "Absent" in str(menu_choice) or "Remarks" in str(menu_choice):
                     
                 except Exception as e:
                     st.error(f"⚠️ SQL Update failed. Ensure you ran the alter table command: {e}")
-
 CLASS_SUBJECTS_MASTER_MAP = {
     "11th": {
         "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
