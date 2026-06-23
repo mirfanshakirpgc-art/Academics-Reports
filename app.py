@@ -4383,17 +4383,42 @@ elif menu_choice == "📋 Section Summary Report":
 
     # --- RENDERING CONFIGURATION ---
     if students_df.empty:
-        st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
+        # Using safely resolved global session wrappers to avoid NameErrors
+        current_display_class = selected_class if 'selected_class' in locals() else (sel_class_global if 'sel_class_global' in locals() else "Unknown Class")
+        current_display_session = selected_session if 'selected_session' in locals() else (sel_session_global if 'sel_session_global' in locals() else "Unknown Session")
+        st.info(f"💡 No active profiles found under Section '{sel_sec}' ({current_display_class}) for Session {current_display_session}.")
     else:
         try:
-            marks_df = run_query("""
-                SELECT CAST(student_id AS TEXT) as student_key, UPPER(TRIM(subject)) as subject_name, marks_obtained, total_marks
+            from sqlalchemy import text
+            
+            # Formulating safe dynamic parameters for multi-select tests
+            exams_to_fetch = selected_exams_list if 'selected_exams_list' in locals() else []
+            if not exams_to_fetch:
+                placeholders = "''"
+                query_params = {}
+            else:
+                placeholders = ", ".join(f":exam_{i}" for i in range(len(exams_to_fetch)))
+                query_params = {f"exam_{i}": ex for i, ex in enumerate(exams_to_fetch)}
+            
+            # 🟢 CRITICAL SQL FIX: Fetches raw text string records matching all selected tests side-by-side
+            multi_exam_query = text(f"""
+                SELECT 
+                    CAST(student_id AS TEXT) as student_key, 
+                    UPPER(TRIM(exam_type)) as exam_code, 
+                    marks_obtained, 
+                    total_marks
                 FROM marks 
-                WHERE UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
-            """, {"exam": sel_exam})
+                WHERE UPPER(TRIM(exam_type)) IN ({placeholders})
+            """)
+            
+            marks_df = run_query(multi_exam_query, query_params)
+            
             if not marks_df.empty:
                 marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
-        except Exception:
+                marks_df["marks_obtained"] = marks_df["marks_obtained"].astype(str).str.strip().str.upper()
+                marks_df["exam_code"] = marks_df["exam_code"].astype(str).str.strip().str.upper()
+        except Exception as e:
+            st.error(f"Error compiling multi-test database records: {str(e)}")
             marks_df = pd.DataFrame()
 
         try:
@@ -4408,6 +4433,8 @@ elif menu_choice == "📋 Section Summary Report":
 
         # --- 6. PERFORMANCE GRID COMPILER (MULTI-TEST EXAM BREAKDOWN MODE) ---
         summary_rows = []
+        exams_loop_list = selected_exams_list if 'selected_exams_list' in locals() else []
+        
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
             s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
@@ -4421,27 +4448,25 @@ elif menu_choice == "📋 Section Summary Report":
             max_total = 0.0
             has_valid_scores = False  
             
-            # Loop through selected EXAMS instead of subjects to build the multi-test columns
-            for exam in selected_exams_list:
+            # Loop through selected EXAMS instead of subjects to build multi-test columns
+            for exam in exams_loop_list:
                 exam_upper = str(exam).upper().strip()
                 
                 if not marks_df.empty:
-                    # Match by student key AND matching exam_code column
-                    exam_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["exam_code"].str.upper().str.strip() == exam_upper)]
+                    exam_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["exam_code"] == exam_upper)]
                 else:
                     exam_match = pd.DataFrame()
                 
                 if not exam_match.empty:
-                    # 🟢 FLEXIBLE COLUMN CHECK: Look for either column name variation dynamically
                     obt_col = "marks_obtained" if "marks_obtained" in exam_match.columns else "obtained_marks"
                     tot_col = "total_marks" if "total_marks" in exam_match.columns else "max_marks"
                     
                     val = str(exam_match[obt_col].iloc[0]).strip().upper()
                     tot = float(exam_match[tot_col].iloc[0]) if (tot_col in exam_match.columns and pd.notna(exam_match[tot_col].iloc[0])) else 100.0
                     
-                    if val == "NC" or val == "NOT CONDUCTED":
+                    if val in ["NC", "NOT CONDUCTED"]:
                         entry[exam] = "NC"
-                    elif val == "A" or val == "ABSENT":
+                    elif val in ["A", "ABSENT"]:
                         entry[exam] = "A"
                         max_total += tot       
                         has_valid_scores = True
@@ -4453,7 +4478,7 @@ elif menu_choice == "📋 Section Summary Report":
                     else:
                         entry[exam] = val
                 else:
-                    entry[exam] = "NC" # Default fallback if record doesn't exist
+                    entry[exam] = "NC" # If record doesn't exist, safely treat as Not Conducted
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
@@ -4481,9 +4506,11 @@ elif menu_choice == "📋 Section Summary Report":
         final_report_df = pd.DataFrame(summary_rows)
         
         # --- Excel Payload Compiler Hub ---
+        import io
         excel_export_df = final_report_df.copy()
-        short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
-        for col_lbl in short_subject_labels:
+        
+        # Format existing test headers dynamically inside Excel rather than crashing on subjects array mismatches
+        for col_lbl in exams_loop_list:
             if col_lbl in excel_export_df.columns:
                 excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(lambda cell: int(cell) if isinstance(cell, (int, float)) else cell)
         
@@ -4494,10 +4521,13 @@ elif menu_choice == "📋 Section Summary Report":
 
         col_download_hook, _ = st.columns([2, 4])
         with col_download_hook:
+            file_class_name = selected_class if 'selected_class' in locals() else "Report"
+            file_session_name = db_session_string if 'db_session_string' in locals() else "Session"
+            
             st.download_button(
                 label="📥 Download Excel Spreadsheet Summary",
                 data=excel_data_payload,
-                file_name=f"Summary_Report_{sel_sec}_{selected_class}_{db_session_string}.xlsx",
+                file_name=f"Multi_Test_Report_{sel_sec}_{file_class_name}_{file_session_name}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="summary_excel_downloader_widget",
                 use_container_width=True
