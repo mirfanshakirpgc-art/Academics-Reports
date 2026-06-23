@@ -2714,7 +2714,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.caption(f"**Diagnostic Details** — Session Username: `{active_faculty_name}` | User ID: `{current_user_id}`")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
                 
-        # --- LEVEL 1 FALLBACK: ADMINISTRATIVE ROUTE ---
+        # 🔍 FIND THIS BLOCK (The Teacher/Principal Route higher up)
+        with c1: sel_session = st.selectbox(...)
+        with c2: academic_system = st.selectbox(...)
+        with c3: sel_class = st.selectbox(...)
+        # ❌ IT IS MISSING "with c4:" HERE!
+        with c5: sel_section = st.selectbox(...)
+        with c6: sel_exam = st.selectbox(...)
         else:
             # 🟢 DEFENSIVE FALLBACK CONFIGURATIONS
             if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
