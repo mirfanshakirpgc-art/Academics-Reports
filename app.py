@@ -1065,329 +1065,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                             st.error(f"❌ Database Submission Failed: {e}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
-# ==============================================================================
-# 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
-# ==============================================================================
-elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
-    import datetime
-    import time
-    import pandas as pd
-    
-    st.title("🧑‍🏫 Subject Teacher Marks Entry Panel")
-    
-    # 1. Capture Logged-In Teacher Identity
-    active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
-    
-    st.info(f"🔒 **Logged in as:** {active_faculty_name} (Subject Faculty Mode)")
-    st.markdown("---")
 
-    # 2. Pull Active Assessment Framework Cycles
-    try:
-        active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
-        all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
-    except Exception:
-        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"]
-
-    session_options = ["2025-27", "2026-28", "2027-29"]
-
-    # 3. Precise Allocation Fetching Engine
-    try:
-        teacher_rights = run_query("""
-            SELECT DISTINCT TRIM(subject_name) AS subject, TRIM(section) AS section 
-            FROM subject_allocations 
-            WHERE LOWER(TRIM(teacher_name)) = LOWER(TRIM(:tname)) 
-               OR LOWER(TRIM(teacher_name)) LIKE LOWER(TRIM(:tname_like))
-        """, {
-            "tname": active_faculty_name, 
-            "tname_like": f"%{active_faculty_name}%"
-        })
-    except Exception as e:
-        st.error(f"Error accessing allocation schema: {e}")
-        teacher_rights = pd.DataFrame()
-
-    if teacher_rights.empty:
-        st.warning(f"🚨 No individual subject course allocations were identified for '{active_faculty_name}'.")
-        st.caption("Please ask your Administrator to verify your name inside the **Subject Allocations** table configuration.")
-    else:
-        allowed_secs = sorted(list(teacher_rights['section'].unique()))
-        
-        # UI Selection Row
-        col_setup1, col_setup2, col_setup3 = st.columns(3)
-        with col_setup1:
-            sel_session = st.selectbox("Academic Session Scope:", session_options, key="ts_sess_entry")
-        with col_setup2:
-            sel_section = st.selectbox("Your Allocated Sections:", allowed_secs, key="ts_sec_entry")
-        with col_setup3:
-            sel_exam = st.selectbox("Target Exam Cycle:", all_frameworks, key="ts_exam_entry")
-            
-        # Dynamically filter subjects based on the selected section from the teacher's pool
-        filtered_subs = sorted(list(
-            teacher_rights[teacher_rights['section'] == sel_section]['subject'].unique()
-        ))
-        
-        col_setup4, col_setup5 = st.columns([2, 2])
-        with col_setup4:
-            sel_subject = st.selectbox("Your Assigned Course for this Section:", filtered_subs, key="ts_sub_entry")
-        with col_setup5:
-            total_marks = st.number_input("Set Assessment Maximum Marks Scale:", min_value=1, max_value=200, value=100, key="ts_marks_scale")
-        
-        target_sub_slug = str(sel_subject).strip().upper().replace(" ", "_")
-        target_exam = str(sel_exam).strip().upper()
-        clean_session = str(sel_session).strip()
-
-        st.markdown("""
-            <style>
-                .vertical-align-center { display: flex; align-items: center; height: 40px; }
-                div[data-testid="stCheckbox"] { margin-top: 8px !important; padding-top: 0px !important; }
-            </style>
-        """, unsafe_allow_html=True)
-
-        # 4. Pull Active Students matching Session + Allocated Section
-        try:
-            roster_df = run_query("""
-                SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
-                FROM students s
-                LEFT JOIN marks m ON s.id = m.student_id 
-                    AND UPPER(TRIM(m.subject)) = :subject
-                    AND UPPER(TRIM(m.exam_type)) = :exam
-                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-                  AND (UPPER(TRIM(CAST(s.session AS VARCHAR))) LIKE :sess_match OR :sess_raw LIKE '%' || UPPER(TRIM(CAST(s.session AS VARCHAR))) || '%')
-                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                ORDER BY s.id ASC
-            """, {
-                "subject": target_sub_slug, 
-                "exam": target_exam, 
-                "section": str(sel_section).strip().upper(), 
-                "sess_match": f"%{clean_session}%",
-                "sess_raw": clean_session
-            })
-            
-            if roster_df.empty:
-                st.info(f"💡 No active student records found under Section '{sel_section}' for Session '{sel_session}'.")
-            else:
-                st.markdown(f"### 📝 Entry Ledger: {sel_subject} — Section {sel_section}")
-                
-                # JavaScript Injector for downward keyboard arrow/tab field navigation
-                st.components.v1.html("""
-                    <script>
-                        const rootDoc = window.parent.document;
-                        rootDoc.addEventListener('keydown', function(event) {
-                            const el = rootDoc.activeElement;
-                            if (el && el.tagName === 'INPUT' && el.getAttribute('aria-label') && el.getAttribute('aria-label').startsWith('ts_field_m_')) {
-                                if (event.key === 'Tab' || event.key === 'Enter') {
-                                    event.preventDefault();
-                                    const labelAttr = el.getAttribute('aria-label');
-                                    const parts = labelAttr.split('_');
-                                    const currentIdx = parseInt(parts[parts.length - 1], 10);
-                                    const nextIdx = event.shiftKey ? currentIdx - 1 : currentIdx + 1;
-                                    
-                                    const targetInput = rootDoc.querySelector(`input[aria-label$='_${nextIdx}']`);
-                                    if (targetInput) {
-                                        targetInput.focus();
-                                        targetInput.select();
-                                    }
-                                }
-                            }
-                        }, true);
-                    </script>
-                """, height=0)
-
-                with st.form(f"ts_bulk_form_{target_exam}_{target_sub_slug}"):
-                    updated_scores = {}
-                    
-                    h_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
-                    h_cols[0].caption("🆔 **Roll No**")
-                    h_cols[1].caption("👤 **Student Name**")
-                    h_cols[2].caption("🔢 **Obtained Marks Input**")
-                    h_cols[3].caption("❌ **Absent**")
-                    h_cols[4].caption("➖ **NC**")
-                    st.markdown("<hr style='margin:2px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
-                    
-                    for idx, row in roster_df.iterrows():
-                        student_id = int(row['ID'])
-                        student_name = str(row['Student Name']).upper()
-                        db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
-                        
-                        state_abs_key = f"ts_abs_{student_id}_{target_sub_slug}_{target_exam}"
-                        state_nc_key = f"ts_nc_{student_id}_{target_sub_slug}_{target_exam}"
-                        state_marks_key = f"ts_mark_in_{student_id}_{target_sub_slug}_{target_exam}"
-                        
-                        if state_abs_key not in st.session_state: st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                        if state_nc_key not in st.session_state: st.session_state[state_nc_key] = (db_val == 'NC')
-                        
-                        chk_absent = st.session_state[state_abs_key]
-                        chk_nc = st.session_state[state_nc_key]
-                        
-                        display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
-                        
-                        with st.container():
-                            r_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
-                            r_cols[0].markdown(f"<div class='vertical-align-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
-                            r_cols[1].markdown(f"<div class='vertical-align-center' style='font-size: 0.9rem;'>{student_name}</div>", unsafe_allow_html=True)
-                            
-                            with r_cols[2]:
-                                score_input = st.text_input(
-                                    f"ts_field_m_{student_id}_{idx}", 
-                                    value=display_score, 
-                                    placeholder="Score", 
-                                    key=state_marks_key, 
-                                    label_visibility="collapsed"
-                                )
-                            with r_cols[3]:
-                                st.checkbox("ABS", key=state_abs_key, label_visibility="collapsed")
-                            with r_cols[4]:
-                                st.checkbox("NC", key=state_nc_key, label_visibility="collapsed")
-                                
-                        updated_scores[student_id] = {"marks": score_input, "abs_key": state_abs_key, "nc_key": state_nc_key}
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
-                        for s_id, record in updated_scores.items():
-                            is_a = st.session_state.get(record["abs_key"], False)
-                            is_nc = st.session_state.get(record["nc_key"], False)
-                            raw_marks = str(record["marks"]).strip().upper()
-                            
-                            if is_a: score_clean = "A"
-                            elif is_nc: score_clean = "NC"
-                            else: score_clean = "" if raw_marks in ["A", "NC"] else raw_marks
-                            
-                            execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam})
-                            if score_clean != "":
-                                execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
-                                                  {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam, "score": score_clean, "total": float(total_marks)})
-                        
-                        st.success(f"🎉 Marks safely updated for {sel_subject} ({sel_section})!")
-                        time.sleep(1.0)
-                        st.rerun()
-        except Exception as e:
-            st.error(f"Error executing database transactions: {e}")
-
-# ==============================================================================
-# 📊 DEDICATED SUBJECT TEACHER SECTION: RESULT ANALYSIS (MULTI-SELECT MODE)
-# ==============================================================================
-elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice or "📊" in menu_choice):
-    import pandas as pd
-    import numpy as np
-    
-    st.title("📊 Subject Faculty Performance Analysis")
-    
-    active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
-    
-    st.info(f"🔒 **Logged in as:** {active_faculty_name} (Multi-Subject/Multi-Section Analytics)")
-    st.markdown("---")
-
-    # 1. Fetch Teacher-Specific Course Allocations
-    try:
-        teacher_rights = run_query("""
-            SELECT DISTINCT TRIM(subject_name) AS subject, TRIM(section) AS section 
-            FROM subject_allocations 
-            WHERE LOWER(TRIM(teacher_name)) = LOWER(TRIM(:tname)) 
-               OR LOWER(TRIM(teacher_name)) LIKE LOWER(TRIM(:tname_like))
-        """, {
-            "tname": active_faculty_name, 
-            "tname_like": f"%{active_faculty_name}%"
-        })
-    except Exception as e:
-        st.error(f"Error accessing allocation schema: {e}")
-        teacher_rights = pd.DataFrame()
-
-    if teacher_rights.empty:
-        st.warning(f"🚨 No allocations identified for '{active_faculty_name}'.")
-    else:
-        # Multi-select UI for Sections and Subjects
-        all_secs = sorted(list(teacher_rights['section'].unique()))
-        all_subs = sorted(list(teacher_rights['subject'].unique()))
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            sel_sections = st.multiselect("Select Target Section(s):", all_secs, key="ra_sec_multisel")
-        with c2:
-            sel_subjects = st.multiselect("Select Subject(s):", all_subs, key="ra_sub_multisel")
-            
-        if not sel_sections or not sel_subjects:
-            st.info("💡 Please select at least one Section AND one Subject to view performance.")
-        else:
-            # Safe clean parsing guaranteeing standardized format arrays for DB engine bounds
-            clean_sections = [str(s).strip().upper() for s in sel_sections]
-            
-            # Loop through each selected subject to provide clean, isolated analysis
-            for sub in sel_subjects:
-                st.markdown("---")
-                st.subheader(f"📖 Analysis for: **{sub}**")
-                
-                # FIXED: Convert to matching slug format used in Marks Entry table
-                target_sub_slug = str(sub).strip().upper().replace(" ", "_")
-                
-                try:
-                    # Query metrics for the specific subject slug across selected sections
-                    analysis_data = run_query("""
-                        SELECT 
-                            m.exam_type AS "Exam Cycle",
-                            COUNT(m.id) AS "Total Registered",
-                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'A' THEN 1 ELSE 0 END) AS "Absentees",
-                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'NC' THEN 1 ELSE 0 END) AS "Not Cleared",
-                            MAX(m.total_marks) AS "Max Out Of"
-                        FROM marks m
-                        JOIN students s ON m.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) IN :sections
-                          AND UPPER(TRIM(m.subject)) = :subject
-                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                        GROUP BY m.exam_type
-                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
-                    
-                    raw_scores = run_query("""
-                        SELECT m.exam_type, m.marks_obtained, m.total_marks, TRIM(s.section) AS section
-                        FROM marks m
-                        JOIN students s ON m.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) IN :sections
-                          AND UPPER(TRIM(m.subject)) = :subject
-                          AND UPPER(TRIM(m.marks_obtained)) NOT IN ('A', 'NC')
-                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
-                    
-                except Exception as e:
-                    st.error(f"Error executing analysis details for {sub}: {e}")
-                    continue
-
-                if analysis_data.empty:
-                    st.warning(f"No marks data found for {sub} in the selected sections.")
-                else:
-                    import numpy as np # Safeguard local import instance context
-                    
-                    for _, row in analysis_data.iterrows():
-                        exam_code = row["Exam Cycle"]
-                        total = int(row["Total Registered"])
-                        absent = int(row["Absentees"])
-                        nc = int(row["Not Cleared"])
-                        scale = float(row["Max Out Of"]) if row["Max Out Of"] else 100.0
-                        
-                        scores = raw_scores[raw_scores['exam_type'] == exam_code].copy()
-                        scores['numeric_marks'] = pd.to_numeric(scores['marks_obtained'], errors='coerce')
-                        scores = scores.dropna(subset=['numeric_marks'])
-                        
-                        # Mathematical corrections ensuring coherent averages
-                        actual_attendees = total - absent - nc
-                        avg = np.mean(scores['numeric_marks']) if not scores.empty else 0.0
-                        passed = np.sum(scores['numeric_marks'] >= (scale * 0.4)) if not scores.empty else 0
-                        
-                        fail_rate = max(0, actual_attendees - passed)
-                        pass_percentage = (passed / actual_attendees * 100) if actual_attendees > 0 else 0.0
-                        
-                        with st.expander(f"🏅 Exam Cycle: {exam_code} | Scale Max: {int(scale)}", expanded=True):
-                            m1, m2, m3, m4 = st.columns(4)
-                            m1.metric("Class Average Score", f"{avg:.1f} / {int(scale)}")
-                            m2.metric("Pass Percentage (Attended)", f"{pass_percentage:.1f}%")
-                            m3.metric("Failure Ledger Count", f"{int(fail_rate)} Students")
-                            m4.metric("Absentees / NC", f"{absent + nc}")
-                            
-                            if not scores.empty:
-                                st.markdown("<br>##### 🏢 Cross-Section Cohort Distribution Graph", unsafe_allow_html=True)
-                                bins = [0, scale*0.4, scale*0.6, scale*0.75, scale*0.9, scale+1.0]
-                                labels = ['Fails (<40%)', 'Grade C (40-60%)', 'Grade B (60-75%)', 'Grade A (75-90%)', 'Merit A+ (>90%)']
-                                
-                                scores['Range'] = pd.cut(scores['numeric_marks'], bins=bins, labels=labels, right=False)
-                                chart_data = scores.groupby(['Range', 'section'], observed=False).size().unstack(fill_value=0)
-                                st.bar_chart(chart_data)
 # ==============================================================================
 # 📅 GLOBAL ADMINISTRATIVE WORKFLOW: ATTENDANCE ENTRY MANAGEMENT
 # ==============================================================================
@@ -1771,6 +1449,330 @@ for class_level, disciplines in CLASS_SUBJECTS_MASTER_MAP.items():
                 unique_master_subjects.add(subject.strip())
 
 live_subjects_computed = ["Global (All Subjects)"] + sorted(list(unique_master_subjects))
+
+# ==============================================================================
+# 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
+# ==============================================================================
+elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
+    import datetime
+    import time
+    import pandas as pd
+    
+    st.title("🧑‍🏫 Subject Teacher Marks Entry Panel")
+    
+    # 1. Capture Logged-In Teacher Identity
+    active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
+    
+    st.info(f"🔒 **Logged in as:** {active_faculty_name} (Subject Faculty Mode)")
+    st.markdown("---")
+
+    # 2. Pull Active Assessment Framework Cycles
+    try:
+        active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
+        all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
+    except Exception:
+        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"]
+
+    session_options = ["2025-27", "2026-28", "2027-29"]
+
+    # 3. Precise Allocation Fetching Engine
+    try:
+        teacher_rights = run_query("""
+            SELECT DISTINCT TRIM(subject_name) AS subject, TRIM(section) AS section 
+            FROM subject_allocations 
+            WHERE LOWER(TRIM(teacher_name)) = LOWER(TRIM(:tname)) 
+               OR LOWER(TRIM(teacher_name)) LIKE LOWER(TRIM(:tname_like))
+        """, {
+            "tname": active_faculty_name, 
+            "tname_like": f"%{active_faculty_name}%"
+        })
+    except Exception as e:
+        st.error(f"Error accessing allocation schema: {e}")
+        teacher_rights = pd.DataFrame()
+
+    if teacher_rights.empty:
+        st.warning(f"🚨 No individual subject course allocations were identified for '{active_faculty_name}'.")
+        st.caption("Please ask your Administrator to verify your name inside the **Subject Allocations** table configuration.")
+    else:
+        allowed_secs = sorted(list(teacher_rights['section'].unique()))
+        
+        # UI Selection Row
+        col_setup1, col_setup2, col_setup3 = st.columns(3)
+        with col_setup1:
+            sel_session = st.selectbox("Academic Session Scope:", session_options, key="ts_sess_entry")
+        with col_setup2:
+            sel_section = st.selectbox("Your Allocated Sections:", allowed_secs, key="ts_sec_entry")
+        with col_setup3:
+            sel_exam = st.selectbox("Target Exam Cycle:", all_frameworks, key="ts_exam_entry")
+            
+        # Dynamically filter subjects based on the selected section from the teacher's pool
+        filtered_subs = sorted(list(
+            teacher_rights[teacher_rights['section'] == sel_section]['subject'].unique()
+        ))
+        
+        col_setup4, col_setup5 = st.columns([2, 2])
+        with col_setup4:
+            sel_subject = st.selectbox("Your Assigned Course for this Section:", filtered_subs, key="ts_sub_entry")
+        with col_setup5:
+            total_marks = st.number_input("Set Assessment Maximum Marks Scale:", min_value=1, max_value=200, value=100, key="ts_marks_scale")
+        
+        target_sub_slug = str(sel_subject).strip().upper().replace(" ", "_")
+        target_exam = str(sel_exam).strip().upper()
+        clean_session = str(sel_session).strip()
+
+        st.markdown("""
+            <style>
+                .vertical-align-center { display: flex; align-items: center; height: 40px; }
+                div[data-testid="stCheckbox"] { margin-top: 8px !important; padding-top: 0px !important; }
+            </style>
+        """, unsafe_allow_html=True)
+
+        # 4. Pull Active Students matching Session + Allocated Section
+        try:
+            roster_df = run_query("""
+                SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
+                FROM students s
+                LEFT JOIN marks m ON s.id = m.student_id 
+                    AND UPPER(TRIM(m.subject)) = :subject
+                    AND UPPER(TRIM(m.exam_type)) = :exam
+                WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+                  AND (UPPER(TRIM(CAST(s.session AS VARCHAR))) LIKE :sess_match OR :sess_raw LIKE '%' || UPPER(TRIM(CAST(s.session AS VARCHAR))) || '%')
+                  AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                ORDER BY s.id ASC
+            """, {
+                "subject": target_sub_slug, 
+                "exam": target_exam, 
+                "section": str(sel_section).strip().upper(), 
+                "sess_match": f"%{clean_session}%",
+                "sess_raw": clean_session
+            })
+            
+            if roster_df.empty:
+                st.info(f"💡 No active student records found under Section '{sel_section}' for Session '{sel_session}'.")
+            else:
+                st.markdown(f"### 📝 Entry Ledger: {sel_subject} — Section {sel_section}")
+                
+                # JavaScript Injector for downward keyboard arrow/tab field navigation
+                st.components.v1.html("""
+                    <script>
+                        const rootDoc = window.parent.document;
+                        rootDoc.addEventListener('keydown', function(event) {
+                            const el = rootDoc.activeElement;
+                            if (el && el.tagName === 'INPUT' && el.getAttribute('aria-label') && el.getAttribute('aria-label').startsWith('ts_field_m_')) {
+                                if (event.key === 'Tab' || event.key === 'Enter') {
+                                    event.preventDefault();
+                                    const labelAttr = el.getAttribute('aria-label');
+                                    const parts = labelAttr.split('_');
+                                    const currentIdx = parseInt(parts[parts.length - 1], 10);
+                                    const nextIdx = event.shiftKey ? currentIdx - 1 : currentIdx + 1;
+                                    
+                                    const targetInput = rootDoc.querySelector(`input[aria-label$='_${nextIdx}']`);
+                                    if (targetInput) {
+                                        targetInput.focus();
+                                        targetInput.select();
+                                    }
+                                }
+                            }
+                        }, true);
+                    </script>
+                """, height=0)
+
+                with st.form(f"ts_bulk_form_{target_exam}_{target_sub_slug}"):
+                    updated_scores = {}
+                    
+                    h_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
+                    h_cols[0].caption("🆔 **Roll No**")
+                    h_cols[1].caption("👤 **Student Name**")
+                    h_cols[2].caption("🔢 **Obtained Marks Input**")
+                    h_cols[3].caption("❌ **Absent**")
+                    h_cols[4].caption("➖ **NC**")
+                    st.markdown("<hr style='margin:2px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
+                    
+                    for idx, row in roster_df.iterrows():
+                        student_id = int(row['ID'])
+                        student_name = str(row['Student Name']).upper()
+                        db_val = str(row['Marks']).strip().upper() if pd.notna(row['Marks']) else ""
+                        
+                        state_abs_key = f"ts_abs_{student_id}_{target_sub_slug}_{target_exam}"
+                        state_nc_key = f"ts_nc_{student_id}_{target_sub_slug}_{target_exam}"
+                        state_marks_key = f"ts_mark_in_{student_id}_{target_sub_slug}_{target_exam}"
+                        
+                        if state_abs_key not in st.session_state: st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
+                        if state_nc_key not in st.session_state: st.session_state[state_nc_key] = (db_val == 'NC')
+                        
+                        chk_absent = st.session_state[state_abs_key]
+                        chk_nc = st.session_state[state_nc_key]
+                        
+                        display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
+                        
+                        with st.container():
+                            r_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
+                            r_cols[0].markdown(f"<div class='vertical-align-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
+                            r_cols[1].markdown(f"<div class='vertical-align-center' style='font-size: 0.9rem;'>{student_name}</div>", unsafe_allow_html=True)
+                            
+                            with r_cols[2]:
+                                score_input = st.text_input(
+                                    f"ts_field_m_{student_id}_{idx}", 
+                                    value=display_score, 
+                                    placeholder="Score", 
+                                    key=state_marks_key, 
+                                    label_visibility="collapsed"
+                                )
+                            with r_cols[3]:
+                                st.checkbox("ABS", key=state_abs_key, label_visibility="collapsed")
+                            with r_cols[4]:
+                                st.checkbox("NC", key=state_nc_key, label_visibility="collapsed")
+                                
+                        updated_scores[student_id] = {"marks": score_input, "abs_key": state_abs_key, "nc_key": state_nc_key}
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
+                        for s_id, record in updated_scores.items():
+                            is_a = st.session_state.get(record["abs_key"], False)
+                            is_nc = st.session_state.get(record["nc_key"], False)
+                            raw_marks = str(record["marks"]).strip().upper()
+                            
+                            if is_a: score_clean = "A"
+                            elif is_nc: score_clean = "NC"
+                            else: score_clean = "" if raw_marks in ["A", "NC"] else raw_marks
+                            
+                            execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam})
+                            if score_clean != "":
+                                execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
+                                                  {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam, "score": score_clean, "total": float(total_marks)})
+                        
+                        st.success(f"🎉 Marks safely updated for {sel_subject} ({sel_section})!")
+                        time.sleep(1.0)
+                        st.rerun()
+        except Exception as e:
+            st.error(f"Error executing database transactions: {e}")
+
+# ==============================================================================
+# 📊 DEDICATED SUBJECT TEACHER SECTION: RESULT ANALYSIS (MULTI-SELECT MODE)
+# ==============================================================================
+elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice or "📊" in menu_choice):
+    import pandas as pd
+    import numpy as np
+    
+    st.title("📊 Subject Faculty Performance Analysis")
+    
+    active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
+    
+    st.info(f"🔒 **Logged in as:** {active_faculty_name} (Multi-Subject/Multi-Section Analytics)")
+    st.markdown("---")
+
+    # 1. Fetch Teacher-Specific Course Allocations
+    try:
+        teacher_rights = run_query("""
+            SELECT DISTINCT TRIM(subject_name) AS subject, TRIM(section) AS section 
+            FROM subject_allocations 
+            WHERE LOWER(TRIM(teacher_name)) = LOWER(TRIM(:tname)) 
+               OR LOWER(TRIM(teacher_name)) LIKE LOWER(TRIM(:tname_like))
+        """, {
+            "tname": active_faculty_name, 
+            "tname_like": f"%{active_faculty_name}%"
+        })
+    except Exception as e:
+        st.error(f"Error accessing allocation schema: {e}")
+        teacher_rights = pd.DataFrame()
+
+    if teacher_rights.empty:
+        st.warning(f"🚨 No allocations identified for '{active_faculty_name}'.")
+    else:
+        # Multi-select UI for Sections and Subjects
+        all_secs = sorted(list(teacher_rights['section'].unique()))
+        all_subs = sorted(list(teacher_rights['subject'].unique()))
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            sel_sections = st.multiselect("Select Target Section(s):", all_secs, key="ra_sec_multisel")
+        with c2:
+            sel_subjects = st.multiselect("Select Subject(s):", all_subs, key="ra_sub_multisel")
+            
+        if not sel_sections or not sel_subjects:
+            st.info("💡 Please select at least one Section AND one Subject to view performance.")
+        else:
+            # Safe clean parsing guaranteeing standardized format arrays for DB engine bounds
+            clean_sections = [str(s).strip().upper() for s in sel_sections]
+            
+            # Loop through each selected subject to provide clean, isolated analysis
+            for sub in sel_subjects:
+                st.markdown("---")
+                st.subheader(f"📖 Analysis for: **{sub}**")
+                
+                # FIXED: Convert to matching slug format used in Marks Entry table
+                target_sub_slug = str(sub).strip().upper().replace(" ", "_")
+                
+                try:
+                    # Query metrics for the specific subject slug across selected sections
+                    analysis_data = run_query("""
+                        SELECT 
+                            m.exam_type AS "Exam Cycle",
+                            COUNT(m.id) AS "Total Registered",
+                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'A' THEN 1 ELSE 0 END) AS "Absentees",
+                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'NC' THEN 1 ELSE 0 END) AS "Not Cleared",
+                            MAX(m.total_marks) AS "Max Out Of"
+                        FROM marks m
+                        JOIN students s ON m.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) IN :sections
+                          AND UPPER(TRIM(m.subject)) = :subject
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                        GROUP BY m.exam_type
+                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
+                    
+                    raw_scores = run_query("""
+                        SELECT m.exam_type, m.marks_obtained, m.total_marks, TRIM(s.section) AS section
+                        FROM marks m
+                        JOIN students s ON m.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) IN :sections
+                          AND UPPER(TRIM(m.subject)) = :subject
+                          AND UPPER(TRIM(m.marks_obtained)) NOT IN ('A', 'NC')
+                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
+                    
+                except Exception as e:
+                    st.error(f"Error executing analysis details for {sub}: {e}")
+                    continue
+
+                if analysis_data.empty:
+                    st.warning(f"No marks data found for {sub} in the selected sections.")
+                else:
+                    import numpy as np # Safeguard local import instance context
+                    
+                    for _, row in analysis_data.iterrows():
+                        exam_code = row["Exam Cycle"]
+                        total = int(row["Total Registered"])
+                        absent = int(row["Absentees"])
+                        nc = int(row["Not Cleared"])
+                        scale = float(row["Max Out Of"]) if row["Max Out Of"] else 100.0
+                        
+                        scores = raw_scores[raw_scores['exam_type'] == exam_code].copy()
+                        scores['numeric_marks'] = pd.to_numeric(scores['marks_obtained'], errors='coerce')
+                        scores = scores.dropna(subset=['numeric_marks'])
+                        
+                        # Mathematical corrections ensuring coherent averages
+                        actual_attendees = total - absent - nc
+                        avg = np.mean(scores['numeric_marks']) if not scores.empty else 0.0
+                        passed = np.sum(scores['numeric_marks'] >= (scale * 0.4)) if not scores.empty else 0
+                        
+                        fail_rate = max(0, actual_attendees - passed)
+                        pass_percentage = (passed / actual_attendees * 100) if actual_attendees > 0 else 0.0
+                        
+                        with st.expander(f"🏅 Exam Cycle: {exam_code} | Scale Max: {int(scale)}", expanded=True):
+                            m1, m2, m3, m4 = st.columns(4)
+                            m1.metric("Class Average Score", f"{avg:.1f} / {int(scale)}")
+                            m2.metric("Pass Percentage (Attended)", f"{pass_percentage:.1f}%")
+                            m3.metric("Failure Ledger Count", f"{int(fail_rate)} Students")
+                            m4.metric("Absentees / NC", f"{absent + nc}")
+                            
+                            if not scores.empty:
+                                st.markdown("<br>##### 🏢 Cross-Section Cohort Distribution Graph", unsafe_allow_html=True)
+                                bins = [0, scale*0.4, scale*0.6, scale*0.75, scale*0.9, scale+1.0]
+                                labels = ['Fails (<40%)', 'Grade C (40-60%)', 'Grade B (60-75%)', 'Grade A (75-90%)', 'Merit A+ (>90%)']
+                                
+                                scores['Range'] = pd.cut(scores['numeric_marks'], bins=bins, labels=labels, right=False)
+                                chart_data = scores.groupby(['Range', 'section'], observed=False).size().unstack(fill_value=0)
+                                st.bar_chart(chart_data)
 
 
 # ----------------- 📊 HOME DASHBOARD -----------------
