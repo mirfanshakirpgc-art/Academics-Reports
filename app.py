@@ -4950,7 +4950,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                         exam_totals_possible[exam] += tot
                                         subject_pct_accum += pct
                                         valid_exams_count += 1
-                                catch Exception:
+                                except Exception:
                                     row_tds += "<td>-</td>"
                             else:
                                 row_tds += "<td>-</td>"
