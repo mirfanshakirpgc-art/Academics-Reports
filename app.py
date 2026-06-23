@@ -6313,7 +6313,8 @@ elif menu_choice == "👥 Student Operations Management":
     # ====================================================================================
     st.markdown("### 🌐 Step 1 & 2: Global Configuration Parameters")
 
-    col_g1, col_g2, col_g3 = st.columns(3)
+    # 🟢 STEP 1: Upgraded columns layout from 3 to 4 to make room for Discipline Track
+    col_g1, col_g2, col_g3, col_g4 = st.columns([1.2, 1.2, 1.2, 1.4])
 
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     active_session = st.session_state.get("current_session", "2026-28")
@@ -6338,12 +6339,27 @@ elif menu_choice == "👥 Student Operations Management":
         # Merge database entries with default presets so choices are never completely empty
         if global_system == "annual":
             global_term_label = "🏫 Current Grade Level Focus:"
-            global_term_options = sorted(list(set(db_classes + ["11th", "12th", "Semester 1"])))
+            global_term_options = sorted(list(set(db_classes + ["11th", "12th"])))
         else:
             global_term_label = "⏱️ Current Semester Focus:"
             global_term_options = sorted(list(set(db_classes + ["Semester 1", "Semester 2", "Semester 3", "Semester 4"])))
             
         global_term = st.selectbox(global_term_label, global_term_options, key="global_stud_term_filter")
+
+    # 🟢 STEP 2: DYNAMIC DISCIPLINE DROPDOWN SELECTION MATRIX IN COLUMN 4
+    with col_g4:
+        if global_system == "annual":
+            discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+            selected_ui_discipline = st.selectbox("📚 Select Academic Discipline:", discipline_ui_options, key="global_stud_discipline_filter")
+            
+            # Normalize the discipline tag string seamlessly so reports read it natively
+            global_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
+            if "PHYSIC" in global_discipline: global_discipline = "ICS_PHYSICS"
+            elif "STAT" in global_discipline: global_discipline = "ICS_STATISTICS"
+        else:
+            # Fallback assignment for DIT/Semester operations so processing scripts don't drop out
+            global_discipline = "DIPLOMA_IN_IT_DIT"
+            st.text_input("📚 Select Academic Discipline:", value="DIT (Locked)", disabled=True, key="global_stud_discipline_disabled")
         
     st.markdown("---")
 
