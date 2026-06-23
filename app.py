@@ -4130,7 +4130,7 @@ elif menu_choice == "📋 Section Summary Report":
             st.info("⚡ DIT System Active")
         
     with col_b: 
-        # 👑 FIXED SWAPPED CONFIGURATIONS MAPPING
+        # 👑 1. MASTER MANUAL HARDCODED DICTIONARY CONFIGURATION
         CAMPUS_MANUAL_MAP = {
             "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
             "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
@@ -4140,21 +4140,23 @@ elif menu_choice == "📋 Section Summary Report":
             "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}
         }
 
-        # 🛡️ GLOBAL SAFETY NET: Banish the NameError for subsequent code lines
+        # 🛡️ FIX 1: Eliminate downstream NameErrors on line 4692 
         if "DISCIPLINE_SECTIONS_MAP" not in globals():
             DISCIPLINE_SECTIONS_MAP = CAMPUS_MANUAL_MAP
 
+        # 🛡️ FIX 2: Prevent the layout template crash on line 4537
+        if "sel_exam" not in globals():
+            sel_exam = "BISE-11th"  # Global placeholder variable initialization
+
         disc_upper = str(sel_disc).strip().upper()
         
-        try:
-            map_sections = DISCIPLINE_SECTIONS_MAP.get(disc_upper, {}).get(selected_class, [])
-        except NameError:
-            map_sections = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get(selected_class, [])
+        # Pull core configurations safely
+        map_sections = DISCIPLINE_SECTIONS_MAP.get(disc_upper, {}).get(selected_class, [])
 
         if academic_system != "Annual System":
             map_sections = ["DIT_B", "DIT_G"]
 
-        # Query live database sections to find exactly what labels exist for this class/session
+        # Run database lookup query to pull live student registration records
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -4168,10 +4170,10 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 🎯 SMART STRUCTURAL PREFIX FILTERING
+        # 🎯 FIX 3: STRICT PREFIX ENFORCEMENT FILTER
+        # This keeps sections like MG_BLUE from leaking into COMMERCE dashboards
         sec_options = list(map_sections)
         
-        # Isolate prefixes dynamically according to target selection criteria
         allowed_prefixes = []
         if "COMMERCE" in disc_upper: 
             allowed_prefixes = ["CG", "CB", "CQ", "CK"]
@@ -4186,27 +4188,27 @@ elif menu_choice == "📋 Section Summary Report":
         elif "HUMANITIES" in disc_upper: 
             allowed_prefixes = ["FG", "FB", "FK", "FQ"]
 
-        # Only merge runtime database entries if they structurally belong to the active discipline view
+        # Append runtime entries ONLY if they strictly belong to the selected discipline prefix
         for db_s in db_sections:
             db_s_upper = db_s.upper().strip()
             if db_s not in sec_options:
-                if any(db_s_upper.startswith(pref) for pref in allowed_prefixes) or not allowed_prefixes:
+                if any(db_s_upper.startswith(pref) for pref in allowed_prefixes):
                     sec_options.append(db_s)
 
         if not sec_options:
             sec_options = map_sections if map_sections else ["CG_WHITE"]
 
+        # Generate separate state key unique to selected discipline + class level combinations
         fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
 
-        # 🧠 INTELLIGENT AUTO-FOCUS INDEX FINDER
+        # 🧠 SMART AUTO-INDEX DETECTOR
         default_idx = 0
-        if db_sections:
-            for idx, opt in enumerate(sec_options):
-                if opt in db_sections:
-                    default_idx = idx
-                    break
+        for idx, opt in enumerate(sec_options):
+            if opt in db_sections:
+                default_idx = idx
+                break
 
-        # Maintain state stability while bypassing selection duplication loops
+        # Maintain isolated component session states safely across interactions
         if fixed_key not in st.session_state:
             st.session_state[fixed_key] = sec_options[default_idx]
         elif st.session_state[fixed_key] not in sec_options:
@@ -4217,7 +4219,6 @@ elif menu_choice == "📋 Section Summary Report":
             sec_options, 
             key=fixed_key
         )
-
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER_SCIENCE": "COMP", "COMPUTER": "COMP",
