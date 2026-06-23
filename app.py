@@ -4261,7 +4261,6 @@ elif menu_choice == "📋 Multi-Test Summary Report":
         if not exam_options:
             exam_options = ["BISE-11th", "Pre-Board 11th", "Send-Up 11th", "Term-1", "Term-2", "Term-3"]
             
-        # For multi-test summary, we allow picking multiple exams to render side-by-side
         selected_exams_list = st.multiselect(
             "Select Exams:",
             exam_options,
@@ -4318,9 +4317,9 @@ elif menu_choice == "📋 Multi-Test Summary Report":
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER (MULTI-TEST EXAM BREAKDOWN MODE) ---
+        # --- 6. PERFORMANCE GRID COMPILER ---
         summary_rows = []
-        columns_to_render = selected_exams_list
+        columns_to_render = selected_exams_list if selected_exams_list else ["Term-1"]
         
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
@@ -4338,8 +4337,6 @@ elif menu_choice == "📋 Multi-Test Summary Report":
             for item in columns_to_render:
                 item_upper = str(item).upper().strip()
                 
-                # 🟢 CRITICAL MATCH ALIGNMENT FIX: 
-                # Isolate target rows specifically matching this exam code to guarantee 'A' & 'NC' match accurately
                 if not marks_df.empty:
                     sub_match = marks_df[
                         (marks_df["student_key"] == s_id) & 
@@ -4348,7 +4345,6 @@ elif menu_choice == "📋 Multi-Test Summary Report":
                 else:
                     sub_match = pd.DataFrame()
                 
-                # Exact conversion parsing mirroring your working Section Summary layout
                 if not sub_match.empty:
                     raw_val = sub_match["marks_obtained"].iloc[0]
                     tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
@@ -4453,6 +4449,9 @@ elif menu_choice == "📋 Multi-Test Summary Report":
             """
             
         logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
+        
+        # ⚠️ CRITICAL FIX: All standard single CSS and JavaScript braces are now double-escaped as {{ }} 
+        # so Python f-string rendering does not crash out with a blank screen error.
         analytics_html_payload = f"""
         <!DOCTYPE html>
         <html>
