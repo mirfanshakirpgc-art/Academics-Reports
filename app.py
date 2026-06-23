@@ -4399,12 +4399,11 @@ elif menu_choice == "📋 Section Summary Report":
                 placeholders = ", ".join(f":exam_{i}" for i in range(len(exams_to_fetch)))
                 query_params = {f"exam_{i}": ex for i, ex in enumerate(exams_to_fetch)}
             
-            # 🟢 CRITICAL SQL FIX: Explicitly select exam_type AS exam_code so pandas can match it!
+            # 🟢 SEAMLESS MULTI-TEST FETCH: Pulls text strings matching all selected exam types
             multi_exam_query = text(f"""
                 SELECT 
                     CAST(student_id AS TEXT) as student_key, 
-                    UPPER(TRIM(exam_type)) as exam_code, 
-                    UPPER(TRIM(subject)) as subject_name,
+                    UPPER(TRIM(subject)) as subject_name, 
                     marks_obtained, 
                     total_marks
                 FROM marks 
@@ -4416,7 +4415,7 @@ elif menu_choice == "📋 Section Summary Report":
             if not marks_df.empty:
                 marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
                 marks_df["marks_obtained"] = marks_df["marks_obtained"].astype(str).str.strip().str.upper()
-                marks_df["exam_code"] = marks_df["exam_code"].astype(str).str.strip().str.upper()
+                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.upper()
         except Exception as e:
             st.error(f"Error compiling multi-test database records: {str(e)}")
             marks_df = pd.DataFrame()
@@ -4431,9 +4430,8 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER (MULTI-TEST EXAM BREAKDOWN MODE) ---
+        # --- 6. PERFORMANCE GRID COMPILER (SUBJECT COLUMN BREAKDOWN MODE) ---
         summary_rows = []
-        exams_loop_list = selected_exams_list if 'selected_exams_list' in locals() else []
         
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
@@ -4448,38 +4446,45 @@ elif menu_choice == "📋 Section Summary Report":
             max_total = 0.0
             has_valid_scores = False  
             
-            # Loop through selected EXAMS instead of subjects to build columns side-by-side
-            for exam in exams_loop_list:
-                exam_upper = str(exam).upper().strip()
+            # 🟢 LOOP MATCHING BY SUBJECT (Matches Section Summary perfectly)
+            for sub in subjects:
+                sub_upper = sub.upper().strip()
+                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
+                
+                alias_list = [sub_upper]
+                if "STAT" in sub_upper: alias_list.extend(["STATISTICS", "STATS"])
+                elif "PHYS" in sub_upper: alias_list.extend(["PHYSICS"])
+                elif "COMP" in sub_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
+                elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
                 
                 if not marks_df.empty:
-                    # Now exam_code exists and matches perfectly!
-                    exam_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["exam_code"] == exam_upper)]
+                    # Match by student key AND matching subject list aliases
+                    sub_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["subject_name"].isin(alias_list))]
                 else:
-                    exam_match = pd.DataFrame()
+                    sub_match = pd.DataFrame()
                 
-                if not exam_match.empty:
-                    obt_col = "marks_obtained" if "marks_obtained" in exam_match.columns else "obtained_marks"
-                    tot_col = "total_marks" if "total_marks" in exam_match.columns else "max_marks"
+                if not sub_match.empty:
+                    obt_col = "marks_obtained" if "marks_obtained" in sub_match.columns else "obtained_marks"
+                    tot_col = "total_marks" if "total_marks" in sub_match.columns else "max_marks"
                     
-                    val = str(exam_match[obt_col].iloc[0]).strip().upper()
-                    tot = float(exam_match[tot_col].iloc[0]) if (tot_col in exam_match.columns and pd.notna(exam_match[tot_col].iloc[0])) else 100.0
+                    val = str(sub_match[obt_col].iloc[0]).strip().upper()
+                    tot = float(sub_match[tot_col].iloc[0]) if (tot_col in sub_match.columns and pd.notna(sub_match[tot_col].iloc[0])) else 100.0
                     
                     if val in ["NC", "NOT CONDUCTED"]:
-                        entry[exam] = "NC"
+                        entry[short_sub] = "NC"
                     elif val in ["A", "ABSENT"]:
-                        entry[exam] = "A"
+                        entry[short_sub] = "A"
                         max_total += tot       
                         has_valid_scores = True
                     elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        entry[exam] = float(val)
+                        entry[short_sub] = float(val)
                         obtained_total += float(val)
                         max_total += tot       
                         has_valid_scores = True
                     else:
-                        entry[exam] = val
+                        entry[short_sub] = val
                 else:
-                    entry[exam] = "NC" # Fallback if record does not exist for this student's exam
+                    entry[short_sub] = "-"
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
@@ -4510,7 +4515,8 @@ elif menu_choice == "📋 Section Summary Report":
         import io
         excel_export_df = final_report_df.copy()
         
-        for col_lbl in exams_loop_list:
+        short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
+        for col_lbl in short_subject_labels:
             if col_lbl in excel_export_df.columns:
                 excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(lambda cell: int(cell) if isinstance(cell, (int, float)) else cell)
         
