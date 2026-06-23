@@ -2664,7 +2664,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        # 🟢 UPDATE: Allocate 6 full columns so there is space for every dropdown filter in the row
+        c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.5, 1.2, 1.5, 1.5, 1.2])
         
         raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_role = str(raw_role).strip().lower() if raw_role else 'admin'
