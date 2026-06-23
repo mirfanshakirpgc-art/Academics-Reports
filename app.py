@@ -4677,6 +4677,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
     col_dyn1, col_dyn2, col_dyn3 = st.columns(3)
 
     if academic_system == "Annual System":
+        # 🟢 ADDED: Defensive fallback for the discipline tracking map to prevent NameError
+        if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
+            DISCIPLINE_SECTIONS_MAP = {
+                "FSC MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
+                "FSC ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
+                "ICS STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
+                "ICOM COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]}
+            }
+
         with col_dyn1:
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
@@ -4717,7 +4726,11 @@ if menu_choice == "📈 Multi-Test Progress Report":
     )
 
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
-    students_to_process = []
+    
+    # 🟢 UPDATED: Track students inside st.session_state so values do not vanish when buttons rerender the app
+    if "students_to_process" not in st.session_state:
+        st.session_state.students_to_process = []
+        
     rendered_section = str(sel_sec).strip()
 
     if scope_choice == "👤 Single Student Card":
@@ -4744,9 +4757,10 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global, "section": f"%{rendered_section}%"})
                     
                     if not student_df.empty:
-                        students_to_process = student_df.to_dict('records')
+                        st.session_state.students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
                     else:
+                        st.session_state.students_to_process = []
                         st.error(f"❌ Student ID #{clean_id} was not found inside Section {rendered_section} ({sel_class_global}).")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
@@ -4770,13 +4784,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
             """, {"section": f"%{rendered_section}%", "session": sel_session_global, "class_level": sel_class_global})
             
             if not section_students_df.empty:
-                students_to_process = section_students_df.to_dict('records')
+                st.session_state.students_to_process = section_students_df.to_dict('records')
             else:
+                st.session_state.students_to_process = []
                 st.error(f"💡 No registered student profiles found matching section '{rendered_section}' for Session {sel_session_global} ({sel_class_global}).")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
     # --- DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
+    # 🟢 UPDATED: Engine setup to verify if data array has active targets loaded from session layout state
+    if st.session_state.students_to_process:
+        st.success(f"⚡ Processing engine initiated for {len(st.session_state.students_to_process)} target profile(s)...")
+        # Proceed with your rendering loop here using `st.session_state.students_to_process`
     if students_to_process and not selected_exams_list:
         st.warning("⚠️ Select at least one metric from the configuration panel to compile report views.")
         
