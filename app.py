@@ -4130,8 +4130,6 @@ elif menu_choice == "📋 Section Summary Report":
             st.info("⚡ DIT System Active")
         
     with col_b: 
-        # Create an explicit map based directly on your campus reference rules
-        # to ensure it changes strictly when discipline changes
         CAMPUS_MANUAL_MAP = {
             "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
             "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
@@ -4141,20 +4139,17 @@ elif menu_choice == "📋 Section Summary Report":
             "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}
         }
 
-        # 1. Resolve sections based on the selected discipline (sel_disc) and class
         disc_upper = str(sel_disc).strip().upper()
         
-        # Pull from the real application configuration map if available, else use manual reference
         try:
             map_sections = DISCIPLINE_SECTIONS_MAP.get(disc_upper, {}).get(selected_class, [])
         except NameError:
             map_sections = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get(selected_class, [])
 
-        # If it's a semester system, override with DIT sections directly
         if academic_system != "Annual System":
             map_sections = ["DIT_B", "DIT_G"]
 
-        # 2. Query active section options from the live database environment to find what exists
+        # Query live database sections to find exactly what labels exist for this class/session
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -4168,23 +4163,16 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 3. 🎯 DYNAMIC FILTERING: Force sections to belong BOTH to this discipline and the DB entries
-        if db_sections and map_sections:
-            sec_options = [s for s in map_sections if s in db_sections]
-            # Fallback to the target discipline mapping if DB didn't match anything yet
-            if not sec_options:
-                sec_options = map_sections
-        else:
-            sec_options = map_sections
+        # 🎯 SMART MERGE: Keep standard map sections, but append any sections found in the DB (like MG_BLUE)
+        sec_options = list(map_sections)
+        for db_s in db_sections:
+            if db_s not in sec_options:
+                sec_options.append(db_s)
 
-        # Final ultra-safe guard fallback if something goes wrong, match by class list index
+        # Ultra-safe fallback guard
         if not sec_options:
-            if selected_class == "11th":
-                sec_options = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get("11th", ["CG_WHITE"])
-            else:
-                sec_options = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get("12th", ["CQ1"])
+            sec_options = ["MG_BLUE", "CG_WHITE"]
 
-        # 🔄 DYNAMIC RE-KEYING DEVICE: Destroys cached selection index instantly when choosing a new discipline
         fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
 
         sel_sec = st.selectbox(
@@ -4195,7 +4183,6 @@ elif menu_choice == "📋 Section Summary Report":
         )
         
     with col_c: 
-        # --- DYNAMIC EVALUATION CYCLE TRACK FETCH ---
         try:
             exam_data = run_query("""
                 SELECT exam_code 
@@ -4226,43 +4213,18 @@ elif menu_choice == "📋 Section Summary Report":
 
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
-        "MATHEMATICS": "MATH", 
-        "COMPUTER_SCIENCE": "COMP", 
-        "COMPUTER": "COMP",
-        "PHYSICS": "PHY", 
-        "CHEMISTRY": "CHEM", 
-        "BIOLOGY": "BIO", 
-        "STATISTICS": "STATS",
-        "ENGLISH": "ENG", 
-        "URDU": "URDU", 
-        "ISLAMIC_STUDIES": "ISL", 
-        "PAK_ST": "PAK.ST", 
-        "PAKISTAN_STUDIES": "PAK.ST",
-        "ISL_ETH": "ISL", 
-        "T_QURAN": "QURAN", 
-        "T_QUANT": "QURAN",
-        "PRINCIPLES_OF_ACCOUNTING": "ACC", 
-        "PRINCIPLES_OF_COMMERCE": "COMM",
-        "PRINCIPLES_OF_ECONOMICS": "ECO",
-        "BUSINESS_MATHEMATICS": "B.MATH",
-        "BANKING": "BANK",
-        "COMMERCIAL_GEOGRAPHY": "GEOG",
-        "BUSINESS_STATISTICS": "B.STATS",
-        "EDUCATION": "EDU",
-        "ISL_ELC": "ISL.E",
-        "ICT": "ICT", 
-        "OFFICE_AUTOMATION": "OFFICE", 
-        "INFORMATION_TECHNOLOGY": "I.T",
-        "COMPUTER_NETWORKS": "NETWORKS", 
-        "NETWORKING": "NET",
-        "C-PROGRAMMING": "PROG",
-        "OPERATING_SYSTEM": "O.S", 
-        "INTRODUCTION_TO_PROGRAMMING": "PROG",
-        "DATA_BASE_SYSTEM": "DBMS", 
-        "VIDEO_EDITING": "VIDEO", 
-        "WEB_DEVELOPMENT_ESSENTIAL": "WEB",
-        "GRAPHICS_DESIGN": "DESIGN", 
-        "PROJECT": "PROJ"
+        "MATHEMATICS": "MATH", "COMPUTER_SCIENCE": "COMP", "COMPUTER": "COMP",
+        "PHYSICS": "PHY", "CHEMISTRY": "CHEM", "BIOLOGY": "BIO", "STATISTICS": "STATS",
+        "ENGLISH": "ENG", "URDU": "URDU", "ISLAMIC_STUDIES": "ISL", "PAK_ST": "PAK.ST", 
+        "PAKISTAN_STUDIES": "PAK.ST", "ISL_ETH": "ISL", "T_QURAN": "QURAN", "T_QUANT": "QURAN",
+        "PRINCIPLES_OF_ACCOUNTING": "ACC", "PRINCIPLES_OF_COMMERCE": "COMM",
+        "PRINCIPLES_OF_ECONOMICS": "ECO", "BUSINESS_MATHEMATICS": "B.MATH",
+        "BANKING": "BANK", "COMMERCIAL_GEOGRAPHY": "GEOG", "BUSINESS_STATISTICS": "B.STATS",
+        "EDUCATION": "EDU", "ISL_ELC": "ISL.E", "ICT": "ICT", "OFFICE_AUTOMATION": "OFFICE", 
+        "INFORMATION_TECHNOLOGY": "I.T", "COMPUTER_NETWORKS": "NETWORKS", "NETWORKING": "NET",
+        "C-PROGRAMMING": "PROG", "OPERATING_SYSTEM": "O.S", "INTRODUCTION_TO_PROGRAMMING": "PROG",
+        "DATA_BASE_SYSTEM": "DBMS", "VIDEO_EDITING": "VIDEO", "WEB_DEVELOPMENT_ESSENTIAL": "WEB",
+        "GRAPHICS_DESIGN": "DESIGN", "PROJECT": "PROJ"
     }
     
     # --- 4. DYNAMIC SUBJECT LIST ROUTING ---
@@ -4304,8 +4266,7 @@ elif menu_choice == "📋 Section Summary Report":
         else:
             subjects = ["ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
-    # --- 5. DATABASE INTEGRATION ENGINE (SELF-HEALING ARCHITECTURE) ---
-    # Attempt 1: Strict targeted segment matching
+    # --- 5. DATABASE INTEGRATION ENGINE ---
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -4316,7 +4277,7 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
-    # Attempt 2: Comprehensive Fallback Check if entries are stored under legacy or alternative section strings
+    # Auto-Fallback Safety Net
     if students_df.empty:
         try:
             fallback_check_df = run_query("""
@@ -4329,14 +4290,13 @@ elif menu_choice == "📋 Section Summary Report":
             """, {"session_str": db_session_string, "class": selected_class})
             
             if not fallback_check_df.empty:
-                # Intercept query pipeline and inject matched row data securely
                 students_df = fallback_check_df
                 detected_sections = ", ".join(fallback_check_df["Section"].unique().tolist())
-                st.warning(f"ℹ️ System Alert: Active profiles for {selected_class} are logged under section designations: **{detected_sections}**.")
+                st.warning(f"ℹ️ Active profiles for {selected_class} found under alternate section: **{detected_sections}**.")
         except Exception:
             pass
 
-    # --- CONTINUE RENDERING LEGER GRID IF RECOVERED ---
+    # --- RENDERING CONFIGURATION ---
     if students_df.empty:
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
     else:
@@ -4368,11 +4328,8 @@ elif menu_choice == "📋 Section Summary Report":
             s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
             
             entry = {
-                "ID": s_row["ID"], 
-                "Student Name": s_row["Student Name"], 
-                "Section": s_row["Section"], 
-                "Class": s_row["Current Class"],
-                "Status": s_status
+                "ID": s_row["ID"], "Student Name": s_row["Student Name"], 
+                "Section": s_row["Section"], "Class": s_row["Current Class"], "Status": s_status
             }
             
             obtained_total = 0.0
@@ -4390,10 +4347,7 @@ elif menu_choice == "📋 Section Summary Report":
                 elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
                 
                 if not marks_df.empty:
-                    sub_match = marks_df[
-                        (marks_df["student_key"] == s_id) & 
-                        (marks_df["subject_name"].isin(alias_list))
-                    ]
+                    sub_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["subject_name"].isin(alias_list))]
                 else:
                     sub_match = pd.DataFrame()
                 
@@ -4442,13 +4396,10 @@ elif menu_choice == "📋 Section Summary Report":
         
         # --- Excel Payload Compiler Hub ---
         excel_export_df = final_report_df.copy()
-        
         short_subject_labels = [SHORT_SUBJECTS_MAP.get(sub.upper().strip(), sub[:4]) for sub in subjects]
         for col_lbl in short_subject_labels:
             if col_lbl in excel_export_df.columns:
-                excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(
-                    lambda cell: int(cell) if isinstance(cell, (int, float)) else cell
-                )
+                excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(lambda cell: int(cell) if isinstance(cell, (int, float)) else cell)
         
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
@@ -4468,8 +4419,8 @@ elif menu_choice == "📋 Section Summary Report":
         
         # --- 7. HTML LIVE COMPONENT INTERFACE GENERATOR ---
         thead_subjects_html = "".join([f'<th>{lbl}</th>' for lbl in short_subject_labels])
-        
         tbody_rows_html = ""
+        
         for _, row in final_report_df.iterrows():
             st_id = str(row["ID"]).strip()
             current_status = row["Status"]
@@ -4498,12 +4449,7 @@ elif menu_choice == "📋 Section Summary Report":
             row_subjects_cells = ""
             for lbl in short_subject_labels:
                 cell_val = row[lbl]
-                
-                if isinstance(cell_val, (int, float)):
-                    cell_str = str(int(cell_val))
-                else:
-                    cell_str = str(cell_val)
-                    
+                cell_str = str(int(cell_val)) if isinstance(cell_val, (int, float)) else str(cell_val)
                 cell_style = "color: #e74c3c; font-weight: bold;" if cell_str in ["A", "FAIL"] else ("color: #7f8c8d; font-weight: bold;" if cell_str == "NC" else "")
                 row_subjects_cells += f'<td style="{cell_style}">{cell_str}</td>'
             
@@ -4523,7 +4469,6 @@ elif menu_choice == "📋 Section Summary Report":
             """
             
         logo_url = "https://raw.githubusercontent.com/mirfanshakirpgc-art/Academics-Reports/main/logo.png"
-        
         analytics_html_payload = f"""
         <!DOCTYPE html>
         <html>
