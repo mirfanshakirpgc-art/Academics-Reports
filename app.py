@@ -3891,6 +3891,16 @@ elif menu_choice == "📋 Daily Attendance Report":
         st.caption("Live tracking timeline displaying unalterable teacher feedback submissions with local timezone timestamps.")
         st.markdown("---")
         
+        # 🟢 FIX: Safe injection of dictionary to eliminate NameError instantly
+        DISCIPLINE_SECTIONS_MAP = {
+            "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
+            "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
+            "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IG", "IB"]},
+            "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
+            "COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]},
+            "HUMANITIES": {"11th": ["HG_BLUE"], "12th": ["HG_BLUE"]}
+        }
+        
         all_possible_sections = set()
         for discipline, classes in DISCIPLINE_SECTIONS_MAP.items():
             for class_tier, sections_list in classes.items():
@@ -4000,7 +4010,6 @@ elif menu_choice == "📋 Daily Attendance Report":
                 )
         except Exception as e:
             st.error(f"Could not load the admin remarks data view grid: {e}")
-
     # --------------------------------------------------------------------------
     # TAB 3: STUDENT ATTENDANCE HISTORY
     # --------------------------------------------------------------------------
