@@ -4134,9 +4134,16 @@ elif menu_choice == "📋 Daily Attendance Report":
 # ====================================================================================
 elif menu_choice == "📋 Multi-Test Summary Report":
     import streamlit as st
-    
+    st.title("📋 Multi-Test Summary Report Ledger")
     st.write("### 🚨 Diagnostic Checkpoint reached!")
-    st.info("If you can see this message, the routing engine is working, and the crash is happening inside the database variables.")
+    st.info("The string matched perfectly!")
+
+# 🔍 ADD THIS TEMPORARY CATCH-ALL RIGHT BELOW IT TO TRACE THE VALUE
+else:
+    import streamlit as st
+    st.error(f"⚠️ Fall-through detected! The menu choice did not match the elif block.")
+    st.code(f"Current menu_choice value: '{menu_choice}'")
+    st.write("Check if emojis, spaces, or spelling match your sidebar menu options exactly.")
 
     st.title("📋 Multi-Test Summary Report Ledger")
 
