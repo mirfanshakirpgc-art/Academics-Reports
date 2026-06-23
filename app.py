@@ -4432,13 +4432,16 @@ elif menu_choice == "📋 Section Summary Report":
                     exam_match = pd.DataFrame()
                 
                 if not exam_match.empty:
-                    # Fetch value cleanly 
-                    val = str(exam_match["marks_obtained"].iloc[0]).strip().upper()
-                    tot = float(exam_match["total_marks"].iloc[0]) if pd.notna(exam_match["total_marks"].iloc[0]) else 100.0
+                    # 🟢 FLEXIBLE COLUMN CHECK: Look for either column name variation dynamically
+                    obt_col = "marks_obtained" if "marks_obtained" in exam_match.columns else "obtained_marks"
+                    tot_col = "total_marks" if "total_marks" in exam_match.columns else "max_marks"
                     
-                    if val == "NC":
+                    val = str(exam_match[obt_col].iloc[0]).strip().upper()
+                    tot = float(exam_match[tot_col].iloc[0]) if (tot_col in exam_match.columns and pd.notna(exam_match[tot_col].iloc[0])) else 100.0
+                    
+                    if val == "NC" or val == "NOT CONDUCTED":
                         entry[exam] = "NC"
-                    elif val == "A":
+                    elif val == "A" or val == "ABSENT":
                         entry[exam] = "A"
                         max_total += tot       
                         has_valid_scores = True
@@ -4450,7 +4453,7 @@ elif menu_choice == "📋 Section Summary Report":
                     else:
                         entry[exam] = val
                 else:
-                    entry[exam] = "NC" # If no database record exists for this exam, mark as Not Conducted
+                    entry[exam] = "NC" # Default fallback if record doesn't exist
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
