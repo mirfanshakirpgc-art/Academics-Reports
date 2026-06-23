@@ -4134,10 +4134,10 @@ elif menu_choice == "📋 Section Summary Report":
         CAMPUS_MANUAL_MAP = {
             "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
             "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-            "COMMERCE": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+            "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
             "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-            "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
-            "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}
+            "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+            "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}  
         }
 
         # 🛡️ FIX 1: Eliminate downstream NameErrors on line 4692 
