@@ -1,4 +1,6 @@
 # --- LINE 1: ALL IMPORTS MUST BE HERE ---
+import datetime
+from sqlalchemy import text
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -3394,6 +3396,10 @@ if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('a
     st.subheader("📅 Daily Attendance Roster Sheet")
     st.markdown("---")
     
+    # Defensive imports to guarantee execution context safely
+    import datetime
+    from sqlalchemy import text
+    
     d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
     with d1:
         sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
@@ -3501,13 +3507,13 @@ if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('a
                     col_s1.write(f"🆔 `{row['ID']}`")
                     col_s2.write(f"👤 **{row['Student Name']}**")
                     
-                    saved_db_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
-                    if saved_db_status in ['P', 'PRESENT', '1']:
-                        initial_checkbox_state = True
-                    elif saved_db_status in ['A', 'ABSENT', '0']:
-                        initial_checkbox_state = False
-                    else:
+                    saved_db_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else "NONE"
+                    
+                    # 🟢 FIXED: Changed state logic evaluating fallback map triggers to accurately track UI elements
+                    if saved_db_status == "NONE":
                         initial_checkbox_state = master_attendance_toggle
+                    else:
+                        initial_checkbox_state = saved_db_status in ['P', 'PRESENT', '1']
                         
                     attendance_checkbox_map[row['ID']] = col_s3.checkbox(
                         "Present", 
