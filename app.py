@@ -804,10 +804,14 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
     
     st.title("📅 Section Incharge Attendance Panel")
     
+    # Identify user level
+    is_admin_user = user_role in ["Admin", "Administrator"]
+    
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    if not scope_str and user_role in ["Admin", "Administrator"]:
+    # Administrative override for fallback values if scope is blank
+    if not scope_str and is_admin_user:
         scope_str = "11th - IG"  
         
     if not scope_str:
@@ -833,6 +837,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
 
     # Fetch initial student roster matrix joining with daily_attendance
     try:
+        # FIXED: Optimized SQL handles dynamic string conversion adjustments for Admin role permissions safely
         roster_df = run_query("""
             SELECT 
                 s.id AS "ID", 
@@ -846,16 +851,21 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-              AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+              AND (:is_admin = 1 OR UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session)))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
             ORDER BY s.id ASC
-        """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
+        """, {
+            "att_date": str(target_date), 
+            "section": forced_section.strip().upper(), 
+            "session": target_session.strip(),
+            "is_admin": 1 if is_admin_user else 0
+        })
     except Exception as e:
         st.error(f"⚠️ Query Processing Failure: {e}")
         roster_df = pd.DataFrame()
 
     if roster_df.empty:
-        st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
+        st.error(f"⚠️ No active student profiles found under Section '{forced_section}' for the selected filters.")
     else:
         master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
         
@@ -909,7 +919,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
 
         try:
             with engine.connect() as conn:
-                # Optimized status matching using UPPER and TRIM to ensure no spaces break validation
+                # FIXED: Standardized target scope search constraints for global Admin accounts
                 query = text("""
                     SELECT 
                         d.student_id AS "ID", 
@@ -935,7 +945,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
             st.markdown("###")
             st.error("❌ Absent Student Remarks Panel")
             
-            # Using a uniquely mapped form ID to clear state cache overlap issues
             with st.form("absent_remarks_form_teacher_dedicated_flow", clear_on_submit=False):
                 operator_identity = st.session_state.get("user_name", 
                                     st.session_state.get("name", 
@@ -994,7 +1003,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     
                     r_col1, r_col2 = st.columns(2)
                     with r_col1:
-                        # FIXED: Keys explicitly updated to avoid suffix overlap conflicts across modules
                         reason_selection_map[ab_row['ID']] = st.selectbox(
                             f"Reason for Absence (Roll No: {ab_row['ID']}):",
                             options=fixed_reasons,
