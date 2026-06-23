@@ -4108,7 +4108,7 @@ elif menu_choice == "📋 Section Summary Report":
     col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
     
     with col_sess:
-        selected_session = st.selectbox("Select Session:", session_options, key="summary_session")
+        selected_session = st.selectbox("Select Session:", session_options, index=default_index, key="summary_session")
         db_session_string = str(selected_session).strip() if selected_session else "2025-27"
         
     with col_sys:
@@ -4130,12 +4130,13 @@ elif menu_choice == "📋 Section Summary Report":
             st.info("⚡ DIT System Active")
         
     with col_b: 
+        # 👑 FIXED SWAPPED CONFIGURATIONS MAPPING
         CAMPUS_MANUAL_MAP = {
             "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
             "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-            "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+            "COMMERCE": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
             "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-            "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+            "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
             "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}
         }
 
@@ -4163,31 +4164,32 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 🎯 SMART MERGE: Keep standard map sections, but append any sections found in the DB
+        # 🎯 SMART MERGE & DEDUPLICATION
         sec_options = list(map_sections)
         for db_s in db_sections:
             if db_s not in sec_options:
                 sec_options.append(db_s)
 
-        # Ultra-safe fallback guard
         if not sec_options:
             sec_options = ["MG_BLUE", "CG_WHITE"]
 
         fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
 
-        # 🧠 HARD STATE OVERRIDE HOOK
-        # Force Streamlit's Session State to register and select the live DB section 
-        # if the default choice would otherwise point to an empty section (like CG_WHITE).
-        if fixed_key not in st.session_state and db_sections:
-            for active_sec in db_sections:
-                if active_sec in sec_options:
-                    st.session_state[fixed_key] = active_sec
+        # 🧠 INTELLIGENT AUTO-FOCUS INDEX FINDER
+        # Instantly sets the default selection window to an active DB section if index 0 has no matches
+        default_idx = 0
+        if db_sections:
+            for idx, opt in enumerate(sec_options):
+                if opt in db_sections:
+                    default_idx = idx
                     break
-        elif fixed_key in st.session_state and st.session_state[fixed_key] not in sec_options:
-            # If changed disciplines and old selection doesn't match new choices, clear it out safely
-            st.session_state[fixed_key] = sec_options[0]
 
-        # Since state handles selection now, index=0 is used merely as a structural fallback requirement
+        # Maintain state stability while bypassing selection duplication loops
+        if fixed_key not in st.session_state:
+            st.session_state[fixed_key] = sec_options[default_idx]
+        elif st.session_state[fixed_key] not in sec_options:
+            st.session_state[fixed_key] = sec_options[default_idx]
+
         sel_sec = st.selectbox(
             "Select Section:", 
             sec_options, 
