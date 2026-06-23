@@ -2723,15 +2723,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
         else:
             # 🟢 STEP 2: DEFENSIVE FALLBACK CONFIGURATIONS FOR ADMIN / PRINCIPAL / CLERK ROLES
-            if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
-                DISCIPLINE_SECTIONS_MAP = {
-                    "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
-                    "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
-                    "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IG", "IB"]},
-                    "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
-                    "COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]},
-                    "HUMANITIES": {"11th": ["HG_BLUE"], "12th": ["HG_BLUE"]}
-                }
+# Removed conditional check to ensure map variable is globally instantiated 100% of the time
+DISCIPLINE_SECTIONS_MAP = {
+    "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
+    "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
+    "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IG", "IB"]},
+    "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
+    "COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]},
+    "HUMANITIES": {"11th": ["HG_BLUE"], "12th": ["HG_BLUE"]}
+}
 
             if "DISCIPLINE_SUBJECTS_MAP" not in locals() and "DISCIPLINE_SUBJECTS_MAP" not in globals():
                 DISCIPLINE_SUBJECTS_MAP = {
