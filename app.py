@@ -4662,6 +4662,15 @@ if menu_choice == "📈 Multi-Test Progress Report":
     synchronized_sessions = sorted(list(set(synchronized_sessions)))
     default_session_index = 0 if len(synchronized_sessions) > 0 else None
 
+    # --- DEFENSIVE STRUCTURAL VARIABLE INITIALIZATION ---
+    if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
+        DISCIPLINE_SECTIONS_MAP = {
+            "FSC MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
+            "FSC ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
+            "ICS STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
+            "ICOM COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]}
+        }
+
     # --- GLOBAL INTERFACE FILTER PANEL ---
     st.markdown('<div class="no-print">', unsafe_allow_html=True)
     st.markdown('##### 🎛️ Filter Configuration Panel')
@@ -4677,15 +4686,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
     col_dyn1, col_dyn2, col_dyn3 = st.columns(3)
 
     if academic_system == "Annual System":
-        # 🟢 ADDED: Defensive fallback for the discipline tracking map to prevent NameError
-        if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
-            DISCIPLINE_SECTIONS_MAP = {
-                "FSC MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
-                "FSC ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
-                "ICS STATISTICS": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
-                "ICOM COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]}
-            }
-
         with col_dyn1:
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
@@ -4726,11 +4726,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
     )
 
     months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
-    
-    # 🟢 UPDATED: Track students inside st.session_state so values do not vanish when buttons rerender the app
-    if "students_to_process" not in st.session_state:
-        st.session_state.students_to_process = []
-        
+    students_to_process = []
     rendered_section = str(sel_sec).strip()
 
     if scope_choice == "👤 Single Student Card":
@@ -4757,10 +4753,9 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global, "section": f"%{rendered_section}%"})
                     
                     if not student_df.empty:
-                        st.session_state.students_to_process = student_df.to_dict('records')
+                        students_to_process = student_df.to_dict('records')
                         rendered_section = student_df.iloc[0]["section"]
                     else:
-                        st.session_state.students_to_process = []
                         st.error(f"❌ Student ID #{clean_id} was not found inside Section {rendered_section} ({sel_class_global}).")
                 except Exception as e:
                     st.error(f"⚠️ Student verification query failed: {str(e)}.")
@@ -4784,18 +4779,13 @@ if menu_choice == "📈 Multi-Test Progress Report":
             """, {"section": f"%{rendered_section}%", "session": sel_session_global, "class_level": sel_class_global})
             
             if not section_students_df.empty:
-                st.session_state.students_to_process = section_students_df.to_dict('records')
+                students_to_process = section_students_df.to_dict('records')
             else:
-                st.session_state.students_to_process = []
                 st.error(f"💡 No registered student profiles found matching section '{rendered_section}' for Session {sel_session_global} ({sel_class_global}).")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
     # --- DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
-    # 🟢 UPDATED: Engine setup to verify if data array has active targets loaded from session layout state
-    if st.session_state.students_to_process:
-        st.success(f"⚡ Processing engine initiated for {len(st.session_state.students_to_process)} target profile(s)...")
-        # Proceed with your rendering loop here using `st.session_state.students_to_process`
     if students_to_process and not selected_exams_list:
         st.warning("⚠️ Select at least one metric from the configuration panel to compile report views.")
         
@@ -4940,7 +4930,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                                     raw_obt = str(target_record["marks_obtained"]).strip().upper()
                                     suffix_tag = target_record.get('label_suffix', '')
                                     
-                                    # Handle explicit string tokens without dropping into errors
                                     if raw_obt in ["A", "ABSENT"]:
                                         row_tds += f"<td>A{suffix_tag}</td>"
                                     elif raw_obt in ["NC", "NOT CONDUCTING", "NONE", "NAN", ""]:
@@ -5000,7 +4989,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             }
             attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
 
-            # Method A: Try pulling from transactional logs table
             try:
                 raw_logs_df = run_query("""
                     SELECT attendance_date, UPPER(TRIM(status)) as att_status
@@ -5033,7 +5021,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 except Exception:
                     pass
             else:
-                # Method B Fallback: Check structural month-indexed summary ledger table
                 try:
                     summary_att_df = run_query("""
                         SELECT month_name, total_days, present_days 
@@ -5052,7 +5039,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
                 except Exception:
                     pass
 
-            # Build HTML Cells out of final tracking matrix values
             for m_name in month_map.keys():
                 t_d = attendance_matrix[m_name]["total"]
                 a_d = attendance_matrix[m_name]["present"]
@@ -5079,8 +5065,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
 
             column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
             thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
-            
-            # Pre-compile inner tracker list header sequences
             attendance_table_headers = "".join([f"<th>{m}</th>" for m in month_map.keys()])
 
             l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
@@ -5134,7 +5118,6 @@ if menu_choice == "📈 Multi-Test Progress Report":
             </div>
             """
 
-        # --- CLOSING OUTSIDE THE STUDENT MULTI-RECORD LOOP ENGINE BLOCK ---
         composite_html_payload += """
             </div>
             <script>
@@ -5158,7 +5141,7 @@ if menu_choice == "📈 Multi-Test Progress Report":
                     
                     html2canvas(node, { scale: 2, useCORS: true }).then(canvas => {
                         const link = document.createElement('a');
-                        link.download = `ReportCard_${roll}_${name}.png`;
+                        link.download = `Progress_Card_${roll}_${name}.png`;
                         link.href = canvas.toDataURL('image/png');
                         link.click();
                     });
@@ -5168,14 +5151,8 @@ if menu_choice == "📈 Multi-Test Progress Report":
         </body>
         </html>
         """
-        
-        # Explicit module declaration patch
-        import streamlit.components.v1 as components
 
-        if isinstance(composite_html_payload, str) and len(composite_html_payload.strip()) > 0:
-            components.html(composite_html_payload, height=900, scrolling=True)
-        else:
-            st.error("Engine Error: The generated HTML workspace component assembly payload data object is invalid or empty.")
+        st.components.v1.html(composite_html_payload, height=900, scrolling=True)
 # ==============================================================================
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
 # ==============================================================================
