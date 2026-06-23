@@ -4646,7 +4646,7 @@ elif menu_choice == "📋 Section Summary Report":
         """
         components.html(analytics_html_payload, height=750, scrolling=True)
         
-# ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+# ------------------ 📈 MULTI-TEST PROGRESS REPORT -----------------
 if menu_choice == "📈 Multi-Test Progress Report":
     st.title("📈 Multi-Test Progress Analytics")
     st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
@@ -4750,6 +4750,18 @@ if menu_choice == "📈 Multi-Test Progress Report":
             
         with col_dyn2:
             annual_sections = []
+            
+            # 🟢 FIXED: Safe inline instantiation to permanently eliminate structural NameErrors
+            if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
+                DISCIPLINE_SECTIONS_MAP = {
+                    "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
+                    "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
+                    "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
+                    "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
+                    "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
+                    "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}  
+                }
+            
             for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
                 if "DIT" not in discipline.upper():
                     sections_list = class_data.get(sel_class_global, [])
