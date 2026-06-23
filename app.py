@@ -4126,6 +4126,47 @@ elif menu_choice == "📋 Daily Attendance Report":
                     st.info("ℹ️ No past attendance or late tracks recorded in the ledger for this student.")
 
 
+# ... [Your previous elif blocks for other menu options] ...
+
+# ====================================================================================                   
+# MODULE: 📋 MULTI-TEST SUMMARY REPORT
+# ====================================================================================
+elif menu_choice == "📋 Multi-Test Summary Report":
+    import streamlit as st
+    import pandas as pd
+    import streamlit.components.v1 as components
+    import io
+
+    st.title("📋 Multi-Test Summary Report Ledger")
+    
+    # --- Part 1 Layout & Fallbacks Logic ---
+    session_options = ["2025-27", "2026-28", "2027-29"]
+    db_session_string = "2026-28"
+    academic_system = "Annual System"
+    selected_class = "11th"
+    sel_disc = "MEDICAL"
+    disc_upper = "MEDICAL"
+    sel_sec = "MG_BLUE"
+    selected_exams_list = ["Term-1"]
+
+    # (Keep the rest of the dropdown layout logic from Part 1 here...)
+    st.write("Layout rendered successfully.")
+
+
+# ====================================================================================                   
+# NEXT MODULE: 🪪 STUDENT RESULT CARDS (Line 4267 Fix)
+# ====================================================================================
+elif menu_choice == "🪪 Student Result Cards":
+    import streamlit as st
+    
+    # Your existing code for Student Result Cards goes here...
+
+
+# ====================================================================================                   
+# THE FINAL CATCH-ALL (This MUST be at the very bottom of ALL menu choices)
+# ====================================================================================
+else:
+    st.write("Welcome! Please select an option from the sidebar menu.")
 # ====================================================================================                   
 # PART 1: 📋 MULTI-TEST SUMMARY REPORT (LAYOUT & CONTROLS CHECK)
 # ====================================================================================
