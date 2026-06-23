@@ -4388,27 +4388,29 @@ elif menu_choice == "📋 Section Summary Report":
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({current_display_class}) for Session {current_display_session}.")
     else:
         try:
-            # 🟢 BULLETPROOF DIRECT FETCH: Drop strict test filters at SQL level to force-fetch rows
-            # This completely avoids SQL parameter injection or formatting mismatches
-            marks_df = run_query("""
+            # 1. 🟢 BULLETPROOF BULK DATA PULL
+            # We fetch all data for the table raw without structural filters to ensure absolutely zero rows are dropped
+            raw_df = run_query("""
                 SELECT 
                     CAST(student_id AS TEXT) as student_key, 
-                    UPPER(TRIM(subject)) as subject_name, 
                     UPPER(TRIM(exam_type)) as exam_code,
+                    UPPER(TRIM(subject)) as subject_name, 
                     marks_obtained, 
                     total_marks
                 FROM marks
             """, {})
             
-            if not marks_df.empty:
-                marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
-                # Clean strings aggressively to preserve 'A' and 'NC'
-                marks_df["marks_obtained"] = marks_df["marks_obtained"].astype(str).str.strip().str.upper()
-                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.upper()
-                marks_df["exam_code"] = marks_df["exam_code"].astype(str).str.strip().str.upper()
+            if not raw_df.empty:
+                # Force clean string formatting onto everything immediately to keep 'A' and 'NC' safe
+                raw_df["student_key"] = raw_df["student_key"].astype(str).str.strip()
+                raw_df["marks_obtained"] = raw_df["marks_obtained"].astype(str).str.strip().str.upper()
+                raw_df["exam_code"] = raw_df["exam_code"].astype(str).str.strip().str.upper()
+                raw_df["subject_name"] = raw_df["subject_name"].astype(str).str.strip().str.upper()
+            else:
+                raw_df = pd.DataFrame(columns=["student_key", "exam_code", "subject_name", "marks_obtained", "total_marks"])
         except Exception as e:
-            st.error(f"Error compiling multi-test database records: {str(e)}")
-            marks_df = pd.DataFrame()
+            st.error(f"Database extraction error: {str(e)}")
+            raw_df = pd.DataFrame(columns=["student_key", "exam_code", "subject_name", "marks_obtained", "total_marks"])
 
         try:
             att_df = run_query("""
@@ -4420,12 +4422,45 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER (HYBRID LOOKUP ENGINE) ---
+        # --- 2. 🟢 PANDAS NATIVE PIVOT ENGINE ENGINE (LOOP-FREE MATRIX) ---
+        try:
+            # Determine if we are organizing the report columns by Exams or by Subjects
+            active_filter_list = selected_exams_list if ('selected_exams_list' in locals() and selected_exams_list) else subjects
+            active_filter_upper = [str(x).upper().strip() for x in active_filter_list]
+            
+            # Determine which database column matches our criteria values
+            sample_val = active_filter_upper[0] if active_filter_upper else ""
+            is_exam_mode = not raw_df[raw_df["exam_code"] == sample_val].empty if not raw_df.empty else True
+            pivot_column = "exam_code" if is_exam_mode else "subject_name"
+            
+            # Filter rows natively to match our filter requirements
+            filtered_marks = raw_df[raw_df[pivot_column].isin(active_filter_upper)].copy()
+            
+            if not filtered_marks.empty:
+                # Pivot the table dynamically: Index = Students, Columns = Exams/Subjects, Values = Raw Marks
+                # This guarantees that whatever text string lives in 'marks_obtained' ('A', 'NC', '85') lands directly in the cell!
+                matrix_df = filtered_marks.pivot(
+                    index="student_key", 
+                    columns=pivot_column, 
+                    values="marks_obtained"
+                ).reset_index()
+            else:
+                matrix_df = pd.DataFrame(columns=["student_key"])
+
+            # Map the clean headers back to match standard formatting configurations
+            for col in active_filter_upper:
+                if col not in matrix_df.columns:
+                    matrix_df[col] = "NC" # If a student or whole column has no database log, mark as Not Conducted Safely
+
+            # Fill any individual sparse missing values as Not Conducted
+            matrix_df = matrix_df.fillna("NC")
+            
+        except Exception as pivot_err:
+            st.error(f"Pivot Engine Alignment Error: {str(pivot_err)}")
+            matrix_df = pd.DataFrame(columns=["student_key"])
+
+        # --- 3. 🟢 COMPILING THE BASE PROFILE GRID ---
         summary_rows = []
-        
-        # Determine your column header loop target safely
-        columns_to_render = selected_exams_list if ('selected_exams_list' in locals() and selected_exams_list) else subjects
-        
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
             s_status = s_row["Status"] if pd.notna(s_row["Status"]) else "ACTIVE"
@@ -4437,49 +4472,28 @@ elif menu_choice == "📋 Section Summary Report":
             
             obtained_total = 0.0
             max_total = 0.0
-            has_valid_scores = False  
+            has_valid_scores = False
             
-            for item in columns_to_render:
-                item_upper = str(item).upper().strip()
+            # Map the columns directly from our native Pandas Matrix
+            for col_orig in active_filter_list:
+                col_upper = str(col_orig).upper().strip()
+                short_col = SHORT_SUBJECTS_MAP.get(col_upper, col_upper[:4]) if ('SHORT_SUBJECTS_MAP' in locals() and not is_exam_mode) else col_orig
                 
-                # Dynamic short label mapping matching Section Summary
-                short_col = SHORT_SUBJECTS_MAP.get(item_upper, item_upper[:4]) if 'SHORT_SUBJECTS_MAP' in locals() else item_upper[:4]
+                # Extract matrix cell value
+                student_matrix = matrix_df[matrix_df["student_key"] == s_id]
+                val = str(student_matrix[col_upper].iloc[0]).strip().upper() if (not student_matrix.empty and col_upper in matrix_df.columns) else "NC"
                 
-                # Check for alternative naming aliases (like Physics, Stats, Computer Science)
-                alias_list = [item_upper]
-                if "STAT" in item_upper: alias_list.extend(["STATISTICS", "STATS"])
-                elif "PHYS" in item_upper: alias_list.extend(["PHYSICS"])
-                elif "COMP" in item_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
-                elif "QURAN" in item_upper or "QUANT" in item_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
+                entry[short_col] = val
                 
-                if not marks_df.empty:
-                    # 🟢 WIDE-MATCH ALIGNMENT: Check both subject name and exam type columns 
-                    sub_match = marks_df[
-                        (marks_df["student_key"] == s_id) & 
-                        ((marks_df["subject_name"].isin(alias_list)) | (marks_df["exam_code"] == item_upper))
-                    ]
-                else:
-                    sub_match = pd.DataFrame()
-                
-                if not sub_match.empty:
-                    val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
-                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
-                    
-                    if val in ["NC", "NOT CONDUCTED"]:
-                        entry[short_col] = "NC"
-                    elif val in ["A", "ABSENT"]:
-                        entry[short_col] = "A"
-                        max_total += tot       
-                        has_valid_scores = True
-                    elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        entry[short_col] = float(val)
-                        obtained_total += float(val)
-                        max_total += tot       
-                        has_valid_scores = True
-                    else:
-                        entry[short_col] = val
-                else:
-                    entry[short_col] = "-"
+                # Total Calculation Parser
+                if val.replace('.', '', 1).isdigit() or val.isdigit():
+                    entry[short_col] = float(val)
+                    obtained_total += float(val)
+                    max_total += 100.0 # Default fallback total weight assignment
+                    has_valid_scores = True
+                elif val in ["A", "ABSENT"]:
+                    max_total += 100.0
+                    has_valid_scores = True
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
@@ -4490,6 +4504,7 @@ elif menu_choice == "📋 Section Summary Report":
                 entry["Total Max"] = "-"
                 entry["Percentage"] = "-"
                 
+            # Process Attendance Logs Natively
             if not att_df.empty:
                 st_att_logs = att_df[att_df["student_key"] == s_id]
                 if not st_att_logs.empty:
@@ -4509,12 +4524,6 @@ elif menu_choice == "📋 Section Summary Report":
         # --- Excel Payload Compiler Hub ---
         import io
         excel_export_df = final_report_df.copy()
-        
-        # Dynamic label safe conversion
-        col_labels = [SHORT_SUBJECTS_MAP.get(str(col).upper().strip(), str(col)[:4]) for col in columns_to_render] if 'SHORT_SUBJECTS_MAP' in locals() else [str(col)[:4] for col in columns_to_render]
-        for col_lbl in col_labels:
-            if col_lbl in excel_export_df.columns:
-                excel_export_df[col_lbl] = excel_export_df[col_lbl].apply(lambda cell: int(cell) if isinstance(cell, (int, float)) else cell)
         
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
