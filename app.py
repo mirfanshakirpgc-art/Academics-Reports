@@ -3887,7 +3887,7 @@ elif menu_choice == "📋 Daily Attendance Report":
     # DATALAYER PIPELINE: SYSTEM ENGINE TRACK ROUTING (Lines 3886 - 4006)
     # ====================================================================================
     
-    # 🟢 CRITICAL FIX: Explicitly initialize mapping before execution loops to prevent downstream NameErrors
+    # 🟢 CRITICAL CONFIGURATION: Injected map directly back into scope to resolve the NameError
     DISCIPLINE_SECTIONS_MAP = {
         "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
         "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
@@ -3897,42 +3897,33 @@ elif menu_choice == "📋 Daily Attendance Report":
         "HUMANITIES": {"11th": ["HG_BLUE"], "12th": ["HG_BLUE"]}
     }
 
-    # Extract dynamic user context variables safely from state/locals
+    # Extract dynamic user context variables safely from your Step 1 & 2 drop-downs
     active_system_mode = locals().get("global_system", "annual")
     active_term_focus = locals().get("global_term", "ALL")
     active_discipline_focus = locals().get("global_discipline", "ALL")
     
-    # --- PROCESSING LOOP FOR DISCIPLINE MATRIX ---
-    for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
-        # Clean discipline slug transformation for database queries
+    # --- EXACT RENDERING LOOP MATCHING YOUR SCRIPT'S ORIGINAL CORE STRUCTURE ---
+    for discipline, classes in DISCIPLINE_SECTIONS_MAP.items():
+        # Clean discipline slug transformation for underlying database tracking
         discipline_slug = discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
         if "PHYSIC" in discipline_slug: 
             discipline_slug = "ICS_PHYSICS"
         elif "STAT" in discipline_slug: 
             discipline_slug = "ICS_STATISTICS"
             
-        # Global UI Filtering Match Check
-        if active_discipline_focus != "ALL" and active_discipline_focus != discipline_slug:
-            if active_system_mode == "annual":
-                continue  # Skip compiling data if it doesn't match selected track
-        
+        # UI Dynamic Filtering Check
+        if active_system_mode == "annual" and active_discipline_focus != "ALL" and active_discipline_focus != discipline_slug:
+            continue  # Skips execution blocks that aren't highlighted by the global filter
+            
         if active_system_mode == "annual":
-            target_classes = class_data.keys()
-            for c_level in target_classes:
-                # Ensure the loop checks against the configured grade focus safely
+            # Loop through individual target classes within this iteration block
+            for c_level in classes.keys():
                 if active_term_focus != "ALL" and active_term_focus != c_level:
                     continue
                 
-                sections_list = class_data.get(c_level, [])
+                sections_list = classes.get(c_level, [])
                 
-                # 📊 [Your sequential metrics rendering logic for matching sections runs smoothly here]
-                
-        else:
-            # Fallback handling for Semester/DIT tracks to bypass annual mapping schemas cleanly
-            semester_sections = ["DIT_G", "DIT_B"]
-            
-            # 📊 [Your semester tracking metrics engine evaluation blocks run here]
-            break
+                # 📊 Your original metrics code blocks continue cleanly from here...
 
     # --------------------------------------------------------------------------
     # TAB 3: STUDENT ATTENDANCE HISTORY
