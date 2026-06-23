@@ -4144,10 +4144,6 @@ elif menu_choice == "📋 Section Summary Report":
         if "DISCIPLINE_SECTIONS_MAP" not in globals():
             DISCIPLINE_SECTIONS_MAP = CAMPUS_MANUAL_MAP
 
-        # 🛡️ FIX 2: Prevent the layout template crash on line 4537
-        if "sel_exam" not in globals():
-            sel_exam = "BISE-11th"  # Global placeholder variable initialization
-
         disc_upper = str(sel_disc).strip().upper()
         
         # Pull core configurations safely
@@ -4192,14 +4188,13 @@ elif menu_choice == "📋 Section Summary Report":
         for db_s in db_sections:
             db_s_upper = db_s.upper().strip()
             if db_s not in sec_options:
-                # Remove any loose fallback conditions; match the prefix strictly
                 if allowed_prefixes and any(db_s_upper.startswith(pref) for pref in allowed_prefixes):
                     sec_options.append(db_s)
 
         if not sec_options:
             sec_options = map_sections if map_sections else ["CG_WHITE"]
 
-        fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
+        fixed_key = f"ledger_section_key_{disc_upper}_{selected_class}"
 
         # 🧠 INTELLIGENT AUTO-FOCUS INDEX FINDER
         default_idx = 0
@@ -4221,24 +4216,27 @@ elif menu_choice == "📋 Section Summary Report":
             key=fixed_key
         )
 
-        # 🧠 SMART AUTO-INDEX DETECTOR
-        default_idx = 0
-        for idx, opt in enumerate(sec_options):
-            if opt in db_sections:
-                default_idx = idx
-                break
-
-        # Maintain isolated component session states safely across interactions
-        if fixed_key not in st.session_state:
-            st.session_state[fixed_key] = sec_options[default_idx]
-        elif st.session_state[fixed_key] not in sec_options:
-            st.session_state[fixed_key] = sec_options[default_idx]
-
-        sel_sec = st.selectbox(
-            "Select Section:", 
-            sec_options, 
-            key=fixed_key
+    with col_c:
+        # Dynamic lookup engine for context exams matching target session layout boundaries
+        try:
+            exams_lookup_df = run_query("""
+                SELECT DISTINCT TRIM(exam_type) as exam_name 
+                FROM marks 
+                ORDER BY exam_name ASC
+            """, {})
+            exam_options = exams_lookup_df["exam_name"].dropna().tolist() if not exams_lookup_df.empty else []
+        except Exception:
+            exam_options = []
+            
+        if not exam_options:
+            exam_options = ["BISE-11th", "Pre-Board 11th", "Send-Up 11th", "Term-1", "Term-2", "Term-3"]
+            
+        sel_exam = st.selectbox(
+            "Select Exam:",
+            exam_options,
+            key=f"summary_report_exam_dropdown_{disc_upper}_{selected_class}"
         )
+
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", "COMPUTER_SCIENCE": "COMP", "COMPUTER": "COMP",
@@ -4318,7 +4316,6 @@ elif menu_choice == "📋 Section Summary Report":
             """, {"session_str": db_session_string, "class": selected_class})
             
             if not fallback_check_df.empty:
-                # Filter dynamic messages according to prefixes to ensure context clarity
                 valid_fallback_sections = []
                 for s_val in fallback_check_df["Section"].dropna().unique().tolist():
                     if not allowed_prefixes or any(str(s_val).upper().strip().startswith(p) for p in allowed_prefixes):
