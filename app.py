@@ -4164,19 +4164,37 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # 🎯 SMART MERGE & DEDUPLICATION
+        # 🎯 SMART STRUCTURAL PREFIX FILTERING
         sec_options = list(map_sections)
+        
+        # Isolate prefixes dynamically according to target selection criteria
+        allowed_prefixes = []
+        if "COMMERCE" in disc_upper: 
+            allowed_prefixes = ["CG", "CB", "CQ", "CK"]
+        elif "MEDICAL" in disc_upper: 
+            allowed_prefixes = ["MG", "MB", "MQ", "MK"]
+        elif "ENGINEERING" in disc_upper: 
+            allowed_prefixes = ["EG", "EB", "EQ", "EK"]
+        elif "PHYSICS" in disc_upper: 
+            allowed_prefixes = ["IG", "IB", "IK", "IQ"]
+        elif "STATS" in disc_upper: 
+            allowed_prefixes = ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
+        elif "HUMANITIES" in disc_upper: 
+            allowed_prefixes = ["FG", "FB", "FK", "FQ"]
+
+        # Only merge runtime database entries if they structurally belong to the active discipline view
         for db_s in db_sections:
+            db_s_upper = db_s.upper().strip()
             if db_s not in sec_options:
-                sec_options.append(db_s)
+                if any(db_s_upper.startswith(pref) for pref in allowed_prefixes) or not allowed_prefixes:
+                    sec_options.append(db_s)
 
         if not sec_options:
-            sec_options = ["MG_BLUE", "CG_WHITE"]
+            sec_options = map_sections if map_sections else ["CG_WHITE"]
 
         fixed_key = f"summary_report_section_key_{disc_upper}_{selected_class}"
 
         # 🧠 INTELLIGENT AUTO-FOCUS INDEX FINDER
-        # Instantly sets the default selection window to an active DB section if index 0 has no matches
         default_idx = 0
         if db_sections:
             for idx, opt in enumerate(sec_options):
@@ -4304,9 +4322,16 @@ elif menu_choice == "📋 Section Summary Report":
             """, {"session_str": db_session_string, "class": selected_class})
             
             if not fallback_check_df.empty:
-                students_df = fallback_check_df
-                detected_sections = ", ".join(fallback_check_df["Section"].unique().tolist())
-                st.warning(f"ℹ️ Active profiles for {selected_class} found under alternate section: **{detected_sections}**.")
+                # Filter dynamic messages according to prefixes to ensure context clarity
+                valid_fallback_sections = []
+                for s_val in fallback_check_df["Section"].dropna().unique().tolist():
+                    if not allowed_prefixes or any(str(s_val).upper().strip().startswith(p) for p in allowed_prefixes):
+                        valid_fallback_sections.append(s_val)
+                
+                if valid_fallback_sections:
+                    students_df = fallback_check_df[fallback_check_df["Section"].isin(valid_fallback_sections)]
+                    detected_sections = ", ".join(valid_fallback_sections)
+                    st.warning(f"ℹ️ Active profiles for {selected_class} found under alternate section: **{detected_sections}**.")
         except Exception:
             pass
 
