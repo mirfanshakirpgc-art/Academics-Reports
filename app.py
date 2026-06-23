@@ -4390,7 +4390,7 @@ elif menu_choice == "📋 Section Summary Report":
         try:
             from sqlalchemy import text
             
-            # Use dynamic placeholder fallback matching Section Summary styling
+            # Format safe parameters for the multi-select test array
             exams_to_fetch = selected_exams_list if 'selected_exams_list' in locals() else []
             if not exams_to_fetch:
                 placeholders = "''"
@@ -4399,7 +4399,7 @@ elif menu_choice == "📋 Section Summary Report":
                 placeholders = ", ".join(f":exam_{i}" for i in range(len(exams_to_fetch)))
                 query_params = {f"exam_{i}": ex for i, ex in enumerate(exams_to_fetch)}
             
-            # 🟢 SEAMLESS RECOVERY SQL: Pulls BOTH subject and exam_type fields cleanly
+            # 🟢 CRITICAL SQL FIX: Explicitly select exam_type AS exam_code so pandas can match it!
             multi_exam_query = text(f"""
                 SELECT 
                     CAST(student_id AS TEXT) as student_key, 
@@ -4417,7 +4417,6 @@ elif menu_choice == "📋 Section Summary Report":
                 marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
                 marks_df["marks_obtained"] = marks_df["marks_obtained"].astype(str).str.strip().str.upper()
                 marks_df["exam_code"] = marks_df["exam_code"].astype(str).str.strip().str.upper()
-                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.upper()
         except Exception as e:
             st.error(f"Error compiling multi-test database records: {str(e)}")
             marks_df = pd.DataFrame()
@@ -4432,7 +4431,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER (UNIVERSAL STRING PRESENCE MATCHING) ---
+        # --- 6. PERFORMANCE GRID COMPILER (MULTI-TEST EXAM BREAKDOWN MODE) ---
         summary_rows = []
         exams_loop_list = selected_exams_list if 'selected_exams_list' in locals() else []
         
@@ -4449,15 +4448,13 @@ elif menu_choice == "📋 Section Summary Report":
             max_total = 0.0
             has_valid_scores = False  
             
+            # Loop through selected EXAMS instead of subjects to build columns side-by-side
             for exam in exams_loop_list:
                 exam_upper = str(exam).upper().strip()
                 
                 if not marks_df.empty:
-                    # 🟢 ADAPTIVE LOOKUP: Tries matching by exam code field first, falls back to subject name strings
-                    exam_match = marks_df[
-                        (marks_df["student_key"] == s_id) & 
-                        ((marks_df["exam_code"] == exam_upper) | (marks_df["subject_name"] == exam_upper))
-                    ]
+                    # Now exam_code exists and matches perfectly!
+                    exam_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["exam_code"] == exam_upper)]
                 else:
                     exam_match = pd.DataFrame()
                 
@@ -4482,7 +4479,7 @@ elif menu_choice == "📋 Section Summary Report":
                     else:
                         entry[exam] = val
                 else:
-                    entry[exam] = "NC" 
+                    entry[exam] = "NC" # Fallback if record does not exist for this student's exam
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
