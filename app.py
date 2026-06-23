@@ -4390,6 +4390,7 @@ elif menu_choice == "📋 Section Summary Report":
         try:
             from sqlalchemy import text
             
+            # Use dynamic placeholder fallback matching Section Summary styling
             exams_to_fetch = selected_exams_list if 'selected_exams_list' in locals() else []
             if not exams_to_fetch:
                 placeholders = "''"
@@ -4398,36 +4399,25 @@ elif menu_choice == "📋 Section Summary Report":
                 placeholders = ", ".join(f":exam_{i}" for i in range(len(exams_to_fetch)))
                 query_params = {f"exam_{i}": ex for i, ex in enumerate(exams_to_fetch)}
             
-            # 🟢 DUAL-TABLE AUTODETECT SYSTEM
-            # We fetch from 'marks' first; if it turns up empty, we fallback to 'exam_marks' automatically
-            target_tables = ["marks", "exam_marks"]
-            marks_df = pd.DataFrame()
+            # 🟢 SEAMLESS RECOVERY SQL: Pulls BOTH subject and exam_type fields cleanly
+            multi_exam_query = text(f"""
+                SELECT 
+                    CAST(student_id AS TEXT) as student_key, 
+                    UPPER(TRIM(exam_type)) as exam_code, 
+                    UPPER(TRIM(subject)) as subject_name,
+                    marks_obtained, 
+                    total_marks
+                FROM marks 
+                WHERE UPPER(TRIM(exam_type)) IN ({placeholders})
+            """)
             
-            for table_name in target_tables:
-                multi_exam_query = text(f"""
-                    SELECT 
-                        CAST(student_id AS TEXT) as student_key, 
-                        UPPER(TRIM(exam_type)) as exam_code, 
-                        marks_obtained, 
-                        total_marks
-                    FROM {table_name} 
-                    WHERE UPPER(TRIM(exam_type)) IN ({placeholders})
-                """)
-                try:
-                    possible_df = run_query(multi_exam_query, query_params)
-                    if not possible_df.empty:
-                        marks_df = possible_df
-                        break # Found data, stop tracking table variants
-                except Exception:
-                    continue
-
+            marks_df = run_query(multi_exam_query, query_params)
+            
             if not marks_df.empty:
                 marks_df["student_key"] = marks_df["student_key"].astype(str).str.strip()
                 marks_df["marks_obtained"] = marks_df["marks_obtained"].astype(str).str.strip().str.upper()
                 marks_df["exam_code"] = marks_df["exam_code"].astype(str).str.strip().str.upper()
-            else:
-                # 🛑 VISUAL TELEMETRY DEBUGGER: If no rows exist, let developer see raw tables instantly
-                st.warning("⚠️ No data matches found in database for selected tests. Displaying fallbacks.")
+                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip().str.upper()
         except Exception as e:
             st.error(f"Error compiling multi-test database records: {str(e)}")
             marks_df = pd.DataFrame()
@@ -4442,7 +4432,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER (MULTI-TEST EXAM BREAKDOWN MODE) ---
+        # --- 6. PERFORMANCE GRID COMPILER (UNIVERSAL STRING PRESENCE MATCHING) ---
         summary_rows = []
         exams_loop_list = selected_exams_list if 'selected_exams_list' in locals() else []
         
@@ -4463,7 +4453,11 @@ elif menu_choice == "📋 Section Summary Report":
                 exam_upper = str(exam).upper().strip()
                 
                 if not marks_df.empty:
-                    exam_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["exam_code"] == exam_upper)]
+                    # 🟢 ADAPTIVE LOOKUP: Tries matching by exam code field first, falls back to subject name strings
+                    exam_match = marks_df[
+                        (marks_df["student_key"] == s_id) & 
+                        ((marks_df["exam_code"] == exam_upper) | (marks_df["subject_name"] == exam_upper))
+                    ]
                 else:
                     exam_match = pd.DataFrame()
                 
@@ -4474,7 +4468,6 @@ elif menu_choice == "📋 Section Summary Report":
                     val = str(exam_match[obt_col].iloc[0]).strip().upper()
                     tot = float(exam_match[tot_col].iloc[0]) if (tot_col in exam_match.columns and pd.notna(exam_match[tot_col].iloc[0])) else 100.0
                     
-                    # 🟢 TEXT TAG REGISTRATION: Explicit character rendering
                     if val in ["NC", "NOT CONDUCTED"]:
                         entry[exam] = "NC"
                     elif val in ["A", "ABSENT"]:
@@ -4489,7 +4482,7 @@ elif menu_choice == "📋 Section Summary Report":
                     else:
                         entry[exam] = val
                 else:
-                    entry[exam] = "NC" # If database row is absent, render NC safely
+                    entry[exam] = "NC" 
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
