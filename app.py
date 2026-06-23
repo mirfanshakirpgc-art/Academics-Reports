@@ -902,7 +902,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 except Exception as e:
                     st.error(f"Write Failure: {e}")
 
-        # ==============================================================================
+# ==============================================================================
 # 📅 UNIFIED ATTENDANCE ENTRY & CALL CENTER PANELS
 # ==============================================================================
 elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Management"]:
@@ -920,11 +920,10 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
     default_index = 1 if "2025-27" in session_options else 0
 
-    # 2. RENDER THE GLOBAL SCOPE CONFIGURATOR (DYNAMICALLY LOCKED FOR SECTION IN-CHARGES)
+    # 2. RENDER THE GLOBAL SCOPE CONFIGURATOR
     st.markdown("### 🎯 Targeting Parameters")
     d1, d2, d3, d4, d5 = st.columns([1.2, 1.3, 1.5, 1.5, 2.0])
     
-    # Check if user is a restricted Section In-Charge
     is_restricted = user_role in ["Teacher", "Faculty"] and scope_str is not None
 
     if is_restricted:
@@ -939,9 +938,8 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         
         sel_session, sel_class, sel_section = target_session, forced_class, forced_section
     else:
-        # Admins get completely unlocked parameters
         with d1: sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
-        with d2: st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
+        with d2: sel_selectbox = st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
         with d3: sel_class = st.selectbox("Class:", ["11th", "12th"], key="adm_daily_cls")
         with d4: sel_section = st.selectbox("Section:", ["IG", "IB", "FB", "FG", "MG_BLUE"], key="adm_daily_sec")
 
@@ -959,7 +957,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     with tab_roster:
         if sel_section and sel_session:
             roster_df = run_query("""
-                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", NULL AS "Remarks" 
+                SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus" 
                 FROM students s 
                 LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date 
                 WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section)) 
@@ -976,6 +974,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         c1, c2, c3 = st.columns([1, 3, 1])
                         c1.write(f"`{row['ID']}`")
                         c2.write(f"**{row['Student Name']}**")
+                        
                         saved = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                         state = True if saved in ['P', 'PRESENT', '1'] else (False if saved in ['A', 'ABSENT', '0'] else master_toggle)
                         chk_map[row['ID']] = c3.checkbox("Present", value=state, key=f"adm_chk_{row['ID']}", label_visibility="collapsed")
@@ -983,25 +982,29 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                     if st.form_submit_button("💾 Save Attendance Changes", type="primary", use_container_width=True):
                         with engine.begin() as conn:
                             for s_id, chk in chk_map.items():
+                                # Force clean string matching ('P' or 'A')
+                                status_to_save = "P" if chk else "A"
                                 conn.execute(text("""
                                     INSERT INTO daily_attendance (student_id, attendance_date, status) 
                                     VALUES (:s_id, :dt, :st) 
-                                    ON CONFLICT (student_id, attendance_date) DO UPDATE SET status = EXCLUDED.status
-                                """), {"s_id": int(s_id), "dt": str(target_date), "st": "P" if chk else "A"})
-                        st.success("Attendance saved successfully! Any absentees are now populated in the next tab.")
-                        time.sleep(0.5)
+                                    ON CONFLICT (student_id, attendance_date) 
+                                    DO UPDATE SET status = EXCLUDED.status
+                                """), {"s_id": int(s_id), "dt": str(target_date), "st": status_to_save})
+                        st.success("Attendance saved successfully! Head over to the next tab to view absentees.")
+                        time.sleep(0.3)
                         st.rerun()
             else:
                 st.info("ℹ️ No active student profile matches found for your section selection scope.")
 
     # --------------------------------------------------------------------------
-    # SUB-TAB 2: HIGH-POWERED CLICK-TO-CALL ABSENTEE TRACKING
+    # SUB-TAB 2: CLICK-TO-CALL ABSENTEE TRACKING (FIXED LIST FETCH)
     # --------------------------------------------------------------------------
     with tab_remarks:
         resolved_date = str(target_date)
         
         try:
             with engine.connect() as conn:
+                # FIXED: Standardized handling of UPPER/TRIM for the attendance status filter
                 query = text("""
                     SELECT 
                         d.student_id AS "ID", 
@@ -1017,7 +1020,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
                       AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
                       AND d.attendance_date = :att_date
-                      AND d.status IN ('A', 'ABSENT', '0')
+                      AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
                     ORDER BY d.student_id ASC
                 """)
                 absent_students = pd.read_sql(query, conn, params={
@@ -1027,6 +1030,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 })
         except Exception as e:
             absent_students = pd.DataFrame()
+            st.error(f"Error fetching logs: {e}")
 
         if not absent_students.empty:
             st.warning(f"📋 Found {len(absent_students)} absent student(s). Log tracking details below:")
@@ -1054,7 +1058,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 for idx, ab_row in absent_students.iterrows():
                     contact_items = []
                     
-                    # Read contact options
                     wa_val = str(ab_row.get('WhatsApp', '')).strip().split('.')[0] if pd.notna(ab_row.get('WhatsApp')) else ""
                     c1_val = str(ab_row.get('Contact1', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact1')) else ""
                     c2_val = str(ab_row.get('Contact2', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact2')) else ""
@@ -1077,7 +1080,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                     contacts_suffix = f" &nbsp;|&nbsp; {' &nbsp;•&nbsp; '.join(contact_items)}" if contact_items else " (No numbers logged)"
                     st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}** {contacts_suffix}", unsafe_allow_html=True)
                     
-                    # Clean historical remarks expressions
                     existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
                     if " | By:" in str(existing_rem): existing_rem = str(existing_rem).split(" | By:")[0].strip()
                     if " [Contacted:" in str(existing_rem): existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
@@ -1136,28 +1138,12 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                                         "att_date": resolved_date
                                     })
                             st.success("🎉 Remarks saved securely with an automatic timestamp!")
-                            time.sleep(0.5)
+                            time.sleep(0.3)
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Database Submission Failed: {e}")
         else:
             st.success(f"🟢 Fantastic! No active absent students require follow-up calls in this section scope.")
-if menu_choice == "📊 Home Dashboard":
-    # Read the logged-in role from the session state
-    user_role = st.session_state.get("user_role", "Faculty")
-    
-    # Only render the global campus metrics and title if the user is an Admin
-    if user_role == "Admin":
-        st.title("Concordia College Kasur")
-        try:
-            s_count = run_query("SELECT COUNT(*) FROM students").iloc[0, 0]
-            m_count = run_query("SELECT COUNT(*) FROM marks").iloc[0, 0]
-        except Exception:
-            s_count, m_count = 0, 0
-            
-        c1, c2 = st.columns(2)
-        c1.metric("Total Registered Students", s_count)
-        c2.metric("Total Grade Records Captured", m_count)
 
 # ------------------------------------------------------------------------------------
 # ➕ ADD STUDENTS MANAGEMENT SYSTEM SECTION
