@@ -4305,7 +4305,7 @@ elif menu_choice == "📋 Section Summary Report":
             subjects = ["ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
     # --- 5. DATABASE INTEGRATION ENGINE (SELF-HEALING ARCHITECTURE) ---
-    # Attempt 1: Strict query matching the selected section identifier
+    # Attempt 1: Strict targeted segment matching
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
@@ -4316,9 +4316,8 @@ elif menu_choice == "📋 Section Summary Report":
         ORDER BY id ASC
     """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
-    # Attempt 2: Smart Auto-Fallback if data entry swapped the section names (e.g., Commerce under MG_BLUE)
+    # Attempt 2: Comprehensive Fallback Check if entries are stored under legacy or alternative section strings
     if students_df.empty:
-        # Look up what actual sections hold profiles for this specific class and session
         try:
             fallback_check_df = run_query("""
                 SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
@@ -4330,11 +4329,10 @@ elif menu_choice == "📋 Section Summary Report":
             """, {"session_str": db_session_string, "class": selected_class})
             
             if not fallback_check_df.empty:
-                # If we found rows globally, auto-adopt them so the user isn't left looking at a blank screen
+                # Intercept query pipeline and inject matched row data securely
                 students_df = fallback_check_df
-                # Show a gentle, non-intrusive alert to explain what happened
                 detected_sections = ", ".join(fallback_check_df["Section"].unique().tolist())
-                st.warning(f"ℹ️ Note: Data for {selected_class} is currently recorded under section labels: **{detected_sections}** inside the database.")
+                st.warning(f"ℹ️ System Alert: Active profiles for {selected_class} are logged under section designations: **{detected_sections}**.")
         except Exception:
             pass
 
@@ -4362,6 +4360,7 @@ elif menu_choice == "📋 Section Summary Report":
                 att_df["student_key"] = att_df["student_key"].astype(str).str.strip()
         except Exception:
             att_df = pd.DataFrame()
+
         # --- 6. PERFORMANCE GRID COMPILER ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
