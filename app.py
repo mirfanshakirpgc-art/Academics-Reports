@@ -2715,6 +2715,31 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
         # --- LEVEL 1 FALLBACK: ADMINISTRATIVE ROUTE ---
         else:
+            # 🟢 DEFENSIVE FALLBACK CONFIGURATIONS
+            if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
+                DISCIPLINE_SECTIONS_MAP = {
+                    "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
+                    "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
+                    "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IG", "IB"]},
+                    "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
+                    "COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]},
+                    "HUMANITIES": {"11th": ["HG_BLUE"], "12th": ["HG_BLUE"]}
+                }
+
+            if "DISCIPLINE_SUBJECTS_MAP" not in locals() and "DISCIPLINE_SUBJECTS_MAP" not in globals():
+                DISCIPLINE_SUBJECTS_MAP = {
+                    "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies"],
+                    "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pakistan Studies"],
+                    "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies"],
+                    "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pakistan Studies"],
+                    "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies"],
+                    "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pakistan Studies"],
+                    "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies"],
+                    "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pakistan Studies"],
+                    "COMMERCE_11TH": ["Principles of Accounting", "Principles of Economics", "Principles of Commerce", "Business Mathematics"],
+                    "COMMERCE_12TH": ["Principles of Accounting", "Commercial Geography", "Banking", "Business Statistics"]
+                }
+
             with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             with c2: academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
             with c3:
@@ -2727,6 +2752,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 if academic_system == "Annual System":
                     discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
                     selected_ui_discipline = st.selectbox("Select Discipline:", discipline_ui_options, key="marks_disc_sel")
+                    
+                    # Normalize string naming schemas seamlessly
                     sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
                     if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
@@ -2737,14 +2764,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             with c5: 
                 valid_sections_list = []
                 if academic_system == "Annual System":
-                    lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else sel_discipline)
-                    try:
-                        target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
-                        for c_lvl in target_class_levels:
-                            sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
-                            valid_sections_list.extend(sections_found)
-                    except NameError:
-                        pass
+                    # Unify lookups to match the fallback map dictionary keys
+                    lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else selected_ui_discipline)
+                    
+                    target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
+                    for c_lvl in target_class_levels:
+                        sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
+                        valid_sections_list.extend(sections_found)
                 else:
                     valid_sections_list = ["DIT_G", "DIT_B"]
 
@@ -2766,7 +2792,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         available_subjects = list(dict.fromkeys(list_11th + list_12th))
                     else:
                         suffix = "_12TH" if sel_class == "12th" else "_11TH"
-                        available_subjects = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}{suffix}", ["English", "Urdu", "Physics"])
+                        available_subjects = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}{suffix}", ["English", "Urdu", "Physics", "Chemistry", "Mathematics"])
                 else:
                     if "1st Semester" in sel_class:
                         available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
@@ -2789,7 +2815,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             clean_session = str(sel_session).strip()
 
             try:
-                # FIX: Added s.session projection inside select block to prevent KeyError downstream
                 roster_df = run_query("""
                     SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks", s.session
                     FROM students s
@@ -2930,7 +2955,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.rerun()
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
-
     # ====================================================================================
     # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY
     # ====================================================================================
