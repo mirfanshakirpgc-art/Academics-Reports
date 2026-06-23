@@ -795,7 +795,11 @@ elif menu_choice == "📊 Home Dashboard":
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (FACULTY FLOW INTERCEPT)
 # ==============================================================================
-elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choice == "📅 Marks Attendance":
+# Change this original line:
+# elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choice == "📅 Marks Attendance":
+
+# TO THIS STANDARDIZED LINE:
+elif str(user_role).strip().title() in ["Teacher", "Faculty", "Admin", "Administrator"] and str(menu_choice).strip() == "📅 Marks Attendance":
     import datetime
     import time
     import re
