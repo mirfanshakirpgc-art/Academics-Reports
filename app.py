@@ -4099,7 +4099,7 @@ elif menu_choice == "📋 Section Summary Report":
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
 
-    # 🔧 FIX: PRE-DEFINE FALLBACKS TO PREVENT TOP-TO-BOTTOM NAMEERRORS
+    # 🔧 PRE-DEFINE FALLBACKS TO PREVENT TOP-TO-BOTTOM NAMEERRORS
     academic_system = st.session_state.get("summary_sys_type", "Annual System")
     selected_class = "11th" if academic_system == "Annual System" else "Semester 1"
     sel_disc = "MEDICAL" if academic_system == "Annual System" else "INFORMATION_TECHNOLOGY"
@@ -4130,15 +4130,13 @@ elif menu_choice == "📋 Section Summary Report":
             st.info("⚡ DIT System Active")
         
     with col_b: 
-        # Pull static sections directly from your mapping dictionary using structural lookup keys
-        # Safe lookup using global configuration boundary mappings
+        # 1. Look up the static valid sections for this specific discipline & class from global configuration map
         try:
             map_sections = DISCIPLINE_SECTIONS_MAP.get(sel_disc, {}).get(selected_class, [])
         except NameError:
-            # Fallback if DISCIPLINE_SECTIONS_MAP itself isn't loaded globally
             map_sections = []
         
-        # Query active profile records existing in your DB environment
+        # 2. Query active section options from the live database environment
         try:
             sec_lookup_df = run_query("""
                 SELECT DISTINCT TRIM(section) as section_name 
@@ -4152,25 +4150,21 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             db_sections = []
 
-        # Intersection: Display sections that exist in the database AND belong to the configuration dictionary map
-        if db_sections:
-            sec_options = [s for s in db_sections if s in map_sections]
+        # 3. 🎯 DYNAMIC FILTERING INTERSECTION
+        if db_sections and map_sections:
+            sec_options = [s for s in map_sections if s in db_sections]
             if not sec_options:
                 sec_options = map_sections
         else:
-            sec_options = map_sections
+            sec_options = map_sections if map_sections else ["MG_BLUE"]
 
-        # Safe default fallback boundary checks
+        # 4. Safe default fallbacks if lists are missing structural values
         if not sec_options:
             sec_options = ["FK"] if sel_disc == "HUMANITIES" else ["MG_BLUE"]
 
-        # Track widget state seamlessly without unexpected duplication errors
-        fixed_key = "summary_report_section_key"
+        # 🔄 RE-KEYING DEVICE: Unique state string per configuration selection changes values reactively 
+        fixed_key = f"summary_report_section_key_{sel_disc}_{selected_class}"
         default_index = 0
-        if fixed_key in st.session_state:
-            current_value = st.session_state[fixed_key]
-            if current_value in sec_options:
-                default_index = sec_options.index(current_value)
 
         sel_sec = st.selectbox(
             "Select Section:", 
@@ -4209,7 +4203,7 @@ elif menu_choice == "📋 Section Summary Report":
             st.warning("⚠️ No active evaluation frameworks registered for this academic track.")
             sel_exam = None
 
-    # --- 3. SUBJECT TRANSLATION GLOSSARY (ALIGNED WITH MARKS ENTRY DATABASE SLUGS) ---
+    # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
         "MATHEMATICS": "MATH", 
         "COMPUTER_SCIENCE": "COMP", 
