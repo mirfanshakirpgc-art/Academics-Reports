@@ -4140,6 +4140,10 @@ elif menu_choice == "📋 Section Summary Report":
             "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}
         }
 
+        # 🛡️ GLOBAL SAFETY NET: Banish the NameError for subsequent code lines
+        if "DISCIPLINE_SECTIONS_MAP" not in globals():
+            DISCIPLINE_SECTIONS_MAP = CAMPUS_MANUAL_MAP
+
         disc_upper = str(sel_disc).strip().upper()
         
         try:
@@ -4213,35 +4217,6 @@ elif menu_choice == "📋 Section Summary Report":
             sec_options, 
             key=fixed_key
         )
-        
-    with col_c: 
-        try:
-            exam_data = run_query("""
-                SELECT exam_code 
-                FROM exam_cycles 
-                WHERE system_type = :sys_type AND status = 'ACTIVE'
-                ORDER BY exam_display_name ASC
-            """, {"sys_type": academic_system})
-            
-            exam_options = exam_data["exam_code"].tolist() if not exam_data.empty else []
-        except Exception:
-            exam_options = []
-
-        if not exam_options:
-            if academic_system == "Semester System":
-                exam_options = ["MID_TERM", "FINAL_TERM", "ASSIGNMENT", "QUIZ", "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"]
-            else:
-                exam_options = [
-                    "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "MT_5", 
-                    "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
-                    "HALF_BOOK01", "HALF_BOOK02", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"
-                ]
-
-        if exam_options:
-            sel_exam = st.selectbox("Select Exam Cycle:", exam_options, key="summary_exam")
-        else:
-            st.warning("⚠️ No active evaluation frameworks registered for this academic track.")
-            sel_exam = None
 
     # --- 3. SUBJECT TRANSLATION GLOSSARY ---
     SHORT_SUBJECTS_MAP = {
