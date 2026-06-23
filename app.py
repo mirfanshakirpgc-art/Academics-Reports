@@ -4231,6 +4231,14 @@ if menu_choice == "📈 Multi-Test Progress Report":
             sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
             
         with col_dyn2:
+            # 💡 INJECTED DICTIONARY TO FIX THE NAMEERROR
+            DISCIPLINE_SECTIONS_MAP = {
+                "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MR_BLUE", "MR_GREEN"]},
+                "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["ER_BLUE"]},
+                "COMMERCE": {"11th": ["CG_WHITE"], "12th": ["CR_WHITE"]},
+                "ARTS / ICS": {"11th": ["CB_WHITE"], "12th": ["CB_WHITE"]}
+            }
+
             annual_sections = []
             for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
                 if "DIT" not in discipline.upper():
