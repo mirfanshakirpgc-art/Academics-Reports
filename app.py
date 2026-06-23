@@ -2664,14 +2664,19 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
-        # 🟢 UPDATE: Allocate 6 full columns so there is space for every dropdown filter in the row
+        # 🟢 STEP 1: Allocate 6 full columns with clean aspect ratios for a single row layout
         c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.5, 1.2, 1.5, 1.5, 1.2])
         
         raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_role = str(raw_role).strip().lower() if raw_role else 'admin'
         
+        # Safe structural fallback initializations
         sel_discipline = "MEDICAL" 
         sel_class = "ALL"
+        sel_subject = None
+        sel_section = None
+        sel_session = None
+        sel_exam = None
         
         # --- LEVEL 1: CHECK ACCESSIBILITY ROLE ---
         if current_role in ['teacher', 'faculty']:
@@ -2714,15 +2719,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 st.caption(f"**Diagnostic Details** — Session Username: `{active_faculty_name}` | User ID: `{current_user_id}`")
                 sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
                 
-        # 🔍 FIND THIS BLOCK (The Teacher/Principal Route higher up)
-        with c1: sel_session = st.selectbox(...)
-        with c2: academic_system = st.selectbox(...)
-        with c3: sel_class = st.selectbox(...)
-        # ❌ IT IS MISSING "with c4:" HERE!
-        with c5: sel_section = st.selectbox(...)
-        with c6: sel_exam = st.selectbox(...)
         else:
-            # 🟢 DEFENSIVE FALLBACK CONFIGURATIONS
+            # 🟢 STEP 2: DEFENSIVE FALLBACK CONFIGURATIONS FOR ADMIN / PRINCIPAL / CLERK ROLES
             if "DISCIPLINE_SECTIONS_MAP" not in locals() and "DISCIPLINE_SECTIONS_MAP" not in globals():
                 DISCIPLINE_SECTIONS_MAP = {
                     "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
@@ -2747,8 +2745,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     "COMMERCE_12TH": ["Principles of Accounting", "Commercial Geography", "Banking", "Business Statistics"]
                 }
 
-            with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
-            with c2: academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
+            # Render Base Structural Inputs sequentially to ensure variables are defined safely
+            with c1: 
+                sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
+            with c2: 
+                academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="marks_sys_type_a")
+            
             with c3:
                 if academic_system == "Annual System":
                     sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
@@ -2766,12 +2768,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
                 else:
                     sel_discipline = "DIPLOMA_IN_IT_DIT"
+                    selected_ui_discipline = "DIT"
                     st.text_input("Select Discipline:", value="DIT", disabled=True, key="marks_disc_sel_disabled")
 
             with c5: 
                 valid_sections_list = []
                 if academic_system == "Annual System":
-                    # Unify lookups to match the fallback map dictionary keys
+                    # Unify lookups to match the fallback map dictionary keys safely
                     lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else selected_ui_discipline)
                     
                     target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
@@ -2787,7 +2790,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
 
-            with c6: sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_a")
+            with c6: 
+                sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_a")
 
             if sel_exam == "MATRIC":
                 sel_subject = "OVERALL"
@@ -2810,6 +2814,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 sel_subject = st.selectbox("📚 Select Course/Subject to Grade:", available_subjects, key="entry_sub_filter_a")
         
+        # --- EXECUTION LEDGER RENDERING ENGINE ---
         if sel_subject and sel_section and sel_session and sel_exam:
             default_total_marks = 1200 if sel_exam == "MATRIC" else 100
             max_total_limit = 2000 if sel_exam == "MATRIC" else 200
@@ -2962,6 +2967,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             st.rerun()
             except Exception as e:
                 st.error(f"Database sync issue: {e}")
+                
     # ====================================================================================
     # WORKFLOW MODE B: SINGLE STUDENT ROLL NUMBER ENTRY
     # ====================================================================================
