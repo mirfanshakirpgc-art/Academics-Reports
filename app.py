@@ -4406,7 +4406,7 @@ elif menu_choice == "📋 Section Summary Report":
         except Exception:
             att_df = pd.DataFrame()
 
-        # --- 6. PERFORMANCE GRID COMPILER ---
+        # --- 6. PERFORMANCE GRID COMPILER (MULTI-TEST EXAM BREAKDOWN MODE) ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
             s_id = str(s_row["ID"]).strip()
@@ -4421,47 +4421,45 @@ elif menu_choice == "📋 Section Summary Report":
             max_total = 0.0
             has_valid_scores = False  
             
-            for sub in subjects:
-                sub_upper = sub.upper().strip()
-                short_sub = SHORT_SUBJECTS_MAP.get(sub_upper, sub_upper[:4])
-                
-                alias_list = [sub_upper]
-                if "STAT" in sub_upper: alias_list.extend(["STATISTICS", "STATS"])
-                elif "PHYS" in sub_upper: alias_list.extend(["PHYSICS"])
-                elif "COMP" in sub_upper: alias_list.extend(["COMPUTER SCIENCE", "COMPUTER", "INTRODUCTION TO MS-OFFICE"])
-                elif "QURAN" in sub_upper or "QUANT" in sub_upper: alias_list.extend(["T_QURAN", "QURAN", "T_QUANT"])
+            # Loop through selected EXAMS instead of subjects to build the multi-test columns
+            for exam in selected_exams_list:
+                exam_upper = str(exam).upper().strip()
                 
                 if not marks_df.empty:
-                    sub_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["subject_name"].isin(alias_list))]
+                    # Match by student key AND matching exam_code column
+                    exam_match = marks_df[(marks_df["student_key"] == s_id) & (marks_df["exam_code"].str.upper().str.strip() == exam_upper)]
                 else:
-                    sub_match = pd.DataFrame()
+                    exam_match = pd.DataFrame()
                 
-                if not sub_match.empty:
-                    val = str(sub_match["marks_obtained"].iloc[0]).strip().upper()
-                    tot = float(sub_match["total_marks"].iloc[0]) if pd.notna(sub_match["total_marks"].iloc[0]) else 100.0
+                if not exam_match.empty:
+                    # Fetch value cleanly 
+                    val = str(exam_match["marks_obtained"].iloc[0]).strip().upper()
+                    tot = float(exam_match["total_marks"].iloc[0]) if pd.notna(exam_match["total_marks"].iloc[0]) else 100.0
                     
                     if val == "NC":
-                        entry[short_sub] = "NC"
+                        entry[exam] = "NC"
                     elif val == "A":
-                        entry[short_sub] = "A"
+                        entry[exam] = "A"
                         max_total += tot       
                         has_valid_scores = True
                     elif val.replace('.', '', 1).isdigit() or val.isdigit():
-                        entry[short_sub] = float(val)
+                        entry[exam] = float(val)
                         obtained_total += float(val)
                         max_total += tot       
                         has_valid_scores = True
                     else:
-                        entry[short_sub] = val
+                        entry[exam] = val
                 else:
-                    entry[short_sub] = "-"
+                    entry[exam] = "NC" # If no database record exists for this exam, mark as Not Conducted
 
             if has_valid_scores:
                 entry["Total (Obt)"] = int(obtained_total)
                 entry["Total Max"] = int(max_total)
+                entry["Percentage"] = f"{int((obtained_total / max_total) * 100)}%" if max_total > 0 else "0%"
             else:
                 entry["Total (Obt)"] = "-"
                 entry["Total Max"] = "-"
+                entry["Percentage"] = "-"
                 
             if not att_df.empty:
                 st_att_logs = att_df[att_df["student_key"] == s_id]
