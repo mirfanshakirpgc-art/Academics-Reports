@@ -4128,179 +4128,611 @@ elif menu_choice == "📋 Daily Attendance Report":
 
 # ... [Your previous elif blocks for other menu options] ...
 
-# ====================================================================================                   
-# MODULE: 📋 MULTI-TEST SUMMARY REPORT
-# ====================================================================================
-elif menu_choice == "📋 Multi-Test Summary Report":
-    import streamlit as st
-    import pandas as pd
-    import streamlit.components.v1 as components
-    import io
+# ----------------- 📈 MULTI-TEST PROGRESS REPORT -----------------
+if menu_choice == "📈 Multi-Test Progress Report":
+    st.title("📈 Multi-Test Progress Analytics")
+    st.markdown("Select your reporting scope below to generate high-fidelity, print-ready student progress cards.")
 
-    st.title("📋 Multi-Test Summary Report Ledger")
-    
-    # --- Part 1 Layout & Fallbacks Logic ---
-    session_options = ["2025-27", "2026-28", "2027-29"]
-    db_session_string = "2026-28"
-    academic_system = "Annual System"
-    selected_class = "11th"
-    sel_disc = "MEDICAL"
-    disc_upper = "MEDICAL"
-    sel_sec = "MG_BLUE"
-    selected_exams_list = ["Term-1"]
+    # CSS Injection for Print Isolation
+    st.markdown("""
+        <style>
+        @media print {
+            .no-print { display: none !important; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-    # (Keep the rest of the dropdown layout logic from Part 1 here...)
-    st.write("Layout rendered successfully.")
-
-
-# ====================================================================================                   
-# NEXT MODULE: 🪪 STUDENT RESULT CARDS (Line 4267 Fix)
-# ====================================================================================
-elif menu_choice == "🪪 Student Result Cards":
-    import streamlit as st
-    
-    # Your existing code for Student Result Cards goes here...
-
-
-# ====================================================================================                   
-# THE FINAL CATCH-ALL (This MUST be at the very bottom of ALL menu choices)
-# ====================================================================================
-else:
-    st.write("Welcome! Please select an option from the sidebar menu.")
-# ====================================================================================                   
-# PART 1: 📋 MULTI-TEST SUMMARY REPORT (LAYOUT & CONTROLS CHECK)
-# ====================================================================================
-# ====================================================================================                   
-# EMERGENCY HARDWARE DEBUG: LEVEL 1 ISOLATION
-# ====================================================================================
-elif menu_choice == "📋 Multi-Test Summary Report":
-    import streamlit as st
-    st.title("📋 Multi-Test Summary Report Ledger")
-    st.write("### 🚨 Diagnostic Checkpoint reached!")
-    st.info("The string matched perfectly!")
-
-# 🔍 ADD THIS TEMPORARY CATCH-ALL RIGHT BELOW IT TO TRACE THE VALUE
-else:
-    import streamlit as st
-    st.error(f"⚠️ Fall-through detected! The menu choice did not match the elif block.")
-    st.code(f"Current menu_choice value: '{menu_choice}'")
-    st.write("Check if emojis, spaces, or spelling match your sidebar menu options exactly.")
-
-    st.title("📋 Multi-Test Summary Report Ledger")
-
-    # --- STRUCTURAL SAFETY FALLBACKS INITIALIZATION ---
-    session_options = ["2025-27", "2026-28", "2027-29"]
-    db_session_string = "2026-28"
-    academic_system = "Annual System"
-    selected_class = "11th"
-    sel_disc = "MEDICAL"
-    disc_upper = "MEDICAL"
-    sel_sec = "MG_BLUE"
-    selected_exams_list = ["Term-1"]
-
-    # --- CRITICAL LAYOUT & DROPDOWN CONTAINMENT ---
+    # --- MASTER TEST FRAMEWORK DYNAMIC SYNC ---
     try:
-        # Load available sessions safely from state or variable
-        if "available_sessions" in st.session_state:
-            session_options = st.session_state["available_sessions"]
-        elif "AVAILABLE_SESSIONS" in globals():
-            session_options = list(globals()["AVAILABLE_SESSIONS"])
-            if "2024-26" in session_options:
-                session_options = [s for s in session_options if s != "2024-26"]
-        
-        active_session = st.session_state.get("current_session", "2026-28")
-        default_index = session_options.index(active_session) if active_session in session_options else 0
+        # Pulls active exam codes straight from your database dynamically
+        active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
+        all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
+    except Exception as e:
+        # Fallback list to prevent application downtime if database has a brief latency hiccup
+        all_frameworks = [
+            "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+            "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+            "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th", 
+            "PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"
+        ]
 
-        col_sess, col_sys, col_class, col_a, col_b, col_c = st.columns(6)
-        
-        with col_sess:
-            selected_session = st.selectbox("Select Session:", session_options, index=default_index, key="summary_session")
-            db_session_string = str(selected_session).strip() if selected_session else "2026-28"
-            
-        with col_sys:
-            academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="summary_sys_type")
-            
-        with col_class:
-            if academic_system == "Annual System":
-                selected_class = st.selectbox("Select Class Level:", ["11th", "12th"], key="summary_class")
-            else:
-                selected_class = st.selectbox("Select Semester:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="summary_class")
-            
-        with col_a: 
-            if academic_system == "Annual System":
-                disc_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-                raw_disc = st.selectbox("Select Discipline:", disc_options, key="summary_report_discipline_key")
-                sel_disc = str(raw_disc).strip().upper()
-            else:
-                sel_disc = "INFORMATION_TECHNOLOGY"
-                st.info("⚡ DIT System Active")
-            disc_upper = str(sel_disc).strip().upper()
-            
-        with col_b: 
-            CAMPUS_MANUAL_MAP = {
-                "MEDICAL": {"11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"], "12th": ["MQ1", "MQ2", "MK"]},
-                "ENGINEERING": {"11th": ["EG_BLUE", "EB_BLUE"], "12th": ["EQ", "EK"]},
-                "ICS (PHYSICS)": {"11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"], "12th": ["CQ1", "CQ2", "CK1", "CK2"]},
-                "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CQ3", "CK3"]},
-                "COMMERCE": {"11th": ["IG", "IB"], "12th": ["IK", "IQ"]},
-                "HUMANITIES": {"11th": ["FG", "FB"], "12th": ["FK", "FQ"]}  
-            }
-            map_sections = CAMPUS_MANUAL_MAP.get(disc_upper, {}).get(selected_class, ["MG_BLUE"])
-            if academic_system != "Annual System":
-                map_sections = ["DIT_B", "DIT_G"]
+    # --- DYNAMIC SESSION SYNCHRONIZATION ---
+    synchronized_sessions = []
+    
+    # 1. Primary Sync: Read directly from your Settings table so newly added sessions show up instantly
+    try:
+        db_settings_sessions = run_query("""
+            SELECT session_name 
+            FROM sessions 
+            WHERE status = 'ACTIVE' OR status IS NULL OR status = ''
+        """)
+        if not db_settings_sessions.empty:
+            synchronized_sessions = db_settings_sessions['session_name'].dropna().astype(str).tolist()
+    except Exception:
+        pass  
 
-            # Safe Section Database Validation Check
-            try:
-                if "run_query" in globals():
-                    sec_lookup_df = run_query("""
-                        SELECT DISTINCT TRIM(section) as section_name 
+    # 2. Secondary Sync: Collect unique session codes from student profiles
+    if not synchronized_sessions:
+        try:
+            db_active_sessions = run_query("""
+                SELECT DISTINCT session 
+                FROM students 
+                WHERE session IS NOT NULL 
+                  AND session != ''
+                  AND (status IS NULL OR UPPER(TRIM(status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            """)
+            if not db_active_sessions.empty:
+                synchronized_sessions = db_active_sessions['session'].dropna().astype(str).tolist()
+        except Exception:
+            pass
+
+    # 3. Global Fallback Sync: If database checks are entirely empty, pull from global application list
+    if not synchronized_sessions:
+        if "AVAILABLE_SESSIONS" in locals() or "AVAILABLE_SESSIONS" in globals():
+            synchronized_sessions = list(AVAILABLE_SESSIONS)
+        else:
+            synchronized_sessions = ["2025-27", "2026-28", "2027-29"]
+
+    # 4. Global Hardcoded Overrides & Formatting Safety Policies
+    synchronized_sessions = [str(s).strip() for s in synchronized_sessions]
+    
+    # Force inject your newly configured session so it is guaranteed to show up regardless of empty tables
+    if "2027-29" not in synchronized_sessions:
+        synchronized_sessions.append("2027-29")
+        
+    # Force eliminate old structural legacy values from showing up in dropdown lists
+    if "2024-26" in synchronized_sessions:
+        synchronized_sessions.remove("2024-26")
+        
+    # Re-sort clean options sequentially
+    synchronized_sessions = sorted(list(set(synchronized_sessions)))
+
+    # Fallback safety handler for selectbox indexing context
+    default_session_index = 0 if len(synchronized_sessions) > 0 else None
+
+    # --- GLOBAL INTERFACE FILTER PANEL ---
+    st.markdown('<div class="no-print">', unsafe_allow_html=True)
+    st.markdown('##### 🎛️ Filter Configuration Panel')
+    
+    # 1. Base Configuration Options (System & Session)
+    col_base1, col_base2 = st.columns(2)
+    with col_base1:
+        sel_session_global = st.selectbox("Select Session Context:", synchronized_sessions, index=default_session_index, key="global_sel_sess")
+    with col_base2:
+        academic_system = st.selectbox("Select Academic System:", ["Annual System", "Semester System"], key="mt_system_type")
+
+    st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
+
+    # 2. Sequential Options based on Academic System Choice
+    col_dyn1, col_dyn2, col_dyn3 = st.columns(3)
+
+    if academic_system == "Annual System":
+        with col_dyn1:
+            sel_class_global = st.selectbox("Select Class Level:", ["11th", "12th"], index=0, key="global_sel_class")
+            
+        with col_dyn2:
+            annual_sections = []
+            for discipline, class_data in DISCIPLINE_SECTIONS_MAP.items():
+                if "DIT" not in discipline.upper():
+                    sections_list = class_data.get(sel_class_global, [])
+                    annual_sections.extend(sections_list)
+            
+            annual_sections = sorted(list(set(annual_sections)))
+            if not annual_sections:
+                annual_sections = ["MG_BLUE", "EG_BLUE", "CG_WHITE", "CB_WHITE"]
+                
+            sel_sec = st.selectbox("Select Target Class Section:", options=annual_sections, index=0, key="global_sel_sec")
+            
+        with col_dyn3:
+            selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
+
+    else:  # --- SEMESTER SYSTEM BRANCH ---
+        with col_dyn1:
+            sel_class_global = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="global_sel_class")
+            
+        with col_dyn2:
+            semester_sections = ["DIT_G", "DIT_B"]
+            sel_sec = st.selectbox("Select Target Section:", options=semester_sections, index=0, key="global_sel_sec")
+            
+        with col_dyn3:
+            selected_exams_list = st.multiselect("🎯 Select Tests:", options=all_frameworks, default=["MT_1", "MT_2", "MT_3"], key="global_exams")
+    st.markdown("---")
+
+    # Scope Selector Strategy
+    scope_choice = st.radio(
+        "𖨾 Select Scope:",
+        options=["👤 Single Student Card", "👥 Complete Section Cards"],
+        index=0,
+        horizontal=True,
+        key="mt_reporting_scope"
+    )
+
+    months_list = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
+    students_to_process = []
+    
+    rendered_section = str(sel_sec).strip()
+
+    # --- SCOPE LOGIC 1: SINGLE PROFILE ---
+    if scope_choice == "👤 Single Student Card":
+        with st.form("single_student_secure_form"):
+            st.markdown(f"##### 👤 Single Profile Verification Panel ({sel_class_global} - {rendered_section})")
+            search_id = st.text_input("🔍 Enter Student Roll Number / ID:", value="", key="form_search_id_single")
+            submit_single = st.form_submit_button("🚀 Fetch & Compile Student Details", use_container_width=True)
+            
+        if submit_single:
+            clean_id = search_id.strip()
+            if not clean_id:
+                st.error("⚠️ Please input a valid Student Roll Number / ID.")
+            else:
+                try:
+                    query_id = int(clean_id) if clean_id.isdigit() else clean_id
+                    
+                    student_df = run_query("""
+                        SELECT id, name, section, class 
                         FROM students 
-                        WHERE UPPER(TRIM(class)) = UPPER(TRIM(:class_val))
-                          AND TRIM(session) = TRIM(:sess_val)
-                        ORDER BY section_name ASC
-                    """, {"class_val": selected_class, "sess_val": db_session_string})
-                    db_sections = sec_lookup_df["section_name"].dropna().tolist() if not sec_lookup_df.empty else []
-                else:
-                    db_sections = []
-            except Exception:
-                db_sections = []
+                        WHERE id = :sid
+                          AND session = :session
+                          AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                          AND UPPER(TRIM(section)) LIKE UPPER(TRIM(:section))
+                    """, {"sid": query_id, "session": sel_session_global, "class_level": sel_class_global, "section": f"%{rendered_section}%"})
+                    
+                    if not student_df.empty:
+                        students_to_process = student_df.to_dict('records')
+                        rendered_section = student_df.iloc[0]["section"]
+                    else:
+                        st.error(f"❌ Student ID #{clean_id} was not found inside Section {rendered_section} ({sel_class_global}).")
+                except Exception as e:
+                    st.error(f"⚠️ Student verification query failed: {str(e)}.")
 
-            sec_options = list(map_sections)
-            for db_s in db_sections:
-                if db_s not in sec_options:
-                    sec_options.append(db_s)
+    # --- SCOPE LOGIC 2: BULK SECTION COMPLETE CARDS ---
+    else:
+        st.markdown(f'<div style="border:1px solid #d3d3d3; padding: 20px; border-radius: 5px; margin-bottom: 20px; background-color: rgba(240, 242, 246, 0.3);">', unsafe_allow_html=True)
+        st.markdown(f"##### 👥 Complete Section Processing Panel")
+        st.info(f"Ready to compile all student cards for **{sel_class_global}** under Section **{rendered_section}**.")
+        
+        submit_bulk = st.button("🚀 Compile All Section Cards", use_container_width=True, type="primary")
+        st.markdown('</div>', unsafe_allow_html=True)
+            
+        if submit_bulk:
+            section_students_df = run_query("""
+                SELECT id, name, section, class 
+                FROM students 
+                WHERE UPPER(TRIM(section)) LIKE UPPER(TRIM(:section))
+                  AND session = :session
+                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class_level))
+                ORDER BY id ASC
+            """, {"section": f"%{rendered_section}%", "session": sel_session_global, "class_level": sel_class_global})
+            
+            if not section_students_df.empty:
+                students_to_process = section_students_df.to_dict('records')
+            else:
+                st.error(f"💡 No registered student profiles found matching section '{rendered_section}' for Session {sel_session_global} ({sel_class_global}).")
 
-            fixed_key = f"ledger_section_key_{disc_upper}_{selected_class}"
-            sel_sec = st.selectbox("Select Section:", sec_options, key=fixed_key)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_c:
+    # --- DATA PROCESSING AND RENDERING PIPELINE ENGINE ---
+    if students_to_process and not selected_exams_list:
+        st.warning("⚠️ Select at least one metric from the configuration panel to compile report views.")
+        
+    elif students_to_process:
+        params_dict = {}
+        placeholder_list = []
+        
+        for idx, s in enumerate(students_to_process):
+            s_id = s['id']
+            clean_s_id = int(s_id) if str(s_id).isdigit() else str(s_id).strip()
+            key = f"sid_{idx}"
+            placeholder_list.append(f":{key}")
+            params_dict[key] = clean_s_id
+            
+        placeholders_str = ", ".join(placeholder_list)
+        
+        marks_df = pd.DataFrame()
+        attendance_df = pd.DataFrame()
+
+        # 1. Performance Marks Fetching Segment
+        try:
+            sample_marks = run_query("SELECT * FROM marks LIMIT 1", {})
+            cols_marks = [c.lower() for c in sample_marks.columns] if not sample_marks.empty else []
+            
+            sub_col = "subject_name" if "subject_name" in cols_marks else ("subject" if "subject" in cols_marks else "subject_name")
+            exam_col = "exam_type" if "exam_type" in cols_marks else ("exam" if "exam" in cols_marks else "exam_type")
+            obt_col = "marks_obtained" if "marks_obtained" in cols_marks else ("obtained_marks" if "obtained_marks" in cols_marks else "marks_obtained")
+            tot_col = "total_marks" if "total_marks" in cols_marks else "total_marks"
+
+            marks_df = run_query(f"""
+                SELECT student_id, {sub_col} as subject_name, {exam_col} as exam_type, {obt_col} as marks_obtained, {tot_col} as total_marks
+                FROM marks
+                WHERE student_id IN ({placeholders_str})
+            """, params_dict)
+            
+            if not marks_df.empty:
+                marks_df.columns = [c.lower() for c in marks_df.columns]
+                marks_df["student_id"] = marks_df["student_id"].astype(str).str.strip()
+                marks_df["exam_type"] = marks_df["exam_type"].astype(str).str.strip().str.upper()
+                
+                # --- FLAWLESS STRING SANITIZATION & UNIFICATION ---
+                # 1. Cast to string, strip whitespace, and normalize case
+                # Clean, strip whitespaces, and force standard Title Case
+                marks_df["subject_name"] = marks_df["subject_name"].astype(str).str.strip()
+                
+                # Convert underscores to spaces right at the source database level
+                marks_df["subject_name"] = marks_df["subject_name"].str.replace('_', ' ')
+                
+                # Normalize any multi-spaces or casing, then fix standalone "Computer"
+                marks_df["subject_name"] = marks_df["subject_name"].str.replace(r'\s+', ' ', regex=True).str.title()
+                marks_df["subject_name"] = marks_df["subject_name"].replace({"Computer": "Computer Science"})
+                # 2. Aggressively clean up any multi-space or trailing text hidden artifacts
+                marks_df["subject_name"] = marks_df["subject_name"].str.replace(r'\s+', ' ', regex=True)
+                # 3. Unify alternative values securely at the data frame root level
+                marks_df["subject_name"] = marks_df["subject_name"].replace({"Computer": "Computer Science"})
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching performance records. Details: {str(e)}")
+
+        # 2. Attendance Scanner Segment (Absolute Type Override)
+        try:
+            # Fetch all attendance rows to ensure no SQL parameter casting issues drop records
+            attendance_df = run_query("""
+                SELECT student_id, month_name, total_days, present_days 
+                FROM attendance
+            """, {})
+            
+            if not attendance_df.empty:
+                # Force exact column name layout strings
+                attendance_df.columns = ['student_id', 'month_name', 'total_days', 'present_days']
+                
+                # CRITICAL: Clean, convert, and store student_id as plain text strings 
+                # to guarantee matching with frontend tracking keys
+                attendance_df["student_id"] = attendance_df["student_id"].fillna(0).astype(float).astype(int).astype(str).str.strip()
+                attendance_df["month_name"] = attendance_df["month_name"].astype(str).str.strip()
+            else:
+                attendance_df = pd.DataFrame(columns=['student_id', 'month_name', 'total_days', 'present_days'])
+                
+        except Exception as e:
+            st.error(f"⚠️ Failed fetching attendance matrix records: {str(e)}")
+        # --- RE-ENGINEERED ATTENDANCE MATRIX AGGREGATOR ---
+        # (Replace your current matrix loop down in the code with this safer datetime parse)
+
+        # CSS Styling Configurations
+        css_rules = "body { background-color: #ffffff; margin: 0; padding: 10px; }"
+        css_rules += " .action-dashboard-panel { display: flex; flex-wrap: wrap; gap: 12px; max-width: 850px; margin: 10px auto 25px auto; font-family: 'Arial', sans-serif; }"
+        css_rules += " .action-control-btn { flex: 1; min-width: 180px; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.1s, opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }"
+        css_rules += " .action-control-btn:active { transform: scale(0.97); } .btn-print-single { background-color: #2e7d32; } .btn-print-single:hover { background-color: #1b5e20; }"
+        css_rules += " .btn-print-bulk { background-color: #1565c0; } .btn-print-bulk:hover { background-color: #0d47a1; }"
+        css_rules += " .btn-img-single { background-color: #e65100; } .btn-img-single:hover { background-color: #b33900; }"
+        css_rules += " .btn-img-bulk { background-color: #6a1b9a; } .btn-img-bulk:hover { background-color: #4a148c; }"
+        css_rules += " .cck-container { background-color: #ffffff; border: 1px solid #000000; padding: 30px; margin: 0 auto 30px auto; max-width: 850px; color: #000000; font-family: 'Arial', sans-serif; page-break-after: always; box-sizing: border-box; }"
+        css_rules += " .cck-header-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; position: relative; }"
+        css_rules += " .cck-logo-image-container { width: 75px; height: 100px; position: absolute; left: 20px; display: flex; align-items: center; justify-content: center; }"
+        css_rules += " .cck-logo-image { max-width: 100%; max-height: 100%; object-fit: contain; }"
+        css_rules += " .cck-logo-fallback-text { background-color: #e67e22; color: #ffffff; font-weight: bold; font-size: 22px; width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }"
+        css_rules += " .cck-title-block { text-align: center; } .cck-main-title { font-size: 24px; font-weight: bold; margin: 15px; letter-spacing: 0.5px; }"
+        css_rules += " .cck-sub-title { font-size: 13px; color: #444444; margin: 2px 0 0 0; } .cck-badge-wrapper { text-align: center; margin: 15px 0; }"
+        css_rules += " .cck-doc-badge { display: inline-block; background-color: #d1d5db; color: #000000; font-weight: bold; font-size: 16px; padding: 4px 20px; border-radius: 2px; }"
+        css_rules += " .cck-meta-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }"
+        css_rules += " .cck-meta-field { margin-right: 15px; margin-bottom: 8px; } .cck-line-fill { border-bottom: 1px solid #000000; display: inline-block; min-width: 120px; padding-left: 5px; font-weight: bold; }"
+        css_rules += " .cck-report-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }"
+        css_rules += " .cck-report-table th, .cck-report-table td { border: 1px solid #000000; padding: 6px 4px; text-align: center; }"
+        css_rules += " .cck-report-table th { background-color: #ffffff; font-weight: normal; } .cck-report-table td:first-child { text-align: left; padding-left: 8px; }"
+        css_rules += " .cck-remarks-area { margin-top: 100px; font-size: 14px; display: flex; align-items: flex-end; }"
+        css_rules += " .cck-remarks-line { flex-grow: 1; border-bottom: 1px solid #000000; margin-left: 8px; padding-left: 5px; font-style: italic; }"
+        css_rules += " .cck-footer-sign { margin-top: 25px; text-align: right; font-size: 14px; padding-right: 20px; }"
+        css_rules += " @media print { .action-dashboard-panel { display: none !important; } .cck-single-print-isolation { display: block !important; } .cck-single-print-hide { display: none !important; } .cck-container { border: none !important; padding: 0 !important; margin-bottom: 0 !important; } }"
+
+        css_styles = f"<style>{css_rules}</style>".replace('\xa0', ' ')
+
+        composite_html_payload = f"""
+        <html>
+        <head>
+        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        {css_styles}
+        </head>
+        <body>
+            <div class="action-dashboard-panel">
+                <button class="action-control-btn btn-print-single" onclick="executeTargetPrint(true)">👤 Print Single Student</button>
+                <button class="action-control-btn btn-print-bulk" onclick="executeTargetPrint(false)">👥 Print Complete Section</button>
+                <button class="action-control-btn btn-img-single" onclick="exportDossierToImage(true)">📸 Save Single as Picture</button>
+                <button class="action-control-btn btn-img-bulk" onclick="exportDossierToImage(false)">🖼️ Save Section as Pictures</button>
+            </div>
+            
+            <div id="dossiers-master-wrapper">
+        """
+
+        for index, s_meta in enumerate(students_to_process):
+            s_id = str(s_meta["id"]).strip()
+            raw_name = str(s_meta["name"])
+            s_name = " ".join(raw_name.replace("\n", " ").split())
+            
+            raw_section = str(s_meta["section"]) if s_meta.get("section") else rendered_section
+            s_section = " ".join(raw_section.replace("\n", " ").split()).upper().strip()
+            
+            raw_class = str(s_meta["class"]) if s_meta.get("class") else sel_class_global
+            s_class = " ".join(raw_class.replace("\n", " ").split())
+            
+            # --- START ACADEMIC MARK MATRIX COMPUTER LOOP ---
+            table_rows_html = ""
+            total_row_html = ""
+            grand_total_percentages = [0]
+
+            if not marks_df.empty:
+                s_marks = marks_df[marks_df["student_id"] == s_id].copy()
+                
+                if not s_marks.empty:
+                    # ------------------------------------------------------------------
+                    # ⚡ DYNAMIC ELECTIVE TRANSLATION & COLLAPSING UNIFICATION ENGINE
+                    # ------------------------------------------------------------------
+                    is_stats_section = s_section in ["CG_STATS", "CB_STATS", "CQ3", "CK3"]
+                    
+                    # Ensure absolute string purity for this iteration slice
+                    s_marks['display_subject'] = s_marks['subject_name'].astype(str).str.strip().str.title()
+                    s_marks['display_subject'] = s_marks['display_subject'].str.replace(r'\s+', ' ', regex=True)
+                    s_marks['display_subject'] = s_marks['display_subject'].replace({"Computer": "Computer Science"})
+                    s_marks['label_suffix'] = ""
+                    
+                    if is_stats_section:
+                        for m_idx, m_row in s_marks.iterrows():
+                            if str(m_row['subject_name']).strip().title() == "Physics":
+                                s_marks.at[m_idx, 'display_subject'] = "Statistics"
+                                s_marks.at[m_idx, 'label_suffix'] = " (Phy)"
+                    
+                    # Unique array will now strictly yield a single unified "Computer Science" row index
+                    distinct_subjects = sorted(list(set(s_marks["display_subject"].dropna().tolist())))
+                    
+                    exam_totals_obtained = {exam: 0.0 for exam in selected_exams_list}
+                    exam_totals_possible = {exam: 0.0 for exam in selected_exams_list}
+                    
+                    for sub in distinct_subjects:
+                        # Slice data belonging to this specific unified subject name string
+                        sub_marks = s_marks[s_marks["display_subject"] == sub]
+                        row_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{sub}</strong></td>"
+                        subject_pct_accum = 0
+                        valid_exams_count = 0
+                        
+                        for exam in selected_exams_list:
+                            if academic_system == "Semester System":
+                                match_row = sub_marks[sub_marks["display_subject"].str.upper() == str(exam).strip().upper()]
+                            else:
+                                match_row = sub_marks[sub_marks["exam_type"] == str(exam).strip().upper()]
+                                
+                            if not match_row.empty:
+                                try:
+                                    # Fallback safely to highest or first available metric if multiple rows intersect
+                                    target_record = match_row.iloc[0]
+                                    obt = float(target_record["marks_obtained"])
+                                    tot = float(target_record["total_marks"])
+                                    pct = int((obt / tot) * 100) if tot > 0 else 0
+                                    
+                                    suffix_tag = target_record.get('label_suffix', '')
+                                    row_tds += f"<td>{pct}%{suffix_tag}</td>"
+                                    
+                                    exam_totals_obtained[exam] += obt
+                                    exam_totals_possible[exam] += tot
+                                    subject_pct_accum += pct
+                                    valid_exams_count += 1
+                                except:
+                                    row_tds += "<td>-</td>"
+                            else:
+                                row_tds += "<td>-</td>"
+                        
+                        sub_avg = int(subject_pct_accum / valid_exams_count) if valid_exams_count > 0 else 0
+                        row_tds += f"<td><strong>{sub_avg}%</strong></td>"
+                        table_rows_html += f"<tr>{row_tds}</tr>"
+                    
+                    total_title = "Overall Course Avg %" if academic_system == "Semester System" else "Total Average %"
+                    total_obt_tds = f"<td style='text-align: left; padding-left: 8px;'><strong>{total_title}</strong></td>"
+                    total_pct_accum = 0
+                    total_counted = 0
+                    
+                    for exam in selected_exams_list:
+                        e_obt = exam_totals_obtained[exam]
+                        e_tot = exam_totals_possible[exam]
+                        if e_tot > 0:
+                            e_pct = int((e_obt / e_tot) * 100)
+                            total_obt_tds += f"<td><strong>{e_pct}%</strong></td>"
+                            total_pct_accum += e_pct
+                            total_counted += 1
+                        else:
+                            total_obt_tds += "<td>-</td>"
+                            
+                    grand_avg = int(total_pct_accum / total_counted) if total_counted > 0 else 0
+                    grand_total_percentages = [grand_avg]
+                    total_obt_tds += f"<td><span style='font-size:14px;'><strong>{grand_avg}%</strong></span></td>"
+                    total_row_html = f"<tr style='background-color:#fafafa;'>{total_obt_tds}</tr>"
+
+            if not table_rows_html:
+                table_rows_html = f"<tr><td colspan='{len(selected_exams_list) + 2}' style='padding:15px; color:#666;'>No registered academic records found.</td></tr>"
+
+            # =========================================================================
+            # --- ATTENDANCE REPORT MATRIX (DIRECT DAILY_ATTENDANCE TRACKER) ---
+            # =========================================================================
+            tot_days_row, att_days_row, pct_days_row = "", "", ""
+            overall_tot_days, overall_att_days = 0, 0
+
+            # Months tracking dictionary mapped precisely to your formatting outputs
+            month_map = {
+                "May": 5, "June": 6, "July": 7, "Aug.": 8, "Sept.": 9, "Oct.": 10, 
+                "Nov.": 11, "Dec.": 12, "Jan.": 1, "Feb.": 2, "March": 3, "April": 4
+            }
+            attendance_matrix = {m: {"total": 0, "present": 0} for m in month_map.keys()}
+
+            # 1. Fetch raw calendar logs directly matching your working summary ledger logic
             try:
-                if "run_query" in globals():
-                    exams_lookup_df = run_query("SELECT DISTINCT TRIM(exam_type) as exam_name FROM marks ORDER BY exam_name ASC", {})
-                    exam_options = exams_lookup_df["exam_name"].dropna().tolist() if not exams_lookup_df.empty else []
-                else:
-                    exam_options = []
+                raw_logs_df = run_query("""
+                    SELECT attendance_date, UPPER(TRIM(status)) as att_status
+                    FROM daily_attendance
+                    WHERE CAST(student_id AS TEXT) = TRIM(:st_id)
+                """, {"st_id": str(s_id).strip()})
             except Exception:
-                exam_options = []
-                
-            if not exam_options:
-                exam_options = ["BISE-11th", "Pre-Board 11th", "Send-Up 11th", "Term-1", "Term-2", "Term-3"]
-                
-            selected_exams_list = st.multiselect(
-                "Select Exams:",
-                exam_options,
-                default=[exam_options[0]] if exam_options else ["Term-1"],
-                key=f"summary_report_multi_exam_dropdown_{disc_upper}_{selected_class}"
-            )
-            if not selected_exams_list:
-                selected_exams_list = ["Term-1"]
+                raw_logs_df = pd.DataFrame()
 
-        # --- DIAGNOSTIC PLACEHOLDER FOR PART 1 ---
-        st.success("✅ Part 1 Layout loaded completely! Adjust inputs above.")
-        st.write(f"**Current Variables:** Session: `{db_session_string}` | Class: `{selected_class}` | Discipline: `{disc_upper}` | Section: `{sel_sec}` | Exams: `{selected_exams_list}`")
+            # 2. Process logs on the fly into months dynamically if rows are fetched
+            if not raw_logs_df.empty:
+                try:
+                    # Coerce dates safely to datetime entries
+                    raw_logs_df["attendance_date"] = pd.to_datetime(raw_logs_df["attendance_date"])
+                    
+                    for _, log_row in raw_logs_df.iterrows():
+                        log_date = log_row["attendance_date"]
+                        if pd.isna(log_date):
+                            continue
+                            
+                        log_month_int = log_date.month
+                        log_status = str(log_row["att_status"]).strip()
 
-    except Exception as layout_error:
-        st.error(f"💥 Layout Configuration Component Error: {str(layout_error)}")
+                        # Reverse match month integer back to your map keys ("Aug.", "Sept.", etc.)
+                        matched_month_key = None
+                        for m_name, m_int in month_map.items():
+                            if m_int == log_month_int:
+                                matched_month_key = m_name
+                                break
+
+                        if matched_month_key:
+                            attendance_matrix[matched_month_key]["total"] += 1
+                            if log_status in ["P", "PRESENT"]:
+                                attendance_matrix[matched_month_key]["present"] += 1
+                except Exception:
+                    pass
+
+            # --- GENERATE CELL HTML CODES FOR THIS CARD ---
+            for m_name in month_map.keys():
+                t_d = attendance_matrix[m_name].get("total", 0)
+                a_d = attendance_matrix[m_name].get("present", 0)
+                overall_tot_days += t_d
+                overall_att_days += a_d
+
+                tot_days_row += f"<td>{f'{t_d:02d}' if t_d > 0 else '-'}</td>"
+                att_days_row += f"<td>{f'{a_d:02d}' if t_d > 0 else '-'}</td>"
+                pct_days_row += f"<td>{f'{int((a_d/t_d)*100)}%' if t_d > 0 else '-'}</td>"
+
+            if overall_tot_days > 0:
+                tot_days_row += f"<td>{overall_tot_days:02d}</td>"
+                att_days_row += f"<td>{overall_att_days:02d}</td>"
+                pct_days_row += f"<td><strong>{int((overall_att_days / overall_tot_days) * 100)}%</strong></td>"
+            else:
+                tot_days_row += "<td>-</td>"
+                att_days_row += "<td>-</td>"
+                pct_days_row += "<td><strong>0%</strong></td>"
+
+            remarks_text = "Satisfactory academic progress observed."
+            if grand_total_percentages and grand_total_percentages[-1] >= 85:
+                remarks_text = "Excellent effort! An outstanding performer with exceptional academic discipline."
+
+            column_header_title = "Course Modules" if academic_system == "Semester System" else "Subjects"
+            thead_exams_th = "".join([f"<th style='font-weight: bold;'>{exam}</th>" for exam in selected_exams_list])
+            thead_sub_tds = "".join(["<td>Obt.%</td>" for _ in selected_exams_list])
+
+            l_b64 = logo_base64 if ('logo_base64' in locals() or 'logo_base64' in globals()) else ""
+            logo_markup = f'<img class="cck-logo-image" src="{l_b64}" alt="Logo" />' if l_b64 else '<div class="cck-logo-fallback-text">CC</div>'
+
+            composite_html_payload += f"""
+            <div class="cck-container student-card-record" data-index="{index}" data-name="{s_name.replace(' ', '_')}" data-id="{s_id}">
+                <div class="cck-header-wrapper">
+                    <div class="cck-logo-image-container">{logo_markup}</div>
+                    <div class="cck-title-block"><div class="cck-main-title">CONCORDIA COLLEGE KASUR</div></div>
+                </div>
+                <div class="cck-badge-wrapper"><div class="cck-doc-badge">Result Card</div></div>
+                <div class="cck-meta-row">
+                    <div class="cck-meta-field">Name: <span class="cck-line-fill">{s_name}</span></div>
+                    <div class="cck-meta-field">ID: <span class="cck-line-fill">{s_id}</span></div>
+                    <div class="cck-meta-field">Section: <span class="cck-line-fill">{s_section}</span></div>
+                    <div class="cck-meta-field">Class / Term: <span class="cck-line-fill">{s_class}</span></div>
+                </div>
+                <table class="cck-report-table">
+                    <thead>
+                        <tr><th style="width: 25%;"></th>{thead_exams_th}<th></th></tr>
+                        <tr><th style="text-align: left; padding-left: 8px; font-weight: bold;">{column_header_title}</th>{thead_sub_tds}<td style="font-weight: bold;">Avg.%</td></tr>
+                    </thead>
+                    <tbody>{table_rows_html}{total_row_html}</tbody>
+                </table>
+                <div class="cck-badge-wrapper" style="margin-top: 10px; margin-bottom: 5px;"><div class="cck-doc-badge" style="background-color: transparent; font-size: 15px; text-decoration: underline;">Attendance Report</div></div>
+                <table class="cck-report-table" style="font-size: 11px; margin-top: 5px;">
+                    <thead>
+                        <tr><th style="width: 14%;"></th><th>May</th><th>June</th><th>July</th><th>Aug.</th><th>Sept.</th><th>Oct.</th><th>Nov.</th><th>Dec.</th><th>Jan.</th><th>Feb.</th><th>March</th><th>April</th><th style="font-weight: bold;">Overall</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Open Total Days</td>{tot_days_row}</tr>
+                        <tr><td>Att. Days</td>{att_days_row}</tr>
+                        <tr><td>Att.%</td>{pct_days_row}</tr>
+                    </tbody>
+                </table>
+                <div class="cck-remarks-area"><strong>Remarks:</strong><div class="cck-remarks-line">{remarks_text}</div></div>
+                <div class="cck-footer-sign"><strong>Principal Sign</strong></div>
+            </div>
+            """
+
+        # =========================================================================
+        # --- OUTSIDE THE FOR LOOP: FINAL RENDERING ---
+        # =========================================================================
+        composite_html_payload += """
+            </div> <script>
+            function executeTargetPrint(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) return;
+                cards.forEach(function(card, idx) {
+                    if (isSingleTarget) {
+                        if (idx === 0) { card.classList.add('cck-single-print-isolation'); card.classList.remove('cck-single-print-hide'); }
+                        else { card.classList.add('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                    } else { card.classList.remove('cck-single-print-hide'); card.classList.remove('cck-single-print-isolation'); }
+                });
+                setTimeout(function() { window.print(); }, 200);
+            }
+
+            function exportDossierToImage(isSingleTarget) {
+                var cards = document.querySelectorAll('.student-card-record');
+                if (cards.length === 0) { alert('No student cards available.'); return; }
+                var targetList = [];
+                if (isSingleTarget) { targetList.push(cards[0]); } 
+                else { cards.forEach(function(c) { targetList.push(c); }); }
+                
+                var currentBatchIdx = 0;
+                function processNextImageDownload() {
+                    if (currentBatchIdx >= targetList.length) return;
+                    var card = targetList[currentBatchIdx];
+                    var sName = card.getAttribute('data-name') || 'student';
+                    var sId = card.getAttribute('data-id') || 'id';
+                    
+                    html2canvas(card, { scale: 2, useCORS: true }).then(function(canvas) {
+                        var link = document.createElement('a');
+                        link.download = 'Report_' + sId + '_' + sName + '.png';
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                        currentBatchIdx++;
+                        setTimeout(processNextImageDownload, 500);
+                    }).catch(function(err) {
+                        console.error('Image processing exception occurred:', err);
+                    });
+                }
+                processNextImageDownload();
+            }
+            </script>
+        </body>
+        </html>
+        """
+
+        import streamlit.components.v1 as components
+        components.html(composite_html_payload, height=900, scrolling=True)
+
+# --- END OF MULTI-TEST REPORT LOGIC ---
         st.stop()
 # ==============================================================================
 # 🪪 SUB-MODULE: STUDENT RESULT CARDS — PRINT ENGINE (FULLY DYNAMIC)
