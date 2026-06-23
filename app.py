@@ -4304,44 +4304,43 @@ elif menu_choice == "📋 Section Summary Report":
         else:
             subjects = ["ENGLISH", "URDU", "MATHEMATICS", "STATISTICS", "T_QURAN", "ISLAMIC_STUDIES"]
 
-    # --- 5. DATABASE INTEGRATION ENGINE (FUZZY REINFORCED) ---
-    # Replaces dividers with wildcards so 'CG_WHITE' matches 'CG-WHITE' or 'CG_WHITE' flawlessly
-    fuzzy_section = str(sel_sec).replace("_", "%").replace("-", "%")
-
+    # --- 5. DATABASE INTEGRATION ENGINE (SELF-HEALING ARCHITECTURE) ---
+    # Attempt 1: Strict query matching the selected section identifier
     students_df = run_query("""
         SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
         FROM students 
-        WHERE (UPPER(TRIM(section)) LIKE UPPER(TRIM(:section)) OR UPPER(TRIM(section)) = UPPER(TRIM(:raw_section)))
+        WHERE UPPER(TRIM(section)) = UPPER(TRIM(:section)) 
           AND UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
           AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
           AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
         ORDER BY id ASC
-    """, {
-        "section": fuzzy_section, 
-        "raw_section": sel_sec,
-        "session_str": db_session_string, 
-        "class": selected_class
-    })
+    """, {"section": sel_sec, "session_str": db_session_string, "class": selected_class})
     
+    # Attempt 2: Smart Auto-Fallback if data entry swapped the section names (e.g., Commerce under MG_BLUE)
+    if students_df.empty:
+        # Look up what actual sections hold profiles for this specific class and session
+        try:
+            fallback_check_df = run_query("""
+                SELECT id AS "ID", name AS "Student Name", section AS "Section", class AS "Current Class", status AS "Status"
+                FROM students 
+                WHERE UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
+                  AND UPPER(TRIM(class)) = UPPER(TRIM(:class))
+                  AND (status IS NULL OR UPPER(TRIM(status)) != 'LEFT')
+                ORDER BY id ASC
+            """, {"session_str": db_session_string, "class": selected_class})
+            
+            if not fallback_check_df.empty:
+                # If we found rows globally, auto-adopt them so the user isn't left looking at a blank screen
+                students_df = fallback_check_df
+                # Show a gentle, non-intrusive alert to explain what happened
+                detected_sections = ", ".join(fallback_check_df["Section"].unique().tolist())
+                st.warning(f"ℹ️ Note: Data for {selected_class} is currently recorded under section labels: **{detected_sections}** inside the database.")
+        except Exception:
+            pass
+
+    # --- CONTINUE RENDERING LEGER GRID IF RECOVERED ---
     if students_df.empty:
         st.info(f"💡 No active profiles found under Section '{sel_sec}' ({selected_class}) for Session {selected_session}.")
-        
-        # 🔍 AUTO-DEBUGGER EXPANDER
-        with st.expander("🛠️ Click to Inspect Live Database Records"):
-            st.write("Let's see exactly how sections and classes are saved in your database:")
-            try:
-                debug_df = run_query("""
-                    SELECT DISTINCT section, class, session 
-                    FROM students 
-                    WHERE UPPER(TRIM(session)) = UPPER(TRIM(:session_str))
-                    LIMIT 15
-                """, {"session_str": db_session_string})
-                if not debug_df.empty:
-                    st.dataframe(debug_df)
-                else:
-                    st.warning("No records found at all for this session string in the database.")
-            except Exception as e:
-                st.error(f"Debug check failed: {e}")
     else:
         try:
             marks_df = run_query("""
@@ -4363,7 +4362,6 @@ elif menu_choice == "📋 Section Summary Report":
                 att_df["student_key"] = att_df["student_key"].astype(str).str.strip()
         except Exception:
             att_df = pd.DataFrame()
-
         # --- 6. PERFORMANCE GRID COMPILER ---
         summary_rows = []
         for _, s_row in students_df.iterrows():
