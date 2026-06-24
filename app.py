@@ -99,7 +99,7 @@ def init_db():
                 academic_system TEXT,
                 class_level TEXT,
                 section TEXT,
-                teacher_id INTEGER,
+                teacher_id TEXT,
                 teacher_name TEXT
             );
         """))
@@ -118,14 +118,18 @@ def run_query(query, params=None):
 # 2. SHARED REUSABLE FUNCTIONS (Shared between Authorized Roles)
 # ==============================================================================
 def render_master_setup_engine():
-    """Centralized core setup engine giving Principal and VP rights to create and update foundational school data structures."""
+    """Centralized core setup engine giving Principal and VP rights to create foundational school data structures and operational mappings."""
     st.subheader("⚙️ Master Institutional Setup Engine")
     
-    tab1, tab2 = st.tabs(["🏛️ 1. Core Configuration Parameters", "🔗 2. Operational Allocation Mapping"])
+    # Combined Tabs view incorporating Class In-Charge Allocations as Tab 3
+    tab1, tab2, tab3 = st.tabs([
+        "🏛️ 1. Core Configuration Parameters", 
+        "🔗 2. Operational Allocation Mapping", 
+        "📋 3. Class In-Charge Allocations"
+    ])
     
     with tab1:
         st.markdown("### Add & Manage Structural School Variables")
-        
         setup_type = st.selectbox(
             "Select Variable Layer to Manage:",
             ["Session", "Academic System", "Classes", "Sections", "Subjects", "Test/Exam", "Disciplines", "Teachers"]
@@ -456,10 +460,8 @@ def render_master_setup_engine():
                     if t_id and t_name:
                         try:
                             with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO teachers (teacher_id, full_name, contact_number, email) 
-                                    VALUES (:id, :name, :phone, :email)
-                                """), {"id": t_id, "name": t_name, "phone": t_phone, "email": t_email})
+                                conn.execute(text("INSERT INTO teachers (teacher_id, full_name, contact_number, email) VALUES (:id, :name, :phone, :email)"), 
+                                             {"id": t_id, "name": t_name, "phone": t_phone, "email": t_email})
                             st.success(f"🎉 Faculty Profile initialized successfully for [{t_id}] {t_name}!")
                             time.sleep(0.5)
                             st.rerun()
@@ -485,11 +487,8 @@ def render_master_setup_engine():
                     if st.form_submit_button("💾 Save Profile Changes", type="secondary"):
                         if update_name:
                             with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE teachers 
-                                    SET full_name = :name, contact_number = :phone, email = :email 
-                                    WHERE teacher_id = :id
-                                """), {"name": update_name, "phone": update_phone, "email": update_email, "id": target_id})
+                                conn.execute(text("UPDATE teachers SET full_name = :name, contact_number = :phone, email = :email WHERE teacher_id = :id"),
+                                             {"name": update_name, "phone": update_phone, "email": update_email, "id": target_id})
                             st.success("🎉 Teacher management profiles synchronized successfully!")
                             time.sleep(0.5)
                             st.rerun()
@@ -501,19 +500,12 @@ def render_master_setup_engine():
         st.markdown("### Map Institutional Dependencies")
         allocation_type = st.selectbox(
             "Select Mapping Matrix Layer:",
-            ["Section Allocation (Students to Sections)", "Subject Allocation (Teachers to Subjects/Sections)", "Section In-Charge Allocation"]
+            ["Section Allocation (Students to Sections)", "Subject Allocation (Teachers to Subjects/Sections)"]
         )
         
         with st.form("mapping_allocation_form"):
             st.write(f"✏️ **New {allocation_type} Entry**")
             
-            try:
-                available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
-                if not available_classes:
-                    available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
-            except Exception:
-                available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
-
             if allocation_type == "Section Allocation (Students to Sections)":
                 col_sa1, col_sa2 = st.columns(2)
                 with col_sa1: st.text_input("Student Identifier Code / ID:")
@@ -525,15 +517,64 @@ def render_master_setup_engine():
                 with col_sub2: st.text_input("Target Subject Identifier:")
                 with col_sub3: st.text_input("Target Class & Section Scope:")
                 
-            elif allocation_type == "Section In-Charge Allocation":
-                col_inc1, col_inc2, col_inc3 = st.columns(3)
-                with col_inc1: st.text_input("Select Faculty Member (Teacher ID):")
-                with col_inc2: st.selectbox("Assign Class Level Scope:", available_classes)
-                with col_inc3: st.text_input("Assign Section Branch Unit:")
-                
             submit_allocation = st.form_submit_button("🔗 Commit Allocation Link to Database", type="primary")
             if submit_allocation:
                 st.success(f"🎉 Relational Ledger Updated: {allocation_type} pipeline compiled and linked successfully.")
+
+    with tab3:
+        # ----------------------------------------------------------------------
+        # 3. CLASS IN-CHARGE ALLOCATIONS (Moved from sidebar to right side tab)
+        # ----------------------------------------------------------------------
+        st.markdown("### 📋 Class In-Charge Mapping Management")
+        
+        try:
+            sessions_list = run_query("SELECT session_name FROM sessions")['session_name'].tolist()
+            systems_list = run_query("SELECT system_name FROM academic_systems")['system_name'].tolist()
+            classes_list = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+            sections_list = run_query("SELECT section_name FROM sections")['section_name'].tolist()
+            teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
+        except Exception:
+            sessions_list, systems_list, classes_list, sections_list = [], [], [], []
+            teachers_df = pd.DataFrame()
+
+        # Fallbacks for empty sandbox state
+        if not sessions_list: sessions_list = ["No Sessions Registered"]
+        if not systems_list: systems_list = ["No Systems Registered"]
+        if not classes_list: classes_list = ["11th", "12th", "Matric"]
+        if not sections_list: sections_list = ["A", "B", "C"]
+
+        with st.form("form_incharge_allocation"):
+            st.write("#### Assign Faculty Member as Section In-Charge")
+            col_inc1, col_inc2 = st.columns(2)
+            with col_inc1: sel_session = st.selectbox("Select Session Year:", sessions_list)
+            with col_inc2: sel_system = st.selectbox("Select Academic Framework:", systems_list)
+            
+            col_inc3, col_inc4 = st.columns(2)
+            with col_inc3: sel_class = st.selectbox("Assign Class Level Scope:", classes_list, key="inc_cls")
+            with col_inc4: sel_section = st.selectbox("Assign Section Branch:", sections_list, key="inc_sec")
+            
+            if not teachers_df.empty:
+                teacher_options = [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()]
+                selected_teacher = st.selectbox("Select Assigned Faculty Member:", teacher_options)
+            else:
+                selected_teacher = st.selectbox("Select Assigned Faculty Member:", ["No Registered Teachers Available"])
+                
+            submit_inc = st.form_submit_button("🔗 Link Class In-Charge Assignment", type="primary")
+            if submit_inc:
+                if "No Registered" in selected_teacher or "No Sessions" in sel_session:
+                    st.error("❌ Prerequisites missing: Make sure a Session and a Teacher profile are created first.")
+                else:
+                    t_id = selected_teacher.split(" - ")[0]
+                    t_name = selected_teacher.split(" - ")[1]
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO incharge_allocations (session, academic_system, class_level, section, teacher_id, teacher_name)
+                                VALUES (:sess, :sys, :cls, :sec, :tid, :tname)
+                            """), {"sess": sel_session, "sys": sel_system, "cls": sel_class, "sec": sel_section, "tid": t_id, "tname": t_name})
+                        st.success(f"🎉 Mapping Complete: {t_name} is now designated In-Charge for Class {sel_class}-{sel_section}!")
+                    except Exception as e:
+                        st.error(f"❌ Database error: {e}")
 
 
 def render_student_management_workspace():
@@ -755,12 +796,11 @@ if user_role == "Principal":
     st.sidebar.info("Signed in as: **Principal**\n\n*Access Level: Full Admin Control*")
     app_mode = st.sidebar.radio(
         "Select Administrative Sub-Module:",
-        ["Master Panel Overview", "🛠️ Core Institutional Setup Engine", "Class In-Charge Allocations", "Admission Management", "Universal Attendance Panel", "Universal Marks Override Desk", "Report Generator Engine", "📊 Global Institutional Analytics", "Academic Configuration Ledger"]
+        ["Master Panel Overview", "🛠️ Core Institutional Setup Engine", "Admission Management", "Universal Attendance Panel", "Universal Marks Override Desk", "Report Generator Engine", "📊 Global Institutional Analytics", "Academic Configuration Ledger"]
     )
     
     if app_mode == "Master Panel Overview": st.title("🦅 Principal Strategic Control Command Tower")
     elif app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
-    elif app_mode == "Class In-Charge Allocations": st.title("📋 Class In-Charge Mapping Management")
     elif app_mode == "Admission Management": render_student_management_workspace()
     elif app_mode == "Universal Attendance Panel": render_universal_attendance_workspace()
     elif app_mode == "Universal Marks Override Desk": render_universal_marks_entry_workspace()
@@ -785,11 +825,10 @@ elif user_role == "Vice Principal":
     st.sidebar.info("Signed in as: **Vice Principal**\n\n*Access Level: Academic Operations Command*")
     app_mode = st.sidebar.radio(
         "Select Operational Sub-Module:",
-        ["🛠️ Core Institutional Setup Engine", "Class In-Charge Allocations", "Student Record Management Workspace", "📅 Universal Section Attendance Register", "Universal Marks Entry Portal", "📈 Comprehensive Systems Analytics", "📋 Generate Systems Reports Matrix", "Academic Configuration Ledger"]
+        ["🛠️ Core Institutional Setup Engine", "Student Record Management Workspace", "📅 Universal Section Attendance Register", "Universal Marks Entry Portal", "📈 Comprehensive Systems Analytics", "📋 Generate Systems Reports Matrix", "Academic Configuration Ledger"]
     )
     
     if app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
-    elif app_mode == "Class In-Charge Allocations": st.title("📋 Class In-Charge Mapping Management")
     elif app_mode == "Student Record Management Workspace": render_student_management_workspace()
     elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace()
     elif app_mode == "Universal Marks Entry Portal": render_universal_marks_entry_workspace()
