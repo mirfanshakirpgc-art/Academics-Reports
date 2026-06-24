@@ -1713,45 +1713,41 @@ if menu_choice == "📊 Home Dashboard":
 # ➕ ADD STUDENTS MANAGEMENT SYSTEM SECTION
 # ------------------------------------------------------------------------------------
 elif menu_choice == "➕ Add Students":
-    st.title("New student registration")
+    st.title("New Student Registration")
     
-    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-    active_session = st.session_state.get("current_session", "2026-28")
-    
-    default_index = session_options.index(active_session) if active_session in session_options else 0
+    # Secure access directly from the Global Source of Truth Grid
+    grid = st.session_state.get("GLOBAL_GRID")
+    if not grid:
+        st.error("🚨 Master Configuration System could not be verified. Please reload the application.")
+        st.stop()
         
-    discipline_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+    session_options = grid.get("sessions", ["2025-27", "2026-28", "2027-29"])
+    active_session = st.session_state.get("current_session", "2026-28")
+    default_index = session_options.index(active_session) if active_session in session_options else 0
 
     c1, c2 = st.columns(2)
     with c1: 
-        selected_session = st.selectbox("🎯 1. Select Session:", session_options, index=default_index, key="add_stu_sess")
+        selected_session = st.selectbox("🎯 1. Select Session Scope:", session_options, index=default_index, key="add_stu_sess")
     with c2: 
         academic_system = st.radio("🏫 Select Academic System Structure:", ["🗓️ Annual System", "🎓 Semester System"], horizontal=True, key="add_stu_system_type")
 
     st.markdown("---")
 
-    if academic_system == "🗓️ Annual System":
+    if "Annual System" in academic_system:
+        # Pull configurations entirely from the master configuration map arrays
+        class_options = grid.get("annual_classes", ["11th", "12th"])
+        discipline_options = grid.get("annual_disciplines", ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"])
+        
         c3, c4, c5 = st.columns(3)
         with c3: 
-            selected_class = st.selectbox("📚 2. Select Class Level:", ["11th", "12th"], key="add_stu_class")
+            selected_class = st.selectbox("📚 2. Select Class Level:", class_options, key="add_stu_class")
         with c4: 
             selected_discipline = st.selectbox("🔬 3. Select Discipline:", discipline_options, key="add_stu_disc")
             
         with c5:
-            normalized_discipline = (
-                selected_discipline.upper()
-                .replace(" ", "_")
-                .replace("(", "")
-                .replace(")", "")
-            )
-            
-            if "PHYSIC" in normalized_discipline:
-                normalized_discipline = "ICS_PHYSICS"
-            elif "STAT" in normalized_discipline:
-                normalized_discipline = "ICS_STATS"
-
-            available_sections = DISCIPLINE_SECTIONS_MAP.get(normalized_discipline, {}).get(selected_class, [])
-            cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
+            # Query section data safely using the clean text values used as keys in DISCIPLINE_SECTIONS_MAP
+            sections_pool = grid.get("sections_map", {}).get(selected_discipline, {}).get(selected_class, [])
+            cleaned_sections = [str(sec).strip().upper() for sec in sections_pool]
             
             if cleaned_sections:
                 selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
@@ -1759,19 +1755,27 @@ elif menu_choice == "➕ Add Students":
                 selected_section = st.text_input("📋 4. Enter Target Section Manual:", value="CK2", key="add_stu_sec_annual_manual").strip().upper()
     
     else:
+        # Semester track configuration variables
+        class_options = grid.get("semester_classes", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
+        discipline_options = grid.get("semester_disciplines", ["Diploma in Information Technology"])
+        
         c3, c4 = st.columns(2)
         with c3: 
-            selected_class = st.selectbox("⏳ 2. Select Semester Level:", ["Semester 1", "Semester 2", "Semester 3", "Semester 4"], key="add_stu_semester")
+            selected_class = st.selectbox("⏳ 2. Select Semester Level:", class_options, key="add_stu_semester")
         
-        selected_discipline = "INFORMATION_TECHNOLOGY"
-        available_sections = DISCIPLINE_SECTIONS_MAP.get(selected_discipline, {}).get(selected_class, ["DIT_B", "DIT_G"])
-        cleaned_sections = [str(sec).strip().upper() for sec in available_sections]
+        # Pull standard DIT mapping key directly from master arrays
+        selected_discipline = discipline_options[0] if discipline_options else "Diploma in Information Technology"
+        sections_pool = grid.get("sections_map", {}).get(selected_discipline, {}).get(selected_class, [])
+        cleaned_sections = [str(sec).strip().upper() for sec in sections_pool]
         
         with c4:
             if cleaned_sections:
                 selected_section = st.selectbox("📋 3. Select Target Section:", cleaned_sections, key="add_stu_sec_semester")
             else:
-                selected_section = st.text_input("📋 3. Enter Target Section Manual:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
+                selected_section = st.text_input("📋 3. Enter Target Section Manual:", value="DT_B", key="add_stu_sec_semester_manual").strip().upper()
+
+    # Save contextual properties neatly for Part 1 execution queries
+    target_system_string = "Annual System" if "Annual System" in academic_system else "Semester System"
 
     # ====================================================================================
     # 🧱 PART 1: NEW REGISTRATION SUITE (BULK + SINGLE UPLOAD)
