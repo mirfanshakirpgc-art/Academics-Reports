@@ -12,7 +12,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# TODO: Replace with your actual database connection string if not using local SQLite
 DB_URL = "sqlite:///academics.db" 
 
 @st.cache_resource
@@ -97,7 +96,6 @@ def init_db():
             );
         """))
 
-# Run database schema checker execution
 init_db()
 
 def run_query(query, params=None):
@@ -213,45 +211,53 @@ def render_master_setup_engine():
             else: st.info("No active Framework models discovered.")
 
         # ----------------------------------------------------------------------
-        # 3. CLASSES MANAGEMENT (ADD & EDIT)
+        # 3. CLASSES MANAGEMENT (ADD & EDIT) - FIXED FOR CUSTOM STRINGS ("11th", "12th")
         # ----------------------------------------------------------------------
         elif setup_type == "Classes":
             st.markdown("#### ➕ Add New Class Level")
             with st.form("form_classes"):
                 col1, col2 = st.columns(2)
-                with col1: class_title = st.selectbox("Select Class Level Tier:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
-                with col2: numeric_index = st.number_input("Numeric Sort Index Value:", min_value=1, value=int(class_title) if class_title.isdigit() else 1)
+                # Changed selectbox to text_input to allow any string format like "11th" or "12th"
+                with col1: class_title = st.text_input("Class Level Designation Name:", placeholder="e.g., 11th, 12th, Matric, O-Levels")
+                with col2: numeric_index = st.number_input("Numeric Sort Index Value (For structural ordering):", min_value=1, value=11)
                 submit = st.form_submit_button("➕ Register Class Level", type="primary")
                 if submit:
-                    try:
-                        with engine.begin() as conn:
-                            conn.execute(text("INSERT INTO classes (class_level, sort_order) VALUES (:lvl, :sort)"), 
-                                         {"lvl": class_title, "sort": numeric_index})
-                        st.success(f"🎉 Class Level Grade '{class_title}' added!")
-                        time.sleep(0.5)
-                        st.rerun()
-                    except Exception as e: st.error(f"❌ Database error: {e}")
+                    if class_title.strip():
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("INSERT INTO classes (class_level, sort_order) VALUES (:lvl, :sort)"), 
+                                             {"lvl": class_title.strip(), "sort": numeric_index})
+                            st.success(f"🎉 Class Level Grade '{class_title}' successfully committed!")
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e: st.error(f"❌ Database error: {e}")
+                    else:
+                        st.error("❌ Class Designation field cannot be blank.")
 
             st.markdown("---")
             st.markdown("#### ✏️ Edit Existing Class Structures")
-            classes_df = run_query("SELECT id, class_level, sort_order FROM classes")
+            classes_df = run_query("SELECT id, class_level, sort_order FROM classes ORDER BY sort_order ASC")
             if not classes_df.empty:
-                class_options = [f"{row['id']} - Class Tier {row['class_level']} (Index: {row['sort_order']})" for _, row in classes_df.iterrows()]
+                class_options = [f"{row['id']} - Class: {row['class_level']} (Index: {row['sort_order']})" for _, row in classes_df.iterrows()]
                 selected_cls = st.selectbox("Select Class Node to Update:", class_options, key="edit_cls_select")
                 target_id = int(selected_cls.split(" - ")[0])
                 current_data = classes_df[classes_df['id'] == target_id].iloc[0]
                 
                 with st.form("edit_form_cls"):
                     col1, col2 = st.columns(2)
-                    with col1: update_lvl = st.selectbox("Modify Level Tier:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], index=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"].index(current_data['class_level']))
-                    with col2: update_sort = st.number_input("Modify Sort Order:", min_value=1, value=int(current_data['sort_order']))
+                    # Changed selectbox to a free text input to cleanly modify any format variation flawlessly
+                    with col1: update_lvl = st.text_input("Modify Level Designation Name:", value=str(current_data['class_level']))
+                    with col2: update_sort = st.number_input("Modify Sort Order Index:", min_value=1, value=int(current_data['sort_order']))
                     if st.form_submit_button("💾 Save Class Changes", type="secondary"):
-                        with engine.begin() as conn:
-                            conn.execute(text("UPDATE classes SET class_level = :lvl, sort_order = :sort WHERE id = :id"),
-                                         {"lvl": update_lvl, "sort": update_sort, "id": target_id})
-                        st.success("🎉 Class Level metadata structural fields synchronized!")
-                        time.sleep(0.5)
-                        st.rerun()
+                        if update_lvl.strip():
+                            with engine.begin() as conn:
+                                conn.execute(text("UPDATE classes SET class_level = :lvl, sort_order = :sort WHERE id = :id"),
+                                             {"lvl": update_lvl.strip(), "sort": update_sort, "id": target_id})
+                            st.success("🎉 Class Level metadata structural fields synchronized!")
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.error("❌ Designation name cannot be empty.")
             else: st.info("No indexed class records inside storage system.")
 
         # ----------------------------------------------------------------------
@@ -444,6 +450,14 @@ def render_master_setup_engine():
         with st.form("mapping_allocation_form"):
             st.write(f"✏️ **New {allocation_type} Entry**")
             
+            # Dynamically pull created classes list from setup layer memory
+            try:
+                available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+                if not available_classes:
+                    available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+            except Exception:
+                available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+
             if allocation_type == "Section Allocation (Students to Sections)":
                 col_sa1, col_sa2 = st.columns(2)
                 with col_sa1: st.text_input("Student Identifier Code / ID:")
@@ -458,7 +472,7 @@ def render_master_setup_engine():
             elif allocation_type == "Section In-Charge Allocation":
                 col_inc1, col_inc2, col_inc3 = st.columns(3)
                 with col_inc1: st.text_input("Select Faculty Member (Teacher ID):")
-                with col_inc2: st.selectbox("Assign Class Level:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                with col_inc2: st.selectbox("Assign Class Level Scope:", available_classes)
                 with col_inc3: st.text_input("Assign Section Branch Unit:")
                 
             submit_allocation = st.form_submit_button("🔗 Commit Allocation Link to Database", type="primary")
@@ -471,12 +485,19 @@ def render_student_management_workspace():
     st.subheader("📝 Student Records & Registration Directory")
     tab1, tab2 = st.tabs(["🆕 Add New Student Roster Record", "✏️ Edit Existing Student Profile Data"])
     
+    try:
+        available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+        if not available_classes:
+            available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+    except Exception:
+        available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+
     with tab1:
         with st.form("add_new_student_form"):
             st.write("### Register New Student Node")
             col1, col2, col3 = st.columns(3)
             with col1: new_name = st.text_input("Full Name:", placeholder="John Doe")
-            with col2: new_class = st.selectbox("Target Class Level:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+            with col2: new_class = st.selectbox("Target Class Level:", available_classes)
             with col3: new_sec = st.text_input("Target Section:", placeholder="A", max_chars=2).upper()
                 
             new_roll = st.number_input("Assign Roll Number:", min_value=1, step=1)
@@ -507,7 +528,7 @@ def render_student_management_workspace():
                     WHERE student_name LIKE :search
                 """, {"search": f"%{search_term}%"})
             except Exception:
-                matched_students = pd.DataFrame([{"student_id": 99, "roll_no": 5, "student_name": f"{search_term} Test", "class_level": "10", "section": "B"}])
+                matched_students = pd.DataFrame([{"student_id": 99, "roll_no": 5, "student_name": f"{search_term} Test", "class_level": "11th", "section": "B"}])
                 st.caption("⚠️ Running UI structural mock sandbox layout data.")
 
             if not matched_students.empty:
@@ -522,7 +543,12 @@ def render_student_management_workspace():
                 with st.form("edit_student_data_form"):
                     col_e1, col_e2, col_e3 = st.columns(3)
                     with col_e1: edit_name = st.text_input("Update Name:", value=current_target_row["student_name"])
-                    with col_e2: edit_class = st.selectbox("Update Class Level:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], index=int(current_target_row["class_level"])-1 if current_target_row["class_level"].isdigit() else 0)
+                    with col_e2: 
+                        try:
+                            cls_idx = available_classes.index(str(current_target_row["class_level"]))
+                        except ValueError:
+                            cls_idx = 0
+                        edit_class = st.selectbox("Update Class Level:", available_classes, index=cls_idx)
                     with col_e3: edit_sec = st.text_input("Update Section:", value=current_target_row["section"], max_chars=2).upper()
                         
                     edit_roll = st.number_input("Update Roll Number:", value=int(current_target_row["roll_no"]), min_value=1)
@@ -545,8 +571,15 @@ def render_universal_attendance_workspace():
     st.subheader("🌐 Global Universal Attendance Control Desk")
     st.info("🔓 Unrestricted administrative view enabled. You can monitor or verify attendance for all sections.")
     
+    try:
+        available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+        if not available_classes:
+            available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+    except Exception:
+        available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+
     col_u1, col_u2, col_u3 = st.columns(3)
-    with col_u1: sel_class = st.selectbox("Target Class Scope:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="uni_class")
+    with col_u1: sel_class = st.selectbox("Target Class Scope:", available_classes, key="uni_class")
     with col_u2: sel_section = st.text_input("Target Section Scope:", value="A", max_chars=2, key="uni_sec").upper()
     with col_u3: attendance_date = st.date_input("Attendance Log Date:", value=time.strftime("%Y-%m-%d"), key="uni_date")
         
@@ -594,8 +627,15 @@ def render_universal_marks_entry_workspace():
     st.subheader("🌋 Universal Subject Marks Override Portal")
     st.info("🔓 Unrestricted Academic Command Access: You can enter or overwrite examination evaluation sets school-wide.")
     
+    try:
+        available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+        if not available_classes:
+            available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+    except Exception:
+        available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+
     col_e1, col_e2, col_e3 = st.columns(3)
-    with col_e1: sel_class = st.selectbox("Select Class:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], key="uni_m_class")
+    with col_e1: sel_class = st.selectbox("Select Class:", available_classes, key="uni_m_class")
     with col_e2: sel_section = st.text_input("Select Section:", value="A", max_chars=2, key="uni_m_sec").upper()
     with col_e3: sel_subject = st.text_input("Target Academic Subject:", placeholder="Mathematics", key="uni_m_sub")
         
@@ -611,13 +651,18 @@ def render_institutional_report_generator():
     st.subheader("📊 Master Institutional Report Generator Engine")
     st.write("Construct data sheets, compile dynamic transcripts, or monitor academic growth factors.")
     
+    try:
+        available_classes = ["All Classes"] + run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+    except Exception:
+        available_classes = ["All Classes", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+
     report_type = st.selectbox(
         "Select Target Report Template Type:",
         ["Complete Roster Student Tabulations", "Subject-Wise Grading Distributions", "Section Attendance Defaulter Logs", "Consolidated Class Report Cards"]
     )
     
     col_r1, col_r2 = st.columns(2)
-    with col_r1: st.selectbox("Filter Class Scope:", ["All Classes", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+    with col_r1: st.selectbox("Filter Class Scope:", available_classes)
     with col_r2: st.selectbox("Filter Term Cycle:", ["First Term", "Mid Exams", "Final Session Examination"])
         
     st.button(f"⚙️ Execute System Query & Generate {report_type}", type="primary", use_container_width=True)
