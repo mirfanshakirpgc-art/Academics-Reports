@@ -510,12 +510,17 @@ def render_master_setup_engine():
 
     with tab2:
         st.markdown("### Map Institutional Dependencies")
+        
+        # Using variables for choice names to prevent typos/mismatches entirely
+        LAYER_STUDENTS = "Section Allocation (Students to Sections)"
+        LAYER_TEACHERS = "Subject Allocation (Teachers to Subjects/Sections)"
+        
         allocation_type = st.selectbox(
             "Select Mapping Matrix Layer:",
-            ["Section Allocation (Students to Sections)", "Subject Allocation (Teachers to Subjects/Sections)"]
+            [LAYER_STUDENTS, LAYER_TEACHERS]
         )
         
-        if allocation_type == "Section Allocation (Students to Sections)":
+        if allocation_type == LAYER_STUDENTS:
             with st.form("mapping_allocation_form"):
                 st.write(f"✏️ **New Section Allocation Entry**")
                 col_sa1, col_sa2 = st.columns(2)
@@ -525,7 +530,7 @@ def render_master_setup_engine():
                 if submit_allocation:
                     st.success("🎉 Relational Ledger Updated: Student allocation pipeline compiled successfully.")
                     
-        elif allocation_type == "Subject Allocation (Teachers to Subjects/Sections)":
+        elif allocation_type == LAYER_TEACHERS:
             st.write("✏️ **Dynamic Sequential Subject Allocation Entry**")
             
             # --- Initialize Session State Indexes to handle safe resets ---
@@ -590,7 +595,7 @@ def render_master_setup_engine():
             # ------------------------------------------------------------------
             with col_c:
                 if st.session_state.step2_sys != "-- Select System --":
-                    classes_list = ["-- Select Class --"] + run_query("SELECT DISTINCT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+                    classes_list = ["-- Select Class --"] + run_query("SELECT DISTINCT class_level FROM classes ORDER BY id ASC")['class_level'].tolist()
                     sel_sub_class = st.selectbox(
                         "3. Select Class:", 
                         options=classes_list,
