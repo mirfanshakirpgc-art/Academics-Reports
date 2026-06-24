@@ -3303,13 +3303,12 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
         st.markdown('</div>', unsafe_allow_html=True)
 # ==============================================================================
-# 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Flush against the left wall)
+# 🗓️ MODULE 2: ATTENDANCE ENTRY MANAGEMENT (Synced with Global Top-Bar Filters)
 # ==============================================================================
 
 # --------------------------------------------------------------------------------
 # WORKFLOW 1: DAILY ATTENDANCE ROSTER SHEET
 # --------------------------------------------------------------------------------
-# 🟢 FIXED: Changed globals().get() to st.session_state.get()
 if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('att_sub_type') == "📅 Daily Attendance Entry":
     st.subheader("📅 Daily Attendance Roster Sheet")
     st.markdown("---")
@@ -3319,77 +3318,12 @@ if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('a
     from sqlalchemy import text
     import pandas as pd
     
-    d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
-    with d1:
-        # 🌎 GLOBAL REFERENCE: Pulled from standard global session array configurations
-        sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
-        
-    with d2:
-        academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="att_sys_type")
-        
-    with d3:
-        if academic_system == "Annual System":
-            class_options = ["11th", "12th"]
-            sel_class = st.selectbox("Select Class Level:", class_options, key="daily_att_class")
-        else:
-            class_options = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
-            sel_class = st.selectbox("Select Semester Context:", class_options, key="daily_att_sem")
-            
-    with d4:
-        section_options = []
-        
-        # 🚨 MASTER PASS ENGINE: Read every possible session variable fallback mapping
-        raw_user_type = st.session_state.get("user_type", "")
-        raw_work_role = st.session_state.get("workspace_role", "")
-        raw_generic_role = st.session_state.get("role", "")
-        raw_user_role = st.session_state.get("user_role", "") # 🟢 FIXED: Added explicit user_role check
-        
-        # Combine elements to form a fuzzy-matching verification layout string
-        combined_roles_footprint = f"{raw_user_type} | {raw_work_role} | {raw_generic_role} | {raw_user_role}".strip().lower()
-        
-        # Trigger true if matching 'principal', 'admin', 'management', OR if the state table returns totally empty
-        is_admin_override = any(adm in combined_roles_footprint for adm in ["principal", "admin", "management", "coordinator", "boss"]) or combined_roles_footprint.replace("|", "").strip() == ""
-        
-        # 🌎 GLOBAL REFERENCE MASTER MAP FALLBACK PARSER
-        # Dynamically pulls array variants from DISCIPLINE_SECTIONS_MAP if available, bypassing hardcoded footprints
-        try:
-            if academic_system == "Annual System":
-                for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
-                    sections_list = class_map.get(sel_class, [])
-                    section_options.extend(sections_list)
-            else:
-                # Semester System parsing against the master config grid mapping
-                for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
-                    sections_list = class_map.get(sel_class, [])
-                    section_options.extend(sections_list)
-                    
-            # Local layout backup safety switch if the master dictionary search returned empty array
-            if not section_options:
-                raise NameError("Master grid empty for selection context")
-                
-        except NameError:
-            # Fallback arrays matching Global Master Config parameters in case definition missing at initialization
-            if academic_system == "Annual System":
-                if sel_class == "11th":
-                    section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
-                else:
-                    section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
-            else:
-                section_options = ["DIT_B", "DIT_G"]
-        
-        # Deep wash values, isolate entries, and alphabetically sort arrays 
-        section_options = sorted(list(set([str(s).strip() for s in section_options if s])))
-        
-        # 🔍 LIVE MONITOR FLAG: Displays exact operational flags above selection field
-        st.caption(f"🔧 **Rights Map Active:** `{combined_roles_footprint}` | Admin Override Force: `{is_admin_override}`")
-        
-        # Construct completely isolated widget cache states using signature attributes
-        dynamic_lock_buster_key = f"att_sec_widget_v2_{academic_system}_{sel_class}_{len(section_options)}"
-        sel_section = st.selectbox("Select Target Section:", section_options, key=dynamic_lock_buster_key)
-
-    row_date_1, _ = st.columns([1.5, 2.5])
-    with row_date_1:
-        target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="daily_att_date")
+    # 🟢 FIXED: Removed old d1, d2, d3, d4 filter rows. 
+    # We now directly read from your unified global filter engine variables.
+    sel_session = global_session
+    sel_section = global_section
+    target_date = global_date
+    sel_class = global_class
 
     if sel_section and sel_session:
         roster_df = run_query("""
@@ -3432,7 +3366,6 @@ if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('a
                     
                     saved_db_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else "NONE"
                     
-                    # 🟢 FIXED: Changed state logic evaluating fallback map triggers to accurately track UI elements
                     if saved_db_status == "NONE":
                         initial_checkbox_state = master_attendance_toggle
                     else:
@@ -3478,6 +3411,8 @@ if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('a
             # ----------------------------------------------------------------------
             # ❌ DYNAMIC ABSENT STUDENT REMARKS PANEL (FOR BATCH SELECTION)
             # ----------------------------------------------------------------------
+            # Since Tab 2 has been dropped entirely, this dynamic panel can be clean 
+            # or completely omitted depending on whether you handle batch remarks here.
             absent_student_ids = [s_id for s_id, is_present in attendance_checkbox_map.items() if not is_present]
             
             if absent_student_ids:
