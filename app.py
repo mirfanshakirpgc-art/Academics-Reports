@@ -879,7 +879,7 @@ def render_student_management_workspace():
                                 try:
                                     roll = int(row.get("Roll Number")) if pd.notna(row.get("Roll Number")) else None
                                 # Fallback gracefully if structural content conversion encounters strings
-                                catch (ValueError, TypeError):
+                                except (ValueError, TypeError):
                                     roll = None
                                 
                                 if s_id and s_name:
@@ -896,10 +896,6 @@ def render_student_management_workspace():
                         st.rerun()
             except Exception as e:
                 st.error(f"❌ File compilation processing failure: {e}")
-
-    # ==============================================================================
-    # TAB 3: EDIT ACTIVE STUDENT LEDGER FIELDS
-    # ==============================================================================
     with tab3:
         st.write("### Search & Edit Active Profiles")
         search_term = st.text_input("🔍 Search Student Profile by Name:", key="student_workspace_search")
