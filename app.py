@@ -1271,9 +1271,15 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     from sqlalchemy import text
     st.title("🗓️ Global Attendance Entry Management Panel")
     
-    # 🌟 Fetching configurations from GLOBAL_GRID
+    # 🌎 GLOBAL MASTER CONFIGURATION GRID (Source of Truth Alignment)
     grid = st.session_state.get("GLOBAL_GRID", {})
-    session_options = st.session_state.get("available_sessions", grid.get("sessions", ["2024-26", "2025-27", "2026-28", "2027-29"]))
+    
+    # Extract synchronized session arrays directly from the master grid parameters
+    session_options = grid.get("sessions", ["2025-27", "2026-28", "2027-29"])
+    if "available_sessions" in st.session_state:
+        session_options = st.session_state.get("available_sessions")
+        
+    # Auto-calculate index safety windows matching system operational parameters
     default_index = session_options.index("2025-27") if "2025-27" in session_options else 0
     
     # Three explicit top-level operational entry options under Mode
@@ -1283,6 +1289,15 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         default="📅 Daily Attendance Entry", 
         key="adm_interval_ctrl"
     )
+    
+    # 🟢 CRITICAL SYNC: Explicitly bind the variable to state to unlock Workflow 1 & Workflow 2
+    st.session_state['att_sub_type'] = att_sub_type
+    
+    # Map the selected sub-type to the underlying workflow execution states
+    if att_sub_type in ["👤 Single Student Attendance", "⏰ Mark Late Arrival"]:
+        st.session_state['entry_mode'] = "👤 By Single Student Roll Number"
+    else:
+        st.session_state['entry_mode'] = "📅 Bulk Class Roster"
 
     # --------------------------------------------------------------------------
     # MODE 1: BULK CLASSROOM MANAGEMENT ROSTER
