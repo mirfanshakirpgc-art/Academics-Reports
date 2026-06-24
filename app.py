@@ -773,13 +773,80 @@ def render_student_management_workspace():
                         st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
 
     # ==============================================================================
-    # TAB 2: BULK IMPORT VIA EXCEL
+    # TAB 2: BULK IMPORT VIA EXCEL (With Sample Template Downloader)
     # ==============================================================================
     with tab2:
         st.write("### 📤 Bulk Upload Student Spreadsheets")
-        st.info("💡 Ensure your Excel file (.xlsx) matches these exact headers: `Student ID`, `Student Name`, `Father Name`, `WhatsApp`, `Student Number`, `Contact 1`, `Contact 2`, `Home Address`, `Class Level`, `Section`, `Roll Number`")
+        st.info("💡 To ensure a successful upload, your spreadsheet columns must exactly match our structural template layout parameters.")
         
-        uploaded_file = st.file_uploader("Upload Academic Spreadsheet Ledger:", type=["xlsx"])
+        # --- DYNAMIC SAMPLE TEMPLATE GENERATOR ---
+        # 1. Define the exact columns matching our database ingest criteria
+        sample_columns = [
+            "Student ID", "Student Name", "Father Name", "WhatsApp", 
+            "Student Number", "Contact 1", "Contact 2", "Home Address", 
+            "Class Level", "Section", "Roll Number"
+        ]
+        
+        # 2. Add realistic placeholder/guideline data rows
+        sample_data = [
+            {
+                "Student ID": "STU-2026-001",
+                "Student Name": "Muhammad Ali",
+                "Father Name": "Asif Ali",
+                "WhatsApp": "+923001234567",
+                "Student Number": "+923151234567",
+                "Contact 1": "+923219876543 (Mother)",
+                "Contact 2": "+9251123456 (Home)",
+                "Home Address": "House 12, Street 4, Sector F-11, Islamabad",
+                "Class Level": available_classes[0] if available_classes else "11th",
+                "Section": "A",
+                "Roll Number": 1
+            },
+            {
+                "Student ID": "STU-2026-002",
+                "Student Name": "Ayesha Khan",
+                "Father Name": "Tariq Khan",
+                "WhatsApp": "+923335556677",
+                "Student Number": "",
+                "Contact 1": "+923451112233 (Father)",
+                "Contact 2": "",
+                "Home Address": "Apartment 4B, Gulberg Heights, Lahore",
+                "Class Level": available_classes[0] if available_classes else "11th",
+                "Section": "B",
+                "Roll Number": 2
+            }
+        ]
+        
+        # 3. Compile layout to binary Excel stream data helper
+        import io
+        template_df = pd.DataFrame(sample_data, columns=sample_columns)
+        
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            template_df.to_excel(writer, index=False, sheet_name='Student Roster Template')
+            # Auto-adjust column width lengths inside workbook for aesthetic clarity
+            worksheet = writer.sheets['Student Roster Template']
+            for idx, col in enumerate(template_df.columns):
+                series = template_df[col]
+                max_len = max(series.astype(str).map(len).max(), len(col)) + 3
+                worksheet.set_column(idx, idx, max_len)
+        
+        buffer.seek(0)
+        
+        # 4. Render the Download Button widget
+        st.download_button(
+            label="📥 Download Sample Excel Template (.xlsx)",
+            data=buffer,
+            file_name="student_admission_template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            help="Click here to download a perfectly pre-formatted spreadsheet template."
+        )
+        
+        st.markdown("---")
+        
+        # --- SPREADSHEET INGESTION FILE UPLOADER ENGINE ---
+        uploaded_file = st.file_uploader("Upload Completed Student Spreadsheet Ledger:", type=["xlsx"])
         
         if uploaded_file is not None:
             try:
@@ -807,7 +874,13 @@ def render_student_management_workspace():
                                 addr = str(row.get("Home Address", "")) if pd.notna(row.get("Home Address")) else ""
                                 cls_lvl = str(row.get("Class Level", "")) if pd.notna(row.get("Class Level")) else ""
                                 sec = str(row.get("Section", "")).strip().upper() if pd.notna(row.get("Section")) else ""
-                                roll = int(row.get("Roll Number")) if pd.notna(row.get("Roll Number")) else None
+                                
+                                # Safe parsing formatting for Roll numbers
+                                try:
+                                    roll = int(row.get("Roll Number")) if pd.notna(row.get("Roll Number")) else None
+                                # Fallback gracefully if structural content conversion encounters strings
+                                catch (ValueError, TypeError):
+                                    roll = None
                                 
                                 if s_id and s_name:
                                     conn.execute(text("""
