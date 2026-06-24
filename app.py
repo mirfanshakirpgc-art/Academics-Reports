@@ -701,7 +701,6 @@ def render_master_setup_engine():
                                 "tid": t_id, "tname": t_name
                             })
                         st.success(f"🎉 **Allocation Saved Successfully!** {t_name} is now assigned to **{st.session_state.step6_sub}**.")
-                        # Reset selections upon success
                         reset_from_step(0)
                         time.sleep(1)
                         st.rerun()
@@ -709,6 +708,7 @@ def render_master_setup_engine():
                         st.error(f"❌ Database error: {e}")
             else:
                 st.button("🔗 Complete Steps 1-7 above to unlock allocation", disabled=True, use_container_width=True)
+
     with tab3:
         # ----------------------------------------------------------------------
         # 3. CLASS IN-CHARGE ALLOCATIONS
