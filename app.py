@@ -5185,77 +5185,85 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 st.info("No active institutional class in-charge slots are assigned or recorded yet.")
 
     # ==============================================================================
-    # SUB-MODULE 4: TEACHER MARKS PORTAL
+    # SUB-MODULE 4: TEACHER MARKS PORTAL (CONNECTED TO GLOBAL_GRID)
     # ==============================================================================
     elif sub_menu == "✏️ Teacher Marks Portal":
         st.subheader("📝 Faculty Marks Entry Portal")
         st.markdown("Authorized verification pipeline for structural academic evaluations.")
         
-        col_p1, col_p2, col_p3 = st.columns(3)
-        with col_p1:
-            p_class = st.selectbox("System Matrix Context:", list(CLASS_SUBJECTS_MASTER_MAP.keys()), key="p_class")
-        with col_p2:
-            p_disc_options = list(CLASS_SUBJECTS_MASTER_MAP[p_class].keys())
-            p_disc = st.selectbox("Discipline Node Variant:", p_disc_options, key="p_disc")
-        with col_p3:
-            p_sub_options = CLASS_SUBJECTS_MASTER_MAP[p_class][p_disc]
-            p_sub = st.selectbox("Subject Track Node:", p_sub_options, key="p_sub")
-            
-        display_disc_p = "ICS (PHYSICS)" if p_disc == "ICS_PHYSICS" else ("ICS (STATS)" if p_disc == "ICS_STATS" else p_disc)
-        p_sections = DISCIPLINE_SECTIONS_MAP.get(display_disc_p, {}).get(p_class, ["Global"])
-        sel_p_sec = st.selectbox("🎯 Cohort Section Assignment Context:", p_sections)
+        # 🌎 CONNECTED TO GLOBAL_GRID: Fetch paths dynamically from master state
+        avail_classes = list(subjects_map.keys())
         
-        st.info(f"📋 Verified Access: Modification path active for course **{p_sub}** in section **{sel_p_sec}**.")
-        
-        # FIXED: Dynamic Student Retrieval via Selected Filters Instead of Fixed Placeholders
-        try:
-            live_students_df = run_query("""
-                SELECT id AS "Roll No", name AS "Student Name" 
-                FROM students 
-                WHERE UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
-                  AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-                ORDER BY id ASC
-            """, {"cls": p_class.strip(), "sec": sel_p_sec.strip()})
-        except Exception as query_err:
-            live_students_df = pd.DataFrame()
-            
-        if not live_students_df.empty:
-            # Inject score management columns into data ledger view
-            live_students_df["Obtained Marks"] = 0.0
-            live_students_df["Total Scope Limit"] = 100.0
-            
-            edited_portal_df = st.data_editor(live_students_df, use_container_width=True, hide_index=True)
-            
-            if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
-                # Process data grid entry rows iteratively for saving payload
-                try:
-                    with engine.begin() as conn:
-                        for _, row in edited_portal_df.iterrows():
-                            conn.execute(text("""
-                                INSERT INTO marks (student_id, subject, marks_obtained, total_marks, exam_type)
-                                VALUES (:sid, :subject, :obtained, :total, 'Terminal Exam')
-                            """), {
-                                "sid": row["Roll No"],
-                                "subject": p_sub,
-                                "obtained": float(row["Obtained Marks"]),
-                                "total": float(row["Total Scope Limit"])
-                            })
-                    st.success("🎉 Marks ledger frozen and successfully synced to system analysis engines!")
-                except Exception as write_err:
-                    st.error(f"Failed to submit scores into ledger: {write_err}")
+        if not avail_classes:
+            st.warning("⚠️ No valid structural academic tiers loaded from GLOBAL_GRID matrix configurations.")
         else:
-            st.warning(f"No student matching profiles found allocated to Class: '{p_class}' | Section: '{sel_p_sec}'.")
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1:
+                p_class = st.selectbox("System Class Context:", avail_classes, key="p_class")
+            with col_p2:
+                p_disc_options = list(subjects_map.get(p_class, {}).keys())
+                p_disc = st.selectbox("Discipline Node Variant:", p_disc_options, key="p_disc")
+            with col_p3:
+                p_sub_options = subjects_map.get(p_class, {}).get(p_disc, [])
+                p_sub = st.selectbox("Subject Track Node:", p_sub_options, key="p_sub")
+                
+            # Dynamic calculation of contextual classroom codes directly matching GLOBAL_GRID maps
+            p_sections = sections_map.get(p_disc, {}).get(p_class, ["Global"])
+            sel_p_sec = st.selectbox("🎯 Cohort Section Assignment Context:", p_sections, key="sel_p_sec")
+            
+            st.info(f"📋 Verified Access: Modification path active for course **{p_sub}** in section **{sel_p_sec}**.")
+            
+            # Dynamic Student Retrieval via Selected Filters
+            try:
+                live_students_df = run_query("""
+                    SELECT id AS "Roll No", name AS "Student Name" 
+                    FROM students 
+                    WHERE UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+                      AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
+                    ORDER BY id ASC
+                """, {"cls": p_class.strip(), "sec": sel_p_sec.strip()})
+            except Exception as query_err:
+                live_students_df = pd.DataFrame()
+                
+            if not live_students_df.empty:
+                # Inject score management columns into data ledger view
+                live_students_df["Obtained Marks"] = 0.0
+                live_students_df["Total Scope Limit"] = 100.0
+                
+                edited_portal_df = st.data_editor(live_students_df, use_container_width=True, hide_index=True)
+                
+                if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
+                    try:
+                        with engine.begin() as conn:
+                            for _, row in edited_portal_df.iterrows():
+                                conn.execute(text("""
+                                    INSERT INTO marks (student_id, subject, marks_obtained, total_marks, exam_type)
+                                    VALUES (:sid, :subject, :obtained, :total, 'Terminal Exam')
+                                """), {
+                                    "sid": row["Roll No"],
+                                    "subject": p_sub,
+                                    "obtained": float(row["Obtained Marks"]),
+                                    "total": float(row["Total Scope Limit"])
+                                })
+                        st.success("🎉 Marks ledger frozen and successfully synced to system analysis engines!")
+                    except Exception as write_err:
+                        st.error(f"Failed to submit scores into ledger: {write_err}")
+            else:
+                st.warning(f"No student matching profiles found allocated to Class: '{p_class}' | Section: '{sel_p_sec}'.")
 
     # ==============================================================================
-    # SUB-MODULE 5: TEACHER ANALYSIS
+    # SUB-MODULE 5: TEACHER ANALYSIS (CONNECTED TO GLOBAL_GRID)
     # ==============================================================================
     elif sub_menu == "📊 Teacher Analysis":
         st.subheader("📊 Performance Analytics Dashboard")
         st.markdown("Granular metrics mapping, student metrics, and instructional footprint layout distributions.")
         
+        # Calculate key metrics reactively straight from the system's global source maps
+        total_disciplines_configured = len(sections_map.keys())
+        
         t_col1, t_col2 = st.columns(2)
         with t_col1:
-            st.metric(label="Global Disciplines Anchored", value=len(DISCIPLINE_SECTIONS_MAP.keys()) if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals() else 0)
+            st.metric(label="Global Disciplines Anchored", value=total_disciplines_configured)
         with t_col2:
             st.metric(label="Tracked Active Section Classes", value=len(sections_pool_df))
             
@@ -5265,14 +5273,19 @@ if menu_choice == "👨‍🏫 Teacher Management":
         with t_tab1:
             st.markdown("##### 📈 Top Faculty Metric Index Evaluations")
             analysis_mock_data = []
-            if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals():
-                for idx, d_key in enumerate(DISCIPLINE_SECTIONS_MAP.keys()):
-                    analysis_mock_data.append({
-                        "Primary Assignment Path": d_key,
-                        "Target Metrics Met Base": f"{97.5 - (idx * 2.2)}%",
-                        "Quality Index Grade": round(9.6 - (idx * 0.3), 1)
-                    })
-            st.dataframe(pd.DataFrame(analysis_mock_data), use_container_width=True, hide_index=True)
+            
+            # Loop dynamically over structural disciplines anchored within GLOBAL_GRID
+            for idx, d_key in enumerate(sections_map.keys()):
+                analysis_mock_data.append({
+                    "Primary Assignment Path": d_key,
+                    "Target Metrics Met Base": f"{98.2 - (idx * 1.5)}%",
+                    "Quality Index Grade": round(9.7 - (idx * 0.2), 1)
+                })
+                
+            if analysis_mock_data:
+                st.dataframe(pd.DataFrame(analysis_mock_data), use_container_width=True, hide_index=True)
+            else:
+                st.info("No active disciplines tracked for matrix metrics evaluation.")
             
         with t_tab2:
             st.markdown("##### 📋 Section Map Reference Configuration")
