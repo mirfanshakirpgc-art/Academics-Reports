@@ -5192,8 +5192,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                                         conn.execute(text("DELETE FROM incharge_allocations WHERE id = :id"), {"id": target_alloc_id})
                                     st.success("💥 Allocation mapping link successfully deleted from master configurations.")
                                     import time; time.sleep(0.6); st.rerun()
-                                try:
-                                    pass
                                 except Exception as d_err:
                                     st.error(f"❌ Purge execution error tracking response: {d_err}")
             else:
