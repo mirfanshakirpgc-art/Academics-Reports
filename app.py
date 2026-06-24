@@ -1271,6 +1271,11 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     from sqlalchemy import text
     st.title("🗓️ Global Attendance Entry Management Panel")
     
+    # 🌟 Fetching configurations from GLOBAL_GRID
+    grid = st.session_state.get("GLOBAL_GRID", {})
+    session_options = st.session_state.get("available_sessions", grid.get("sessions", ["2024-26", "2025-27", "2026-28", "2027-29"]))
+    default_index = session_options.index("2025-27") if "2025-27" in session_options else 0
+    
     # Three explicit top-level operational entry options under Mode
     att_sub_type = st.segmented_control(
         "Mode:", 
@@ -1278,19 +1283,31 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         default="📅 Daily Attendance Entry", 
         key="adm_interval_ctrl"
     )
-    
-    session_options = st.session_state.get("available_sessions", ["2024-26", "2025-27", "2026-28", "2027-29"])
-    default_index = 1 if "2025-27" in session_options else 0
 
     # --------------------------------------------------------------------------
     # MODE 1: BULK CLASSROOM MANAGEMENT ROSTER
     # --------------------------------------------------------------------------
     if att_sub_type == "📅 Daily Attendance Entry":
         d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
-        with d1: sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
-        with d2: academic_system = st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
-        with d3: sel_class = st.selectbox("Class:", ["11th", "12th"], key="adm_daily_cls")
-        with d4: sel_section = st.selectbox("Section:", ["IG", "IB", "FB", "FG", "MG_BLUE"], key="adm_daily_sec")
+        with d1: 
+            sel_session = st.selectbox("Session:", session_options, index=default_index, key="adm_daily_sess")
+        with d2: 
+            academic_system = st.selectbox("System:", ["Annual System", "Semester System"], key="adm_daily_sys")
+        
+        # 🌟 Dynamic class matrix extraction matching GLOBAL_GRID strategy
+        grid_key = "annual_classes" if academic_system == "Annual System" else "semester_classes"
+        class_options = grid.get(grid_key, ["11th", "12th"] if academic_system == "Annual System" else ["Semester 1", "Semester 2"])
+        
+        with d3: 
+            sel_class = st.selectbox("Class:", class_options, key="adm_daily_cls")
+        
+        # 🌟 Dynamic section mapping lookups matching academic system boundaries
+        sections_map = grid.get("sections_map", {}).get(academic_system, {})
+        section_options = sections_map.get(sel_class, ["IG", "IB", "FB", "FG", "MG_BLUE"])
+        
+        with d4: 
+            sel_section = st.selectbox("Section:", section_options, key="adm_daily_sec")
+            
         target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
 
         if sel_section and sel_session:
@@ -1336,7 +1353,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
 
             try:
                 with engine.connect() as conn:
-                    # 🌟 FIXED: Query uses context-correct target variable parameters
                     query = text("""
                         SELECT 
                             d.student_id AS "ID", 
@@ -1470,7 +1486,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                                             SET remarks = :remarks,
                                                 remarks_updated_at = NOW() AT TIME ZONE 'Asia/Karachi'
                                             WHERE student_id = :s_id AND attendance_date = :att_date
-                                        """), {
+                                """), {
                                             "remarks": formatted_remarks, 
                                             "s_id": int(s_id), 
                                             "att_date": resolved_date
@@ -1491,7 +1507,12 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         sc1, sc2, sc3 = st.columns(3)
         with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="s_sess")
         with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="s_sys")
-        with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="s_cls")
+        
+        # 🌟 Dynamic class extraction based on runtime system selection
+        grid_key = "annual_classes" if s_sys == "Annual System" else "semester_classes"
+        single_class_options = ["ALL"] + grid.get(grid_key, ["11th", "12th"])
+        
+        with sc3: s_cls = st.selectbox("Class Level:", single_class_options, key="s_cls")
         
         search_input = st.text_input("🔍 Search Student by ID Roll Number OR Full Name:", key="single_student_search_input").strip()
         
@@ -1566,7 +1587,12 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         sc1, sc2, sc3 = st.columns(3)
         with sc1: s_sess = st.selectbox("Session:", session_options, index=default_index, key="l_sess")
         with sc2: s_sys = st.selectbox("System:", ["Annual System", "Semester System"], key="l_sys")
-        with sc3: s_cls = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="l_cls")
+        
+        # 🌟 Dynamic class extraction based on runtime system selection
+        grid_key = "annual_classes" if s_sys == "Annual System" else "semester_classes"
+        late_class_options = ["ALL"] + grid.get(grid_key, ["11th", "12th"])
+        
+        with sc3: s_cls = st.selectbox("Class Level:", late_class_options, key="l_cls")
         
         search_input = st.text_input("🔍 Search Student to Mark Late by ID Roll Number OR Full Name:", key="late_student_search_input").strip()
         
