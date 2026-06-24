@@ -22,6 +22,93 @@ def get_db_engine():
 
 engine = get_db_engine()
 
+def init_db():
+    """Automatically compiles schema blueprints if target relational structures do not exist."""
+    with engine.begin() as conn:
+        # Create sessions table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_name TEXT NOT NULL,
+                status TEXT NOT NULL
+            );
+        """))
+        # Create academic_systems table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS academic_systems (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                system_name TEXT NOT NULL,
+                description TEXT
+            );
+        """))
+        # Create classes table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS classes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                class_level TEXT NOT NULL,
+                sort_order INTEGER
+            );
+        """))
+        # Create sections table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                section_name TEXT NOT NULL,
+                max_capacity INTEGER
+            );
+        """))
+        # Create subjects table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS subjects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject_name TEXT NOT NULL,
+                subject_code TEXT NOT NULL,
+                credit_hours INTEGER
+            );
+        """))
+        # Create test_types table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS test_types (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_title TEXT NOT NULL,
+                total_marks INTEGER,
+                weightage INTEGER
+            );
+        """))
+        # Create disciplines table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS disciplines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discipline_title TEXT NOT NULL,
+                short_code TEXT NOT NULL
+            );
+        """))
+        # Create students table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS students (
+                student_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_name TEXT NOT NULL,
+                class_level TEXT NOT NULL,
+                section TEXT NOT NULL,
+                roll_no INTEGER NOT NULL
+            );
+        """))
+        # Create incharge_allocations table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS incharge_allocations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session TEXT,
+                academic_system TEXT,
+                class_level TEXT,
+                section TEXT,
+                teacher_id INTEGER,
+                teacher_name TEXT
+            );
+        """))
+
+# Run the database verification sweep on engine startup
+init_db()
+
 def run_query(query, params=None):
     """Helper function to safely fetch data into a Pandas DataFrame using parameterized inputs."""
     if params is None:
@@ -42,7 +129,6 @@ def render_master_setup_engine():
     with tab1:
         st.markdown("### Add Structural School Variables")
         
-        # Sub-navigation for each distinct structural item
         setup_type = st.selectbox(
             "Select Variable Layer to Initialize:",
             ["Session", "Academic System", "Classes", "Sections", "Subjects", "Test/Exam", "Disciplines"]
