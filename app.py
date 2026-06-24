@@ -4757,7 +4757,7 @@ elif menu_choice == "🪪 Student Result Cards":
             st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
         else:
             st.warning(f"⚠️ No active student rows found matching section group: '{active_section}' for {selected_class} ({selected_session}).")
- # ==============================================================================
+# ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE (FULLY INTEGRATED)
 # ==============================================================================
 if menu_choice == "👨‍🏫 Teacher Management":
