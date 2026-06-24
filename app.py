@@ -2465,39 +2465,24 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     entry_mode = st.radio("🎯 Select Entry Workflow Mode:", ["📋 By Complete Section", "👤 By Single Student Roll Number", "📤 Bulk Excel/CSV Import"], horizontal=True, key="marks_workflow_mode")
     st.markdown("---")
 
-    # --- DYNAMIC FRAMEWORK FETCH FROM DATABASE ---
+    # Access the Global Source of Truth Grid
+    grid = st.session_state.get("GLOBAL_GRID")
+    if not grid:
+        st.error("🚨 Master Configuration System could not be verified. Please reload the application.")
+        st.stop()
+
+    # --- DYNAMIC FRAMEWORK CYCLE FETCH FROM DATABASE ---
     try:
         active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
         all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
     except Exception:
-        all_frameworks = [
-            "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", 
-            "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"
-        ]
+        # If database falls over, default back cleanly using combined active cycles from the master grid
+        all_frameworks = list(dict.fromkeys(grid.get("annual_tests", []) + grid.get("semester_tests", [])))
+        if not all_frameworks:
+            all_frameworks = ["MT_1", "MT_2", "SEND_UP", "PRE_BOARD", "BISE"]
 
-    try:
-        session_options = AVAILABLE_SESSIONS
-        if "2024-26" in session_options:
-            session_options = [s for s in session_options if s != "2024-26"]
-        if "2027-29" not in session_options:
-            session_options.append("2027-29")
-    except NameError:
-        session_options = ["2025-27", "2026-28", "2027-29"]
-
-    DISCIPLINE_SUBJECTS_MAP = {
-        "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
-        "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
-        "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
-        "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-        "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-        "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
-        "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
-        "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
-        "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
-    }
+    # Dynamic session options extraction directly from Source of Truth
+    session_options = grid.get("sessions", ["2025-27", "2026-28", "2027-29"])
 
     # Enhanced CSS to cancel out empty collapsed label blocks inside columns
     st.markdown("""
@@ -2505,9 +2490,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             .vertical-align-center {
                 display: flex;
                 align-items: center;
-                height: 40px; /* Matches standard Streamlit text input height exactly */
+                height: 40px;
             }
-            /* Strip the native top layout margins from naked collapsed checkboxes */
             div[data-testid="stCheckbox"] {
                 margin-top: 8px !important;
                 padding-top: 0px !important;
@@ -2526,27 +2510,23 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
     # WORKFLOW MODE A: COMPLETE SECTION LEDGER ENTRY
     # ====================================================================================
     if entry_mode == "📋 By Complete Section":
-        # 🟢 STEP 1: Allocate 6 full columns with clean aspect ratios for a single row layout
         c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.5, 1.2, 1.5, 1.5, 1.2])
         
         raw_role = st.session_state.get('user_role', st.session_state.get('role', 'admin'))
         current_role = str(raw_role).strip().lower() if raw_role else 'admin'
         
-        # Safe structural fallback initializations
-        sel_discipline = "MEDICAL" 
+        sel_discipline = None 
         sel_class = "ALL"
         sel_subject = None
         sel_section = None
         sel_session = None
         sel_exam = None
         
-        # --- LEVEL 1: CHECK ACCESSIBILITY ROLE ---
+        # --- LEVEL 1: CHECK ACCESSIBILITY ROLE (TEACHER TRACK) ---
         if current_role in ['teacher', 'faculty']:
-            # Pull both potential identifiers from session state
-            active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
-            current_user_id = st.session_state.get('user_id', 7) # Fallback to her ID from DB
+            active_faculty_name = str(st.session_state.get('username', '')).strip()
+            current_user_id = st.session_state.get('user_id', -1)
             
-            # Cross-check allocations by both Name String AND User ID dynamically
             teacher_rights = run_query("""
                 SELECT DISTINCT subject_name AS subject, section 
                 FROM subject_allocations 
@@ -2565,49 +2545,26 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 
                 with c1: sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_t")
                 with c2: academic_system = st.selectbox("System Type:", ["Annual System", "Semester System"], key="marks_sys_type_t")
-                with c3: sel_class = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="entry_class_teacher")
+                with c3: 
+                    class_src = "annual_classes" if "Annual" in academic_system else "semester_classes"
+                    allowed_classes = grid.get(class_src, []) + ["ALL"]
+                    sel_class = st.selectbox("Class Level:", allowed_classes, key="entry_class_teacher")
                 with c4: 
                     st.text_input("Select Discipline:", value="ALLOCATED", disabled=True, key="teacher_disc_disabled")
                     sel_discipline = "TEACHER_MODE"
                 with c5: sel_section = st.selectbox("Select Target Section:", allowed_secs, key="entry_sec_filter_teacher")
-                with c6: sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_t")
+                with c6: sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=0, key="entry_exam_sel_t")
                 
                 if sel_exam == "MATRIC":
                     sel_subject = "OVERALL"
                 else:
                     sel_subject = st.selectbox("Select Subject:", allowed_subs, key="entry_sub_filter_teacher")
             else:
-                st.warning(f"🚨 No allocations linked to user account info.")
-                st.caption(f"**Diagnostic Details** — Session Username: `{active_faculty_name}` | User ID: `{current_user_id}`")
-                sel_subject, sel_section, sel_session, sel_class, sel_exam = None, None, None, None, None
+                st.warning(f"🚨 No active allocations found linked to your account profile.")
+                st.caption(f"**Diagnostics** — Username: `{active_faculty_name}` | ID: `{current_user_id}`")
                 
         else:
-            # 🟢 STEP 2: DEFENSIVE FALLBACK CONFIGURATIONS FOR ADMIN / PRINCIPAL / CLERK ROLES
-# Removed conditional check to ensure map variable is globally instantiated 100% of the time
-            DISCIPLINE_SECTIONS_MAP = {
-                "MEDICAL": {"11th": ["MG_BLUE", "MG_GREEN"], "12th": ["MG_BLUE", "MG_GREEN"]},
-                "ENGINEERING": {"11th": ["EG_BLUE"], "12th": ["EG_BLUE"]},
-                "ICS (PHYSICS)": {"11th": ["IG", "IB"], "12th": ["IG", "IB"]},
-                "ICS (STATS)": {"11th": ["CG_STATS", "CB_STATS"], "12th": ["CG_STATS", "CB_STATS"]},
-                "COMMERCE": {"11th": ["CG_WHITE", "CB_WHITE", "CQ3", "CK3"], "12th": ["CG_WHITE", "CB_WHITE"]},
-                "HUMANITIES": {"11th": ["HG_BLUE"], "12th": ["HG_BLUE"]}
-            }
-
-            if "DISCIPLINE_SUBJECTS_MAP" not in locals() and "DISCIPLINE_SUBJECTS_MAP" not in globals():
-                DISCIPLINE_SUBJECTS_MAP = {
-                    "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies"],
-                    "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pakistan Studies"],
-                    "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies"],
-                    "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pakistan Studies"],
-                    "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies"],
-                    "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pakistan Studies"],
-                    "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies"],
-                    "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pakistan Studies"],
-                    "COMMERCE_11TH": ["Principles of Accounting", "Principles of Economics", "Principles of Commerce", "Business Mathematics"],
-                    "COMMERCE_12TH": ["Principles of Accounting", "Commercial Geography", "Banking", "Business Statistics"]
-                }
-
-            # Render Base Structural Inputs sequentially to ensure variables are defined safely
+            # --- LEVEL 2: DYNAMIC SOURCE OF TRUTH LOOKUPS FOR ADMIN / CLERK ROLES ---
             with c1: 
                 sel_session = st.selectbox("Select Session:", session_options, key="entry_sess_a")
             with c2: 
@@ -2615,65 +2572,61 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             with c3:
                 if academic_system == "Annual System":
-                    sel_class = st.selectbox("Select Class Level:", ["11th", "12th", "ALL"], key="entry_class_filter_a")
+                    class_options = grid.get("annual_classes", ["11th", "12th"]) + ["ALL"]
+                    sel_class = st.selectbox("Select Class Level:", class_options, key="entry_class_filter_a")
                 else:
-                    sel_class = st.selectbox("Select Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="entry_sem_filter_a")
+                    semester_options = grid.get("semester_classes", ["1st Semester", "2nd Semester"]) + ["ALL"]
+                    sel_class = st.selectbox("Select Semester Context:", semester_options, key="entry_sem_filter_a")
 
             with c4: 
                 if academic_system == "Annual System":
-                    discipline_ui_options = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
-                    selected_ui_discipline = st.selectbox("Select Discipline:", discipline_ui_options, key="marks_disc_sel")
-                    
-                    # Normalize string naming schemas seamlessly
-                    sel_discipline = selected_ui_discipline.upper().replace(" ", "_").replace("(", "").replace(")", "")
-                    if "PHYSIC" in sel_discipline: sel_discipline = "ICS_PHYSICS"
-                    elif "STAT" in sel_discipline: sel_discipline = "ICS_STATISTICS"
+                    discipline_options = grid.get("annual_disciplines", ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)"])
+                    sel_discipline = st.selectbox("Select Discipline:", discipline_options, key="marks_disc_sel")
                 else:
-                    sel_discipline = "DIPLOMA_IN_IT_DIT"
-                    selected_ui_discipline = "DIT"
-                    st.text_input("Select Discipline:", value="DIT", disabled=True, key="marks_disc_sel_disabled")
+                    sem_disciplines = grid.get("semester_disciplines", ["Diploma in Information Technology"])
+                    sel_discipline = sem_disciplines[0] if sem_disciplines else "Diploma in Information Technology"
+                    st.text_input("Select Discipline:", value=sel_discipline, disabled=True, key="marks_disc_sel_disabled")
 
             with c5: 
+                # Resolve sections strictly via the Master Configuration sections map without hardcoded maps
                 valid_sections_list = []
-                if academic_system == "Annual System":
-                    # Unify lookups to match the fallback map dictionary keys safely
-                    lookup_key = "ICS (PHYSICS)" if sel_discipline == "ICS_PHYSICS" else ("ICS (STATS)" if sel_discipline == "ICS_STATISTICS" else selected_ui_discipline)
-                    
-                    target_class_levels = ["11th", "12th"] if sel_class == "ALL" else [sel_class]
-                    for c_lvl in target_class_levels:
-                        sections_found = DISCIPLINE_SECTIONS_MAP.get(lookup_key, {}).get(c_lvl, [])
-                        valid_sections_list.extend(sections_found)
-                else:
-                    valid_sections_list = ["DIT_G", "DIT_B"]
-
-                valid_sections_list = sorted(list(set(valid_sections_list)))
-                if not valid_sections_list:
-                    valid_sections_list = ["DIT_G", "DIT_B"] if academic_system == "Semester System" else ["MG_BLUE", "EG_BLUE", "CG_WHITE"]
+                target_classes = [sel_class] if sel_class != "ALL" else (grid.get("annual_classes", []) if academic_system == "Annual System" else grid.get("semester_classes", []))
                 
+                for c_level in target_classes:
+                    sections_found = grid.get("sections_map", {}).get(sel_discipline, {}).get(c_level, [])
+                    valid_sections_list.extend(sections_found)
+                
+                valid_sections_list = sorted(list(set([str(sec).strip().upper() for sec in valid_sections_list])))
+                if not valid_sections_list:
+                    valid_sections_list = ["GEN_A"] # Ultra defensive single system fallback fallback
+                    
                 sel_section = st.selectbox("Select Target Section:", valid_sections_list, key="entry_sec_filter_a")
 
             with c6: 
-                sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=1, key="entry_exam_sel_a")
+                sel_exam = st.selectbox("Exam Cycle:", all_frameworks, index=0, key="entry_exam_sel_a")
 
+            # Dynamic Subject Lookup via Master Grid Mapping Matrices
             if sel_exam == "MATRIC":
                 sel_subject = "OVERALL"
             else:
                 if academic_system == "Annual System":
                     if sel_class == "ALL":
-                        list_11th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_11TH", [])
-                        list_12th = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}_12TH", [])
-                        available_subjects = list(dict.fromkeys(list_11th + list_12th))
+                        # Merge subject pools from all sub-classes of the dynamic matrix cleanly
+                        combined_list = []
+                        for c_lvl in grid.get("annual_classes", ["11th", "12th"]):
+                            lookup_slug = f"{sel_discipline}_{c_lvl}".upper()
+                            combined_list.extend(grid.get("subjects_map", {}).get(lookup_slug, []))
+                        available_subjects = list(dict.fromkeys(combined_list))
                     else:
-                        suffix = "_12TH" if sel_class == "12th" else "_11TH"
-                        available_subjects = DISCIPLINE_SUBJECTS_MAP.get(f"{sel_discipline}{suffix}", ["English", "Urdu", "Physics", "Chemistry", "Mathematics"])
+                        lookup_slug = f"{sel_discipline}_{sel_class}".upper()
+                        available_subjects = grid.get("subjects_map", {}).get(lookup_slug, ["English", "Urdu"])
                 else:
-                    if "1st Semester" in sel_class:
-                        available_subjects = ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-                    elif "2nd Semester" in sel_class:
-                        available_subjects = ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-                    else: 
-                        available_subjects = ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+                    # Semester Track Mapping Matrix Resolution
+                    lookup_slug = f"{sel_discipline}_{sel_class}".upper() if sel_class != "ALL" else f"{sel_discipline}_{grid.get('semester_classes', ['1ST SEMESTER'])[0]}".upper()
+                    available_subjects = grid.get("subjects_map", {}).get(lookup_slug, ["Information Technology"])
                 
+                if not available_subjects:
+                    available_subjects = ["General Subject Reference"]
                 sel_subject = st.selectbox("📚 Select Course/Subject to Grade:", available_subjects, key="entry_sub_filter_a")
         
         # --- EXECUTION LEDGER RENDERING ENGINE ---
@@ -2708,11 +2661,11 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 })
                 
                 if roster_df.empty:
-                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session Context: '{sel_session}'. Verification Check: Ensure your student entries match this text exact string layout.")
+                    st.info(f"💡 No active student records found in Section '{sel_section}' under Session: '{sel_session}'.")
                 else:
                     st.markdown(f"##### 📝 Enter Obtained Marks for {sel_section} — {sel_subject} ({sel_exam})")
                     
-                    # --- FOCUS SHIFT JAVASCRIPT ENGINE ---
+                    # Focus shift JavaScript injection
                     st.components.v1.html("""
                         <script>
                             const rootDoc = window.parent.document;
@@ -2754,7 +2707,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     with st.form(f"bulk_marks_form_{sel_exam}_{sel_subject}"):
                         updated_section_scores = {}
                         
-                        # LEDGER HEADERS
                         h_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
                         h_cols[0].caption("🆔 **Roll No**")
                         h_cols[1].caption("👤 **Student Name**")
@@ -2763,7 +2715,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         h_cols[4].caption("➖ **NC**")
                         st.markdown("<hr style='margin:2px 0px 10px 0px; padding:0px;'>", unsafe_allow_html=True)
                         
-                        # DATA ROWS
+                        import pandas as pd
                         for idx, row in roster_df.iterrows():
                             student_id = int(row['ID'])
                             student_name = str(row['Student Name']).upper()
@@ -2783,7 +2735,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             
                             with st.container():
                                 r_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
-                                
                                 r_cols[0].markdown(f"<div class='vertical-align-center' style='font-family: monospace; font-weight: bold;'>{student_id}</div>", unsafe_allow_html=True)
                                 r_cols[1].markdown(f"<div class='vertical-align-center' style='font-size: 0.9rem; font-weight: 500;'>{student_name}</div>", unsafe_allow_html=True)
                                 
