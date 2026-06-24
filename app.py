@@ -1,5 +1,4 @@
 # --- LINE 1: ALL IMPORTS MUST BE HERE ---
-import streamlit.components.v1 as components
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -345,21 +344,12 @@ if not st.session_state.logged_in:
 # ==============================================================================
 # SIDEBAR NAVIGATION MODULE (ROLE-BASED CONFIGURATION)
 # ==============================================================================
-# Safely assign and fall back across key naming variations
-raw_user_role = (
-    st.session_state.get("user_role") or 
-    st.session_state.get("user_type") or 
-    st.session_state.get("workspace_role") or 
-    st.session_state.get("role") or 
-    "Faculty"
-)
-user_role = str(raw_user_role).strip()
-
-username_current = st.session_state.get("username", "Faculty Member")
-can_manage_users = st.session_state.get("can_manage_users", False)
-can_manage_settings = st.session_state.get("can_manage_settings", False)
-can_manage_faculty = st.session_state.get("can_manage_faculty", False)
-can_edit_marks = st.session_state.get("can_edit_marks", False)
+user_role = st.session_state.user_role
+username_current = st.session_state.username
+can_manage_users = st.session_state.can_manage_users
+can_manage_settings = st.session_state.can_manage_settings
+can_manage_faculty = st.session_state.can_manage_faculty
+can_edit_marks = st.session_state.can_edit_marks
 
 is_class_incharge = st.session_state.get("is_class_incharge", False)
 db_class_scope = st.session_state.get("db_class_scope", None)
@@ -372,19 +362,33 @@ if user_role in ["Teacher", "Faculty"]:
     allowed_menus = ["📊 Home Dashboard", "📝 Marks Entry", "📅 Marks Attendance", "📊 Result Analysis"]
 else:
     allowed_menus = ["📊 Home Dashboard"]
-    allowed_menus += ["➕ Add Students"] if (user_role.lower() in ['admin', 'controller'] or can_manage_users) else []
-    allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role.lower() in ['admin', 'controller'] or can_edit_marks) else []
+    allowed_menus += ["➕ Add Students"] if (user_role in ['Admin', 'controller'] or can_manage_users) else []
+    allowed_menus += ["📝 Academic Exam Marks Entry"] if (user_role in ['Admin', 'controller'] or can_edit_marks) else []
     allowed_menus += ["📅 Attendance Entry Management", "📋 Daily Attendance Report"]
     allowed_menus += ["📋 Section Summary Report", "📈 Multi-Test Progress Report", "🪪 Student Result Cards"]
-    allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role.lower() in ['admin', 'controller'] or can_manage_faculty) else []
+    allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role in ['Admin', 'controller'] or can_manage_faculty) else []
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
     
-    # 🎯 ASSIGN EXAM CONTROL MODULE ACCESS (Fuzzy case match protection)
-    if any(adm in user_role.lower() for adm in ["admin", "principal", "controller", "exam officer", "examination control officer"]):
+    # 🎯 ASSIGN EXAM CONTROL MODULE ACCESS
+    if user_role in ["Admin", "Principal", "controller", "Exam Officer", "Examination Control Officer"]:
         exam_menus = ["⚙️ Examination Control"]
 
-    # Re-index to clean duplicate loops safely
-    allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: x)
+    # Keep structural sorting stable
+    allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
+
+# --- 🔄 MUTUAL EXCLUSIVITY NAVIGATION BRIDGE ---
+# Initialize tracking variable so both menus know who had focus last
+if "nav_active_track" not in st.session_state:
+    st.session_state["nav_active_track"] = "main"
+
+def on_change_main_menu():
+    st.session_state["nav_active_track"] = "main"
+    # Safely clear the exam sub-menu state when clicking standard modules
+    if "exam_navigation_rail" in st.session_state:
+        st.session_state["exam_navigation_rail"] = None
+
+def on_change_exam_menu():
+    st.session_state["nav_active_track"] = "exam"
 
 # --- UNIFIED SIDEBAR CONTEXT RENDERING ---
 with st.sidebar:
@@ -418,15 +422,32 @@ with st.sidebar:
                 unsafe_allow_html=True
             )
 
-        # Standard Modules Select
-        menu_choice = st.radio("Go To Module:", allowed_menus, key="portal_navigation_rail")
+        # Standard Modules Select (Triggers callback reset on change)
+        main_selection = st.radio(
+            "Go To Module:", 
+            allowed_menus, 
+            key="portal_navigation_rail", 
+            on_change=on_change_main_menu
+        )
         
         # Examination Specialized Subsection
         if exam_menus:
             st.markdown('<div class="sidebar-section-header">🛡️ Examination Authority</div>', unsafe_allow_html=True)
-            selected_exam_tool = st.radio("Management Panels:", exam_menus, key="exam_navigation_rail", index=None)
-            if selected_exam_tool:
-                menu_choice = selected_exam_tool
+            exam_selection = st.radio(
+                "Management Panels:", 
+                exam_menus, 
+                key="exam_navigation_rail", 
+                index=None, 
+                on_change=on_change_exam_menu
+            )
+        else:
+            exam_selection = None
+
+        # --- FINAL SINGLE-SOURCE NAVIGATION ROUTER ---
+        if st.session_state["nav_active_track"] == "exam" and exam_selection is not None:
+            menu_choice = exam_selection
+        else:
+            menu_choice = main_selection
 
     footer_container = st.container()
     with footer_container:
@@ -469,17 +490,52 @@ if user_role in ["Teacher", "Faculty"]:
 # ==============================================================================
 
 if menu_choice == "⚙️ Examination Control":
+    import datetime  # Ensure module-level import is safe here
     st.markdown("## ⚙️ Examination Control Board")
     st.markdown("Design upcoming datesheets, assign paper grading deadlines, and review real-time compliance.")
     st.markdown("---")
     
-    # --- SHARED DATA EXTRACTION CORE ---
-    try:
-        active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
-        all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
-    except Exception:
-        all_frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
-        
+    # --- OPTIMIZED SHARED DATA EXTRACTION (CACHED TO PREVENT FREEZING) ---
+    @st.cache_data(ttl=60)  # Caches structural dropdown lists for 1 minute to prevent UI lagging
+    def fetch_examination_routing_metadata():
+        # 1. Fetch Exam Cycles
+        try:
+            active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
+            frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
+        except Exception:
+            frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
+            
+        if not frameworks:
+            frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
+
+        # 2. Fetch Class Levels & Sections
+        try:
+            class_query = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
+            classes = sorted(class_query['class'].tolist()) if not class_query.empty else ["1st Year", "2nd Year"]
+            
+            section_query = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
+            sections = sorted(section_query['section'].tolist()) if not section_query.empty else ["A", "B", "C"]
+        except Exception:
+            classes = ["1st Year", "2nd Year"]
+            sections = ["A", "B", "C"]
+
+        # 3. Fetch Teachers List
+        try:
+            teachers_df = run_query("SELECT DISTINCT teacher_name FROM system_teachers WHERE teacher_name IS NOT NULL ORDER BY teacher_name")
+            teachers = teachers_df['teacher_name'].tolist() if not teachers_df.empty else []
+        except Exception:
+            teachers = []
+            
+        return frameworks, classes, sections, teachers
+
+    # Execute non-blocking optimized metadata load
+    all_frameworks, extracted_classes, extracted_sections, teacher_options = fetch_examination_routing_metadata()
+    
+    # Ensure fallback teacher option is never empty
+    if not teacher_options:
+        teacher_options = ["Default Evaluator"]
+
+    # Handle Sessions configuration cleanly
     try:
         session_options = AVAILABLE_SESSIONS
         if "2024-26" in session_options: session_options = [s for s in session_options if s != "2024-26"]
@@ -487,6 +543,7 @@ if menu_choice == "⚙️ Examination Control":
     except NameError:
         session_options = ["2025-27", "2026-28", "2027-29"]
 
+    # 3. Reference Core Map to Extract Distinct Subjects
     DISCIPLINE_SUBJECTS_MAP = {
         "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
         "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
@@ -501,18 +558,7 @@ if menu_choice == "⚙️ Examination Control":
         "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
         "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
     }
-
     extracted_subjects = sorted(list(set([sub for sub_list in DISCIPLINE_SUBJECTS_MAP.values() for sub in sub_list])))
-    
-    try:
-        class_query = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
-        extracted_classes = sorted(class_query['class'].tolist()) if not class_query.empty else ["1st Year", "2nd Year"]
-        
-        section_query = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
-        extracted_sections = sorted(section_query['section'].tolist()) if not section_query.empty else ["A", "B", "C"]
-    except Exception:
-        extracted_classes = ["1st Year", "2nd Year"]
-        extracted_sections = ["A", "B", "C"]
 
     # --- MAIN INTERFACE TABS ---
     tab1, tab2, tab3 = st.tabs(["📅 Design Date Sheet", "⏳ Assign Grading Turnaround", "📊 Tracking & Compliance Overview"])
@@ -529,7 +575,8 @@ if menu_choice == "⚙️ Examination Control":
                 subject_ds = st.selectbox("Subject Title", extracted_subjects, key="ds_subject")
                 date_ds = st.date_input("Exam Date", datetime.date.today(), key="ds_date")
             
-            if st.form_submit_button("🔒 Save Schedule Entry"):
+            submit_ds = st.form_submit_button("🔒 Save Schedule Entry")
+            if submit_ds:
                 if exam_type_ds and class_lvl_ds and subject_ds:
                     try:
                         execute_db_command("""
@@ -538,13 +585,15 @@ if menu_choice == "⚙️ Examination Control":
                             ON CONFLICT (exam_type, class_level, subject_name) DO UPDATE SET exam_date = :dt
                         """, {"et": f"{exam_type_ds} ({session_ds})", "cl": class_lvl_ds, "sub": subject_ds, "dt": date_ds})
                         st.success(f"Successfully posted schedule: {subject_ds} for {class_lvl_ds} ({exam_type_ds})")
+                        st.cache_data.clear() # Clear metadata cache to show new mutations instantly
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error publishing: {e}")
                 else:
                     st.warning("Please complete all inputs.")
                     
         st.markdown("#### 📋 Current Scheduled Exams")
-        ds_records = run_query("SELECT exam_type as \"Exam (Session)\", class_level as \"Class\", subject_name as \"Subject\", exam_date as \"Exam Date\" FROM examination_datesheets ORDER BY exam_date ASC")
+        ds_records = run_query('SELECT exam_type as "Exam (Session)", class_level as "Class", subject_name as "Subject", exam_date as "Exam Date" FROM examination_datesheets ORDER BY exam_date ASC')
         if not ds_records.empty:
             st.dataframe(ds_records, use_container_width=True, hide_index=True)
         else:
@@ -559,14 +608,12 @@ if menu_choice == "⚙️ Examination Control":
                 class_sel = st.selectbox("Select Target Class Level", extracted_classes, key="dl_class")
                 sub_sel = st.selectbox("Select Target Subject", extracted_subjects, key="dl_subject")
             with col2:
-                teachers_df = run_query("SELECT DISTINCT teacher_name FROM system_teachers ORDER BY teacher_name")
-                teacher_options = teachers_df['teacher_name'].tolist() if not teachers_df.empty else ["Select Teacher"]
                 teacher_sel = st.selectbox("Assign Grading Evaluator (Teacher)", teacher_options, key="dl_teacher")
-                
                 allowed_days = st.number_input("Allowed Days for Marking (From Exam Date)", min_value=1, max_value=30, value=3)
                 base_exam_date = st.date_input("Reference Exam Commencement Date", datetime.date.today(), key="dl_base_date")
                 
-            if st.form_submit_button("🚀 Deploy Teacher Allocation Window"):
+            submit_dl = st.form_submit_button("🚀 Deploy Teacher Allocation Window")
+            if submit_dl:
                 if exam_sel and class_sel and sub_sel and teacher_sel:
                     calc_deadline = base_exam_date + datetime.timedelta(days=int(allowed_days))
                     try:
@@ -576,6 +623,8 @@ if menu_choice == "⚙️ Examination Control":
                             ON CONFLICT (exam_type, class_level, subject_name, teacher_name) DO UPDATE SET deadline_date = :dl
                         """, {"et": exam_sel, "cl": class_sel, "sub": sub_sel, "tn": teacher_sel, "dl": calc_deadline})
                         st.success(f"Deadline locked! {teacher_sel} must submit marks by {calc_deadline.strftime('%Y-%m-%d')}")
+                        st.cache_data.clear()
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error establishing submission timeline: {e}")
                 else:
@@ -583,7 +632,7 @@ if menu_choice == "⚙️ Examination Control":
 
     with tab3:
         st.markdown("### 📊 Live Evaluation Submission Compliance Matrix")
-        comp_df = run_query("SELECT exam_type as \"Exam Cycle\", class_level as \"Class\", subject_name as \"Subject\", teacher_name as \"Teacher\", deadline_date as \"Deadline\", is_submitted as \"Submitted Status\" FROM teacher_marking_deadlines ORDER BY deadline_date ASC")
+        comp_df = run_query('SELECT exam_type as "Exam Cycle", class_level as "Class", subject_name as "Subject", teacher_name as "Teacher", deadline_date as "Deadline", is_submitted as "Submitted Status" FROM teacher_marking_deadlines ORDER BY deadline_date ASC')
         if not comp_df.empty:
             total_allocated = len(comp_df)
             submitted_count = len(comp_df[comp_df['Submitted Status'] == True])
@@ -597,7 +646,6 @@ if menu_choice == "⚙️ Examination Control":
             st.dataframe(comp_df, use_container_width=True, hide_index=True)
         else:
             st.info("No teaching turnaround deadlines are currently being tracked.")
-
 # --- MAIN HOME DASHBOARD OVERVIEW RENDERER ---
 elif menu_choice == "📊 Home Dashboard":
     assigned_subs_raw = st.session_state.get("assigned_subject", "")
@@ -681,7 +729,7 @@ elif menu_choice == "📊 Home Dashboard":
         st.markdown("---")
 
     # 🎯 2. EXAMINATION CONTROL OFFICER / ADMIN DASHBOARD VIEW
-    elif user_role.lower() in ["controller", "exam officer", "admin", "principal"]:
+    elif user_role in ["controller", "Exam Officer", "Admin"]:
         st.markdown("### 🎯 Central Exam Tracking Overview")
         try:
             total_marks_entered = run_query("SELECT COUNT(*) as count FROM marks").iloc[0]['count']
@@ -702,7 +750,7 @@ elif menu_choice == "📊 Home Dashboard":
         st.markdown("---")
 
     # 👥 3. ADMISSION OFFICER DASHBOARD VIEW
-    elif user_role.lower() in ["admission officer", "registrar"]:
+    elif user_role in ["Admission Officer", "Registrar"]:
         st.markdown("### 🚀 Admissions & Daily Attendance Track")
         try:
             with engine.connect() as conn:
@@ -744,23 +792,21 @@ elif menu_choice == "📊 Home Dashboard":
         with col_detail_2:
             with st.expander(f"🔴 View Pending Sections ({sections_pending})", expanded=True):
                 for sec in pending_sections_list: st.markdown(f"⏳ **Section:** `{sec}`")
-
 # ==============================================================================
-# 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (GLOBAL ACCESSIBLE FLOW)
+# 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (FACULTY FLOW INTERCEPT)
 # ==============================================================================
-# 🌟 UPDATED: Matches all operational dashboard navigation menus and user roles
-elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator", "Student", "Parent"] and menu_choice in ["📅 Marks Attendance", "📅 Attendance Entry Management"]:
+elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choice == "📅 Marks Attendance":
     import datetime
     import time
+    import re
     import pandas as pd
     
-    st.title("📅 Section Attendance Management Panel")
+    st.title("📅 Section Incharge Attendance Panel")
     
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    # 🌟 ADMINISTRATIVE OVERRIDE: Expanded fallback view for ALL management profiles to prevent st.stop() locking
-    if not scope_str and user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Admin", "Administrator"]:
+    if not scope_str and user_role in ["Admin", "Administrator"]:
         scope_str = "11th - IG"  
         
     if not scope_str:
@@ -785,151 +831,124 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
     # Fetch initial student roster matrix joining with daily_attendance
-    roster_df = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", d.remarks AS "Remarks"
-        FROM students s
-        LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
-        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-          AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
-          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-        ORDER BY s.id ASC
-    """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
+    try:
+        # 🌟 FIXED: Added contact_1, contact_2, contact_3 columns to the selection
+        roster_df = run_query("""
+            SELECT 
+                s.id AS "ID", 
+                s.name AS "Student Name", 
+                d.status AS "SavedStatus", 
+                d.remarks AS "Remarks",
+                s.whatsapp_number AS "WhatsApp",
+                s.contact_1 AS "Contact1",
+                s.contact_2 AS "Contact2",
+                s.contact_3 AS "Contact3"
+            FROM students s
+            LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
+            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+              AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+              AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
+            ORDER BY s.id ASC
+        """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
+    except Exception as e:
+        st.error(f"⚠️ Query Processing Failure: {e}")
+        roster_df = pd.DataFrame()
 
     if roster_df.empty:
         st.error(f"⚠️ No active student profiles found under Section '{forced_section}' inside Session '{target_session}'.")
     else:
-        # 🛡️ INTERFACE SEGREGATION: Management roles get entry forms, others get read-only summaries
-        if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
-            master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
-            
-            with st.form("teacher_direct_attendance_form", clear_on_submit=False):
-                attendance_checkbox_map = {}
-                h_col1, h_col2, h_col3 = st.columns([1, 3, 1])
-                h_col1.markdown("**Roll No**")
-                h_col2.markdown("**Student Name**")
-                h_col3.markdown("**Is Present?**")
-                st.markdown("<hr style='margin:5px 0px 10px 0px;' />", unsafe_allow_html=True)
+        master_attendance_toggle = st.checkbox("🟢 Mark All as Present by Default", value=True, key="teacher_master_toggle")
+        
+        with st.form("teacher_direct_attendance_form", clear_on_submit=False):
+            attendance_checkbox_map = {}
+            h_col1, h_col2, h_col3 = st.columns([1, 3.5, 1])
+            h_col1.markdown("**Roll No**")
+            h_col2.markdown("**Student Name**")
+            h_col3.markdown("**Is Present?**")
+            st.markdown("<hr style='margin:5px 0px 10px 0px;' />", unsafe_allow_html=True)
 
-                for idx, row in roster_df.iterrows():
-                    col_s1, col_s2, col_s3 = st.columns([1, 3, 1])
-                    col_s1.write(f"`{row['ID']}`")
-                    col_s2.write(f"**{row['Student Name']}**")
-                    
-                    saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
-                    initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
-                    attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_state, key=f"t_chk_{row['ID']}", label_visibility="collapsed")
-
-                st.markdown("###")
-                submit_attendance = st.form_submit_button("💾 Save & Lock Attendance Roster", type="primary", use_container_width=True)
-                
-                if submit_attendance:
-                    try:
-                        with engine.begin() as conn:
-                            for s_id, checked_present in attendance_checkbox_map.items():
-                                status_val = "P" if checked_present else "A"
-                                conn.execute(text("""
-                                    INSERT INTO daily_attendance (student_id, attendance_date, status) 
-                                    VALUES (:s_id, :att_date, :status)
-                                    ON CONFLICT (student_id, attendance_date) 
-                                    DO UPDATE SET status = EXCLUDED.status
-                                """), {
-                                    "s_id": int(s_id), 
-                                    "att_date": str(target_date), 
-                                    "status": status_val
-                                })
-                        st.success(f"🎉 Attendance updated for {target_date.strftime('%d-%b-%Y')}!")
-                        time.sleep(0.5)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Write Failure: {e}")
-        else:
-            # 🛡️ READ-ONLY SUMMARY SHEET FOR STUDENTS/PARENTS
-            st.info("📋 Attendance Sheet View Mode")
-            summary_data = []
             for idx, row in roster_df.iterrows():
-                saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else "🔴 NOT MARKED"
-                status_icon = "🟢 PRESENT" if saved_status in ['P', 'PRESENT', '1'] else ("❌ ABSENT" if saved_status in ['A', 'ABSENT', '0'] else saved_status)
-                summary_data.append({"Roll No": row['ID'], "Student Name": row['Student Name'], "Status": status_icon})
-            st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
-
-        # ----------------------------------------------------------------------
-        # ❌ DYNAMIC ABSENT REMARKS GENERATOR (Adaptive Visibility Engine)
-        # ----------------------------------------------------------------------
-        resolved_date = str(target_date)
-        detected_columns = []
-
-        # 🩺 STEP A: DIAGNOSTIC SCHEMA CHECK
-        try:
-            with engine.connect() as conn:
-                sample_df = pd.read_sql("SELECT * FROM students LIMIT 1", conn)
-                detected_columns = [col.lower() for col in sample_df.columns]
-        except Exception as diag_err:
-            pass
-
-        # 🩺 STEP B: DYNAMICALLY IDENTIFY ALL CONTACT FIELDS FROM ADMISSIONS
-        whatsapp_col = "whatsapp_number" if "whatsapp_number" in detected_columns else ("whatsapp" if "whatsapp" in detected_columns else None)
-        contact1_col = "contact_number_1" if "contact_number_1" in detected_columns else ("contact_no_1" if "contact_no_1" in detected_columns else ("contact_1" if "contact_1" in detected_columns else None))
-        contact2_col = "contact_number_2" if "contact_number_2" in detected_columns else ("contact_no_2" if "contact_no_2" in detected_columns else ("contact_2" if "contact_2" in detected_columns else None))
-
-        # 🩺 STEP C: RUN THE MULTI-CONTACT TARGETED FETCH
-        try:
-            with engine.connect() as conn:
-                w_str = f"s.{whatsapp_col}" if whatsapp_col else "NULL"
-                c1_str = f"s.{contact1_col}" if contact1_col else "NULL"
-                c2_str = f"s.{contact2_col}" if contact2_col else "NULL"
+                col_s1, col_s2, col_s3 = st.columns([1, 3.5, 1])
+                col_s1.write(f"`{row['ID']}`")
                 
-                query = text(f"""
+                with col_s2:
+                    st.markdown(f"**{row['Student Name']}**")
+                
+                saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
+                initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
+                attendance_checkbox_map[row['ID']] = col_s3.checkbox("Present", value=initial_state, key=f"t_chk_{row['ID']}", label_visibility="collapsed")
+
+            st.markdown("###")
+            submit_attendance = st.form_submit_button("💾 Save & Lock Attendance Roster", type="primary", use_container_width=True)
+            
+            if submit_attendance:
+                try:
+                    with engine.begin() as conn:
+                        for s_id, checked_present in attendance_checkbox_map.items():
+                            status_val = "P" if checked_present else "A"
+                            conn.execute(text("""
+                                INSERT INTO daily_attendance (student_id, attendance_date, status) 
+                                VALUES (:s_id, :att_date, :status)
+                                ON CONFLICT (student_id, attendance_date) 
+                                DO UPDATE SET status = EXCLUDED.status
+                            """), {
+                                "s_id": int(s_id), 
+                                "att_date": str(target_date), 
+                                "status": status_val
+                            })
+                    st.success(f"🎉 Attendance updated successfully!")
+                    time.sleep(0.5)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Write Failure: {e}")
+
+        # ----------------------------------------------------------------------
+        # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH EXCLUSIVE CLICK-TO-CALL LINKS
+        # ----------------------------------------------------------------------
+        current_role = st.session_state.get("role", "").lower()
+        resolved_date = str(target_date)
+
+        try:
+            with engine.connect() as conn:
+                # 🌟 FIXED: Added contact_1, contact_2, contact_3 here as well
+                query = text("""
                     SELECT 
                         d.student_id AS "ID", 
                         s.name AS "Student Name", 
-                        {w_str} AS "WhatsApp",
-                        {c1_str} AS "Contact 1",
-                        {c2_str} AS "Contact 2",
                         d.status AS "SavedStatus", 
-                        d.remarks AS "Remarks"
+                        d.remarks AS "Remarks",
+                        s.whatsapp_number AS "WhatsApp",
+                        s.contact_1 AS "Contact1",
+                        s.contact_2 AS "Contact2",
+                        s.contact_3 AS "Contact3"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
                     WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
                       AND d.attendance_date = :att_date
-                      AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+                      AND d.status IN ('A', 'ABSENT', '0')
                     ORDER BY d.student_id ASC
                 """)
                 absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-        except Exception as query_error:
-            try:
-                with engine.connect() as conn:
-                    fallback_query = text("""
-                        SELECT d.student_id AS "ID", s.name AS "Student Name", NULL AS "WhatsApp", NULL AS "Contact 1", NULL AS "Contact 2", d.status AS "SavedStatus", d.remarks AS "Remarks"
-                        FROM daily_attendance d
-                        JOIN students s ON d.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
-                          AND d.attendance_date = :att_date
-                          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
-                        ORDER BY d.student_id ASC
-                    """)
-                    absent_students = pd.read_sql(fallback_query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
-            except:
-                absent_students = pd.DataFrame()
+        except Exception as e:
+            absent_students = pd.DataFrame()
 
         if not absent_students.empty:
             st.markdown("###")
-            st.error("❌ Absent Student Remarks Summary")
+            st.error("❌ Absent Student Remarks Panel")
             
-            if user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Control Officer", "Faculty", "Admin", "Administrator"]:
-                st.caption("Provide or upgrade reason for absence for tracked profiles:")
+            with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
+                operator_identity = st.session_state.get("user_name", 
+                                    st.session_state.get("name", 
+                                    st.session_state.get("username", "System Administrator"))).strip()
+                
+                st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}`")
+                st.markdown("---")
                 
                 fixed_reasons = [
-                    "Medical / Health Issues",
-                    "Family Emergency",
-                    "Family Function",
-                    "Bereavement (Death in Family)",
-                    "Transportation Problems",
-                    "Out-of-Town Travel",
-                    "Official or Personal Work",
-                    "Household Responsibilities",
-                    "Religious Obligations",
-                    "Personal Reasons",
-                    "Other"
+                    "Medical / Health Issues", "Family Emergency", "Family Function", 
+                    "Bereavement (Death in Family)", "Transportation Problems", "Out-of-Town Travel", 
+                    "Official or Personal Work", "Household Responsibilities", "Religious Obligations", 
+                    "Personal Reasons", "Other"
                 ]
                 
                 contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
@@ -938,36 +957,36 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                 contact_selection_map = {}
                 custom_text_map = {}
                 
-                operator_identity = st.session_state.get("user_name", 
-                                    st.session_state.get("name", 
-                                    st.session_state.get("username", f"{user_role} Manager"))).strip()
-                
-                st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}` *({user_role} Session)*")
-                st.markdown("---")
-                
-                # 🌟 FIX: We loop through fields outside a strict form first or use interactive selectboxes with state to capture changes dynamically!
                 for idx, ab_row in absent_students.iterrows():
-                    student_id = ab_row['ID']
+                    contact_items = []
                     
-                    # Generate click-to-dial links
-                    html_links = []
-                    if ab_row.get('WhatsApp') and str(ab_row['WhatsApp']).strip() != "":
-                        raw_wa = str(ab_row['WhatsApp']).strip()
-                        clean_wa = "".join(filter(str.isdigit, raw_wa))
-                        html_links.append(f"💬 <a href='tel:{clean_wa}' style='color: #25D366; font-weight: bold; text-decoration: none;'>WA: {raw_wa}</a>")
-                    if ab_row.get('Contact 1') and str(ab_row['Contact 1']).strip() != "":
-                        raw_c1 = str(ab_row['Contact 1']).strip()
-                        clean_c1 = "".join(filter(str.isdigit, raw_c1))
-                        html_links.append(f"📞 <a href='tel:{clean_c1}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 1: {raw_c1}</a>")
-                    if ab_row.get('Contact 2') and str(ab_row['Contact 2']).strip() != "":
-                        raw_c2 = str(ab_row['Contact 2']).strip()
-                        clean_c2 = "".join(filter(str.isdigit, raw_c2))
-                        html_links.append(f"📞 <a href='tel:{clean_c2}' style='color: #1b74e4; font-weight: bold; text-decoration: none;'>Contact 2: {raw_c2}</a>")
-                    
-                    st.markdown(f"🛑 **Roll No `{student_id}` — {ab_row['Student Name']}**")
-                    if html_links:
-                        links_joined = " &nbsp;|&nbsp; ".join(html_links)
-                        st.markdown(f"<div style='font-size: 14px; background-color: #f9f9f9; padding: 6px 12px; border-radius: 4px; border-left: 3px solid #ff4b4b; margin-bottom: 10px;'>📱 Click to Dial: {links_joined}</div>", unsafe_allow_html=True)
+                    # 🌟 FIXED: Process each separate column sequentially
+                    wa_val = str(ab_row.get('WhatsApp', '')).strip().split('.')[0] if pd.notna(ab_row.get('WhatsApp')) else ""
+                    c1_val = str(ab_row.get('Contact1', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact1')) else ""
+                    c2_val = str(ab_row.get('Contact2', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact2')) else ""
+                    c3_val = str(ab_row.get('Contact3', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact3')) else ""
+
+                    # Helper to clean non-numeric leftovers and validate length
+                    def get_digits(v):
+                        d = "".join(filter(str.isdigit, v))
+                        return d if len(d) >= 7 else ""
+
+                    wa_clean = get_digits(wa_val)
+                    c1_clean = get_digits(c1_val)
+                    c2_clean = get_digits(c2_val)
+                    c3_clean = get_digits(c3_val)
+
+                    if wa_clean:
+                        contact_items.append(f"🟢 [WhatsApp: {wa_clean}](tel:{wa_clean})")
+                    if c1_clean:
+                        contact_items.append(f"📞 [Contact 1: {c1_clean}](tel:{c1_clean})")
+                    if c2_clean:
+                        contact_items.append(f"📞 [Contact 2: {c2_clean}](tel:{c2_clean})")
+                    if c3_clean:
+                        contact_items.append(f"📞 [Contact 3: {c3_clean}](tel:{c3_clean})")
+
+                    contacts_suffix = f" &nbsp;|&nbsp; {' &nbsp;•&nbsp; '.join(contact_items)}" if contact_items else " (No numbers logged)"
+                    st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}** {contacts_suffix}", unsafe_allow_html=True)
                     
                     existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
                     if " | By:" in str(existing_rem):
@@ -981,84 +1000,69 @@ elif user_role in ["Principal", "Vice Principal", "Admission Officer", "Exam Con
                     elif existing_rem != "":
                         default_reason_idx = fixed_reasons.index("Other")
                     
-                    r_c1, r_c2 = st.columns(2)
-                    with r_c1:
-                        # Placing this with a clear key outside or inside cleanly
-                        reason_selection_map[student_id] = st.selectbox(
-                            f"Reason for Absence (Roll No: {student_id}):",
+                    r_col1, r_col2 = st.columns(2)
+                    with r_col1:
+                        reason_selection_map[ab_row['ID']] = st.selectbox(
+                            f"Reason for Absence (Roll No: {ab_row['ID']}):",
                             options=fixed_reasons,
                             index=default_reason_idx,
-                            key=f"reason_sel_final_{student_id}"
+                            key=f"reason_sel_final_{ab_row['ID']}"
                         )
-                    with r_c2:
-                        contact_selection_map[student_id] = st.selectbox(
-                            f"Contacted Person (Roll No: {student_id}):",
+                        
+                    with r_col2:
+                        contact_selection_map[ab_row['ID']] = st.selectbox(
+                            f"Contacted Person (Roll No: {ab_row['ID']}):",
                             options=contacted_persons,
-                            key=f"contact_sel_final_{student_id}"
+                            key=f"contact_sel_final_{ab_row['ID']}"
                         )
                     
-                    # 🎯 FIXED: Instantly read the drop down state choice directly to toggle field visibility live!
-                    if reason_selection_map[student_id] == "Other":
+                    if reason_selection_map[ab_row['ID']] == "Other":
                         default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
-                        custom_text_map[student_id] = st.text_input(
-                            "↳ Specify your custom remarks/reasons:",
+                        custom_text_map[ab_row['ID']] = st.text_input(
+                            "↳ Specify custom reason:",
                             value=default_custom_val,
-                            placeholder="Provide specific custom details here...",
-                            key=f"custom_txt_final_{student_id}"
+                            key=f"custom_txt_final_{ab_row['ID']}"
                         ).strip()
                     else:
-                        custom_text_map[student_id] = ""
+                        custom_text_map[ab_row['ID']] = ""
                         
-                    st.markdown("<div style='margin-bottom: 15px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='margin-bottom: 12px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
                 
-                # Use a cleaner standalone action button layout instead of st.form to ensure live element reactivity works natively!
                 st.markdown("<br>", unsafe_allow_html=True)
-                submit_remarks = st.button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
+                submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
                 
                 if submit_remarks:
                     validation_passed = True
                     for s_id, main_reason in reason_selection_map.items():
-                        if main_reason == "Other" and not custom_text_map.get(s_id):
-                            st.error(f"⚠️ Missing parameters: Enter custom details for student Roll No `{s_id}`.")
+                        if main_reason == "Other" and not custom_text_map[s_id]:
+                            st.error(f"⚠️ Missing parameters for Student Roll No `{s_id}`.")
                             validation_passed = False
                     
                     if validation_passed:
                         try:
-                            from datetime import datetime, timezone, timedelta
-                            pkt_timezone = timezone(timedelta(hours=5))
-                            current_local_time = datetime.now(pkt_timezone)
-                            
                             with engine.begin() as conn:
                                 for s_id, main_reason in reason_selection_map.items():
                                     chosen_contact = contact_selection_map[s_id]
                                     final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
                                     
-                                    if final_reason_phrase:
-                                        formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}"
-                                    else:
-                                        formatted_remarks = f"Unspecified Absence [Contacted: {chosen_contact}] | By: {operator_identity}"
+                                    formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}" if final_reason_phrase else ""
                                         
                                     conn.execute(text("""
                                         UPDATE daily_attendance 
                                         SET remarks = :remarks,
-                                            remarks_updated_at = :current_time
+                                            remarks_updated_at = NOW() AT TIME ZONE 'Asia/Karachi'
                                         WHERE student_id = :s_id AND attendance_date = :att_date
                                     """), {
                                         "remarks": formatted_remarks, 
                                         "s_id": int(s_id), 
-                                        "att_date": resolved_date,
-                                        "current_time": current_local_time
+                                        "att_date": resolved_date
                                     })
-                            st.success("🎉 Success! Structured reasons and contact data saved successfully.")
-                            time.sleep(0.5)
+                                    
+                            st.success("🎉 Action successfully saved.")
+                            time.sleep(1.0)
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Database Submission Failed: {e}")
-            else:
-                st.caption("Official explanations logged for unsubmitted/absent profiles:")
-                for idx, ab_row in absent_students.iterrows():
-                    logged_rem = ab_row['Remarks'] if ab_row['Remarks'] else "Awaiting dynamic verification from Section Incharge."
-                    st.warning(f"📋 **Roll No {ab_row['ID']} — {ab_row['Student Name']}:** {logged_rem}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
 # ==============================================================================
@@ -1390,6 +1394,8 @@ elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice o
 elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Management"]:
     import datetime
     import time
+    import pandas as pd
+    from sqlalchemy import text
     st.title("🗓️ Global Attendance Entry Management Panel")
     
     # Three explicit top-level operational entry options under Mode
@@ -1449,22 +1455,161 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                         time.sleep(0.5)
                         st.rerun()
 
-                absent_student_ids = [s_id for s_id, is_present in chk_map.items() if not is_present]
-                if absent_student_ids:
-                    absent_students = roster_df[roster_df['ID'].isin(absent_student_ids)]
+            # ----------------------------------------------------------------------
+            # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH EXCLUSIVE CLICK-TO-CALL LINKS
+            # ----------------------------------------------------------------------
+            current_role = st.session_state.get("role", "").lower()
+            resolved_date = str(target_date)
+
+            try:
+                with engine.connect() as conn:
+                    # 🌟 FIXED: Query uses context-correct target variable parameters
+                    query = text("""
+                        SELECT 
+                            d.student_id AS "ID", 
+                            s.name AS "Student Name", 
+                            d.status AS "SavedStatus", 
+                            d.remarks AS "Remarks",
+                            s.whatsapp_number AS "WhatsApp",
+                            s.contact_1 AS "Contact1",
+                            s.contact_2 AS "Contact2",
+                            s.contact_3 AS "Contact3"
+                        FROM daily_attendance d
+                        JOIN students s ON d.student_id = s.id
+                        WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                          AND d.attendance_date = :att_date
+                          AND d.status IN ('A', 'ABSENT', '0')
+                        ORDER BY d.student_id ASC
+                    """)
+                    absent_students = pd.read_sql(query, conn, params={"sec": str(sel_section).strip().upper(), "att_date": resolved_date})
+            except Exception as e:
+                absent_students = pd.DataFrame()
+
+            if not absent_students.empty:
+                st.markdown("###")
+                st.error("❌ Absent Student Remarks Panel")
+                
+                with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
+                    operator_identity = st.session_state.get("user_name", 
+                                        st.session_state.get("name", 
+                                        st.session_state.get("username", "System Administrator"))).strip()
+                    
+                    st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}`")
                     st.markdown("---")
-                    st.subheader("❌ Dynamic Unsaved Absentee Remarks Tracker")
-                    with st.form("adm_absent_remarks_form"):
-                        for idx, ab_row in absent_students.iterrows():
-                            r_c1, r_c2 = st.columns([2, 3])
-                            r_c1.write(f"🛑 Roll No `{ab_row['ID']}` — **{ab_row['Student Name']}**")
-                            r_c2.text_input("Reason:", key=f"adm_rem_box_{ab_row['ID']}", placeholder="e.g., Sick, Unexcused")
+                    
+                    fixed_reasons = [
+                        "Medical / Health Issues", "Family Emergency", "Family Function", 
+                        "Bereavement (Death in Family)", "Transportation Problems", "Out-of-Town Travel", 
+                        "Official or Personal Work", "Household Responsibilities", "Religious Obligations", 
+                        "Personal Reasons", "Other"
+                    ]
+                    
+                    contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
+                    
+                    reason_selection_map = {}
+                    contact_selection_map = {}
+                    custom_text_map = {}
+                    
+                    for idx, ab_row in absent_students.iterrows():
+                        contact_items = []
                         
-                        if st.form_submit_button("💾 Cache Temporary Form Remarks", use_container_width=True):
-                            st.success("🎉 Session remarks verified successfully!")
-                else:
-                    st.markdown("---")
-                    st.success("🟢 Every student in this section scope is marked present.")
+                        wa_val = str(ab_row.get('WhatsApp', '')).strip().split('.')[0] if pd.notna(ab_row.get('WhatsApp')) else ""
+                        c1_val = str(ab_row.get('Contact1', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact1')) else ""
+                        c2_val = str(ab_row.get('Contact2', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact2')) else ""
+                        c3_val = str(ab_row.get('Contact3', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact3')) else ""
+
+                        def get_digits(v):
+                            d = "".join(filter(str.isdigit, v))
+                            return d if len(d) >= 7 else ""
+
+                        wa_clean = get_digits(wa_val)
+                        c1_clean = get_digits(c1_val)
+                        c2_clean = get_digits(c2_val)
+                        c3_clean = get_digits(c3_val)
+
+                        if wa_clean: contact_items.append(f"🟢 [WhatsApp: {wa_clean}](tel:{wa_clean})")
+                        if c1_clean: contact_items.append(f"📞 [Contact 1: {c1_clean}](tel:{c1_clean})")
+                        if c2_clean: contact_items.append(f"📞 [Contact 2: {c2_clean}](tel:{c2_clean})")
+                        if c3_clean: contact_items.append(f"📞 [Contact 3: {c3_clean}](tel:{c3_clean})")
+
+                        contacts_suffix = f" &nbsp;|&nbsp; {' &nbsp;•&nbsp; '.join(contact_items)}" if contact_items else " (No numbers logged)"
+                        st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}** {contacts_suffix}", unsafe_allow_html=True)
+                        
+                        existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
+                        if " | By:" in str(existing_rem): existing_rem = str(existing_rem).split(" | By:")[0].strip()
+                        if " [Contacted:" in str(existing_rem): existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
+                            
+                        default_reason_idx = 0
+                        if existing_rem in fixed_reasons:
+                            default_reason_idx = fixed_reasons.index(existing_rem)
+                        elif existing_rem != "":
+                            default_reason_idx = fixed_reasons.index("Other")
+                        
+                        r_col1, r_col2 = st.columns(2)
+                        with r_col1:
+                            reason_selection_map[ab_row['ID']] = st.selectbox(
+                                f"Reason for Absence (Roll No: {ab_row['ID']}):",
+                                options=fixed_reasons,
+                                index=default_reason_idx,
+                                key=f"reason_sel_final_{ab_row['ID']}"
+                            )
+                            
+                        with r_col2:
+                            contact_selection_map[ab_row['ID']] = st.selectbox(
+                                f"Contacted Person (Roll No: {ab_row['ID']}):",
+                                options=contacted_persons,
+                                key=f"contact_sel_final_{ab_row['ID']}"
+                            )
+                        
+                        if reason_selection_map[ab_row['ID']] == "Other":
+                            default_custom_val = existing_rem if existing_rem not in fixed_reasons else ""
+                            custom_text_map[ab_row['ID']] = st.text_input(
+                                "↳ Specify custom reason:",
+                                value=default_custom_val,
+                                key=f"custom_txt_final_{ab_row['ID']}"
+                            ).strip()
+                        else:
+                            custom_text_map[ab_row['ID']] = ""
+                            
+                        st.markdown("<div style='margin-bottom: 12px; border-bottom: 1px dashed #eee;'></div>", unsafe_allow_html=True)
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    submit_remarks = st.form_submit_button("💾 Commit & Save Remarks to Database", type="primary", use_container_width=True)
+                    
+                    if submit_remarks:
+                        validation_passed = True
+                        for s_id, main_reason in reason_selection_map.items():
+                            if main_reason == "Other" and not custom_text_map[s_id]:
+                                st.error(f"⚠️ Missing parameters for Student Roll No `{s_id}`.")
+                                validation_passed = False
+                        
+                        if validation_passed:
+                            try:
+                                with engine.begin() as conn:
+                                    for s_id, main_reason in reason_selection_map.items():
+                                        chosen_contact = contact_selection_map[s_id]
+                                        final_reason_phrase = custom_text_map[s_id] if main_reason == "Other" else main_reason
+                                        
+                                        formatted_remarks = f"{final_reason_phrase} [Contacted: {chosen_contact}] | By: {operator_identity}" if final_reason_phrase else ""
+                                            
+                                        conn.execute(text("""
+                                            UPDATE daily_attendance 
+                                            SET remarks = :remarks,
+                                                remarks_updated_at = NOW() AT TIME ZONE 'Asia/Karachi'
+                                            WHERE student_id = :s_id AND attendance_date = :att_date
+                                        """), {
+                                            "remarks": formatted_remarks, 
+                                            "s_id": int(s_id), 
+                                            "att_date": resolved_date
+                                        })
+                                        
+                                st.success("🎉 Action successfully saved.")
+                                time.sleep(1.0)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Database Submission Failed: {e}")
+            else:
+                st.info("ℹ️ No absent students recorded for this class selection and date.")
 
     # --------------------------------------------------------------------------
     # MODE 2: SINGLE STUDENT ATTENDANCE ENTRY WORKFLOW
@@ -1521,7 +1666,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 with st.form("single_attendance_entry_form"):
                     stat = st.selectbox("Select Status:", ["Present (P)", "Absent (A)"], key="form_s_stat")
                     
-                    # Conditionally ask for reason: hidden or disabled if marked Present
                     if "Present" in stat:
                         s_rem = ""
                         st.markdown("✏️ *No reason parameters required for Present status.*")
@@ -1596,8 +1740,6 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                 
                 with st.form("single_late_entry_form"):
                     late_mins = st.number_input("Late Arrival Duration (Minutes):", min_value=0, max_value=480, value=0, step=5, key="form_s_late")
-                    
-                    # Late arrivals are implicitly marked Present; reasons are kept as completely optional remarks
                     late_rem = st.text_input("Late Comment / Notes (Optional):", placeholder="e.g., Transit delay, weather...", key="form_s_late_rem")
                     
                     if st.form_submit_button("⏰ Log Late Duration", use_container_width=True):
@@ -1670,7 +1812,6 @@ elif "Absent" in str(menu_choice) or "Remarks" in str(menu_choice):
                 try:
                     with engine.begin() as conn:
                         for student_id, remark_text in remarks_tracking_inputs.items():
-                            # Save updates if the field is populated
                             if remark_text.strip():
                                 conn.execute(text("""
                                     UPDATE daily_attendance 
@@ -1690,83 +1831,6 @@ elif "Absent" in str(menu_choice) or "Remarks" in str(menu_choice):
                     
                 except Exception as e:
                     st.error(f"⚠️ SQL Update failed. Ensure you ran the alter table command: {e}")
-CLASS_SUBJECTS_MASTER_MAP = {
-    "11th": {
-        "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
-        "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-        "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
-        "COMMERCE": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"]
-    },
-    "12th": {
-        "MEDICAL": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
-        "ENGINEERING": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
-        "ICS_PHYSICS": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-        "ICS_STATS": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-        "HUMANITIES": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
-        "COMMERCE": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
-    },
-    "Semester 1": {
-        "INFORMATION_TECHNOLOGY": ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"]
-    },
-    "Semester 2": {
-        "INFORMATION_TECHNOLOGY": ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"]
-    },
-    "Semester 3": {
-        "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
-    },
-    "Semester 4": {
-        "INFORMATION_TECHNOLOGY": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
-    }
-}
-
-DISCIPLINE_SECTIONS_MAP = {
-    "MEDICAL": {
-        "11th": ["MG_BLUE", "MG_WHITE", "MB_BLUE"],
-        "12th": ["MQ1", "MQ2", "MK"]
-    },
-    "ENGINEERING": {
-        "11th": ["EG_BLUE", "EB_BLUE"],
-        "12th": ["EQ", "EK"]
-    },
-    "ICS (PHYSICS)": {
-        "11th": ["CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN"],
-        "12th": ["CQ1", "CQ2", "CK1", "CK2"]
-    },
-    "ICS (STATS)": {
-        "11th": ["CG_STATS", "CB_STATS"],
-        "12th": ["CQ3", "CK3"]
-    },
-    "COMMERCE": {
-        "11th": ["IG", "IB"],
-        "12th": ["IK", "IQ"]
-    },
-    "HUMANITIES": {
-        "11th": ["FB", "FG"],
-        "12th": ["FK", "FQ"]
-    },
-    "INFORMATION_TECHNOLOGY": {
-        "Semester 1": ["DIT_B", "DIT_G"],
-        "Semester 2": ["DIT_B", "DIT_G"],
-        "Semester 3": ["DIT_B", "DIT_G"],
-        "Semester 4": ["DIT_B", "DIT_G"]
-    }
-}
-
-# ... your existing code above ...
-AVAILABLE_MONTHS = ["May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec.", "Jan.", "Feb.", "March", "April"]
-AVAILABLE_SESSIONS = ["2024-26", "2025-27", "2026-28", "2027-29"]
-
-# 🌟 PASTE THIS NEW DYNAMIC BLOCK HERE TO MAKE IT GLOBALLY AVAILABLE
-unique_master_subjects = set()
-for class_level, disciplines in CLASS_SUBJECTS_MASTER_MAP.items():
-    for discipline_name, subjects_list in disciplines.items():
-        for subject in subjects_list:
-            if subject: 
-                unique_master_subjects.add(subject.strip())
-
-live_subjects_computed = ["Global (All Subjects)"] + sorted(list(unique_master_subjects))
 
 
 # ----------------- 📊 HOME DASHBOARD -----------------
@@ -1834,7 +1898,7 @@ elif menu_choice == "➕ Add Students":
             if cleaned_sections:
                 selected_section = st.selectbox("📋 4. Select Target Section:", cleaned_sections, key="add_stu_sec_annual")
             else:
-                selected_section = st.text_input("📋 4. Enter Target Section Manually:", value="CK2", key="add_stu_sec_annual_manual").strip().upper()
+                selected_section = st.text_input("📋 4. Enter Target Section Manual:", value="CK2", key="add_stu_sec_annual_manual").strip().upper()
     
     else:
         c3, c4 = st.columns(2)
@@ -1849,7 +1913,7 @@ elif menu_choice == "➕ Add Students":
             if cleaned_sections:
                 selected_section = st.selectbox("📋 3. Select Target Section:", cleaned_sections, key="add_stu_sec_semester")
             else:
-                selected_section = st.text_input("📋 3. Enter Target Section Manually:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
+                selected_section = st.text_input("📋 3. Enter Target Section Manual:", value="DIT_B", key="add_stu_sec_semester_manual").strip().upper()
 
     # ====================================================================================
     # 🧱 PART 1: NEW REGISTRATION SUITE (BULK + SINGLE UPLOAD)
@@ -1861,6 +1925,7 @@ elif menu_choice == "➕ Add Students":
     with intake_tab1:
         st.subheader(f"Bulk Import Rosters — Section ({selected_section})")
         
+        # Updated template data schema map to include CONTACT_3 column tracking
         template_data = {
             "ID": [101, 102],
             "NAME": ["ALI AHMED", "SARA KHAN"],
@@ -1868,6 +1933,7 @@ elif menu_choice == "➕ Add Students":
             "WHATSAPP": ["03001234567", "03007654321"],
             "CONTACT_1": ["03001234567", "03007654321"],
             "CONTACT_2": ["03020000000", "03050000000"],
+            "CONTACT_3": ["03030000000", "03060000000"],
             "ADDRESS": ["House 123, Street 4, Lahore", "Sector G-9/1, Islamabad"]
         }
         template_df = pd.DataFrame(template_data)
@@ -1910,18 +1976,19 @@ elif menu_choice == "➕ Add Students":
                             raw_wa = str(row['WHATSAPP']).strip().split('.')[0] if 'WHATSAPP' in bulk_df.columns and pd.notna(row['WHATSAPP']) else ""
                             raw_c1 = str(row['CONTACT_1']).strip().split('.')[0] if 'CONTACT_1' in bulk_df.columns and pd.notna(row['CONTACT_1']) else ""
                             raw_c2 = str(row['CONTACT_2']).strip().split('.')[0] if 'CONTACT_2' in bulk_df.columns and pd.notna(row['CONTACT_2']) else ""
+                            raw_c3 = str(row['CONTACT_3']).strip().split('.')[0] if 'CONTACT_3' in bulk_df.columns and pd.notna(row['CONTACT_3']) else ""
                             raw_address = str(row['ADDRESS']).strip().upper() if 'ADDRESS' in bulk_df.columns and pd.notna(row['ADDRESS']) else ""
 
                             if raw_id.isdigit() and raw_name != "":
                                 try:
                                     with engine.begin() as conn:
                                         conn.execute(text("""
-                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
+                                            INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, contact_3, address)
+                                            VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :c3, :address)
                                         """), {
                                             "id": int(raw_id), "name": raw_name, "fname": raw_fname, "class": selected_class,
                                             "section": selected_section, "session": selected_session, "system_type": clean_system_type,
-                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "address": raw_address
+                                            "wa": raw_wa, "c1": raw_c1, "c2": raw_c2, "c3": raw_c3, "address": raw_address
                                         })
                                     success_count += 1
                                 except Exception:
@@ -1947,15 +2014,17 @@ elif menu_choice == "➕ Add Students":
             with r1_col3:
                 input_father_name = st.text_input("👨‍👧 3. Father's Name")
 
-            r2_col1, r2_col2, r2_col3 = st.columns(3)
+            # Upgraded Contact Section Row layout cleanly converted from st.columns(3) to st.columns(4)
+            r2_col1, r2_col2, r2_col3, r2_col4 = st.columns(4)
             with r2_col1:
                 input_wa = st.text_input("📱 4. WhatsApp Number")
             with r2_col2:
                 input_c1 = st.text_input("📞 5. Contact Number 1")
             with r2_col3:
                 input_c2 = st.text_input("📞 6. Contact Number 2")
+            with r2_col4:
+                input_c3 = st.text_input("📞 6. Contact Number 3")
             
-            # Address Row Selection Suite
             st.markdown("---")
             input_address = st.text_input("🏠 7. Residential Address", help="Provide the complete home physical address mapping.")
             
@@ -1974,19 +2043,18 @@ elif menu_choice == "➕ Add Students":
                         
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, address)
-                                VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :address)
+                                INSERT INTO students (id, name, father_name, class, section, session, status, system_type, whatsapp_number, contact_1, contact_2, contact_3, address)
+                                VALUES (:id, :name, :fname, :class, :section, :session, 'ACTIVE', :system_type, :wa, :c1, :c2, :c3, :address)
                             """), {
                                 "id": clean_id, "name": clean_name, "fname": input_father_name.strip().upper(),
                                 "class": selected_class, "section": selected_section, "session": selected_session,
                                 "system_type": clean_system_type, "wa": input_wa.strip(),
-                                "c1": input_c1.strip(), "c2": input_c2.strip(), "address": input_address.strip().upper()
+                                "c1": input_c1.strip(), "c2": input_c2.strip(), "c3": input_c3.strip(), "address": input_address.strip().upper()
                             })
                         st.success(f"🎉 Success! Profile for {clean_name} has been formally registered.")
                         st.balloons()
                     except Exception as db_err:
                         st.error(f"❌ Database Exception Triggered: {db_err}")
-
     # ====================================================================================
     # 🧱 PART 2: MANAGE EXISTING RECORDS (EDIT/DELETE/PROMOTIONS)
     # ====================================================================================
@@ -2045,7 +2113,7 @@ elif menu_choice == "➕ Add Students":
                 try:
                     with engine.connect() as connection:
                         stu_query = text("""
-                            SELECT id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2 
+                            SELECT id, name, father_name, class, section, session, status, whatsapp_number, contact_1, contact_2, contact_3, address 
                             FROM students WHERE id = :id
                         """)
                         stu_df = pd.read_sql(stu_query, connection, params={"id": int(search_id)})
@@ -2063,6 +2131,48 @@ elif menu_choice == "➕ Add Students":
                         student_identity_string = f"{str(student['name']).upper()} ({student_native_id})"
                         
                         st.info(f"📍 **Currently Loaded:** {str(student['name']).upper()} — Class: {current_class} | Section: {current_section} | Session: {current_session} | Status: `{student['status']}`")
+                        
+                        # --- DIRECT INDIVIDUAL FIELD LIVE EDITOR SUBSYSTEM ---
+                        st.markdown("##### 📝 Edit Student Core Profile Data Fields")
+                        with st.expander("🛠️ Open Profile Field Editor Workspace", expanded=False):
+                            col_ed1, col_ed2 = st.columns(2)
+                            with col_ed1:
+                                edit_single_name = st.text_input("👤 Full Name Identity:", value=str(student['name']).upper())
+                            with col_ed2:
+                                edit_single_fname = st.text_input("👨‍👦 Father's Name Identity:", value=str(student['father_name']).upper() if pd.notna(student['father_name']) else "")
+                            
+                            col_ed3, col_ed4, col_ed5, col_ed6 = st.columns(4)
+                            with col_ed3:
+                                edit_single_wa = st.text_input("📱 WhatsApp No:", value=str(student['whatsapp_number']) if pd.notna(student['whatsapp_number']) else "")
+                            with col_ed4:
+                                edit_single_c1 = st.text_input("📞 Contact Line 1:", value=str(student['contact_1']) if pd.notna(student['contact_1']) else "")
+                            with col_ed5:
+                                edit_single_c2 = st.text_input("📞 Contact Line 2:", value=str(student['contact_2']) if pd.notna(student['contact_2']) else "")
+                            with col_ed6:
+                                edit_single_c3 = st.text_input("📞 Contact Line 3:", value=str(student['contact_3']) if pd.notna(student['contact_3']) else "")
+                                
+                            edit_single_addr = st.text_input("🏠 Physical Home Address:", value=str(student['address']).upper() if pd.notna(student['address']) else "")
+                            
+                            if st.button("💾 Commit Profile Parameter Changes", use_container_width=True, type="secondary"):
+                                if not edit_single_name.strip():
+                                    st.error("❌ Action Blocked: Student Name identity details cannot be completely blank.")
+                                else:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students 
+                                            SET name = :name, father_name = :fname, whatsapp_number = :wa, 
+                                                contact_1 = :c1, contact_2 = :c2, contact_3 = :c3, address = :addr
+                                            WHERE id = :id
+                                        """), {
+                                            "name": edit_single_name.strip().upper(), "fname": edit_single_fname.strip().upper(),
+                                            "wa": edit_single_wa.strip(), "c1": edit_single_c1.strip(), "c2": edit_single_c2.strip(),
+                                            "c3": edit_single_c3.strip(), "addr": edit_single_addr.strip().upper(), "id": student_native_id
+                                        })
+                                    log_audit_trail("Direct Profile Fields Update", "Single Student", student_identity_string, "Profile parameters cleared/updated.")
+                                    st.success("🎉 Single profile structural details saved locally!")
+                                    st.rerun()
+
+                        st.markdown("---")
                         
                         # --------------------------------------------------------------------------------
                         # TARGETED INDIVIDUAL OPERATIONS CONTROL BOARD
@@ -2188,7 +2298,6 @@ elif menu_choice == "➕ Add Students":
                                         st.error(f"Execution Error: {e}")
 
                         with btn_col4:
-                            # 🟢 NEW COMPONENT: RE-ACTIVE PROFILE ENGINE
                             if st.button("🟢 Re-Active", use_container_width=True, help="Restore status to ACTIVE"):
                                 if not ind_action_remarks.strip():
                                     st.warning("⚠️ Action Blocked: Please enter operational remarks/justification before executing a Re-Activation.")
@@ -2203,14 +2312,12 @@ elif menu_choice == "➕ Add Students":
                                         st.error(f"Execution Error: {e}")
 
                         with btn_col5:
-                            # 🗑️ FIX: RESTRICTIVE LOCK REMOVED
                             if st.button("🗑️ Purge Entry", use_container_width=True, type="secondary"):
                                 if not ind_action_remarks.strip():
                                     st.warning("⚠️ Action Blocked: Please enter operational remarks/justification to authorize permanent record purge.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
-                                            # Drop child cascading keys first
                                             conn.execute(text("DELETE FROM daily_attendance WHERE student_id = :id"), {"id": student_native_id})
                                             conn.execute(text("DELETE FROM attendance WHERE student_id = :id"), {"id": student_native_id})
                                             conn.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_native_id})
@@ -2387,7 +2494,7 @@ elif menu_choice == "➕ Add Students":
                 
                 with engine.connect() as connection:
                     raw_grid_query = text(f"""
-                        SELECT id, name, father_name, whatsapp_number, contact_1, contact_2 
+                        SELECT id, name, father_name, whatsapp_number, contact_1, contact_2, contact_3 
                         FROM students 
                         WHERE session = :sess 
                         AND system_type = :syst 
@@ -2438,7 +2545,8 @@ elif menu_choice == "➕ Add Students":
                             for _, r in edited_grid_df.iterrows():
                                 conn.execute(text("""
                                     UPDATE students 
-                                    SET name = :name, father_name = :fname, whatsapp_number = :wa, contact_1 = :c1, contact_2 = :c2
+                                    SET name = :name, father_name = :fname, whatsapp_number = :wa, 
+                                        contact_1 = :c1, contact_2 = :c2, contact_3 = :c3
                                     WHERE id = :id
                                 """), {
                                     "name": str(r['name']).strip().upper(), 
@@ -2446,6 +2554,7 @@ elif menu_choice == "➕ Add Students":
                                     "wa": str(r['whatsapp_number']).strip(), 
                                     "c1": str(r['contact_1']).strip(),
                                     "c2": str(r['contact_2']).strip(), 
+                                    "c3": str(r['contact_3']).strip() if 'contact_3' in r and pd.notna(r['contact_3']) else "",
                                     "id": int(r['id'])
                                 })
                         log_audit_trail("Bulk Grid Cells Inline Correction", "Cohort Group", f"Active Section Matrix Row Mutation ({source_section})", "Data verification cleanup run.")
