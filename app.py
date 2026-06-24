@@ -770,20 +770,35 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
     import time
     import re
     import pandas as pd
+    from sqlalchemy import text
     
     st.title("📅 Section Incharge Attendance Panel")
     
+    # Extract dynamic grid state variables with clean fallbacks
+    grid = st.session_state.get("GLOBAL_GRID", {})
+    fallback_class = grid.get("annual_classes", ["11th"])[0]
+    
+    # Dynamically look up the first configured section within the master grid configuration
+    sections_map = grid.get("sections_map", {})
+    fallback_section = "MG_BLUE"
+    if sections_map:
+        first_discipline = list(sections_map.values())[0]
+        if first_discipline:
+            first_class_list = list(first_discipline.values())[0]
+            if first_class_list:
+                fallback_section = first_class_list[0]
+
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2026-28")
     
     if not scope_str and user_role in ["Admin", "Administrator"]:
-        scope_str = "11th - MG_BLUE"  # Synced blueprint section default replacement
+        scope_str = f"{fallback_class} - {fallback_section}"  # Dynamic blueprint structural default assignment
         
     if not scope_str:
         st.warning("⚠️ No active class section incharge allocation profile detected for your user account.")
         st.stop()
 
-    forced_class, forced_section = "11th", "MG_BLUE"
+    forced_class, forced_section = fallback_class, fallback_section
     if scope_str:
         clean_scope = str(scope_str).strip()
         if " - " in clean_scope:
@@ -870,8 +885,8 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     st.error(f"Write Failure: {e}")
 
         # ----------------------------------------------------------------------
-# ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH EXCLUSIVE CLICK-TO-CALL LINKS
-# ----------------------------------------------------------------------
+        # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH EXCLUSIVE CLICK-TO-CALL LINKS
+        # ----------------------------------------------------------------------
         current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
 
