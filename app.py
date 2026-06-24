@@ -4757,7 +4757,7 @@ elif menu_choice == "🪪 Student Result Cards":
             st.warning("⚠️ No student records match the given Roll ID and Session selection details.")
         else:
             st.warning(f"⚠️ No active student rows found matching section group: '{active_section}' for {selected_class} ({selected_session}).")
-# ==============================================================================
+ # ==============================================================================
 # ROUTER INTEGRATION: 👨‍🏫 TEACHER MANAGEMENT MODULE (FULLY INTEGRATED)
 # ==============================================================================
 if menu_choice == "👨‍🏫 Teacher Management":
@@ -4794,6 +4794,11 @@ if menu_choice == "👨‍🏫 Teacher Management":
     semester_classes_list = grid.get("semester_classes", ["1st Semester", "2nd Semester"])
     sections_map = grid.get("sections_map", {})
     subjects_map = grid.get("subjects_map", {})
+    
+    # Extract structural discipline pools for analysis rendering
+    annual_disciplines = grid.get("annual_disciplines", [])
+    semester_disciplines = grid.get("semester_disciplines", [])
+    all_disciplines_pool = annual_disciplines + semester_disciplines
 
     # --------------------------------------------------------------------------
     # GLOBAL DEPENDENCY FETCH: Real-Time Registered Faculty Profiles
@@ -4948,16 +4953,24 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not faculty_select_list:
             st.warning("⚠️ No active faculty records found in your database. Register an instructor first.")
         else:
-            avail_classes = list(subjects_map.keys())
-            
             col_sel1, col_sel2 = st.columns(2)
             with col_sel1:
-                sel_class = st.selectbox("Select Academic Year/Tier:", avail_classes, key="alloc_tier")
-            with col_sel2:
-                matched_disciplines = list(subjects_map[sel_class].keys())
-                sel_disc = st.selectbox("Select Target Discipline Row:", matched_disciplines, key="alloc_disc")
+                # Dynamic extraction of disciplines out of the subjects_map matrix keys
+                # Example keys from configuration map: "MEDICAL_11TH", "COMMERCE_11TH", "DIT_1ST SEMESTER"
+                raw_matrix_keys = list(subjects_map.keys())
                 
-            avail_subjects = subjects_map[sel_class][sel_disc]
+                # Split unique discipline tokens out from class level tags safely
+                disciplines_list = sorted(list(set([k.split('_')[0] for k in raw_matrix_keys])))
+                sel_disc = st.selectbox("Select Target Discipline:", disciplines_list, key="alloc_disc")
+                
+            with col_sel2:
+                # Filter down matching configured class tiers based on selected discipline token prefix
+                matched_classes = sorted([k.split('_')[1] for k in raw_matrix_keys if k.startswith(f"{sel_disc}_")])
+                sel_class = st.selectbox("Select Academic Year/Tier:", matched_classes, key="alloc_tier")
+                
+            # Fetch active subject lists completely from the unified source map matrix
+            lookup_key = f"{sel_disc}_{sel_class}"
+            avail_subjects = subjects_map.get(lookup_key, subjects_map.get("DIT_FALLBACK", []))
             
             # Map structural display keys to section paths matching GLOBAL_GRID definitions exactly
             valid_sections = sections_map.get(sel_disc, {}).get(sel_class, ["Default Node"])
@@ -5179,91 +5192,102 @@ if menu_choice == "👨‍🏫 Teacher Management":
                                         conn.execute(text("DELETE FROM incharge_allocations WHERE id = :id"), {"id": target_alloc_id})
                                     st.success("💥 Allocation mapping link successfully deleted from master configurations.")
                                     import time; time.sleep(0.6); st.rerun()
+                                try:
+                                    pass
                                 except Exception as d_err:
                                     st.error(f"❌ Purge execution error tracking response: {d_err}")
             else:
                 st.info("No active institutional class in-charge slots are assigned or recorded yet.")
 
     # ==============================================================================
-    # SUB-MODULE 4: TEACHER MARKS PORTAL (CONNECTED TO GLOBAL_GRID)
+    # SUB-MODULE 4: TEACHER MARKS PORTAL
     # ==============================================================================
     elif sub_menu == "✏️ Teacher Marks Portal":
         st.subheader("📝 Faculty Marks Entry Portal")
         st.markdown("Authorized verification pipeline for structural academic evaluations.")
         
-        # 🌎 CONNECTED TO GLOBAL_GRID: Fetch paths dynamically from master state
-        avail_classes = list(subjects_map.keys())
+        # Pull key references directly from the master dynamic `subjects_map` 
+        raw_keys = list(subjects_map.keys())
         
-        if not avail_classes:
-            st.warning("⚠️ No valid structural academic tiers loaded from GLOBAL_GRID matrix configurations.")
+        col_p1, col_p2, col_p3 = st.columns(3)
+        with col_p1:
+            # 1. Select the dynamic discipline prefix token (e.g., MEDICAL, ICS (PHYSICS), etc.)
+            p_disc_options = sorted(list(set([k.split('_')[0] for k in raw_keys])))
+            p_disc = st.selectbox("Discipline Node Variant:", p_disc_options, key="p_disc")
+            
+        with col_p2:
+            # 2. Extract corresponding class list tiers matching this discipline context path
+            p_class_options = sorted([k.split('_')[1] for k in raw_keys if k.startswith(f"{p_disc}_")])
+            p_class = st.selectbox("System Matrix Context (Year/Class):", p_class_options, key="p_class")
+            
+        with col_p3:
+            # 3. Pull validated target subject listings directly from the source tracking map
+            lookup_key = f"{p_disc}_{p_class}"
+            p_sub_options = subjects_map.get(lookup_key, [])
+            p_sub = st.selectbox("Subject Track Node:", p_sub_options, key="p_sub")
+            
+        # Dynamically fetch sections out of master grid source matching selections safely
+        p_sections = sections_map.get(p_disc, {}).get(p_class, ["Global"])
+        sel_p_sec = st.selectbox("🎯 Cohort Section Assignment Context:", p_sections)
+        
+        # 🌎 ALIGNMENT STEP: Normalize selected string tags to production database tracking codes
+        db_p_sec = sel_p_sec.strip().upper()
+        if db_p_sec == "IG1":
+            db_p_sec = "IG"
+        elif db_p_sec == "IB1":
+            db_p_sec = "IB"
+        
+        st.info(f"📋 Verified Access: Modification path active for course **{p_sub}** in section **{sel_p_sec}**.")
+        
+        # Dynamic Student Retrieval via Selected Filters Instead of Fixed Placeholders
+        try:
+            live_students_df = run_query("""
+                SELECT id AS "Roll No", name AS "Student Name" 
+                FROM students 
+                WHERE UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
+                  AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
+                ORDER BY id ASC
+            """, {"cls": p_class.strip(), "sec": db_p_sec})
+        except Exception as query_err:
+            live_students_df = pd.DataFrame()
+            
+        if not live_students_df.empty:
+            # Inject score management columns into data ledger view
+            live_students_df["Obtained Marks"] = 0.0
+            live_students_df["Total Scope Limit"] = 100.0
+            
+            edited_portal_df = st.data_editor(live_students_df, use_container_width=True, hide_index=True)
+            
+            if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
+                # Process data grid entry rows iteratively for saving payload
+                try:
+                    with engine.begin() as conn:
+                        for _, row in edited_portal_df.iterrows():
+                            conn.execute(text("""
+                                INSERT INTO marks (student_id, subject, marks_obtained, total_marks, exam_type)
+                                VALUES (:sid, :subject, :obtained, :total, 'Terminal Exam')
+                            """), {
+                                "sid": row["Roll No"],
+                                "subject": p_sub,
+                                "obtained": float(row["Obtained Marks"]),
+                                "total": float(row["Total Scope Limit"])
+                            })
+                    st.success("🎉 Marks ledger frozen and successfully synced to system analysis engines!")
+                except Exception as write_err:
+                    st.error(f"Failed to submit scores into ledger: {write_err}")
         else:
-            col_p1, col_p2, col_p3 = st.columns(3)
-            with col_p1:
-                p_class = st.selectbox("System Class Context:", avail_classes, key="p_class")
-            with col_p2:
-                p_disc_options = list(subjects_map.get(p_class, {}).keys())
-                p_disc = st.selectbox("Discipline Node Variant:", p_disc_options, key="p_disc")
-            with col_p3:
-                p_sub_options = subjects_map.get(p_class, {}).get(p_disc, [])
-                p_sub = st.selectbox("Subject Track Node:", p_sub_options, key="p_sub")
-                
-            # Dynamic calculation of contextual classroom codes directly matching GLOBAL_GRID maps
-            p_sections = sections_map.get(p_disc, {}).get(p_class, ["Global"])
-            sel_p_sec = st.selectbox("🎯 Cohort Section Assignment Context:", p_sections, key="sel_p_sec")
-            
-            st.info(f"📋 Verified Access: Modification path active for course **{p_sub}** in section **{sel_p_sec}**.")
-            
-            # Dynamic Student Retrieval via Selected Filters
-            try:
-                live_students_df = run_query("""
-                    SELECT id AS "Roll No", name AS "Student Name" 
-                    FROM students 
-                    WHERE UPPER(TRIM(class)) = UPPER(TRIM(:cls)) 
-                      AND UPPER(TRIM(section)) = UPPER(TRIM(:sec))
-                    ORDER BY id ASC
-                """, {"cls": p_class.strip(), "sec": sel_p_sec.strip()})
-            except Exception as query_err:
-                live_students_df = pd.DataFrame()
-                
-            if not live_students_df.empty:
-                # Inject score management columns into data ledger view
-                live_students_df["Obtained Marks"] = 0.0
-                live_students_df["Total Scope Limit"] = 100.0
-                
-                edited_portal_df = st.data_editor(live_students_df, use_container_width=True, hide_index=True)
-                
-                if st.button("🔒 Freeze & Upload Marks Payload to Analytics Engine", type="primary", use_container_width=True):
-                    try:
-                        with engine.begin() as conn:
-                            for _, row in edited_portal_df.iterrows():
-                                conn.execute(text("""
-                                    INSERT INTO marks (student_id, subject, marks_obtained, total_marks, exam_type)
-                                    VALUES (:sid, :subject, :obtained, :total, 'Terminal Exam')
-                                """), {
-                                    "sid": row["Roll No"],
-                                    "subject": p_sub,
-                                    "obtained": float(row["Obtained Marks"]),
-                                    "total": float(row["Total Scope Limit"])
-                                })
-                        st.success("🎉 Marks ledger frozen and successfully synced to system analysis engines!")
-                    except Exception as write_err:
-                        st.error(f"Failed to submit scores into ledger: {write_err}")
-            else:
-                st.warning(f"No student matching profiles found allocated to Class: '{p_class}' | Section: '{sel_p_sec}'.")
+            st.warning(f"No student matching profiles found allocated to Class: '{p_class}' | Section: '{sel_p_sec}' (Database Target: '{db_p_sec}').")
 
     # ==============================================================================
-    # SUB-MODULE 5: TEACHER ANALYSIS (CONNECTED TO GLOBAL_GRID)
+    # SUB-MODULE 5: TEACHER ANALYSIS
     # ==============================================================================
     elif sub_menu == "📊 Teacher Analysis":
         st.subheader("📊 Performance Analytics Dashboard")
         st.markdown("Granular metrics mapping, student metrics, and instructional footprint layout distributions.")
         
-        # Calculate key metrics reactively straight from the system's global source maps
-        total_disciplines_configured = len(sections_map.keys())
-        
         t_col1, t_col2 = st.columns(2)
         with t_col1:
-            st.metric(label="Global Disciplines Anchored", value=total_disciplines_configured)
+            st.metric(label="Global Disciplines Anchored", value=len(all_disciplines_pool))
         with t_col2:
             st.metric(label="Tracked Active Section Classes", value=len(sections_pool_df))
             
@@ -5273,19 +5297,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
         with t_tab1:
             st.markdown("##### 📈 Top Faculty Metric Index Evaluations")
             analysis_mock_data = []
-            
-            # Loop dynamically over structural disciplines anchored within GLOBAL_GRID
-            for idx, d_key in enumerate(sections_map.keys()):
+            for idx, d_key in enumerate(all_disciplines_pool):
                 analysis_mock_data.append({
                     "Primary Assignment Path": d_key,
-                    "Target Metrics Met Base": f"{98.2 - (idx * 1.5)}%",
-                    "Quality Index Grade": round(9.7 - (idx * 0.2), 1)
+                    "Target Metrics Met Base": f"{97.5 - (idx * 2.2)}%",
+                    "Quality Index Grade": round(9.6 - (idx * 0.3), 1)
                 })
-                
-            if analysis_mock_data:
-                st.dataframe(pd.DataFrame(analysis_mock_data), use_container_width=True, hide_index=True)
-            else:
-                st.info("No active disciplines tracked for matrix metrics evaluation.")
+            st.dataframe(pd.DataFrame(analysis_mock_data), use_container_width=True, hide_index=True)
             
         with t_tab2:
             st.markdown("##### 📋 Section Map Reference Configuration")
