@@ -328,12 +328,10 @@ def apply_filters(df, tab_key):
 @st.cache_data(ttl=600)
 def fetch_analytics_data():
     query = """
-        SELECT s.id, s.name, s.section, s.class, s.session, 
-               m.subject, m.marks_obtained, m.total_marks, m.exam_type
-        FROM students s
-        LEFT JOIN marks m ON s.id = m.student_id
-        WHERE 1=1
-    """
+    SELECT student_id, student_name, status 
+    FROM students 
+    WHERE section = %s AND session = %s AND status = 'ACTIVE'
+"""
     params = {}
     if "user_role" in st.session_state and st.session_state.user_role in ["Teacher", "Faculty"]:
         assigned_subs_raw = st.session_state.get("assigned_subject", "")
