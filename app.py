@@ -2788,14 +2788,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         st.markdown('<div class="main-module-card">', unsafe_allow_html=True)
         st.subheader("👤 Single Student Marks Record Manager")
         
+        # Pull master grid state safely with fallback
+        grid = st.session_state.get("GLOBAL_GRID", {})
+        
         sc1, sc2, sc3 = st.columns(3)
         with sc1: s_system = st.selectbox("Academic System:", ["Annual System", "Semester System"], key="single_sys_type")
         with sc2: s_session_sel = st.selectbox("Session Context:", session_options, key="single_sess_type")
         with sc3:
             if s_system == "Annual System":
-                s_class_sel = st.selectbox("Class Level:", ["11th", "12th", "ALL"], key="single_class_type")
+                # Inject dynamic annual classes from grid
+                annual_classes = grid.get("annual_classes", ["11th", "12th"])
+                s_class_sel = st.selectbox("Class Level:", annual_classes + ["ALL"], key="single_class_type")
             else:
-                s_class_sel = st.selectbox("Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "ALL"], key="single_class_type")
+                # Inject dynamic semester classes from grid
+                semester_classes = grid.get("semester_classes", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
+                s_class_sel = st.selectbox("Semester Context:", semester_classes + ["ALL"], key="single_class_type")
 
         single_id = st.text_input("🔍 Enter Student Roll Number / ID:", key="single_marks_id_input")
         
@@ -2817,20 +2824,19 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 s_class = str(student_info['class'].iloc[0]).upper().strip()
                 
                 detected_discipline = "MEDICAL"  
-                if s_system == "Annual System":
-                    try:
-                        for disc_key, class_map in DISCIPLINE_SECTIONS_MAP.items():
-                            for cls_level, sections in class_map.items():
-                                if s_section in [str(sec).upper().strip() for sec in sections]:
-                                    detected_discipline = str(disc_key).upper().replace(" ", "_").replace("(", "").replace(")", "")
-                                    if "PHYSIC" in detected_discipline: detected_discipline = "ICS_PHYSICS"
-                                    elif "STAT" in detected_discipline: detected_discipline = "ICS_STATISTICS"
-                                    break
-                    except NameError:
-                        if any(k in s_section for k in ["EG", "ENG", "ENGINEERING"]): detected_discipline = "ENGINEERING"
-                        elif "ICS" in s_section: detected_discipline = "ICS_PHYSICS"
-                        elif any(k in s_section for k in ["CG", "COM", "COMMERCE"]): detected_discipline = "COMMERCE"
-                        elif any(k in s_section for k in ["HUM", "ARTS"]): detected_discipline = "HUMANITIES"
+                
+                # Dynamic Reverse Discipline Detection from GLOBAL_GRID sections_map
+                sections_map = grid.get("sections_map", {})
+                found_discipline = False
+                for disc_key, class_map in sections_map.items():
+                    for cls_level, sections in class_map.items():
+                        if s_section in [str(sec).upper().strip() for sec in sections]:
+                            detected_discipline = str(disc_key).upper().replace(" ", "_").replace("(", "").replace(")", "")
+                            if "PHYSIC" in detected_discipline: detected_discipline = "ICS_PHYSICS"
+                            elif "STAT" in detected_discipline: detected_discipline = "ICS_STATISTICS"
+                            found_discipline = True
+                            break
+                    if found_discipline: break
                 
                 st.info(f"👤 Student Found: **{s_name}** | Auto-detected Discipline: **{detected_discipline}** | Section: **{s_section}**")
                 
@@ -2840,16 +2846,21 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 """, {"cls": s_class, "sec": s_section})
 
                 if allocated_subjects_df.empty or len(allocated_subjects_df) < 3:
+                    subjects_map = grid.get("subjects_map", {})
                     if s_system == "Annual System":
                         year_suffix = "12TH" if "12" in str(s_class) else "11TH"
-                        subjects_list = DISCIPLINE_SUBJECTS_MAP.get(f"{detected_discipline.upper()}_{year_suffix}", ["English", "Urdu", "Physics"])
+                        lookup_key = f"{detected_discipline.upper()}_{year_suffix}"
+                        subjects_list = subjects_map.get(lookup_key, ["English", "Urdu", "Physics"])
                     else:
-                        if "1ST" in s_class: subjects_list = ["Information Technology", "Office Automation", "Networking"]
-                        else: subjects_list = ["English", "Urdu", "Mathematics"]
+                        # Fallback parsing for semester schemas matching the lookup keys
+                        lookup_key = f"{detected_discipline.upper()}_{s_class.replace(' ', '_')}"
+                        subjects_list = subjects_map.get(lookup_key, ["Information Technology", "Office Automation", "Networking"])
                 else:
                     subjects_list = allocated_subjects_df['subject_title'].tolist()
 
-                single_exam = st.selectbox("Select Target Test/Exam:", all_frameworks, index=1, key="s_exam_val")
+                # Dynamic Exam Selector based on Framework system type rules
+                allowed_tests = grid.get("annual_tests", []) if s_system == "Annual System" else grid.get("semester_tests", [])
+                single_exam = st.selectbox("Select Target Test/Exam:", allowed_tests if allowed_tests else all_frameworks, index=0, key="s_exam_val")
                 total_marks_input = st.number_input("Total Marks (Shared Scale):", min_value=1, max_value=2000, value=100, step=1, key="s_total_val")
                 
                 target_exam_slug = str(single_exam).strip().upper()
@@ -2947,13 +2958,14 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = :sub AND UPPER(TRIM(exam_type)) = :exam", {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug})
                             if final_score != "":
                                 execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :sub, :exam, :score, :total)",
-                                                  {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug, "score": final_score, "total": float(total_marks_input)})
+                                                   {"s_id": int(single_id), "sub": sub_slug, "exam": target_exam_slug, "score": final_score, "total": float(total_marks_input)})
                         
                         st.success(f"🎉 Performance matrix for Roll Number {single_id} saved successfully!")
                         time.sleep(1.2)
                         st.rerun()
-        # This belongs inside the 'Single Entry' block (indented 8 spaces)
+
         st.markdown('</div>', unsafe_allow_html=True)
+
     # ====================================================================================
     # WORKFLOW MODE C: BULK EXCEL / CSV / PASTE LEDGER IMPORT (DYNAMIC CONFIGURATIONS)
     # ====================================================================================
@@ -2962,6 +2974,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
         st.subheader("📤 Bulk Marks Import Portal")
         st.markdown("Configure the specific cohort parameters below before submitting your spreadsheet records.")
         
+        grid = st.session_state.get("GLOBAL_GRID", {})
+
         # --- STEP 1: CONTEXTUAL DROPDOWN SCHEMAS ---
         bc1, bc2, bc3, bc4 = st.columns(4)
         with bc1: 
@@ -2970,35 +2984,43 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             b_system = st.selectbox("2️⃣ System Type:", ["Annual System", "Semester System"], key="bulk_sys")
         with bc3:
             if b_system == "Annual System":
-                b_class = st.selectbox("3️⃣ Class Level:", ["11th", "12th"], key="bulk_class")
+                annual_classes = grid.get("annual_classes", ["11th", "12th"])
+                b_class = st.selectbox("3️⃣ Class Level:", annual_classes, key="bulk_class")
                 lookup_class_key = b_class
             else:
-                b_class = st.selectbox("3️⃣ Semester Context:", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"], key="bulk_class")
-                lookup_class_key = f"Semester {b_class.split()[0][0]}"
+                semester_classes = grid.get("semester_classes", ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
+                b_class = st.selectbox("3️⃣ Semester Context:", semester_classes, key="bulk_class")
+                lookup_class_key = b_class
                 
         with bc4:
             if b_system == "Annual System":
-                b_disc_opts = ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"]
+                # Extract dynamic options or default to grid specifications
+                b_disc_opts = grid.get("annual_disciplines", ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"])
                 b_disc_sel = st.selectbox("4️⃣ Discipline:", b_disc_opts, key="bulk_disc")
                 b_discipline = b_disc_sel.upper().replace(" ", "_").replace("(", "").replace(")", "")
                 if "PHYSIC" in b_discipline: b_discipline = "ICS_PHYSICS"
                 elif "STAT" in b_discipline: b_discipline = "ICS_STATISTICS"
                 lookup_disc_key = b_disc_sel  
             else:
-                b_discipline = "INFORMATION_TECHNOLOGY"
-                st.text_input("4️⃣ Discipline:", value="IT", disabled=True, key="bulk_disc_disabled")
-                lookup_disc_key = "INFORMATION_TECHNOLOGY"
+                semester_disciplines = grid.get("semester_disciplines", ["INFORMATION_TECHNOLOGY"])
+                b_discipline = semester_disciplines[0] if semester_disciplines else "INFORMATION_TECHNOLOGY"
+                st.text_input("4️⃣ Discipline:", value=b_discipline, disabled=True, key="bulk_disc_disabled")
+                lookup_disc_key = b_discipline
 
         # --- STEP 2: TEST DETAILS & SECTION MATCHING SELECTION ---
         bc5, bc6, bc7, bc_sec = st.columns([2, 3, 2, 3])
         with bc5:
-            b_exam = st.selectbox("🎯 Target Exam Cycle:", all_frameworks, index=1, key="bulk_exam_cycle")
+            allowed_tests = grid.get("annual_tests", []) if b_system == "Annual System" else grid.get("semester_tests", [])
+            b_exam = st.selectbox("🎯 Target Exam Cycle:", allowed_tests if allowed_tests else all_frameworks, index=0, key="bulk_exam_cycle")
         with bc6:
             if b_exam == "MATRIC":
                 b_subject = "OVERALL"
                 st.info("MATRIC Mode Defaulting to OVERALL")
             else:
-                b_available_subs = CLASS_SUBJECTS_MASTER_MAP.get(lookup_class_key, {}).get(b_discipline, ["English", "Urdu"])
+                subjects_map = grid.get("subjects_map", {})
+                # Try finding matching key like "MEDICAL_11TH" or direct key match
+                lookup_key = f"{b_discipline.upper()}_{lookup_class_key.upper().replace(' ', '_')}"
+                b_available_subs = subjects_map.get(lookup_key, subjects_map.get("DIT_FALLBACK", ["English", "Urdu"]))
                 b_subject = st.selectbox("📚 Course / Subject to Grade:", b_available_subs, key="bulk_sub_selector")
         with bc7:
             b_default_total = 1200 if b_exam == "MATRIC" else 100
@@ -3020,9 +3042,10 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             except Exception:
                 available_sections = []
             
-            # Use explicit DISCIPLINE_SECTIONS_MAP fallback structure if database array returns empty
+            # Use explicit GLOBAL_GRID sections_map structure fallback if database array returns empty
             if not available_sections:
-                available_sections = DISCIPLINE_SECTIONS_MAP.get(lookup_disc_key, {}).get(lookup_class_key, [])
+                sections_map = grid.get("sections_map", {})
+                available_sections = sections_map.get(lookup_disc_key, {}).get(lookup_class_key, [])
                 
             b_section_target = st.selectbox("🏢 5️⃣ Select Target Section:", ["-- Choose Section --"] + available_sections, key="bulk_sec_selector")
 
@@ -3034,18 +3057,15 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             # --- DYNAMIC SAMPLE TEMPLATE DOWNLOADER ---
             import io
-            # Generate a clean starter template DataFrame matching expected logic schemas
             sample_df = pd.DataFrame({
                 "student_id": [1001, 1002, 1003],
                 "marks_obtained": [85, "A", 92]
             })
             
-            # Convert to standard CSV bytes seamlessly in memory
             csv_buffer = io.StringIO()
             sample_df.to_csv(csv_buffer, index=False)
             csv_bytes = csv_buffer.getvalue()
             
-            # Render a high-visibility wide download action button
             st.download_button(
                 label="📥 Download Sample Spreadsheet Template (.csv)",
                 data=csv_bytes,
@@ -3055,7 +3075,7 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                 help="Click to download a clean sample template. Open this in Excel, fill out your student data, and re-upload!"
             )
             
-            st.markdown("---") # Visual divider between template utility and upload workflow
+            st.markdown("---") 
             
             target_sub_slug = str(b_subject).strip().upper().replace(" ", "_")
             target_exam_slug = str(b_exam).strip().upper()
@@ -3065,14 +3085,13 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
             
             # --- TAB A: FILE UPLOADER ---
             with tab_upload:
-                st.caption("Upload a layout containing columns: `student_id` and `marks_obtained` (or mapping variations)")
+                st.caption("Upload a layout containing columns: `student_id` and `marks_obtained`")
                 uploaded_file = st.file_uploader("Choose spreadsheet file:", type=["csv", "xlsx"], key="bulk_file_uploader_v4")
                 if uploaded_file is not None:
                     try:
                         if uploaded_file.name.endswith('.csv'):
                             uploaded_df = pd.read_csv(uploaded_file)
                         else:
-                            # Explicitly handle openpyxl dependency check safely
                             try:
                                 uploaded_df = pd.read_excel(uploaded_file, engine='openpyxl')
                             except ImportError:
@@ -3102,10 +3121,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
 
             # --- STEP 4: CONDITIONAL SUBMISSION BUTTON & MATRIX PREVIEW ---
             if uploaded_df is not None and not uploaded_df.empty:
-                # 1. Force clean column headers to uniform lowercase strings
                 uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
                 
-                # 2. Smart mapping: translation layers for human column variations
                 mapping = {
                     "student_id": ["student_id", "roll_no", "rollno", "id", "student id", "roll number"],
                     "marks_obtained": ["marks_obtained", "marks", "score", "marks obtained", "obtained marks"]
@@ -3118,7 +3135,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 uploaded_df.rename(columns={variant: target_col}, inplace=True)
                                 break
 
-                # 3. Positional Fallback: If translations failed but we have at least 2 columns, assume columns 1 & 2
                 if "student_id" not in uploaded_df.columns or "marks_obtained" not in uploaded_df.columns:
                     if len(uploaded_df.columns) >= 2:
                         uploaded_df.rename(columns={
@@ -3126,7 +3142,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                             uploaded_df.columns[1]: "marks_obtained"
                         }, inplace=True)
 
-                # 4. Final verification check
                 required_headers = ["student_id", "marks_obtained"]
                 missing_headers = [col for col in required_headers if col not in uploaded_df.columns]
                 
@@ -3138,7 +3153,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                     
                     st.info(f"📋 **Target Ledger Destination:** Section: **{b_section_target}** | Subject: **{target_sub_slug}** | Test: **{target_exam_slug}** | Out Of: **{b_total_marks}**")
                     
-                    # Blue Submission Button appears explicitly here only when data is actively supplied
                     if st.button("🚀 Process & Save Data Ledger", use_container_width=True, type="primary"):
                         import time
                         success_inserts = 0
@@ -3146,10 +3160,8 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                         
                         for idx, row in uploaded_df.iterrows():
                             try:
-                                if pd.isna(row["student_id"]):
-                                    continue
-                                if str(row["student_id"]).strip().lower() == "student_id":
-                                    continue
+                                if pd.isna(row["student_id"]): continue
+                                if str(row["student_id"]).strip().lower() == "student_id": continue
                                     
                                 current_student_id = int(float(str(row["student_id"]).strip()))
                                 current_score = str(row["marks_obtained"]).strip().upper()
@@ -3159,7 +3171,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                 elif current_score in ["NAN", ""]: clean_score = ""
                                 else: clean_score = current_score
                                 
-                                # Clean conflicting historic rows
                                 execute_db_command("""
                                     DELETE FROM marks 
                                     WHERE student_id = :s_id 
@@ -3167,7 +3178,6 @@ elif menu_choice == "📝 Academic Exam Marks Entry":
                                       AND UPPER(TRIM(exam_type)) = :exam
                                 """, {"s_id": current_student_id, "sub": target_sub_slug, "exam": target_exam_slug})
                                 
-                                # Insert refreshed record line
                                 if clean_score != "":
                                     execute_db_command("""
                                         INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
