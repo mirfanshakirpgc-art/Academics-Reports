@@ -528,71 +528,119 @@ def render_master_setup_engine():
         elif allocation_type == "Subject Allocation (Teachers to Subjects/Sections)":
             st.write("✏️ **Dynamic Dependent Subject Allocation Entry**")
             
-            # --- Fetch database records natively to fill dropdown choices ---
-            db_sessions = run_query("SELECT session_name FROM sessions")['session_name'].tolist()
-            db_systems = run_query("SELECT system_name FROM academic_systems")['system_name'].tolist()
-            db_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
-            db_disciplines = run_query("SELECT discipline_title FROM disciplines")['discipline_title'].tolist()
-            db_sections = run_query("SELECT section_name FROM sections")['section_name'].tolist()
-            db_subjects = run_query("SELECT subject_name FROM subjects")['subject_name'].tolist()
-            db_teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
+            # --- Initialize Session State values if they don't exist ---
+            if "alloc_sess" not in st.session_state: st.session_state.alloc_sess = None
+            if "alloc_sys" not in st.session_state: st.session_state.alloc_sys = None
+            if "alloc_cls" not in st.session_state: st.session_state.alloc_cls = None
+            if "alloc_disc" not in st.session_state: st.session_state.alloc_disc = None
+            if "alloc_sec" not in st.session_state: st.session_state.alloc_sec = None
+            if "alloc_sub" not in st.session_state: st.session_state.alloc_sub = None
+
+            # ==========================================
+            # STEP 1: SESSION
+            # ==========================================
+            sessions_list = run_query("SELECT DISTINCT session_name FROM sessions")['session_name'].tolist()
+            if not sessions_list: sessions_list = ["No Sessions Configured"]
             
-            # Fallback strings if lists are blank
-            if not db_sessions: db_sessions = ["No Sessions Configured"]
-            if not db_systems: db_systems = ["No Academic Systems Configured"]
-            if not db_classes: db_classes = ["No Classes Configured"]
-            if not db_disciplines: db_disciplines = ["No Disciplines Configured"]
-            if not db_sections: db_sections = ["No Sections Configured"]
-            if not db_subjects: db_subjects = ["No Subjects Configured"]
+            col_l1, col_l2, col_l3 = st.columns(3)
+            with col_l1:
+                sel_sub_session = st.selectbox("1. Select Session:", sessions_list, key="sb_sess")
+                st.session_state.alloc_sess = sel_sub_session
+
+            # ==========================================
+            # STEP 2: ACADEMIC SYSTEM (Filtered by Session if mapped)
+            # ==========================================
+            # If your tables don't cross-link yet, this pulls all, but respects downstream resets
+            systems_list = run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist()
+            if not systems_list: systems_list = ["No Academic Systems Configured"]
             
-            if not db_teachers_df.empty:
-                db_teachers = [f"{row['teacher_id']} - {row['full_name']}" for _, row in db_teachers_df.iterrows()]
+            with col_l2:
+                sel_sub_system = st.selectbox("2. Select Academic System:", systems_list, key="sb_sys")
+                st.session_state.alloc_sys = sel_sub_system
+
+            # ==========================================
+            # STEP 3: CLASS
+            # ==========================================
+            classes_list = run_query("SELECT DISTINCT class_level FROM classes ORDER BY id ASC")['class_level'].tolist()
+            if not classes_list: classes_list = ["No Classes Configured"]
+            
+            with col_l3:
+                sel_sub_class = st.selectbox("3. Select Class:", classes_list, key="sb_cls")
+                st.session_state.alloc_cls = sel_sub_class
+
+            col_l4, col_l5, col_l6 = st.columns(3)
+            
+            # ==========================================
+            # STEP 4: DISCIPLINE
+            # ==========================================
+            disciplines_list = run_query("SELECT DISTINCT discipline_title FROM disciplines")['discipline_title'].tolist()
+            if not disciplines_list: disciplines_list = ["No Disciplines Configured"]
+            
+            with col_l4:
+                sel_sub_discipline = st.selectbox("4. Select Discipline:", disciplines_list, key="sb_disc")
+                st.session_state.alloc_disc = sel_sub_discipline
+
+            # ==========================================
+            # STEP 5: SECTION (Can filter by Class selection if needed)
+            # ==========================================
+            sections_list = run_query("SELECT DISTINCT section_name FROM sections")['section_name'].tolist()
+            if not sections_list: sections_list = ["No Sections Configured"]
+            
+            with col_l5:
+                sel_sub_section = st.selectbox("5. Select Section:", sections_list, key="sb_sec")
+                st.session_state.alloc_sec = sel_sub_section
+
+            # ==========================================
+            # STEP 6: SUBJECT
+            # ==========================================
+            subjects_list = run_query("SELECT DISTINCT subject_name FROM subjects")['subject_name'].tolist()
+            if not subjects_list: subjects_list = ["No Subjects Configured"]
+            
+            with col_l6:
+                sel_sub_subject = st.selectbox("6. Select Subject:", subjects_list, key="sb_sub")
+                st.session_state.alloc_sub = sel_sub_subject
+
+            # ==========================================
+            # STEP 7: TEACHER
+            # ==========================================
+            col_l7, _ = st.columns([2, 1])
+            teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
+            if not teachers_df.empty:
+                teachers_list = [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()]
             else:
-                db_teachers = ["No Teachers Configured"]
+                teachers_list = ["No Teachers Configured"]
+                
+            with col_l7:
+                sel_sub_teacher = st.selectbox("7. Select Teacher:", teachers_list, key="sb_tchr")
 
-            # --- Layout consecutive cascading selections outside a pure state form to enable fluid dependency fetching ---
-            col_layer1, col_layer2, col_layer3 = st.columns(3)
-            with col_layer1:
-                sel_sub_session = st.selectbox("1. Select Session:", db_sessions, key="sub_alloc_sess")
-            with col_layer2:
-                # Next choice filters based on selected Session
-                sel_sub_system = st.selectbox("2. Select Academic System:", db_systems, key="sub_alloc_sys")
-            with col_layer3:
-                sel_sub_class = st.selectbox("3. Select Class:", db_classes, key="sub_alloc_cls")
-
-            col_layer4, col_layer5, col_layer6 = st.columns(3)
-            with col_layer4:
-                sel_sub_discipline = st.selectbox("4. Select Discipline:", db_disciplines, key="sub_alloc_disc")
-            with col_layer5:
-                sel_sub_section = st.selectbox("5. Select Section:", db_sections, key="sub_alloc_sec")
-            with col_layer6:
-                sel_sub_subject = st.selectbox("6. Select Subject:", db_subjects, key="sub_alloc_sub")
-
-            # Final dependency selection row
-            col_layer7, _ = st.columns([2, 1])
-            with col_layer7:
-                sel_sub_teacher = st.selectbox("7. Select Target Teacher Assignment:", db_teachers, key="sub_alloc_tchr")
-
-            # Simple commitment button framework triggered directly
-            if st.button("🔗 Link Subject Allocation Matrix", type="primary", use_container_width=True):
+            # --- Form Submission ---
+            st.markdown("---")
+            if st.button("🔗 Commit Dynamic Subject Allocation Matrix", type="primary", use_container_width=True):
                 if "No " in sel_sub_session or "No " in sel_sub_teacher:
-                    st.error("❌ Allocation rejected: Please configure required structural variables first inside Tab 1.")
+                    st.error("❌ Allocation failed: Complete configuration parameters in Tab 1 first.")
                 else:
-                    t_id = sel_sub_teacher.split(" - ")[0]
-                    t_name = sel_sub_teacher.split(" - ")[1]
+                    t_id = sel_sub_teacher.split(" - ")[0].strip()
+                    t_name = sel_sub_teacher.split(" - ")[1].strip()
                     try:
                         with engine.begin() as conn:
                             conn.execute(text("""
                                 INSERT INTO subject_allocations (session, academic_system, class_level, discipline, section, subject_name, teacher_id, teacher_name)
                                 VALUES (:sess, :sys, :cls, :disc, :sec, :sub, :tid, :tname)
                             """), {
-                                "sess": sel_sub_session, "sys": sel_sub_system, "cls": sel_sub_class,
-                                "disc": sel_sub_discipline, "sec": sel_sub_section, "sub": sel_sub_subject,
-                                "tid": t_id, "tname": t_name
+                                "sess": st.session_state.alloc_sess, 
+                                "sys": st.session_state.alloc_sys, 
+                                "cls": st.session_state.alloc_cls,
+                                "disc": st.session_state.alloc_disc, 
+                                "sec": st.session_state.alloc_sec, 
+                                "sub": st.session_state.alloc_sub,
+                                "tid": t_id, 
+                                "tname": t_name
                             })
-                        st.success(f"🎉 Allocation Map Committed: {t_name} is now teaching **{sel_sub_subject}** to Class {sel_sub_class}-{sel_sub_section} ({sel_sub_discipline}) for {sel_sub_session}!")
+                        st.success(f"🎉 Success! {t_name} is now allocated to teach **{st.session_state.alloc_sub}** to Class {st.session_state.alloc_cls}-{st.session_state.alloc_sec} ({st.session_state.alloc_disc}) for session {st.session_state.alloc_sess}!")
+                        time.sleep(1)
+                        st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Database mapping failure: {e}")
+                        st.error(f"❌ Database error: {e}")
 
     with tab3:
         # ----------------------------------------------------------------------
