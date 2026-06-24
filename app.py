@@ -25,7 +25,6 @@ engine = get_db_engine()
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
     with engine.begin() as conn:
-        # Create sessions table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +32,6 @@ def init_db():
                 status TEXT NOT NULL
             );
         """))
-        # Create academic_systems table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS academic_systems (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +39,6 @@ def init_db():
                 description TEXT
             );
         """))
-        # Create classes table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS classes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +46,6 @@ def init_db():
                 sort_order INTEGER
             );
         """))
-        # Create sections table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +53,6 @@ def init_db():
                 max_capacity INTEGER
             );
         """))
-        # Create subjects table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS subjects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +61,6 @@ def init_db():
                 credit_hours INTEGER
             );
         """))
-        # Create test_types table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS test_types (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +69,6 @@ def init_db():
                 weightage INTEGER
             );
         """))
-        # Create disciplines table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS disciplines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,7 +76,6 @@ def init_db():
                 short_code TEXT NOT NULL
             );
         """))
-        # Create students table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 student_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +85,6 @@ def init_db():
                 roll_no INTEGER NOT NULL
             );
         """))
-        # Create incharge_allocations table
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS incharge_allocations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,7 +97,7 @@ def init_db():
             );
         """))
 
-# Run the database verification sweep on engine startup
+# Run database schema checker execution
 init_db()
 
 def run_query(query, params=None):
@@ -121,25 +112,24 @@ def run_query(query, params=None):
 # 2. SHARED REUSABLE FUNCTIONS (Shared between Authorized Roles)
 # ==============================================================================
 def render_master_setup_engine():
-    """Centralized core setup engine giving Principal and VP rights to create foundational school data structures."""
+    """Centralized core setup engine giving Principal and VP rights to create and update foundational school data structures."""
     st.subheader("⚙️ Master Institutional Setup Engine")
     
     tab1, tab2 = st.tabs(["🏛️ 1. Core Configuration Parameters", "🔗 2. Operational Allocation Mapping"])
     
     with tab1:
-        st.markdown("### Add Structural School Variables")
+        st.markdown("### Add & Manage Structural School Variables")
         
         setup_type = st.selectbox(
-            "Select Variable Layer to Initialize:",
+            "Select Variable Layer to Manage:",
             ["Session", "Academic System", "Classes", "Sections", "Subjects", "Test/Exam", "Disciplines"]
         )
         
-        st.markdown(f"#### Form: Add New {setup_type}")
-        
         # ----------------------------------------------------------------------
-        # DYNAMIC PARAMETER CREATION FORMS
+        # 1. SESSION MANAGEMENT (ADD & EDIT)
         # ----------------------------------------------------------------------
         if setup_type == "Session":
+            st.markdown("#### ➕ Add New Session")
             with st.form("form_session"):
                 col1, col2 = st.columns(2)
                 with col1: session_name = st.text_input("Session Name/Year:", placeholder="e.g., 2026-2027")
@@ -151,15 +141,43 @@ def render_master_setup_engine():
                             with engine.begin() as conn:
                                 conn.execute(text("INSERT INTO sessions (session_name, status) VALUES (:name, :status)"), 
                                              {"name": session_name, "status": session_status})
-                            st.success(f"🎉 Session Year '{session_name}' locked into system registries successfully!")
+                            st.success(f"🎉 Session Year '{session_name}' initialized successfully!")
+                            time.sleep(0.5)
+                            st.rerun()
                         except Exception as e: st.error(f"❌ Database error: {e}")
                     else: st.error("❌ Name tag cannot be empty.")
 
+            st.markdown("---")
+            st.markdown("#### ✏️ Edit Existing Session Records")
+            sessions_df = run_query("SELECT id, session_name, status FROM sessions")
+            if not sessions_df.empty:
+                session_options = [f"{row['id']} - {row['session_name']} ({row['status']})" for _, row in sessions_df.iterrows()]
+                selected_sess = st.selectbox("Select Target Session to Update:", session_options, key="edit_sess_select")
+                target_id = int(selected_sess.split(" - ")[0])
+                current_data = sessions_df[sessions_df['id'] == target_id].iloc[0]
+                
+                with st.form("edit_form_session"):
+                    col1, col2 = st.columns(2)
+                    with col1: update_name = st.text_input("Modify Name/Year:", value=current_data['session_name'])
+                    with col2: update_status = st.selectbox("Modify Status:", ["Active", "Inactive"], index=0 if current_data['status'] == "Active" else 1)
+                    if st.form_submit_button("💾 Save Session Changes", type="secondary"):
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE sessions SET session_name = :name, status = :status WHERE id = :id"),
+                                         {"name": update_name, "status": update_status, "id": target_id})
+                        st.success("🎉 Session references updated smoothly!")
+                        time.sleep(0.5)
+                        st.rerun()
+            else: st.info("No active Session logs discovered.")
+
+        # ----------------------------------------------------------------------
+        # 2. ACADEMIC SYSTEM MANAGEMENT (ADD & EDIT)
+        # ----------------------------------------------------------------------
         elif setup_type == "Academic System":
+            st.markdown("#### ➕ Add New Academic System")
             with st.form("form_academic_system"):
                 col1, col2 = st.columns(2)
-                with col1: system_name = st.text_input("Academic System Structure Name:", placeholder="e.g., Semester System, Annual System")
-                with col2: system_desc = st.text_area("System Description:", placeholder="Brief notes about term rules...")
+                with col1: system_name = st.text_input("Academic System Name:", placeholder="e.g., Semester System")
+                with col2: system_desc = st.text_area("System Description:", placeholder="Notes...")
                 submit = st.form_submit_button("➕ Register Academic System", type="primary")
                 if submit:
                     if system_name:
@@ -168,10 +186,37 @@ def render_master_setup_engine():
                                 conn.execute(text("INSERT INTO academic_systems (system_name, description) VALUES (:name, :desc)"), 
                                              {"name": system_name, "desc": system_desc})
                             st.success(f"🎉 Academic Framework '{system_name}' initialized successfully!")
+                            time.sleep(0.5)
+                            st.rerun()
                         except Exception as e: st.error(f"❌ Database error: {e}")
                     else: st.error("❌ System name cannot be empty.")
 
+            st.markdown("---")
+            st.markdown("#### ✏️ Edit Existing Academic Systems")
+            systems_df = run_query("SELECT id, system_name, description FROM academic_systems")
+            if not systems_df.empty:
+                system_options = [f"{row['id']} - {row['system_name']}" for _, row in systems_df.iterrows()]
+                selected_sys = st.selectbox("Select Target Framework to Update:", system_options, key="edit_sys_select")
+                target_id = int(selected_sys.split(" - ")[0])
+                current_data = systems_df[systems_df['id'] == target_id].iloc[0]
+                
+                with st.form("edit_form_sys"):
+                    update_name = st.text_input("Modify System Name:", value=current_data['system_name'])
+                    update_desc = st.text_area("Modify Description:", value=current_data['description'] or "")
+                    if st.form_submit_button("💾 Save System Changes", type="secondary"):
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE academic_systems SET system_name = :name, description = :desc WHERE id = :id"),
+                                         {"name": update_name, "desc": update_desc, "id": target_id})
+                        st.success("🎉 Academic System profiles updated smoothly!")
+                        time.sleep(0.5)
+                        st.rerun()
+            else: st.info("No active Framework models discovered.")
+
+        # ----------------------------------------------------------------------
+        # 3. CLASSES MANAGEMENT (ADD & EDIT)
+        # ----------------------------------------------------------------------
         elif setup_type == "Classes":
+            st.markdown("#### ➕ Add New Class Level")
             with st.form("form_classes"):
                 col1, col2 = st.columns(2)
                 with col1: class_title = st.selectbox("Select Class Level Tier:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
@@ -182,13 +227,41 @@ def render_master_setup_engine():
                         with engine.begin() as conn:
                             conn.execute(text("INSERT INTO classes (class_level, sort_order) VALUES (:lvl, :sort)"), 
                                          {"lvl": class_title, "sort": numeric_index})
-                        st.success(f"🎉 Class Level Grade '{class_title}' added to structural arrays!")
+                        st.success(f"🎉 Class Level Grade '{class_title}' added!")
+                        time.sleep(0.5)
+                        st.rerun()
                     except Exception as e: st.error(f"❌ Database error: {e}")
 
+            st.markdown("---")
+            st.markdown("#### ✏️ Edit Existing Class Structures")
+            classes_df = run_query("SELECT id, class_level, sort_order FROM classes")
+            if not classes_df.empty:
+                class_options = [f"{row['id']} - Class Tier {row['class_level']} (Index: {row['sort_order']})" for _, row in classes_df.iterrows()]
+                selected_cls = st.selectbox("Select Class Node to Update:", class_options, key="edit_cls_select")
+                target_id = int(selected_cls.split(" - ")[0])
+                current_data = classes_df[classes_df['id'] == target_id].iloc[0]
+                
+                with st.form("edit_form_cls"):
+                    col1, col2 = st.columns(2)
+                    with col1: update_lvl = st.selectbox("Modify Level Tier:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], index=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"].index(current_data['class_level']))
+                    with col2: update_sort = st.number_input("Modify Sort Order:", min_value=1, value=int(current_data['sort_order']))
+                    if st.form_submit_button("💾 Save Class Changes", type="secondary"):
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE classes SET class_level = :lvl, sort_order = :sort WHERE id = :id"),
+                                         {"lvl": update_lvl, "sort": update_sort, "id": target_id})
+                        st.success("🎉 Class Level metadata structural fields synchronized!")
+                        time.sleep(0.5)
+                        st.rerun()
+            else: st.info("No indexed class records inside storage system.")
+
+        # ----------------------------------------------------------------------
+        # 4. SECTIONS MANAGEMENT (ADD & EDIT)
+        # ----------------------------------------------------------------------
         elif setup_type == "Sections":
+            st.markdown("#### ➕ Add New Section")
             with st.form("form_sections"):
                 col1, col2 = st.columns(2)
-                with col1: section_name = st.text_input("Section Label Name:", placeholder="e.g., A, B, Rose, Jasmine").upper()
+                with col1: section_name = st.text_input("Section Label Name:", placeholder="e.g., A, B, Rose").upper()
                 with col2: max_capacity = st.number_input("Maximum Student Cap Limit:", min_value=1, value=40)
                 submit = st.form_submit_button("➕ Register Section Unit", type="primary")
                 if submit:
@@ -198,15 +271,43 @@ def render_master_setup_engine():
                                 conn.execute(text("INSERT INTO sections (section_name, max_capacity) VALUES (:name, :cap)"), 
                                              {"name": section_name, "cap": max_capacity})
                             st.success(f"🎉 Section Room Node '{section_name}' successfully added!")
+                            time.sleep(0.5)
+                            st.rerun()
                         except Exception as e: st.error(f"❌ Database error: {e}")
                     else: st.error("❌ Section Label code cannot be blank.")
 
+            st.markdown("---")
+            st.markdown("#### ✏️ Edit Existing Section Branches")
+            sections_df = run_query("SELECT id, section_name, max_capacity FROM sections")
+            if not sections_df.empty:
+                sec_options = [f"{row['id']} - Section {row['section_name']} (Cap: {row['max_capacity']})" for _, row in sections_df.iterrows()]
+                selected_sec = st.selectbox("Select Target Section Room:", sec_options, key="edit_sec_select")
+                target_id = int(selected_sec.split(" - ")[0])
+                current_data = sections_df[sections_df['id'] == target_id].iloc[0]
+                
+                with st.form("edit_form_sec"):
+                    col1, col2 = st.columns(2)
+                    with col1: update_name = st.text_input("Modify Label Token:", value=current_data['section_name']).upper()
+                    with col2: update_cap = st.number_input("Modify Max Capacity Threshold:", min_value=1, value=int(current_data['max_capacity']))
+                    if st.form_submit_button("💾 Save Section Changes", type="secondary"):
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE sections SET section_name = :name, max_capacity = :cap WHERE id = :id"),
+                                         {"name": update_name, "cap": update_cap, "id": target_id})
+                        st.success("🎉 Section adjustments processed effectively.")
+                        time.sleep(0.5)
+                        st.rerun()
+            else: st.info("No tracked sections exist.")
+
+        # ----------------------------------------------------------------------
+        # 5. SUBJECTS MANAGEMENT (ADD & EDIT)
+        # ----------------------------------------------------------------------
         elif setup_type == "Subjects":
+            st.markdown("#### ➕ Add New Academic Subject")
             with st.form("form_subjects"):
                 col1, col2, col3 = st.columns(3)
-                with col1: sub_name = st.text_input("Subject Official Title Name:", placeholder="e.g., Mathematics, Physics")
+                with col1: sub_name = st.text_input("Subject Official Title Name:", placeholder="e.g., Mathematics")
                 with col2: sub_code = st.text_input("Subject Ident Code:", placeholder="e.g., MATH-101").upper()
-                with col3: credit_hours = st.number_input("Credit Hours Weight allocation:", min_value=1, max_value=6, value=3)
+                with col3: credit_hours = st.number_input("Credit Hours Weight:", min_value=1, max_value=6, value=3)
                 submit = st.form_submit_button("➕ Register Academic Subject", type="primary")
                 if submit:
                     if sub_name and sub_code:
@@ -215,15 +316,44 @@ def render_master_setup_engine():
                                 conn.execute(text("INSERT INTO subjects (subject_name, subject_code, credit_hours) VALUES (:name, :code, :ch)"), 
                                              {"name": sub_name, "code": sub_code, "ch": credit_hours})
                             st.success(f"🎉 Core Subject Registry item locked: [{sub_code}] - {sub_name}")
+                            time.sleep(0.5)
+                            st.rerun()
                         except Exception as e: st.error(f"❌ Database error: {e}")
-                    else: st.error("❌ Both Subject Title and Unique Identification code fields must be declared.")
+                    else: st.error("❌ Heading labels are mandatory entries.")
 
+            st.markdown("---")
+            st.markdown("#### ✏️ Edit Existing Course Modules")
+            subjects_df = run_query("SELECT id, subject_name, subject_code, credit_hours FROM subjects")
+            if not subjects_df.empty:
+                sub_options = [f"{row['id']} - [{row['subject_code']}] {row['subject_name']}" for _, row in subjects_df.iterrows()]
+                selected_sub = st.selectbox("Select Target Course To Update:", sub_options, key="edit_sub_select")
+                target_id = int(selected_sub.split(" - ")[0])
+                current_data = subjects_df[subjects_df['id'] == target_id].iloc[0]
+                
+                with st.form("edit_form_sub"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1: update_name = st.text_input("Modify Course Title:", value=current_data['subject_name'])
+                    with col2: update_code = st.text_input("Modify Alpha Code ID:", value=current_data['subject_code']).upper()
+                    with col3: update_ch = st.number_input("Modify Credit Weight Allocation:", min_value=1, max_value=6, value=int(current_data['credit_hours']))
+                    if st.form_submit_button("💾 Save Subject Profile Changes", type="secondary"):
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE subjects SET subject_name = :name, subject_code = :code, credit_hours = :ch WHERE id = :id"),
+                                         {"name": update_name, "code": update_code, "ch": update_ch, "id": target_id})
+                        st.success("🎉 Course catalogue adjustments saved dynamically.")
+                        time.sleep(0.5)
+                        st.rerun()
+            else: st.info("Course mapping matrix arrays are blank.")
+
+        # ----------------------------------------------------------------------
+        # 6. TEST/EXAM SCHEME MANAGEMENT (ADD & EDIT)
+        # ----------------------------------------------------------------------
         elif setup_type == "Test/Exam":
+            st.markdown("#### ➕ Add New Test Evaluation Scheme")
             with st.form("form_test_exam"):
                 col1, col2, col3 = st.columns(3)
-                with col1: test_title = st.text_input("Assessment Scheme Term Title:", placeholder="e.g., Quiz 1, Mid Term, Final Term")
+                with col1: test_title = st.text_input("Assessment Title:", placeholder="e.g., Mid Term Exam")
                 with col2: total_marks = st.number_input("Max Achievable Out-Of Marks Value:", min_value=1, value=100)
-                with col3: weight_percent = st.number_input("Weightage Factor Percent Calculation Ratio (%):", min_value=0, max_value=100, value=20)
+                with col3: weight_percent = st.number_input("Weightage Factor Ratio (%):", min_value=0, max_value=100, value=20)
                 submit = st.form_submit_button("➕ Register Test Profile Evaluation Scheme", type="primary")
                 if submit:
                     if test_title:
@@ -231,15 +361,44 @@ def render_master_setup_engine():
                             with engine.begin() as conn:
                                 conn.execute(text("INSERT INTO test_types (test_title, total_marks, weightage) VALUES (:title, :tm, :wt)"), 
                                              {"title": test_title, "tm": total_marks, "wt": weight_percent})
-                            st.success(f"🎉 Evaluation Pattern Scheme added: {test_title} ({total_marks} Marks)")
+                            st.success(f"🎉 Evaluation Pattern Scheme added: {test_title}")
+                            time.sleep(0.5)
+                            st.rerun()
                         except Exception as e: st.error(f"❌ Database error: {e}")
-                    else: st.error("❌ Test scheme structural heading is required.")
+                    else: st.error("❌ Test heading is required.")
 
+            st.markdown("---")
+            st.markdown("#### ✏️ Edit Existing Test Protocols")
+            tests_df = run_query("SELECT id, test_title, total_marks, weightage FROM test_types")
+            if not tests_df.empty:
+                test_options = [f"{row['id']} - {row['test_title']} ({row['total_marks']}M / {row['weightage']}% Weight)" for _, row in tests_df.iterrows()]
+                selected_tst = st.selectbox("Select Target Evaluation Layout Template:", test_options, key="edit_tst_select")
+                target_id = int(selected_tst.split(" - ")[0])
+                current_data = tests_df[tests_df['id'] == target_id].iloc[0]
+                
+                with st.form("edit_form_tst"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1: update_title = st.text_input("Modify Scheme Header Name:", value=current_data['test_title'])
+                    with col2: update_tm = st.number_input("Modify Absolute Maximum Marks:", min_value=1, value=int(current_data['total_marks']))
+                    with col3: update_wt = st.number_input("Modify Score Evaluation Weight (%):", min_value=0, max_value=100, value=int(current_data['weightage']))
+                    if st.form_submit_button("💾 Save Scheme Blueprint Changes", type="secondary"):
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE test_types SET test_title = :title, total_marks = :tm, weightage = :wt WHERE id = :id"),
+                                         {"title": update_title, "tm": update_tm, "wt": update_wt, "id": target_id})
+                        st.success("🎉 Examination structures successfully transformed and patched.")
+                        time.sleep(0.5)
+                        st.rerun()
+            else: st.info("No exam weight parameters declared in system schemas.")
+
+        # ----------------------------------------------------------------------
+        # 7. DISCIPLINES MANAGEMENT (ADD & EDIT)
+        # ----------------------------------------------------------------------
         elif setup_type == "Disciplines":
+            st.markdown("#### ➕ Add New Discipline Stream Group")
             with st.form("form_disciplines"):
                 col1, col2 = st.columns(2)
-                with col1: disc_title = st.text_input("Discipline Stream Group Designation:", placeholder="e.g., Pre-Engineering, Pre-Medical, Computer Science")
-                with col2: disc_code = st.text_input("Stream Unique Prefix Short Code:", placeholder="e.g., FSc-PE, ICS").upper()
+                with col1: disc_title = st.text_input("Discipline Stream Group Designation:", placeholder="e.g., Computer Science")
+                with col2: disc_code = st.text_input("Stream Unique Prefix Short Code:", placeholder="e.g., ICS").upper()
                 submit = st.form_submit_button("➕ Register Discipline Stream Branch", type="primary")
                 if submit:
                     if disc_title and disc_code:
@@ -247,9 +406,33 @@ def render_master_setup_engine():
                             with engine.begin() as conn:
                                 conn.execute(text("INSERT INTO disciplines (discipline_title, short_code) VALUES (:title, :code)"), 
                                              {"title": disc_title, "code": disc_code})
-                            st.success(f"🎉 Discipline Matrix Branch mapped: {disc_title} ({disc_code})")
+                            st.success(f"🎉 Discipline Matrix Branch mapped: {disc_title}")
+                            time.sleep(0.5)
+                            st.rerun()
                         except Exception as e: st.error(f"❌ Database error: {e}")
-                    else: st.error("❌ Discipline Group name and operational prefix index required.")
+                    else: st.error("❌ Structural parameters require entries.")
+
+            st.markdown("---")
+            st.markdown("#### ✏️ Edit Existing Stream Domains")
+            disciplines_df = run_query("SELECT id, discipline_title, short_code FROM disciplines")
+            if not disciplines_df.empty:
+                disc_options = [f"{row['id']} - ({row['short_code']}) {row['discipline_title']}" for _, row in disciplines_df.iterrows()]
+                selected_dsc = st.selectbox("Select Target Academic Stream Node:", disc_options, key="edit_dsc_select")
+                target_id = int(selected_dsc.split(" - ")[0])
+                current_data = disciplines_df[disciplines_df['id'] == target_id].iloc[0]
+                
+                with st.form("edit_form_dsc"):
+                    col1, col2 = st.columns(2)
+                    with col1: update_title = st.text_input("Modify Domain Label Heading:", value=current_data['discipline_title'])
+                    with col2: update_code = st.text_input("Modify Short Index Tag Prefix:", value=current_data['short_code']).upper()
+                    if st.form_submit_button("💾 Save Stream Group Changes", type="secondary"):
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE disciplines SET discipline_title = :title, short_code = :code WHERE id = :id"),
+                                         {"title": update_title, "code": update_code, "id": target_id})
+                        st.success("🎉 Stream structure definitions modified successfully.")
+                        time.sleep(0.5)
+                        st.rerun()
+            else: st.info("No recorded disciplines exist inside ledger nodes.")
 
     with tab2:
         st.markdown("### Map Institutional Dependencies")
@@ -334,7 +517,6 @@ def render_student_management_workspace():
                 ]
                 selected_edit_target = st.selectbox("Select Target Record to Update:", student_options)
                 target_id = int(selected_edit_target.split(" - ")[0])
-                
                 current_target_row = matched_students[matched_students["student_id"] == target_id].iloc[0]
                 
                 with st.form("edit_student_data_form"):
@@ -395,7 +577,7 @@ def render_universal_attendance_workspace():
                 with col_status: status = st.radio(f"U_Status_{row['student_id']}", ["Present", "Absent"], horizontal=True, label_visibility="collapsed")
                 with col_remarks:
                     if status == "Absent":
-                        remarks = st.text_input("Absent Remarks", placeholder="⚠️ Enter reason (e.g., Suspended, Sick)", key=f"urem_{row['student_id']}", label_visibility="collapsed")
+                        remarks = st.text_input("Absent Remarks", placeholder="⚠️ Enter reason", key=f"urem_{row['student_id']}", label_visibility="collapsed")
                     else:
                         remarks = st.text_input("Absent Remarks", value="—", disabled=True, key=f"urem_{row['student_id']}", label_visibility="collapsed")
                 
@@ -404,8 +586,8 @@ def render_universal_attendance_workspace():
                 
             submit_attendance = st.form_submit_button("💾 Save & Commit Section Attendance Register (Admin Override)", type="primary", use_container_width=True)
             if submit_attendance:
-                st.success(f"🎉 Attendance override map for Class {sel_class}-{sel_section} successfully executed for {attendance_date}!")
-    else: st.info(f"No student profiles are mapped to Class {sel_class}-{sel_section} inside system logs.")
+                st.success(f"🎉 Attendance override map successfully executed for {attendance_date}!")
+    else: st.info(f"No student profiles are mapped to Class {sel_class}-{sel_section}.")
 
 def render_universal_marks_entry_workspace():
     """Shared workspace allowing Exam Controller & VP to overwrite or enter marks for any subject/class/section."""
