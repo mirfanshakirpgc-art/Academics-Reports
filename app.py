@@ -681,10 +681,17 @@ def render_master_setup_engine():
 
 
 def render_student_management_workspace():
-    """Shared workspace enabling authorized users to onboard or update student registry information."""
+    """Shared workspace enabling authorized users to onboard, bulk import, or update student registry information."""
     st.subheader("📝 Student Records & Registration Directory")
-    tab1, tab2 = st.tabs(["🆕 Add New Student Roster Record", "✏️ Edit Existing Student Profile Data"])
     
+    # Sub-tabs separating Single Manual Entry, Bulk Excel Loading, and Edit Panel
+    tab1, tab2, tab3 = st.tabs([
+        "🆕 Manual Admission Entry", 
+        "📤 Bulk Import via Excel", 
+        "✏️ Edit Student Profiles"
+    ])
+    
+    # Safely pull structural metadata from database layer for selection menus
     try:
         available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
         if not available_classes:
@@ -692,66 +699,176 @@ def render_student_management_workspace():
     except Exception:
         available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
 
+    # Ensure database schema table structure accommodates our 8 primary fields
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS students (
+                student_id TEXT PRIMARY KEY,
+                student_name TEXT NOT NULL,
+                father_name TEXT NOT NULL,
+                whatsapp_no TEXT,
+                student_no TEXT,
+                contact_1 TEXT NOT NULL,
+                contact_2 TEXT,
+                home_address TEXT,
+                class_level TEXT,
+                section TEXT,
+                roll_no INTEGER
+            );
+        """))
+
+    # ==============================================================================
+    # TAB 1: MANUAL ADMISSION ENTRY
+    # ==============================================================================
     with tab1:
-        with st.form("add_new_student_form"):
-            st.write("### Register New Student Node")
+        with st.form("add_new_student_form", clear_on_submit=True):
+            st.write("### Register New Student Particulars")
+            
+            # Row 1: Core Identification
             col1, col2, col3 = st.columns(3)
-            with col1: new_name = st.text_input("Full Name:", placeholder="John Doe")
-            with col2: new_class = st.selectbox("Target Class Level:", available_classes)
-            with col3: new_sec = st.text_input("Target Section:", placeholder="A", max_chars=2).upper()
-                
-            new_roll = st.number_input("Assign Roll Number:", min_value=1, step=1)
+            with col1: new_id = st.text_input("1. Student ID / Registration No:*", placeholder="e.g., STU-2026-001").strip().upper()
+            with col2: new_name = st.text_input("2. Student Full Name:*", placeholder="e.g., John Doe").strip()
+            with col3: father_name = st.text_input("3. Student's Father Name:*", placeholder="e.g., Robert Doe").strip()
+            
+            # Row 2: Communication Vectors
+            col4, col5, col6 = st.columns(3)
+            with col4: whatsapp_no = st.text_input("4. WhatsApp Number:", placeholder="e.g., +923001234567").strip()
+            with col5: student_no = st.text_input("5. Student Mobile Number:", placeholder="e.g., +923151234567").strip()
+            with col6: contact_1 = st.text_input("6. Emergency Contact-1:*", placeholder="e.g., Mother's Mobile").strip()
+            
+            # Row 3: Extended Details
+            col7, col8 = st.columns([1, 2])
+            with col7: contact_2 = st.text_input("7. Alternative Contact-2:", placeholder="e.g., Guardian/Landline").strip()
+            with col8: home_address = st.text_input("8. Home Address:", placeholder="e.g., House #123, Street 5, Sector G-10").strip()
+            
+            # Row 4: Class Assignment Attributes
+            st.markdown("---")
+            st.write("📁 **Academic Placement Attributes**")
+            col_a1, col_a2, col_a3 = st.columns(3)
+            with col_a1: new_class = st.selectbox("Target Class Level:", available_classes, key="manual_cls")
+            with col_a2: new_sec = st.text_input("Target Section Assignment:", placeholder="A", max_chars=2).upper().strip()
+            with col_a3: new_roll = st.number_input("Assign Roll Number:", min_value=1, step=1)
+            
+            st.markdown("<small style='color: gray;'>* Indicates a mandatory infrastructure metric field.</small>", unsafe_allow_html=True)
             submit_new_student = st.form_submit_button("➕ Save Record to Database Instance", type="primary")
             
             if submit_new_student:
-                if not new_name or not new_sec:
-                    st.error("❌ Action validation error: Both Name and Section tags must be declared.")
+                if not new_id or not new_name or not father_name or not contact_1:
+                    st.error("❌ Validation Error: Student ID, Full Name, Father Name, and Contact-1 are strictly mandatory.")
                 else:
                     try:
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO students (student_name, class_level, section, roll_no)
-                                VALUES (:name, :class_lvl, :sec, :roll)
-                            """), {"name": new_name, "class_lvl": new_class, "sec": new_sec, "roll": new_roll})
+                                INSERT INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, class_level, section, roll_no)
+                                VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :class_lvl, :sec, :roll)
+                            """), {
+                                "id": new_id, "name": new_name, "fname": father_name, "whatsapp": whatsapp_no,
+                                "sno": student_no, "c1": contact_1, "c2": contact_2, "addr": home_address,
+                                "class_lvl": new_class, "sec": new_sec, "roll": new_roll
+                            })
                         st.success(f"🎉 Student node successfully registered: {new_name} added to Class {new_class}-{new_sec}")
-                    except Exception as e: st.error(f"❌ Database execution failure: {e}")
-                        
+                        time.sleep(0.5)
+                        st.rerun()
+                    except Exception as e: 
+                        st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
+
+    # ==============================================================================
+    # TAB 2: BULK IMPORT VIA EXCEL
+    # ==============================================================================
     with tab2:
-        st.write("### Edit Active Student Ledger Fields")
-        search_term = st.text_input("🔍 Search Student Profile by Name:", key="student_edit_search")
+        st.write("### 📤 Bulk Upload Student Spreadsheets")
+        st.info("💡 Ensure your Excel file (.xlsx) matches these exact headers: `Student ID`, `Student Name`, `Father Name`, `WhatsApp`, `Student Number`, `Contact 1`, `Contact 2`, `Home Address`, `Class Level`, `Section`, `Roll Number`")
+        
+        uploaded_file = st.file_uploader("Upload Academic Spreadsheet Ledger:", type=["xlsx"])
+        
+        if uploaded_file is not None:
+            try:
+                df = pd.read_excel(uploaded_file)
+                st.write("📋 **Previewing First 5 Rows of Uploaded Records:**")
+                st.dataframe(df.head(5), use_container_width=True)
+                
+                if st.button("🚀 Process & Commit Excel Records", type="primary", use_container_width=True):
+                    required_cols = ["Student ID", "Student Name", "Father Name", "Contact 1"]
+                    missing_cols = [c for c in required_cols if c not in df.columns]
+                    
+                    if missing_cols:
+                        st.error(f"❌ Processing aborted. Missing mandatory column mapping definitions: {missing_cols}")
+                    else:
+                        counter = 0
+                        with engine.begin() as conn:
+                            for _, row in df.iterrows():
+                                s_id = str(row.get("Student ID")).strip().upper()
+                                s_name = str(row.get("Student Name")).strip()
+                                f_name = str(row.get("Father Name")).strip()
+                                w_no = str(row.get("WhatsApp", "")) if pd.notna(row.get("WhatsApp")) else ""
+                                s_no = str(row.get("Student Number", "")) if pd.notna(row.get("Student Number")) else ""
+                                c1 = str(row.get("Contact 1")).strip()
+                                c2 = str(row.get("Contact 2", "")) if pd.notna(row.get("Contact 2")) else ""
+                                addr = str(row.get("Home Address", "")) if pd.notna(row.get("Home Address")) else ""
+                                cls_lvl = str(row.get("Class Level", "")) if pd.notna(row.get("Class Level")) else ""
+                                sec = str(row.get("Section", "")).strip().upper() if pd.notna(row.get("Section")) else ""
+                                roll = int(row.get("Roll Number")) if pd.notna(row.get("Roll Number")) else None
+                                
+                                if s_id and s_name:
+                                    conn.execute(text("""
+                                        INSERT OR REPLACE INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, class_level, section, roll_no)
+                                        VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :class_lvl, :sec, :roll)
+                                    """), {
+                                        "id": s_id, "name": s_name, "fname": f_name, "whatsapp": w_no,
+                                        "sno": s_no, "c1": c1, "c2": c2, "addr": addr, "class_lvl": cls_lvl, "sec": sec, "roll": roll
+                                    })
+                                    counter += 1
+                        st.success(f"🎉 Bulk operation successful! {counter} student profiles integrated smoothly.")
+                        time.sleep(1.0)
+                        st.rerun()
+            except Exception as e:
+                st.error(f"❌ File compilation processing failure: {e}")
+
+    # ==============================================================================
+    # TAB 3: EDIT ACTIVE STUDENT LEDGER FIELDS
+    # ==============================================================================
+    with tab3:
+        st.write("### Search & Edit Active Profiles")
+        search_term = st.text_input("🔍 Search Student Profile by Name:", key="student_workspace_search")
         
         if search_term:
-            try:
-                matched_students = run_query("""
-                    SELECT student_id, roll_no, student_name, class_level, section 
-                    FROM students 
-                    WHERE student_name LIKE :search
-                """, {"search": f"%{search_term}%"})
-            except Exception:
-                matched_students = pd.DataFrame([{"student_id": 99, "roll_no": 5, "student_name": f"{search_term} Test", "class_level": "11th", "section": "B"}])
-                st.caption("⚠️ Running UI structural mock sandbox layout data.")
+            matched_students = run_query("""
+                SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, class_level, section 
+                FROM students 
+                WHERE student_name LIKE :search
+            """, {"search": f"%{search_term}%"})
 
             if not matched_students.empty:
                 student_options = [
-                    f"{row['student_id']} - Roll #{row['roll_no']}: {row['student_name']} ({row['class_level']}-{row['section']})"
+                    f"{row['student_id']} - ID: {row['student_id']} | {row['student_name']} s/o {row['father_name']}"
                     for _, row in matched_students.iterrows()
                 ]
                 selected_edit_target = st.selectbox("Select Target Record to Update:", student_options)
-                target_id = int(selected_edit_target.split(" - ")[0])
+                target_id = selected_edit_target.split(" - ")[0]
                 current_target_row = matched_students[matched_students["student_id"] == target_id].iloc[0]
                 
                 with st.form("edit_student_data_form"):
                     col_e1, col_e2, col_e3 = st.columns(3)
-                    with col_e1: edit_name = st.text_input("Update Name:", value=current_target_row["student_name"])
-                    with col_e2: 
-                        try:
-                            cls_idx = available_classes.index(str(current_target_row["class_level"]))
-                        except ValueError:
-                            cls_idx = 0
-                        edit_class = st.selectbox("Update Class Level:", available_classes, index=cls_idx)
-                    with col_e3: edit_sec = st.text_input("Update Section:", value=current_target_row["section"], max_chars=2).upper()
-                        
-                    edit_roll = st.number_input("Update Roll Number:", value=int(current_target_row["roll_no"]), min_value=1)
+                    with col_e1: edit_name = st.text_input("Modify Name:", value=current_target_row["student_name"])
+                    with col_e2: edit_fname = st.text_input("Modify Father Name:", value=current_target_row["father_name"])
+                    with col_e3: edit_whatsapp = st.text_input("Modify WhatsApp Number:", value=str(current_target_row["whatsapp_no"] or ""))
+                    
+                    col_e4, col_e5, col_e6 = st.columns(3)
+                    with col_e4: edit_sno = st.text_input("Modify Mobile Number:", value=str(current_target_row["student_no"] or ""))
+                    with col_e5: edit_c1 = st.text_input("Modify Contact-1:", value=str(current_target_row["contact_1"] or ""))
+                    with col_e6: edit_c2 = st.text_input("Modify Contact-2:", value=str(current_target_row["contact_2"] or ""))
+                    
+                    edit_addr = st.text_input("Modify Home Address:", value=str(current_target_row["home_address"] or ""))
+                    
+                    st.markdown("---")
+                    col_e7, col_e8, col_e9 = st.columns(3)
+                    try:
+                        cls_idx = available_classes.index(str(current_target_row["class_level"]))
+                    except ValueError:
+                        cls_idx = 0
+                    with col_e7: edit_class = st.selectbox("Update Class Level:", available_classes, index=cls_idx)
+                    with col_e8: edit_sec = st.text_input("Update Section:", value=str(current_target_row["section"] or "")).upper()
+                    with col_e9: edit_roll = st.number_input("Update Roll Number:", value=int(current_target_row["roll_no"] or 1), min_value=1)
                     
                     save_student_edits = st.form_submit_button("💾 Save Profile Modification Changes", type="primary")
                     if save_student_edits:
@@ -759,13 +876,22 @@ def render_student_management_workspace():
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE students 
-                                    SET student_name = :name, class_level = :class_lvl, section = :sec, roll_no = :roll
+                                    SET student_name = :name, father_name = :fname, whatsapp_no = :whatsapp, 
+                                        student_no = :sno, contact_1 = :c1, contact_2 = :c2, home_address = :addr,
+                                        class_level = :class_lvl, section = :sec, roll_no = :roll
                                     WHERE student_id = :sid
-                                """), {"name": edit_name, "class_lvl": edit_class, "sec": edit_sec, "roll": edit_roll, "sid": target_id})
-                            st.success("🎉 Student system records reference modified inside relational logs successfully!")
-                        except Exception as e: st.error(f"❌ Modification processing failed: {e}")
-            else: st.info("No matching student profile entries discovered.")
-
+                                """), {
+                                    "name": edit_name, "fname": edit_fname, "whatsapp": edit_whatsapp,
+                                    "sno": edit_sno, "c1": edit_c1, "c2": edit_c2, "addr": edit_addr,
+                                    "class_lvl": edit_class, "sec": edit_sec, "roll": edit_roll, "sid": target_id
+                                })
+                            st.success("🎉 Student record updated cleanly inside the relational directory!")
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e: 
+                            st.error(f"❌ Modification processing failed: {e}")
+            else: 
+                st.info("No matching student profile entries discovered.")
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
