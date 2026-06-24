@@ -41,21 +41,129 @@ def render_master_setup_engine():
     
     with tab1:
         st.markdown("### Add Structural School Variables")
+        
+        # Sub-navigation for each distinct structural item
         setup_type = st.selectbox(
             "Select Variable Layer to Initialize:",
-            ["Session Year", "Academic System", "Class Level", "Section Unit", "Academic Subject", "Test/Exam Type", "Discipline Stream"]
+            ["Session", "Academic System", "Classes", "Sections", "Subjects", "Test/Exam", "Disciplines"]
         )
         
-        with st.form("core_variable_form"):
-            new_input_val = st.text_input(f"Enter New {setup_type} Value:", placeholder=f"e.g., Data details for {setup_type}")
-            submit_variable = st.form_submit_button(f"➕ Register {setup_type}", type="primary")
-            
-            if submit_variable:
-                if not new_input_val:
-                    st.error("❌ Content configuration error: Value field cannot be left blank.")
-                else:
-                    # In your database, these will target their respective tables (e.g., sessions, systems, classes)
-                    st.success(f"🎉 System Matrix Updated: Successfully initialized '{new_input_val}' inside {setup_type} records.")
+        st.markdown(f"#### Form: Add New {setup_type}")
+        
+        # ----------------------------------------------------------------------
+        # DYNAMIC PARAMETER CREATION FORMS
+        # ----------------------------------------------------------------------
+        if setup_type == "Session":
+            with st.form("form_session"):
+                col1, col2 = st.columns(2)
+                with col1: session_name = st.text_input("Session Name/Year:", placeholder="e.g., 2026-2027")
+                with col2: session_status = st.selectbox("Initial Status:", ["Active", "Inactive"])
+                submit = st.form_submit_button("➕ Register Session Year", type="primary")
+                if submit:
+                    if session_name:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("INSERT INTO sessions (session_name, status) VALUES (:name, :status)"), 
+                                             {"name": session_name, "status": session_status})
+                            st.success(f"🎉 Session Year '{session_name}' locked into system registries successfully!")
+                        except Exception as e: st.error(f"❌ Database error: {e}")
+                    else: st.error("❌ Name tag cannot be empty.")
+
+        elif setup_type == "Academic System":
+            with st.form("form_academic_system"):
+                col1, col2 = st.columns(2)
+                with col1: system_name = st.text_input("Academic System Structure Name:", placeholder="e.g., Semester System, Annual System")
+                with col2: system_desc = st.text_area("System Description:", placeholder="Brief notes about term rules...")
+                submit = st.form_submit_button("➕ Register Academic System", type="primary")
+                if submit:
+                    if system_name:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("INSERT INTO academic_systems (system_name, description) VALUES (:name, :desc)"), 
+                                             {"name": system_name, "desc": system_desc})
+                            st.success(f"🎉 Academic Framework '{system_name}' initialized successfully!")
+                        except Exception as e: st.error(f"❌ Database error: {e}")
+                    else: st.error("❌ System name cannot be empty.")
+
+        elif setup_type == "Classes":
+            with st.form("form_classes"):
+                col1, col2 = st.columns(2)
+                with col1: class_title = st.selectbox("Select Class Level Tier:", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])
+                with col2: numeric_index = st.number_input("Numeric Sort Index Value:", min_value=1, value=int(class_title) if class_title.isdigit() else 1)
+                submit = st.form_submit_button("➕ Register Class Level", type="primary")
+                if submit:
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("INSERT INTO classes (class_level, sort_order) VALUES (:lvl, :sort)"), 
+                                         {"lvl": class_title, "sort": numeric_index})
+                        st.success(f"🎉 Class Level Grade '{class_title}' added to structural arrays!")
+                    except Exception as e: st.error(f"❌ Database error: {e}")
+
+        elif setup_type == "Sections":
+            with st.form("form_sections"):
+                col1, col2 = st.columns(2)
+                with col1: section_name = st.text_input("Section Label Name:", placeholder="e.g., A, B, Rose, Jasmine").upper()
+                with col2: max_capacity = st.number_input("Maximum Student Cap Limit:", min_value=1, value=40)
+                submit = st.form_submit_button("➕ Register Section Unit", type="primary")
+                if submit:
+                    if section_name:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("INSERT INTO sections (section_name, max_capacity) VALUES (:name, :cap)"), 
+                                             {"name": section_name, "cap": max_capacity})
+                            st.success(f"🎉 Section Room Node '{section_name}' successfully added!")
+                        except Exception as e: st.error(f"❌ Database error: {e}")
+                    else: st.error("❌ Section Label code cannot be blank.")
+
+        elif setup_type == "Subjects":
+            with st.form("form_subjects"):
+                col1, col2, col3 = st.columns(3)
+                with col1: sub_name = st.text_input("Subject Official Title Name:", placeholder="e.g., Mathematics, Physics")
+                with col2: sub_code = st.text_input("Subject Ident Code:", placeholder="e.g., MATH-101").upper()
+                with col3: credit_hours = st.number_input("Credit Hours Weight allocation:", min_value=1, max_value=6, value=3)
+                submit = st.form_submit_button("➕ Register Academic Subject", type="primary")
+                if submit:
+                    if sub_name and sub_code:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("INSERT INTO subjects (subject_name, subject_code, credit_hours) VALUES (:name, :code, :ch)"), 
+                                             {"name": sub_name, "code": sub_code, "ch": credit_hours})
+                            st.success(f"🎉 Core Subject Registry item locked: [{sub_code}] - {sub_name}")
+                        except Exception as e: st.error(f"❌ Database error: {e}")
+                    else: st.error("❌ Both Subject Title and Unique Identification code fields must be declared.")
+
+        elif setup_type == "Test/Exam":
+            with st.form("form_test_exam"):
+                col1, col2, col3 = st.columns(3)
+                with col1: test_title = st.text_input("Assessment Scheme Term Title:", placeholder="e.g., Quiz 1, Mid Term, Final Term")
+                with col2: total_marks = st.number_input("Max Achievable Out-Of Marks Value:", min_value=1, value=100)
+                with col3: weight_percent = st.number_input("Weightage Factor Percent Calculation Ratio (%):", min_value=0, max_value=100, value=20)
+                submit = st.form_submit_button("➕ Register Test Profile Evaluation Scheme", type="primary")
+                if submit:
+                    if test_title:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("INSERT INTO test_types (test_title, total_marks, weightage) VALUES (:title, :tm, :wt)"), 
+                                             {"title": test_title, "tm": total_marks, "wt": weight_percent})
+                            st.success(f"🎉 Evaluation Pattern Scheme added: {test_title} ({total_marks} Marks)")
+                        except Exception as e: st.error(f"❌ Database error: {e}")
+                    else: st.error("❌ Test scheme structural heading is required.")
+
+        elif setup_type == "Disciplines":
+            with st.form("form_disciplines"):
+                col1, col2 = st.columns(2)
+                with col1: disc_title = st.text_input("Discipline Stream Group Designation:", placeholder="e.g., Pre-Engineering, Pre-Medical, Computer Science")
+                with col2: disc_code = st.text_input("Stream Unique Prefix Short Code:", placeholder="e.g., FSc-PE, ICS").upper()
+                submit = st.form_submit_button("➕ Register Discipline Stream Branch", type="primary")
+                if submit:
+                    if disc_title and disc_code:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("INSERT INTO disciplines (discipline_title, short_code) VALUES (:title, :code)"), 
+                                             {"title": disc_title, "code": disc_code})
+                            st.success(f"🎉 Discipline Matrix Branch mapped: {disc_title} ({disc_code})")
+                        except Exception as e: st.error(f"❌ Database error: {e}")
+                    else: st.error("❌ Discipline Group name and operational prefix index required.")
 
     with tab2:
         st.markdown("### Map Institutional Dependencies")
@@ -116,8 +224,7 @@ def render_student_management_workspace():
                                 VALUES (:name, :class_lvl, :sec, :roll)
                             """), {"name": new_name, "class_lvl": new_class, "sec": new_sec, "roll": new_roll})
                         st.success(f"🎉 Student node successfully registered: {new_name} added to Class {new_class}-{new_sec}")
-                    except Exception as e:
-                        st.error(f"❌ Database execution failure: {e}")
+                    except Exception as e: st.error(f"❌ Database execution failure: {e}")
                         
     with tab2:
         st.write("### Edit Active Student Ledger Fields")
@@ -162,10 +269,8 @@ def render_student_management_workspace():
                                     WHERE student_id = :sid
                                 """), {"name": edit_name, "class_lvl": edit_class, "sec": edit_sec, "roll": edit_roll, "sid": target_id})
                             st.success("🎉 Student system records reference modified inside relational logs successfully!")
-                        except Exception as e:
-                            st.error(f"❌ Modification processing failed: {e}")
-            else:
-                st.info("No matching student profile entries discovered.")
+                        except Exception as e: st.error(f"❌ Modification processing failed: {e}")
+            else: st.info("No matching student profile entries discovered.")
 
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
@@ -214,8 +319,7 @@ def render_universal_attendance_workspace():
             submit_attendance = st.form_submit_button("💾 Save & Commit Section Attendance Register (Admin Override)", type="primary", use_container_width=True)
             if submit_attendance:
                 st.success(f"🎉 Attendance override map for Class {sel_class}-{sel_section} successfully executed for {attendance_date}!")
-    else:
-        st.info(f"No student profiles are mapped to Class {sel_class}-{sel_section} inside system logs.")
+    else: st.info(f"No student profiles are mapped to Class {sel_class}-{sel_section} inside system logs.")
 
 def render_universal_marks_entry_workspace():
     """Shared workspace allowing Exam Controller & VP to overwrite or enter marks for any subject/class/section."""
@@ -232,8 +336,7 @@ def render_universal_marks_entry_workspace():
         with st.form("universal_marks_submission_form"):
             st.write("✏️ **Master Assessment Entry Sheet**")
             submit_override_marks = st.form_submit_button("🔒 Lock & Commit Scores to Master Configuration Ledger", type="primary")
-            if submit_override_marks:
-                st.success("🎉 Examination matrix references compiled and synchronized successfully.")
+            if submit_override_marks: st.success("🎉 Examination matrix references compiled and synchronized successfully.")
 
 def render_institutional_report_generator():
     """Comprehensive engine giving authorized controllers rights to compile/export all report variations."""
@@ -286,24 +389,15 @@ if user_role == "Principal":
         ["Master Panel Overview", "🛠️ Core Institutional Setup Engine", "Class In-Charge Allocations", "Admission Management", "Universal Attendance Panel", "Universal Marks Override Desk", "Report Generator Engine", "📊 Global Institutional Analytics", "Academic Configuration Ledger"]
     )
     
-    if app_mode == "Master Panel Overview":
-        st.title("🦅 Principal Strategic Control Command Tower")
-    elif app_mode == "🛠️ Core Institutional Setup Engine":
-        render_master_setup_engine()
-    elif app_mode == "Class In-Charge Allocations":
-        st.title("📋 Class In-Charge Mapping Management")
-    elif app_mode == "Admission Management":
-        render_student_management_workspace()
-    elif app_mode == "Universal Attendance Panel":
-        render_universal_attendance_workspace()
-    elif app_mode == "Universal Marks Override Desk":
-        render_universal_marks_entry_workspace()
-    elif app_mode == "Report Generator Engine":
-        render_institutional_report_generator()
-    elif app_mode == "📊 Global Institutional Analytics":
-        render_global_analytics_dashboard()
-    elif app_mode == "Academic Configuration Ledger":
-        st.title("⚙️ Master Core System Configuration Matrix")
+    if app_mode == "Master Panel Overview": st.title("🦅 Principal Strategic Control Command Tower")
+    elif app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
+    elif app_mode == "Class In-Charge Allocations": st.title("📋 Class In-Charge Mapping Management")
+    elif app_mode == "Admission Management": render_student_management_workspace()
+    elif app_mode == "Universal Attendance Panel": render_universal_attendance_workspace()
+    elif app_mode == "Universal Marks Override Desk": render_universal_marks_entry_workspace()
+    elif app_mode == "Report Generator Engine": render_institutional_report_generator()
+    elif app_mode == "📊 Global Institutional Analytics": render_global_analytics_dashboard()
+    elif app_mode == "Academic Configuration Ledger": st.title("⚙️ Master Core System Configuration Matrix")
 
 # 🗃️ 2. CONTROLLER EXAMINATION DASHBOARD
 elif user_role == "Controller Examination":
@@ -313,14 +407,11 @@ elif user_role == "Controller Examination":
         ["Universal Marks Entry Portal", "📈 Comprehensive Systems Analytics", "📋 Generate Systems Reports Matrix"]
     )
     
-    if app_mode == "Universal Marks Entry Portal":
-        render_universal_marks_entry_workspace()
-    elif app_mode == "📈 Comprehensive Systems Analytics":
-        render_global_analytics_dashboard()
-    elif app_mode == "📋 Generate Systems Reports Matrix":
-        render_institutional_report_generator()
+    if app_mode == "Universal Marks Entry Portal": render_universal_marks_entry_workspace()
+    elif app_mode == "📈 Comprehensive Systems Analytics": render_global_analytics_dashboard()
+    elif app_mode == "📋 Generate Systems Reports Matrix": render_institutional_report_generator()
 
-# ⚖️ 3. VICE PRINCIPAL DASHBOARD (Master Setup privileges assigned)
+# ⚖️ 3. VICE PRINCIPAL DASHBOARD
 elif user_role == "Vice Principal":
     st.sidebar.info("Signed in as: **Vice Principal**\n\n*Access Level: Academic Operations Command*")
     app_mode = st.sidebar.radio(
@@ -328,22 +419,14 @@ elif user_role == "Vice Principal":
         ["🛠️ Core Institutional Setup Engine", "Class In-Charge Allocations", "Student Record Management Workspace", "📅 Universal Section Attendance Register", "Universal Marks Entry Portal", "📈 Comprehensive Systems Analytics", "📋 Generate Systems Reports Matrix", "Academic Configuration Ledger"]
     )
     
-    if app_mode == "🛠️ Core Institutional Setup Engine":
-        render_master_setup_engine()
-    elif app_mode == "Class In-Charge Allocations":
-        st.title("📋 Class In-Charge Mapping Management")
-    elif app_mode == "Student Record Management Workspace":
-        render_student_management_workspace()
-    elif app_mode == "📅 Universal Section Attendance Register":
-        render_universal_attendance_workspace()
-    elif app_mode == "Universal Marks Entry Portal":
-        render_universal_marks_entry_workspace()
-    elif app_mode == "📈 Comprehensive Systems Analytics":
-        render_global_analytics_dashboard()
-    elif app_mode == "📋 Generate Systems Reports Matrix":
-        render_institutional_report_generator()
-    elif app_mode == "Academic Configuration Ledger":
-        st.title("⚙️ Master Core System Configuration Matrix")
+    if app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
+    elif app_mode == "Class In-Charge Allocations": st.title("📋 Class In-Charge Mapping Management")
+    elif app_mode == "Student Record Management Workspace": render_student_management_workspace()
+    elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace()
+    elif app_mode == "Universal Marks Entry Portal": render_universal_marks_entry_workspace()
+    elif app_mode == "📈 Comprehensive Systems Analytics": render_global_analytics_dashboard()
+    elif app_mode == "📋 Generate Systems Reports Matrix": render_institutional_report_generator()
+    elif app_mode == "Academic Configuration Ledger": st.title("⚙️ Master Core System Configuration Matrix")
 
 # 💼 4. ADMISSION OFFICER DASHBOARD
 elif user_role == "Admission Officer":
@@ -353,12 +436,9 @@ elif user_role == "Admission Officer":
         ["Admission Management", "📅 Universal Section Attendance Register", "Student Search Directory"]
     )
     
-    if app_mode == "Admission Management":
-        render_student_management_workspace()
-    elif app_mode == "📅 Universal Section Attendance Register":
-        render_universal_attendance_workspace()
-    elif app_mode == "Student Search Directory":
-        st.title("🔍 Student Database Query Index")
+    if app_mode == "Admission Management": render_student_management_workspace()
+    elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace()
+    elif app_mode == "Student Search Directory": st.title("🔍 Student Database Query Index")
 
 # 👨‍🏫 5. TEACHER DASHBOARD
 elif user_role == "Teacher":
@@ -370,9 +450,6 @@ elif user_role == "Teacher":
     
     active_teacher_id = 104 
     
-    if app_mode == "📝 Subject Marks Entry Sheet Console":
-        st.title("📝 Subject Marks Entry Sheet Console")
-    elif app_mode == "📅 Section Attendance Register":
-        st.title("📅 Section Attendance Register")
-    elif app_mode == "📊 My Subject Analytics Panel":
-        st.title("📊 My Subject Performance Analytics")
+    if app_mode == "📝 Subject Marks Entry Sheet Console": st.title("📝 Subject Marks Entry Sheet Console")
+    elif app_mode == "📅 Section Attendance Register": st.title("📅 Section Attendance Register")
+    elif app_mode == "📊 My Subject Analytics Panel": st.title("📊 My Subject Performance Analytics")
