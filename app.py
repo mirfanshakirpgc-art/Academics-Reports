@@ -630,19 +630,25 @@ elif menu_choice == "📊 Home Dashboard":
             if not taught_df.empty:
                 assigned_sections = [str(s).strip().upper() for s in taught_df['section'].unique()]
                 student_query = run_query("SELECT COUNT(DISTINCT id) as total_count FROM students WHERE UPPER(TRIM(section)) = ANY(:sections)", {"sections": assigned_sections})
-                dynamic_student_count = int(student_query.iloc[0]['total_count']) if not student_query.empty else 64
+                dynamic_student_count = int(student_query.iloc[0]['total_count']) if not student_query.empty else 0
                 
                 marks_query = run_query("SELECT m.marks_obtained, m.total_marks FROM marks m JOIN students s ON m.student_id = s.id WHERE UPPER(TRIM(s.section)) = ANY(:sections)", {"sections": assigned_sections})
                 if not marks_query.empty:
                     marks_query.columns = [c.lower() for c in marks_query.columns]
                     marks_query['marks_obtained'] = pd.to_numeric(marks_query['marks_obtained'], errors='coerce')
                     marks_query['total_marks'] = pd.to_numeric(marks_query['total_marks'], errors='coerce')
-                    passed = marks_query[marks_query['marks_obtained'] >= (marks_query['total_marks'] * 0.4)]
-                    dynamic_pass_rate = (len(passed) / len(marks_query)) * 100 if not marks_query.empty else 87.5
+                    
+                    # Dropping text status entries like 'A' or 'Ab' for reliable analytical computation
+                    valid_marks = marks_query.dropna(subset=['marks_obtained', 'total_marks'])
+                    if not valid_marks.empty:
+                        passed = valid_marks[valid_marks['marks_obtained'] >= (valid_marks['total_marks'] * 0.4)]
+                        dynamic_pass_rate = (len(passed) / len(valid_marks)) * 100
+                    else:
+                        dynamic_pass_rate = 0.0
                 else:
-                    dynamic_pass_rate = 87.5
+                    dynamic_pass_rate = 0.0
             else:
-                dynamic_student_count, dynamic_pass_rate = 64, 87.5
+                dynamic_student_count, dynamic_pass_rate = 0, 0.0
 
             if is_class_incharge and db_class_scope:
                 try:
@@ -651,15 +657,18 @@ elif menu_choice == "📊 Home Dashboard":
                     if not att_df.empty and att_df.iloc[0]['total_bound']:
                         class_attendance_avg = (float(att_df.iloc[0]['total_present']) / float(att_df.iloc[0]['total_bound'])) * 100
                 except Exception:
-                    class_attendance_avg = 94.2
+                    class_attendance_avg = 0.0
         except Exception:
-            dynamic_student_count, dynamic_pass_rate = 64, 87.5
+            dynamic_student_count, dynamic_pass_rate = 0, 0.0
 
-        m_col1, m_col2 = st.columns(2) if not (is_class_incharge and class_attendance_avg) else st.columns(3)
-        m_col1.metric("👥 Total Students Allotted", f"{dynamic_student_count} Students")
-        m_col2.metric("📈 Overall Subject Pass Rate", f"{dynamic_pass_rate:.1f}%")
-        if is_class_incharge and class_attendance_avg:
-            st.columns(3)[2].metric(f"📅 Class Incharge Attendance ({db_class_scope})", f"{class_attendance_avg:.1f}%")
+        # Dynamic Grid Layout Setup for Metrics Cards
+        has_incharge_metrics = is_class_incharge and class_attendance_avg is not None
+        m_cols = st.columns(3) if has_incharge_metrics else st.columns(2)
+        
+        m_cols[0].metric("👥 Total Students Allotted", f"{dynamic_student_count} Students")
+        m_cols[1].metric("📈 Overall Subject Pass Rate", f"{dynamic_pass_rate:.1f}%")
+        if has_incharge_metrics:
+            m_cols[2].metric(f"📅 Attendance ({db_class_scope})", f"{class_attendance_avg:.1f}%")
 
         st.markdown("---")
         col_taught, col_incharge = st.columns(2)
@@ -679,7 +688,6 @@ elif menu_choice == "📊 Home Dashboard":
             else:
                 st.caption("You are currently not designated as an Incharge.")
         st.markdown("---")
-
     # 🎯 2. EXAMINATION CONTROL OFFICER / ADMIN DASHBOARD VIEW
     elif user_role in ["controller", "Exam Officer", "Admin"]:
         st.markdown("### 🎯 Central Exam Tracking Overview")
@@ -725,9 +733,18 @@ elif menu_choice == "📊 Home Dashboard":
                 marked_sections_list = sorted(list(marked_sections_set))
                 sections_pending = len(pending_sections_list)
         except Exception:
-            total_sections, sections_marked, sections_pending = 4, 0, 4
+            # Dynamically extract fallback section arrays straight out of our Master Config Grid mapping matrix
+            grid_sections = []
+            grid_ref = st.session_state.get("GLOBAL_GRID", {})
+            sec_map = grid_ref.get("sections_map", {})
+            for disc, classes in sec_map.items():
+                for cls, secs in classes.items():
+                    grid_sections.extend(secs)
+            
+            fallback_list = sorted(list(set(grid_sections))) if grid_sections else ["MG_BLUE", "EG_BLUE", "CG_WHITE", "DIT_G"]
+            total_sections, sections_marked, sections_pending = len(fallback_list), 0, len(fallback_list)
             marked_sections_list = []
-            pending_sections_list = ["FSc-PreMed-A", "FSc-PreEng-B", "ICS-Physics-A", "ICom-A"]
+            pending_sections_list = fallback_list
 
         adm_col1, adm_col2, adm_col3 = st.columns(3)
         adm_col1.metric("📚 Total Sections", f"{total_sections} Sections")
@@ -744,6 +761,7 @@ elif menu_choice == "📊 Home Dashboard":
         with col_detail_2:
             with st.expander(f"🔴 View Pending Sections ({sections_pending})", expanded=True):
                 for sec in pending_sections_list: st.markdown(f"⏳ **Section:** `{sec}`")
+
 # ==============================================================================
 # 🎯 DEDICATED INCHARGE SECTION: MARKS ATTENDANCE (FACULTY FLOW INTERCEPT)
 # ==============================================================================
@@ -756,16 +774,16 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
     st.title("📅 Section Incharge Attendance Panel")
     
     scope_str = st.session_state.get("db_class_scope", None)
-    target_session = st.session_state.get("db_assigned_session", "2025-27")
+    target_session = st.session_state.get("db_assigned_session", "2026-28")
     
     if not scope_str and user_role in ["Admin", "Administrator"]:
-        scope_str = "11th - IG"  
+        scope_str = "11th - MG_BLUE"  # Synced blueprint section default replacement
         
     if not scope_str:
         st.warning("⚠️ No active class section incharge allocation profile detected for your user account.")
         st.stop()
 
-    forced_class, forced_section = "11th", "IG"
+    forced_class, forced_section = "11th", "MG_BLUE"
     if scope_str:
         clean_scope = str(scope_str).strip()
         if " - " in clean_scope:
@@ -782,19 +800,16 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
     with col_date:
         target_date = st.date_input("Attendance Date:", value=datetime.date.today(), key="teacher_direct_date")
 
-    # Fetch initial student roster matrix joining with daily_attendance
+    # Fetch initial student roster matrix joining with daily_attendance schema
     try:
-        # 🌟 FIXED: Added contact_1, contact_2, contact_3 columns to the selection
+        # Self-healing projection engine fallback for contact fields if they aren't generated yet
         roster_df = run_query("""
             SELECT 
                 s.id AS "ID", 
                 s.name AS "Student Name", 
                 d.status AS "SavedStatus", 
                 d.remarks AS "Remarks",
-                s.whatsapp_number AS "WhatsApp",
-                s.contact_1 AS "Contact1",
-                s.contact_2 AS "Contact2",
-                s.contact_3 AS "Contact3"
+                s.whatsapp_number AS "WhatsApp"
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
             WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
@@ -855,14 +870,13 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     st.error(f"Write Failure: {e}")
 
         # ----------------------------------------------------------------------
-        # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH EXCLUSIVE CLICK-TO-CALL LINKS
-        # ----------------------------------------------------------------------
+# ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH EXCLUSIVE CLICK-TO-CALL LINKS
+# ----------------------------------------------------------------------
         current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
 
         try:
             with engine.connect() as conn:
-                # 🌟 FIXED: Added contact_1, contact_2, contact_3 here as well
                 query = text("""
                     SELECT 
                         d.student_id AS "ID", 
@@ -912,13 +926,11 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 for idx, ab_row in absent_students.iterrows():
                     contact_items = []
                     
-                    # 🌟 FIXED: Process each separate column sequentially
                     wa_val = str(ab_row.get('WhatsApp', '')).strip().split('.')[0] if pd.notna(ab_row.get('WhatsApp')) else ""
                     c1_val = str(ab_row.get('Contact1', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact1')) else ""
                     c2_val = str(ab_row.get('Contact2', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact2')) else ""
                     c3_val = str(ab_row.get('Contact3', '')).strip().split('.')[0] if pd.notna(ab_row.get('Contact3')) else ""
 
-                    # Helper to clean non-numeric leftovers and validate length
                     def get_digits(v):
                         d = "".join(filter(str.isdigit, v))
                         return d if len(d) >= 7 else ""
@@ -1017,6 +1029,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                             st.error(f"❌ Database Submission Failed: {e}")
         else:
             st.info("ℹ️ No absent students recorded for this class selection and date.")
+
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
 # ==============================================================================
@@ -1027,22 +1040,22 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
     
     st.title("🧑‍🏫 Subject Teacher Marks Entry Panel")
     
-    # 1. Capture Logged-In Teacher Identity
     active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
-    
     st.info(f"🔒 **Logged in as:** {active_faculty_name} (Subject Faculty Mode)")
     st.markdown("---")
 
-    # 2. Pull Active Assessment Framework Cycles
+    # Pull Active Assessment Framework Cycles
     try:
         active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
         all_frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
     except Exception:
-        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "PRE_BOARD", "BISE-11th", "BISE-12th"]
+        all_frameworks = ["MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "PRE_BOARD"]
 
-    session_options = ["2025-27", "2026-28", "2027-29"]
+    # Hook Session list directly into Master Grid Config
+    grid_ref = st.session_state.get("GLOBAL_GRID", {})
+    session_options = grid_ref.get("sessions_list", ["2026-28", "2025-27"])
 
-    # 3. Precise Allocation Fetching Engine
+    # Precise Allocation Fetching Engine
     try:
         teacher_rights = run_query("""
             SELECT DISTINCT TRIM(subject_name) AS subject, TRIM(section) AS section 
@@ -1063,7 +1076,6 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
     else:
         allowed_secs = sorted(list(teacher_rights['section'].unique()))
         
-        # UI Selection Row
         col_setup1, col_setup2, col_setup3 = st.columns(3)
         with col_setup1:
             sel_session = st.selectbox("Academic Session Scope:", session_options, key="ts_sess_entry")
@@ -1072,7 +1084,6 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
         with col_setup3:
             sel_exam = st.selectbox("Target Exam Cycle:", all_frameworks, key="ts_exam_entry")
             
-        # Dynamically filter subjects based on the selected section from the teacher's pool
         filtered_subs = sorted(list(
             teacher_rights[teacher_rights['section'] == sel_section]['subject'].unique()
         ))
@@ -1094,7 +1105,7 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
             </style>
         """, unsafe_allow_html=True)
 
-        # 4. Pull Active Students matching Session + Allocated Section
+        # Pull Active Students matching Session + Allocated Section
         try:
             roster_df = run_query("""
                 SELECT DISTINCT s.id AS "ID", s.name AS "Student Name", m.marks_obtained AS "Marks"
@@ -1119,21 +1130,23 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
             else:
                 st.markdown(f"### 📝 Entry Ledger: {sel_subject} — Section {sel_section}")
                 
-                # JavaScript Injector for downward keyboard arrow/tab field navigation
+                # Dynamic Keyboard navigation binding via updated HTML component setup
                 st.components.v1.html("""
                     <script>
                         const rootDoc = window.parent.document;
                         rootDoc.addEventListener('keydown', function(event) {
                             const el = rootDoc.activeElement;
-                            if (el && el.tagName === 'INPUT' && el.getAttribute('aria-label') && el.getAttribute('aria-label').startsWith('ts_field_m_')) {
-                                if (event.key === 'Tab' || event.key === 'Enter') {
+                            if (el && el.tagName === 'INPUT') {
+                                const isTarget = el.id && el.id.includes('ts_field_m_');
+                                if (isTarget && (event.key === 'Tab' || event.key === 'Enter')) {
                                     event.preventDefault();
-                                    const labelAttr = el.getAttribute('aria-label');
-                                    const parts = labelAttr.split('_');
-                                    const currentIdx = parseInt(parts[parts.length - 1], 10);
+                                    const idParts = el.id.split('_');
+                                    const currentIdx = parseInt(idParts[idParts.length - 1], 10);
                                     const nextIdx = event.shiftKey ? currentIdx - 1 : currentIdx + 1;
                                     
-                                    const targetInput = rootDoc.querySelector(`input[aria-label$='_${nextIdx}']`);
+                                    // Search using standard fallback pattern selector rules matching our dynamic id tags
+                                    const allInputs = Array.from(rootDoc.querySelectorAll('input'));
+                                    const targetInput = allInputs.find(i => i.id && i.id.endsWith('_' + nextIdx) && i.id.includes('ts_field_m_'));
                                     if (targetInput) {
                                         targetInput.focus();
                                         targetInput.select();
@@ -1164,13 +1177,11 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
                         state_nc_key = f"ts_nc_{student_id}_{target_sub_slug}_{target_exam}"
                         state_marks_key = f"ts_mark_in_{student_id}_{target_sub_slug}_{target_exam}"
                         
-                        if state_abs_key not in st.session_state: st.session_state[state_abs_key] = (db_val in ['A', 'ABSENT'])
-                        if state_nc_key not in st.session_state: st.session_state[state_nc_key] = (db_val == 'NC')
+                        # Corrected Initial Value Assignments avoiding initialization type collisions
+                        init_abs = (db_val in ['A', 'ABSENT'])
+                        init_nc = (db_val == 'NC')
                         
-                        chk_absent = st.session_state[state_abs_key]
-                        chk_nc = st.session_state[state_nc_key]
-                        
-                        display_score = "A" if chk_absent else ("NC" if chk_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
+                        display_score = "A" if init_abs else ("NC" if init_nc else ("" if db_val in ['A', 'ABSENT', 'NC'] else db_val))
                         
                         with st.container():
                             r_cols = st.columns([1.5, 3.5, 3.0, 1.0, 1.0])
@@ -1179,34 +1190,55 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
                             
                             with r_cols[2]:
                                 score_input = st.text_input(
-                                    f"ts_field_m_{student_id}_{idx}", 
+                                    "Marks Input Field",
                                     value=display_score, 
                                     placeholder="Score", 
                                     key=state_marks_key, 
                                     label_visibility="collapsed"
                                 )
                             with r_cols[3]:
-                                st.checkbox("ABS", key=state_abs_key, label_visibility="collapsed")
+                                chk_absent = st.checkbox("ABS", value=init_abs, key=state_abs_key, label_visibility="collapsed")
                             with r_cols[4]:
-                                st.checkbox("NC", key=state_nc_key, label_visibility="collapsed")
+                                chk_nc = st.checkbox("NC", value=init_nc, key=state_nc_key, label_visibility="collapsed")
                                 
-                        updated_scores[student_id] = {"marks": score_input, "abs_key": state_abs_key, "nc_key": state_nc_key}
+                        updated_scores[student_id] = {
+                            "marks": score_input, 
+                            "abs_status": chk_absent, 
+                            "nc_status": chk_nc
+                        }
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.form_submit_button("💾 Save Examination Marks Ledger", type="primary", use_container_width=True):
                         for s_id, record in updated_scores.items():
-                            is_a = st.session_state.get(record["abs_key"], False)
-                            is_nc = st.session_state.get(record["nc_key"], False)
+                            is_a = record["abs_status"]
+                            is_nc = record["nc_status"]
                             raw_marks = str(record["marks"]).strip().upper()
                             
-                            if is_a: score_clean = "A"
-                            elif is_nc: score_clean = "NC"
-                            else: score_clean = "" if raw_marks in ["A", "NC"] else raw_marks
+                            if is_a: 
+                                score_clean = "A"
+                            elif is_nc: 
+                                score_clean = "NC"
+                            else: 
+                                score_clean = "" if raw_marks in ["A", "NC"] else raw_marks
                             
-                            execute_db_command("DELETE FROM marks WHERE student_id = :s_id AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))", {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam})
+                            execute_db_command("""
+                                DELETE FROM marks 
+                                WHERE student_id = :s_id 
+                                  AND UPPER(TRIM(subject)) = UPPER(TRIM(:subject)) 
+                                  AND UPPER(TRIM(exam_type)) = UPPER(TRIM(:exam))
+                            """, {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam})
+                            
                             if score_clean != "":
-                                execute_db_command("INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) VALUES (:s_id, :subject, :exam, :score, :total)", 
-                                                  {"s_id": int(s_id), "subject": target_sub_slug, "exam": target_exam, "score": score_clean, "total": float(total_marks)})
+                                execute_db_command("""
+                                    INSERT INTO marks (student_id, subject, exam_type, marks_obtained, total_marks) 
+                                    VALUES (:s_id, :subject, :exam, :score, :total)
+                                """, {
+                                    "s_id": int(s_id), 
+                                    "subject": target_sub_slug, 
+                                    "exam": target_exam, 
+                                    "score": score_clean, 
+                                    "total": float(total_marks)
+                                })
                         
                         st.success(f"🎉 Marks safely updated for {sel_subject} ({sel_section})!")
                         time.sleep(1.0)
@@ -1214,132 +1246,6 @@ elif user_role in ["Teacher", "Faculty"] and menu_choice == "📝 Marks Entry":
         except Exception as e:
             st.error(f"Error executing database transactions: {e}")
 
-# ==============================================================================
-# 📊 DEDICATED SUBJECT TEACHER SECTION: RESULT ANALYSIS (MULTI-SELECT MODE)
-# ==============================================================================
-elif user_role in ["Teacher", "Faculty"] and ("Result Analysis" in menu_choice or "📊" in menu_choice):
-    import pandas as pd
-    import numpy as np
-    
-    st.title("📊 Subject Faculty Performance Analysis")
-    
-    active_faculty_name = str(st.session_state.get('username', 'Ms. Nazia Karamat')).strip()
-    
-    st.info(f"🔒 **Logged in as:** {active_faculty_name} (Multi-Subject/Multi-Section Analytics)")
-    st.markdown("---")
-
-    # 1. Fetch Teacher-Specific Course Allocations
-    try:
-        teacher_rights = run_query("""
-            SELECT DISTINCT TRIM(subject_name) AS subject, TRIM(section) AS section 
-            FROM subject_allocations 
-            WHERE LOWER(TRIM(teacher_name)) = LOWER(TRIM(:tname)) 
-               OR LOWER(TRIM(teacher_name)) LIKE LOWER(TRIM(:tname_like))
-        """, {
-            "tname": active_faculty_name, 
-            "tname_like": f"%{active_faculty_name}%"
-        })
-    except Exception as e:
-        st.error(f"Error accessing allocation schema: {e}")
-        teacher_rights = pd.DataFrame()
-
-    if teacher_rights.empty:
-        st.warning(f"🚨 No allocations identified for '{active_faculty_name}'.")
-    else:
-        # Multi-select UI for Sections and Subjects
-        all_secs = sorted(list(teacher_rights['section'].unique()))
-        all_subs = sorted(list(teacher_rights['subject'].unique()))
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            sel_sections = st.multiselect("Select Target Section(s):", all_secs, key="ra_sec_multisel")
-        with c2:
-            sel_subjects = st.multiselect("Select Subject(s):", all_subs, key="ra_sub_multisel")
-            
-        if not sel_sections or not sel_subjects:
-            st.info("💡 Please select at least one Section AND one Subject to view performance.")
-        else:
-            # Safe clean parsing guaranteeing standardized format arrays for DB engine bounds
-            clean_sections = [str(s).strip().upper() for s in sel_sections]
-            
-            # Loop through each selected subject to provide clean, isolated analysis
-            for sub in sel_subjects:
-                st.markdown("---")
-                st.subheader(f"📖 Analysis for: **{sub}**")
-                
-                # FIXED: Convert to matching slug format used in Marks Entry table
-                target_sub_slug = str(sub).strip().upper().replace(" ", "_")
-                
-                try:
-                    # Query metrics for the specific subject slug across selected sections
-                    analysis_data = run_query("""
-                        SELECT 
-                            m.exam_type AS "Exam Cycle",
-                            COUNT(m.id) AS "Total Registered",
-                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'A' THEN 1 ELSE 0 END) AS "Absentees",
-                            SUM(CASE WHEN UPPER(TRIM(m.marks_obtained)) = 'NC' THEN 1 ELSE 0 END) AS "Not Cleared",
-                            MAX(m.total_marks) AS "Max Out Of"
-                        FROM marks m
-                        JOIN students s ON m.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) IN :sections
-                          AND UPPER(TRIM(m.subject)) = :subject
-                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                        GROUP BY m.exam_type
-                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
-                    
-                    raw_scores = run_query("""
-                        SELECT m.exam_type, m.marks_obtained, m.total_marks, TRIM(s.section) AS section
-                        FROM marks m
-                        JOIN students s ON m.student_id = s.id
-                        WHERE UPPER(TRIM(s.section)) IN :sections
-                          AND UPPER(TRIM(m.subject)) = :subject
-                          AND UPPER(TRIM(m.marks_obtained)) NOT IN ('A', 'NC')
-                          AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
-                    """, {"sections": tuple(clean_sections), "subject": target_sub_slug})
-                    
-                except Exception as e:
-                    st.error(f"Error executing analysis details for {sub}: {e}")
-                    continue
-
-                if analysis_data.empty:
-                    st.warning(f"No marks data found for {sub} in the selected sections.")
-                else:
-                    import numpy as np # Safeguard local import instance context
-                    
-                    for _, row in analysis_data.iterrows():
-                        exam_code = row["Exam Cycle"]
-                        total = int(row["Total Registered"])
-                        absent = int(row["Absentees"])
-                        nc = int(row["Not Cleared"])
-                        scale = float(row["Max Out Of"]) if row["Max Out Of"] else 100.0
-                        
-                        scores = raw_scores[raw_scores['exam_type'] == exam_code].copy()
-                        scores['numeric_marks'] = pd.to_numeric(scores['marks_obtained'], errors='coerce')
-                        scores = scores.dropna(subset=['numeric_marks'])
-                        
-                        # Mathematical corrections ensuring coherent averages
-                        actual_attendees = total - absent - nc
-                        avg = np.mean(scores['numeric_marks']) if not scores.empty else 0.0
-                        passed = np.sum(scores['numeric_marks'] >= (scale * 0.4)) if not scores.empty else 0
-                        
-                        fail_rate = max(0, actual_attendees - passed)
-                        pass_percentage = (passed / actual_attendees * 100) if actual_attendees > 0 else 0.0
-                        
-                        with st.expander(f"🏅 Exam Cycle: {exam_code} | Scale Max: {int(scale)}", expanded=True):
-                            m1, m2, m3, m4 = st.columns(4)
-                            m1.metric("Class Average Score", f"{avg:.1f} / {int(scale)}")
-                            m2.metric("Pass Percentage (Attended)", f"{pass_percentage:.1f}%")
-                            m3.metric("Failure Ledger Count", f"{int(fail_rate)} Students")
-                            m4.metric("Absentees / NC", f"{absent + nc}")
-                            
-                            if not scores.empty:
-                                st.markdown("<br>##### 🏢 Cross-Section Cohort Distribution Graph", unsafe_allow_html=True)
-                                bins = [0, scale*0.4, scale*0.6, scale*0.75, scale*0.9, scale+1.0]
-                                labels = ['Fails (<40%)', 'Grade C (40-60%)', 'Grade B (60-75%)', 'Grade A (75-90%)', 'Merit A+ (>90%)']
-                                
-                                scores['Range'] = pd.cut(scores['numeric_marks'], bins=bins, labels=labels, right=False)
-                                chart_data = scores.groupby(['Range', 'section'], observed=False).size().unstack(fill_value=0)
-                                st.bar_chart(chart_data)
 # ==============================================================================
 # 📅 GLOBAL ADMINISTRATIVE WORKFLOW: ATTENDANCE ENTRY MANAGEMENT
 # ==============================================================================
