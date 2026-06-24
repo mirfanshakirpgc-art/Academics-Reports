@@ -103,6 +103,19 @@ def init_db():
                 teacher_name TEXT
             );
         """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS subject_allocations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session TEXT,
+                academic_system TEXT,
+                class_level TEXT,
+                discipline TEXT,
+                section TEXT,
+                subject_name TEXT,
+                teacher_id TEXT,
+                teacher_name TEXT
+            );
+        """))
 
 init_db()
 
@@ -121,7 +134,6 @@ def render_master_setup_engine():
     """Centralized core setup engine giving Principal and VP rights to create foundational school data structures and operational mappings."""
     st.subheader("⚙️ Master Institutional Setup Engine")
     
-    # Combined Tabs view incorporating Class In-Charge Allocations as Tab 3
     tab1, tab2, tab3 = st.tabs([
         "🏛️ 1. Core Configuration Parameters", 
         "🔗 2. Operational Allocation Mapping", 
@@ -503,27 +515,88 @@ def render_master_setup_engine():
             ["Section Allocation (Students to Sections)", "Subject Allocation (Teachers to Subjects/Sections)"]
         )
         
-        with st.form("mapping_allocation_form"):
-            st.write(f"✏️ **New {allocation_type} Entry**")
-            
-            if allocation_type == "Section Allocation (Students to Sections)":
+        if allocation_type == "Section Allocation (Students to Sections)":
+            with st.form("mapping_allocation_form"):
+                st.write(f"✏️ **New Section Allocation Entry**")
                 col_sa1, col_sa2 = st.columns(2)
                 with col_sa1: st.text_input("Student Identifier Code / ID:")
                 with col_sa2: st.text_input("Target Section Assignment:")
-                
-            elif allocation_type == "Subject Allocation (Teachers to Subjects/Sections)":
-                col_sub1, col_sub2, col_sub3 = st.columns(3)
-                with col_sub1: st.text_input("Faculty Member / Teacher ID:")
-                with col_sub2: st.text_input("Target Subject Identifier:")
-                with col_sub3: st.text_input("Target Class & Section Scope:")
-                
-            submit_allocation = st.form_submit_button("🔗 Commit Allocation Link to Database", type="primary")
-            if submit_allocation:
-                st.success(f"🎉 Relational Ledger Updated: {allocation_type} pipeline compiled and linked successfully.")
+                submit_allocation = st.form_submit_button("🔗 Commit Allocation Link to Database", type="primary")
+                if submit_allocation:
+                    st.success("🎉 Relational Ledger Updated: Student allocation pipeline compiled successfully.")
+                    
+        elif allocation_type == "Subject Allocation (Teachers to Subjects/Sections)":
+            st.write("✏️ **Dynamic Dependent Subject Allocation Entry**")
+            
+            # --- Fetch database records natively to fill dropdown choices ---
+            db_sessions = run_query("SELECT session_name FROM sessions")['session_name'].tolist()
+            db_systems = run_query("SELECT system_name FROM academic_systems")['system_name'].tolist()
+            db_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+            db_disciplines = run_query("SELECT discipline_title FROM disciplines")['discipline_title'].tolist()
+            db_sections = run_query("SELECT section_name FROM sections")['section_name'].tolist()
+            db_subjects = run_query("SELECT subject_name FROM subjects")['subject_name'].tolist()
+            db_teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
+            
+            # Fallback strings if lists are blank
+            if not db_sessions: db_sessions = ["No Sessions Configured"]
+            if not db_systems: db_systems = ["No Academic Systems Configured"]
+            if not db_classes: db_classes = ["No Classes Configured"]
+            if not db_disciplines: db_disciplines = ["No Disciplines Configured"]
+            if not db_sections: db_sections = ["No Sections Configured"]
+            if not db_subjects: db_subjects = ["No Subjects Configured"]
+            
+            if not db_teachers_df.empty:
+                db_teachers = [f"{row['teacher_id']} - {row['full_name']}" for _, row in db_teachers_df.iterrows()]
+            else:
+                db_teachers = ["No Teachers Configured"]
+
+            # --- Layout consecutive cascading selections outside a pure state form to enable fluid dependency fetching ---
+            col_layer1, col_layer2, col_layer3 = st.columns(3)
+            with col_layer1:
+                sel_sub_session = st.selectbox("1. Select Session:", db_sessions, key="sub_alloc_sess")
+            with col_layer2:
+                # Next choice filters based on selected Session
+                sel_sub_system = st.selectbox("2. Select Academic System:", db_systems, key="sub_alloc_sys")
+            with col_layer3:
+                sel_sub_class = st.selectbox("3. Select Class:", db_classes, key="sub_alloc_cls")
+
+            col_layer4, col_layer5, col_layer6 = st.columns(3)
+            with col_layer4:
+                sel_sub_discipline = st.selectbox("4. Select Discipline:", db_disciplines, key="sub_alloc_disc")
+            with col_layer5:
+                sel_sub_section = st.selectbox("5. Select Section:", db_sections, key="sub_alloc_sec")
+            with col_layer6:
+                sel_sub_subject = st.selectbox("6. Select Subject:", db_subjects, key="sub_alloc_sub")
+
+            # Final dependency selection row
+            col_layer7, _ = st.columns([2, 1])
+            with col_layer7:
+                sel_sub_teacher = st.selectbox("7. Select Target Teacher Assignment:", db_teachers, key="sub_alloc_tchr")
+
+            # Simple commitment button framework triggered directly
+            if st.button("🔗 Link Subject Allocation Matrix", type="primary", use_container_width=True):
+                if "No " in sel_sub_session or "No " in sel_sub_teacher:
+                    st.error("❌ Allocation rejected: Please configure required structural variables first inside Tab 1.")
+                else:
+                    t_id = sel_sub_teacher.split(" - ")[0]
+                    t_name = sel_sub_teacher.split(" - ")[1]
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO subject_allocations (session, academic_system, class_level, discipline, section, subject_name, teacher_id, teacher_name)
+                                VALUES (:sess, :sys, :cls, :disc, :sec, :sub, :tid, :tname)
+                            """), {
+                                "sess": sel_sub_session, "sys": sel_sub_system, "cls": sel_sub_class,
+                                "disc": sel_sub_discipline, "sec": sel_sub_section, "sub": sel_sub_subject,
+                                "tid": t_id, "tname": t_name
+                            })
+                        st.success(f"🎉 Allocation Map Committed: {t_name} is now teaching **{sel_sub_subject}** to Class {sel_sub_class}-{sel_sub_section} ({sel_sub_discipline}) for {sel_sub_session}!")
+                    except Exception as e:
+                        st.error(f"❌ Database mapping failure: {e}")
 
     with tab3:
         # ----------------------------------------------------------------------
-        # 3. CLASS IN-CHARGE ALLOCATIONS (Moved from sidebar to right side tab)
+        # 3. CLASS IN-CHARGE ALLOCATIONS
         # ----------------------------------------------------------------------
         st.markdown("### 📋 Class In-Charge Mapping Management")
         
@@ -537,7 +610,6 @@ def render_master_setup_engine():
             sessions_list, systems_list, classes_list, sections_list = [], [], [], []
             teachers_df = pd.DataFrame()
 
-        # Fallbacks for empty sandbox state
         if not sessions_list: sessions_list = ["No Sessions Registered"]
         if not systems_list: systems_list = ["No Systems Registered"]
         if not classes_list: classes_list = ["11th", "12th", "Matric"]
@@ -562,7 +634,7 @@ def render_master_setup_engine():
             submit_inc = st.form_submit_button("🔗 Link Class In-Charge Assignment", type="primary")
             if submit_inc:
                 if "No Registered" in selected_teacher or "No Sessions" in sel_session:
-                    st.error("❌ Prerequisites missing: Make sure a Session and a Teacher profile are created first.")
+                    st.error("❌ Prerequisites missing: Make sure structural data entries exist first.")
                 else:
                     t_id = selected_teacher.split(" - ")[0]
                     t_name = selected_teacher.split(" - ")[1]
