@@ -3261,9 +3261,11 @@ if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('a
     # Defensive imports to guarantee execution context safely
     import datetime
     from sqlalchemy import text
+    import pandas as pd
     
     d1, d2, d3, d4 = st.columns([1.2, 1.3, 1.5, 2.0])
     with d1:
+        # 🌎 GLOBAL REFERENCE: Pulled from standard global session array configurations
         sel_session = st.selectbox("Select Session:", session_options, index=default_index, key="daily_att_sess")
         
     with d2:
@@ -3292,27 +3294,30 @@ if menu_choice == "📅 Attendance Entry Management" and st.session_state.get('a
         # Trigger true if matching 'principal', 'admin', 'management', OR if the state table returns totally empty
         is_admin_override = any(adm in combined_roles_footprint for adm in ["principal", "admin", "management", "coordinator", "boss"]) or combined_roles_footprint.replace("|", "").strip() == ""
         
-        # 🔓 ABSOLUTE BYPASS LOGIC
-        if is_admin_override:
+        # 🌎 GLOBAL REFERENCE MASTER MAP FALLBACK PARSER
+        # Dynamically pulls array variants from DISCIPLINE_SECTIONS_MAP if available, bypassing hardcoded footprints
+        try:
+            if academic_system == "Annual System":
+                for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                    sections_list = class_map.get(sel_class, [])
+                    section_options.extend(sections_list)
+            else:
+                # Semester System parsing against the master config grid mapping
+                for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
+                    sections_list = class_map.get(sel_class, [])
+                    section_options.extend(sections_list)
+                    
+            # Local layout backup safety switch if the master dictionary search returned empty array
+            if not section_options:
+                raise NameError("Master grid empty for selection context")
+                
+        except NameError:
+            # Fallback arrays matching Global Master Config parameters in case definition missing at initialization
             if academic_system == "Annual System":
                 if sel_class == "11th":
                     section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
                 else:
                     section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
-            else:
-                section_options = ["DIT_B", "DIT_G"]
-        else:
-            # Fallback Faculty restrictions path
-            if academic_system == "Annual System":
-                try:
-                    for discipline, class_map in DISCIPLINE_SECTIONS_MAP.items():
-                        sections_list = class_map.get(sel_class, [])
-                        section_options.extend(sections_list)
-                except NameError:
-                    if sel_class == "11th":
-                        section_options = ["MG_BLUE", "MG_WHITE", "MB_BLUE", "EG_BLUE", "EB_BLUE", "CG_WHITE", "CG_GREEN", "CB_WHITE", "CB_GREEN", "CG_STATS", "CB_STATS", "IG", "IB", "FB", "FG"]
-                    else:
-                        section_options = ["MQ1", "MQ2", "MK", "EQ", "EK", "CQ1", "CQ2", "CK1", "CK2", "CQ3", "CK3", "IK", "IQ", "FK", "FQ"]
             else:
                 section_options = ["DIT_B", "DIT_G"]
         
