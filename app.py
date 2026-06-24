@@ -787,7 +787,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 fallback_section = first_class_list[0]
 
     scope_str = st.session_state.get("db_class_scope", None)
-    target_session = st.session_state.get("db_assigned_session", "2026-28")
+    target_session = st.session_state.get("db_assigned_session", "2025-27")
     
     if not scope_str and user_role in ["Admin", "Administrator"]:
         scope_str = f"{fallback_class} - {fallback_section}"  # Dynamic blueprint structural default assignment
@@ -805,6 +805,13 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
             forced_section = clean_scope.split("(")[0].strip()
             forced_class = clean_scope.split("(")[1].replace(")", "").strip()
 
+    # 🌎 SOURCE OF TRUTH ALIGNMENT: Map grid values (e.g. 'IG1'/'IB1') to real DB values ('IG'/'IB')
+    db_section_search = forced_section.strip().upper()
+    if db_section_search == "IG1":
+        db_section_search = "IG"
+    elif db_section_search == "IB1":
+        db_section_search = "IB"
+
     st.subheader(f"📋 Roster Sheet: Class **{forced_class}** | Section **{forced_section}**")
     st.markdown(f"**Session Scope:** {target_session}")
     st.markdown("---")
@@ -815,7 +822,6 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
 
     # Fetch initial student roster matrix joining with daily_attendance schema
     try:
-        # Self-healing projection engine fallback for contact fields if they aren't generated yet
         roster_df = run_query("""
             SELECT 
                 s.id AS "ID", 
@@ -825,11 +831,16 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                 s.whatsapp_number AS "WhatsApp"
             FROM students s
             LEFT JOIN daily_attendance d ON s.id = d.student_id AND d.attendance_date = :att_date
-            WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+            WHERE (UPPER(TRIM(s.section)) = :section OR UPPER(TRIM(s.section)) LIKE :section_like)
               AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
               AND (s.status IS NULL OR UPPER(TRIM(s.status)) NOT IN ('LEFT', 'INACTIVE', 'DROPOUT'))
             ORDER BY s.id ASC
-        """, {"att_date": str(target_date), "section": forced_section.strip().upper(), "session": target_session.strip()})
+        """, {
+            "att_date": str(target_date), 
+            "section": db_section_search, 
+            "section_like": f"{db_section_search}%", 
+            "session": target_session.strip()
+        })
     except Exception as e:
         st.error(f"⚠️ Query Processing Failure: {e}")
         roster_df = pd.DataFrame()
@@ -850,9 +861,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
             for idx, row in roster_df.iterrows():
                 col_s1, col_s2, col_s3 = st.columns([1, 3.5, 1])
                 col_s1.write(f"`{row['ID']}`")
-                
-                with col_s2:
-                    st.markdown(f"**{row['Student Name']}**")
+                col_s2.markdown(f"**{row['Student Name']}**")
                 
                 saved_status = str(row['SavedStatus']).strip().upper() if row['SavedStatus'] is not None else None
                 initial_state = True if saved_status in ['P', 'PRESENT', '1'] else (False if saved_status in ['A', 'ABSENT', '0'] else master_attendance_toggle)
@@ -885,9 +894,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
         # ----------------------------------------------------------------------
         # ❌ DYNAMIC ABSENT REMARKS GENERATOR WITH EXCLUSIVE CLICK-TO-CALL LINKS
         # ----------------------------------------------------------------------
-        current_role = st.session_state.get("role", "").lower()
         resolved_date = str(target_date)
-
         try:
             with engine.connect() as conn:
                 query = text("""
@@ -902,12 +909,16 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                         s.contact_3 AS "Contact3"
                     FROM daily_attendance d
                     JOIN students s ON d.student_id = s.id
-                    WHERE UPPER(TRIM(s.section)) = UPPER(TRIM(:sec)) 
+                    WHERE (UPPER(TRIM(s.section)) = :sec OR UPPER(TRIM(s.section)) LIKE :sec_like)
                       AND d.attendance_date = :att_date
                       AND d.status IN ('A', 'ABSENT', '0')
                     ORDER BY d.student_id ASC
                 """)
-                absent_students = pd.read_sql(query, conn, params={"sec": forced_section.strip().upper(), "att_date": resolved_date})
+                absent_students = pd.read_sql(query, conn, params={
+                    "sec": db_section_search, 
+                    "sec_like": f"{db_section_search}%", 
+                    "att_date": resolved_date
+                })
         except Exception as e:
             absent_students = pd.DataFrame()
 
@@ -918,7 +929,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
             with st.form("absent_remarks_form_teacher_v2", clear_on_submit=False):
                 operator_identity = st.session_state.get("user_name", 
                                     st.session_state.get("name", 
-                                    st.session_state.get("username", "System Administrator"))).strip()
+                                    st.session_state.get("username", "Faculty Incharge"))).strip()
                 
                 st.markdown(f"👤 **Remarks Logged By:** `{operator_identity}`")
                 st.markdown("---")
@@ -953,23 +964,17 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     c2_clean = get_digits(c2_val)
                     c3_clean = get_digits(c3_val)
 
-                    if wa_clean:
-                        contact_items.append(f"🟢 [WhatsApp: {wa_clean}](tel:{wa_clean})")
-                    if c1_clean:
-                        contact_items.append(f"📞 [Contact 1: {c1_clean}](tel:{c1_clean})")
-                    if c2_clean:
-                        contact_items.append(f"📞 [Contact 2: {c2_clean}](tel:{c2_clean})")
-                    if c3_clean:
-                        contact_items.append(f"📞 [Contact 3: {c3_clean}](tel:{c3_clean})")
+                    if wa_clean: contact_items.append(f"🟢 [WhatsApp: {wa_clean}](tel:{wa_clean})")
+                    if c1_clean: contact_items.append(f"📞 [Contact 1: {c1_clean}](tel:{c1_clean})")
+                    if c2_clean: contact_items.append(f"📞 [Contact 2: {c2_clean}](tel:{c2_clean})")
+                    if c3_clean: contact_items.append(f"📞 [Contact 3: {c3_clean}](tel:{c3_clean})")
 
                     contacts_suffix = f" &nbsp;|&nbsp; {' &nbsp;•&nbsp; '.join(contact_items)}" if contact_items else " (No numbers logged)"
                     st.markdown(f"🛑 **Roll No `{ab_row['ID']}` — {ab_row['Student Name']}** {contacts_suffix}", unsafe_allow_html=True)
                     
                     existing_rem = ab_row['Remarks'] if ab_row['Remarks'] else ""
-                    if " | By:" in str(existing_rem):
-                        existing_rem = str(existing_rem).split(" | By:")[0].strip()
-                    if " [Contacted:" in str(existing_rem):
-                        existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
+                    if " | By:" in str(existing_rem): existing_rem = str(existing_rem).split(" | By:")[0].strip()
+                    if " [Contacted:" in str(existing_rem): existing_rem = str(existing_rem).split(" [Contacted:")[0].strip()
                         
                     default_reason_idx = 0
                     if existing_rem in fixed_reasons:
@@ -1012,7 +1017,7 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                     validation_passed = True
                     for s_id, main_reason in reason_selection_map.items():
                         if main_reason == "Other" and not custom_text_map[s_id]:
-                            st.error(f"⚠️ Missing parameters for Student Roll No `{s_id}`.")
+                            st.error(f"⚠️ Missing custom reason parameter details for Student Roll No `{s_id}`.")
                             validation_passed = False
                     
                     if validation_passed:
@@ -1035,13 +1040,11 @@ elif user_role in ["Teacher", "Faculty", "Admin", "Administrator"] and menu_choi
                                         "att_date": resolved_date
                                     })
                                     
-                            st.success("🎉 Action successfully saved.")
+                            st.success("🎉 Remarks committed to records successfully.")
                             time.sleep(1.0)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Database Submission Failed: {e}")
-        else:
-            st.info("ℹ️ No absent students recorded for this class selection and date.")
+                            st.error(f"❌ Database Remarks Update Failed: {e}")
 
 # ==============================================================================
 # 📝 DEDICATED SUBJECT TEACHER SECTION: MARKS ENTRY (FACULTY FLOW INTERCEPT)
