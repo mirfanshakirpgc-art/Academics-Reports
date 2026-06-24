@@ -511,28 +511,31 @@ def render_master_setup_engine():
     with tab2:
         st.markdown("### Map Institutional Dependencies")
         
-        LAYER_STUDENTS = "Section Allocation (Students to Sections)"
-        LAYER_TEACHERS = "Subject Allocation (Teachers to Subjects/Sections)"
+        # Explicit index mapping array to bypass string space matching completely
+        opt_array = [
+            "Section Allocation (Students to Sections)", 
+            "Subject Allocation (Teachers to Subjects/Sections)"
+        ]
         
-        # This selectbox is outside any forms, allowing instant UI updates on change
-        allocation_type = st.selectbox(
+        allocation_layer = st.selectbox(
             "Select Mapping Matrix Layer:",
-            [LAYER_STUDENTS, LAYER_TEACHERS],
-            key="allocation_layer_select"
+            options=opt_array,
+            index=0,
+            key="matrix_layer_root_select"
         )
         
-        if allocation_type == LAYER_STUDENTS:
-            # Enclosed student form explicitly contained to this branch
-            with st.form("mapping_allocation_form"):
+        # Route using direct list index evaluation rather than prone-to-typo string checks
+        if allocation_layer == opt_array[0]:
+            with st.form("mapping_allocation_form_isolated"):
                 st.write(f"✏️ **New Section Allocation Entry**")
                 col_sa1, col_sa2 = st.columns(2)
-                with col_sa1: st.text_input("Student Identifier Code / ID:")
-                with col_sa2: st.text_input("Target Section Assignment:")
+                with col_sa1: st.text_input("Student Identifier Code / ID:", key="sa_stud_id")
+                with col_sa2: st.text_input("Target Section Assignment:", key="sa_sect_id")
                 submit_allocation = st.form_submit_button("🔗 Commit Allocation Link to Database", type="primary")
                 if submit_allocation:
                     st.success("🎉 Relational Ledger Updated: Student allocation pipeline compiled successfully.")
                     
-        elif allocation_type == LAYER_TEACHERS:
+        elif allocation_layer == opt_array[1]:
             st.write("✏️ **Dynamic Sequential Subject Allocation Entry**")
             
             # --- Initialize Session State Indexes to handle safe resets ---
@@ -556,11 +559,8 @@ def render_master_setup_engine():
 
             # 1. SESSION DROPDOWN
             with col_a:
-                sessions_df = run_query("SELECT DISTINCT session_name FROM sessions WHERE status = 'Active'")
-                if sessions_df.empty:
-                    sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+                sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
                 sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
-                
                 sel_sub_session = st.selectbox(
                     "1. Select Session:", 
                     options=sessions_list,
@@ -573,7 +573,8 @@ def render_master_setup_engine():
             # 2. ACADEMIC SYSTEM DROPDOWN
             with col_b:
                 if st.session_state.step1_sess != "-- Select Session --":
-                    systems_list = ["-- Select System --"] + run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist()
+                    systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+                    systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
                     sel_sub_system = st.selectbox(
                         "2. Select Academic System:", 
                         options=systems_list,
@@ -589,7 +590,8 @@ def render_master_setup_engine():
             # 3. CLASS DROPDOWN
             with col_c:
                 if st.session_state.step2_sys != "-- Select System --":
-                    classes_list = ["-- Select Class --"] + run_query("SELECT DISTINCT class_level FROM classes ORDER BY id ASC")['class_level'].tolist()
+                    classes_df = run_query("SELECT DISTINCT class_level FROM classes")
+                    classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
                     sel_sub_class = st.selectbox(
                         "3. Select Class:", 
                         options=classes_list,
@@ -605,7 +607,8 @@ def render_master_setup_engine():
             # 4. DISCIPLINE DROPDOWN
             with col_d:
                 if st.session_state.step3_cls != "-- Select Class --":
-                    disciplines_list = ["-- Select Discipline --"] + run_query("SELECT DISTINCT discipline_title FROM disciplines")['discipline_title'].tolist()
+                    disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
+                    disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
                     sel_sub_discipline = st.selectbox(
                         "4. Select Discipline:", 
                         options=disciplines_list,
@@ -621,7 +624,8 @@ def render_master_setup_engine():
             # 5. SECTION DROPDOWN
             with col_e:
                 if st.session_state.step4_disc != "-- Select Discipline --":
-                    sections_list = ["-- Select Section --"] + run_query("SELECT DISTINCT section_name FROM sections")['section_name'].tolist()
+                    sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                    sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
                     sel_sub_section = st.selectbox(
                         "5. Select Section:", 
                         options=sections_list,
@@ -637,7 +641,8 @@ def render_master_setup_engine():
             # 6. SUBJECT DROPDOWN
             with col_f:
                 if st.session_state.step5_sec != "-- Select Section --":
-                    subjects_list = ["-- Select Subject --"] + run_query("SELECT DISTINCT subject_name FROM subjects")['subject_name'].tolist()
+                    subjects_df = run_query("SELECT DISTINCT subject_name FROM subjects")
+                    subjects_list = ["-- Select Subject --"] + (subjects_df['subject_name'].tolist() if not subjects_df.empty else [])
                     sel_sub_subject = st.selectbox(
                         "6. Select Subject:", 
                         options=subjects_list,
