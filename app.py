@@ -526,99 +526,118 @@ def render_master_setup_engine():
                     st.success("🎉 Relational Ledger Updated: Student allocation pipeline compiled successfully.")
                     
         elif allocation_type == "Subject Allocation (Teachers to Subjects/Sections)":
-            st.write("✏️ **Dynamic Dependent Subject Allocation Entry**")
+            st.write("✏️ **Dynamic Sequential Subject Allocation Entry**")
             
-            # --- Initialize Session State values if they don't exist ---
-            if "alloc_sess" not in st.session_state: st.session_state.alloc_sess = None
-            if "alloc_sys" not in st.session_state: st.session_state.alloc_sys = None
-            if "alloc_cls" not in st.session_state: st.session_state.alloc_cls = None
-            if "alloc_disc" not in st.session_state: st.session_state.alloc_disc = None
-            if "alloc_sec" not in st.session_state: st.session_state.alloc_sec = None
-            if "alloc_sub" not in st.session_state: st.session_state.alloc_sub = None
+            # Use columns to lay out the cascading chain clearly
+            col_a, col_b, col_c = st.columns(3)
+            col_d, col_e, col_f = st.columns(3)
+            col_g, _ = st.columns([2, 1])
 
-            # ==========================================
-            # STEP 1: SESSION
-            # ==========================================
-            sessions_list = run_query("SELECT DISTINCT session_name FROM sessions")['session_name'].tolist()
-            if not sessions_list: sessions_list = ["No Sessions Configured"]
-            
-            col_l1, col_l2, col_l3 = st.columns(3)
-            with col_l1:
-                sel_sub_session = st.selectbox("1. Select Session:", sessions_list, key="sb_sess")
-                st.session_state.alloc_sess = sel_sub_session
-
-            # ==========================================
-            # STEP 2: ACADEMIC SYSTEM (Filtered by Session if mapped)
-            # ==========================================
-            # If your tables don't cross-link yet, this pulls all, but respects downstream resets
-            systems_list = run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist()
-            if not systems_list: systems_list = ["No Academic Systems Configured"]
-            
-            with col_l2:
-                sel_sub_system = st.selectbox("2. Select Academic System:", systems_list, key="sb_sys")
-                st.session_state.alloc_sys = sel_sub_system
-
-            # ==========================================
-            # STEP 3: CLASS
-            # ==========================================
-            classes_list = run_query("SELECT DISTINCT class_level FROM classes ORDER BY id ASC")['class_level'].tolist()
-            if not classes_list: classes_list = ["No Classes Configured"]
-            
-            with col_l3:
-                sel_sub_class = st.selectbox("3. Select Class:", classes_list, key="sb_cls")
-                st.session_state.alloc_cls = sel_sub_class
-
-            col_l4, col_l5, col_l6 = st.columns(3)
-            
-            # ==========================================
-            # STEP 4: DISCIPLINE
-            # ==========================================
-            disciplines_list = run_query("SELECT DISTINCT discipline_title FROM disciplines")['discipline_title'].tolist()
-            if not disciplines_list: disciplines_list = ["No Disciplines Configured"]
-            
-            with col_l4:
-                sel_sub_discipline = st.selectbox("4. Select Discipline:", disciplines_list, key="sb_disc")
-                st.session_state.alloc_disc = sel_sub_discipline
-
-            # ==========================================
-            # STEP 5: SECTION (Can filter by Class selection if needed)
-            # ==========================================
-            sections_list = run_query("SELECT DISTINCT section_name FROM sections")['section_name'].tolist()
-            if not sections_list: sections_list = ["No Sections Configured"]
-            
-            with col_l5:
-                sel_sub_section = st.selectbox("5. Select Section:", sections_list, key="sb_sec")
-                st.session_state.alloc_sec = sel_sub_section
-
-            # ==========================================
-            # STEP 6: SUBJECT
-            # ==========================================
-            subjects_list = run_query("SELECT DISTINCT subject_name FROM subjects")['subject_name'].tolist()
-            if not subjects_list: subjects_list = ["No Subjects Configured"]
-            
-            with col_l6:
-                sel_sub_subject = st.selectbox("6. Select Subject:", subjects_list, key="sb_sub")
-                st.session_state.alloc_sub = sel_sub_subject
-
-            # ==========================================
-            # STEP 7: TEACHER
-            # ==========================================
-            col_l7, _ = st.columns([2, 1])
-            teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
-            if not teachers_df.empty:
-                teachers_list = [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()]
-            else:
-                teachers_list = ["No Teachers Configured"]
+            # ------------------------------------------------------------------
+            # 1. SESSION DROPDOWN
+            # ------------------------------------------------------------------
+            with col_a:
+                sessions_df = run_query("SELECT DISTINCT session_name FROM sessions WHERE status = 'Active'")
+                if sessions_df.empty:
+                    sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
                 
-            with col_l7:
-                sel_sub_teacher = st.selectbox("7. Select Teacher:", teachers_list, key="sb_tchr")
-
-            # --- Form Submission ---
-            st.markdown("---")
-            if st.button("🔗 Commit Dynamic Subject Allocation Matrix", type="primary", use_container_width=True):
-                if "No " in sel_sub_session or "No " in sel_sub_teacher:
-                    st.error("❌ Allocation failed: Complete configuration parameters in Tab 1 first.")
+                sessions_list = sessions_df['session_name'].tolist() if not sessions_df.empty else []
+                
+                if sessions_list:
+                    sel_sub_session = st.selectbox("1. Select Session:", ["-- Select Session --"] + sessions_list, key="sb_sess")
                 else:
+                    st.warning("⚠️ Please add a Session in Tab 1 first.")
+                    sel_sub_session = "-- Select Session --"
+
+            # ------------------------------------------------------------------
+            # 2. ACADEMIC SYSTEM DROPDOWN (Fetched only if Session is selected)
+            # ------------------------------------------------------------------
+            with col_b:
+                if sel_sub_session != "-- Select Session --":
+                    systems_list = run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist()
+                    sel_sub_system = st.selectbox("2. Select Academic System:", ["-- Select System --"] + systems_list, key="sb_sys")
+                else:
+                    st.selectbox("2. Select Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="sb_sys_dis")
+                    sel_sub_system = "-- Select System --"
+
+            # ------------------------------------------------------------------
+            # 3. CLASS DROPDOWN (Fetched only if Academic System is selected)
+            # ------------------------------------------------------------------
+            with col_c:
+                if sel_sub_system != "-- Select System --" and sel_sub_system != "🔒 Waiting for Session...":
+                    classes_list = run_query("SELECT DISTINCT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
+                    sel_sub_class = st.selectbox("3. Select Class:", ["-- Select Class --"] + classes_list, key="sb_cls")
+                else:
+                    st.selectbox("3. Select Class:", ["🔒 Waiting for System..."], disabled=True, key="sb_cls_dis")
+                    sel_sub_class = "-- Select Class --"
+
+            # ------------------------------------------------------------------
+            # 4. DISCIPLINE DROPDOWN (Fetched only if Class is selected)
+            # ------------------------------------------------------------------
+            with col_d:
+                if sel_sub_class != "-- Select Class --" and sel_sub_class != "🔒 Waiting for System...":
+                    disciplines_list = run_query("SELECT DISTINCT discipline_title FROM disciplines")['discipline_title'].tolist()
+                    sel_sub_discipline = st.selectbox("4. Select Discipline:", ["-- Select Discipline --"] + disciplines_list, key="sb_disc")
+                else:
+                    st.selectbox("4. Select Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="sb_disc_dis")
+                    sel_sub_discipline = "-- Select Discipline --"
+
+            # ------------------------------------------------------------------
+            # 5. SECTION DROPDOWN (Fetched only if Discipline is selected)
+            # ------------------------------------------------------------------
+            with col_e:
+                if sel_sub_discipline != "-- Select Discipline --" and sel_sub_discipline != "🔒 Waiting for Class...":
+                    sections_list = run_query("SELECT DISTINCT section_name FROM sections")['section_name'].tolist()
+                    sel_sub_section = st.selectbox("5. Select Section:", ["-- Select Section --"] + sections_list, key="sb_sec")
+                else:
+                    st.selectbox("5. Select Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="sb_sec_dis")
+                    sel_sub_section = "-- Select Section --"
+
+            # ------------------------------------------------------------------
+            # 6. SUBJECT DROPDOWN (Fetched only if Section is selected)
+            # ------------------------------------------------------------------
+            with col_f:
+                if sel_sub_section != "-- Select Section --" and sel_sub_section != "🔒 Waiting for Discipline...":
+                    subjects_list = run_query("SELECT DISTINCT subject_name FROM subjects")['subject_name'].tolist()
+                    sel_sub_subject = st.selectbox("6. Select Subject:", ["-- Select Subject --"] + subjects_list, key="sb_sub")
+                else:
+                    st.selectbox("6. Select Subject:", ["🔒 Waiting for Section..."], disabled=True, key="sb_sub_dis")
+                    sel_sub_subject = "-- Select Subject --"
+
+            # ------------------------------------------------------------------
+            # 7. TEACHER DROPDOWN (Fetched only if Subject is selected)
+            # ------------------------------------------------------------------
+            with col_g:
+                if sel_sub_subject != "-- Select Subject --" and sel_sub_subject != "🔒 Waiting for Section...":
+                    teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
+                    if not teachers_df.empty:
+                        teachers_list = [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()]
+                        sel_sub_teacher = st.selectbox("7. Select Teacher:", ["-- Select Teacher --"] + teachers_list, key="sb_tchr")
+                    else:
+                        st.selectbox("7. Select Teacher:", ["No Teachers Found"], disabled=True)
+                        sel_sub_teacher = "-- Select Teacher --"
+                else:
+                    st.selectbox("7. Select Teacher:", ["🔒 Waiting for Subject..."], disabled=True, key="sb_tchr_dis")
+                    sel_sub_teacher = "-- Select Teacher --"
+
+            # ------------------------------------------------------------------
+            # TRANSACTION SUBMISSION
+            # ------------------------------------------------------------------
+            st.markdown("---")
+            
+            # Check if all sequence levels have validation clearance
+            ready_to_commit = all([
+                sel_sub_session != "-- Select Session --",
+                sel_sub_system != "-- Select System --",
+                sel_sub_class != "-- Select Class --",
+                sel_sub_discipline != "-- Select Discipline --",
+                sel_sub_section != "-- Select Section --",
+                sel_sub_subject != "-- Select Subject --",
+                sel_sub_teacher != "-- Select Teacher --"
+            ])
+
+            if ready_to_commit:
+                if st.button("🔗 Commit Subject Allocation Matrix", type="primary", use_container_width=True):
                     t_id = sel_sub_teacher.split(" - ")[0].strip()
                     t_name = sel_sub_teacher.split(" - ")[1].strip()
                     try:
@@ -627,21 +646,17 @@ def render_master_setup_engine():
                                 INSERT INTO subject_allocations (session, academic_system, class_level, discipline, section, subject_name, teacher_id, teacher_name)
                                 VALUES (:sess, :sys, :cls, :disc, :sec, :sub, :tid, :tname)
                             """), {
-                                "sess": st.session_state.alloc_sess, 
-                                "sys": st.session_state.alloc_sys, 
-                                "cls": st.session_state.alloc_cls,
-                                "disc": st.session_state.alloc_disc, 
-                                "sec": st.session_state.alloc_sec, 
-                                "sub": st.session_state.alloc_sub,
-                                "tid": t_id, 
-                                "tname": t_name
+                                "sess": sel_sub_session, "sys": sel_sub_system, "cls": sel_sub_class,
+                                "disc": sel_sub_discipline, "sec": sel_sub_section, "sub": sel_sub_subject,
+                                "tid": t_id, "tname": t_name
                             })
-                        st.success(f"🎉 Success! {t_name} is now allocated to teach **{st.session_state.alloc_sub}** to Class {st.session_state.alloc_cls}-{st.session_state.alloc_sec} ({st.session_state.alloc_disc}) for session {st.session_state.alloc_sess}!")
+                        st.success(f"🎉 **Allocation Saved Successfully!** {t_name} is now assigned to **{sel_sub_subject}** ({sel_sub_class}-{sel_sub_section} [{sel_sub_discipline}]) for {sel_sub_session}.")
                         time.sleep(1)
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Database error: {e}")
-
+            else:
+                st.button("🔗 Complete Steps 1-7 above to unlock allocation", disabled=True, use_container_width=True)
     with tab3:
         # ----------------------------------------------------------------------
         # 3. CLASS IN-CHARGE ALLOCATIONS
