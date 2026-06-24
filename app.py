@@ -511,16 +511,18 @@ def render_master_setup_engine():
     with tab2:
         st.markdown("### Map Institutional Dependencies")
         
-        # Using variables for choice names to prevent typos/mismatches entirely
         LAYER_STUDENTS = "Section Allocation (Students to Sections)"
         LAYER_TEACHERS = "Subject Allocation (Teachers to Subjects/Sections)"
         
+        # This selectbox is outside any forms, allowing instant UI updates on change
         allocation_type = st.selectbox(
             "Select Mapping Matrix Layer:",
-            [LAYER_STUDENTS, LAYER_TEACHERS]
+            [LAYER_STUDENTS, LAYER_TEACHERS],
+            key="allocation_layer_select"
         )
         
         if allocation_type == LAYER_STUDENTS:
+            # Enclosed student form explicitly contained to this branch
             with st.form("mapping_allocation_form"):
                 st.write(f"✏️ **New Section Allocation Entry**")
                 col_sa1, col_sa2 = st.columns(2)
@@ -541,7 +543,6 @@ def render_master_setup_engine():
             if "step5_sec" not in st.session_state: st.session_state.step5_sec = "-- Select Section --"
             if "step6_sub" not in st.session_state: st.session_state.step6_sub = "-- Select Subject --"
 
-            # --- Change Callback Operations to Force Strict Downstream Truncation ---
             def reset_from_step(step_num):
                 if step_num <= 1: st.session_state.step2_sys = "-- Select System --"
                 if step_num <= 2: st.session_state.step3_cls = "-- Select Class --"
@@ -549,14 +550,11 @@ def render_master_setup_engine():
                 if step_num <= 4: st.session_state.step5_sec = "-- Select Section --"
                 if step_num <= 5: st.session_state.step6_sub = "-- Select Subject --"
 
-            # Use columns to lay out the cascading chain clearly
             col_a, col_b, col_c = st.columns(3)
             col_d, col_e, col_f = st.columns(3)
             col_g, _ = st.columns([2, 1])
 
-            # ------------------------------------------------------------------
             # 1. SESSION DROPDOWN
-            # ------------------------------------------------------------------
             with col_a:
                 sessions_df = run_query("SELECT DISTINCT session_name FROM sessions WHERE status = 'Active'")
                 if sessions_df.empty:
@@ -572,9 +570,7 @@ def render_master_setup_engine():
                 )
                 st.session_state.step1_sess = sel_sub_session
 
-            # ------------------------------------------------------------------
             # 2. ACADEMIC SYSTEM DROPDOWN
-            # ------------------------------------------------------------------
             with col_b:
                 if st.session_state.step1_sess != "-- Select Session --":
                     systems_list = ["-- Select System --"] + run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist()
@@ -590,9 +586,7 @@ def render_master_setup_engine():
                     st.selectbox("2. Select Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="sb_sys_dis")
                     sel_sub_system = "-- Select System --"
 
-            # ------------------------------------------------------------------
             # 3. CLASS DROPDOWN
-            # ------------------------------------------------------------------
             with col_c:
                 if st.session_state.step2_sys != "-- Select System --":
                     classes_list = ["-- Select Class --"] + run_query("SELECT DISTINCT class_level FROM classes ORDER BY id ASC")['class_level'].tolist()
@@ -608,9 +602,7 @@ def render_master_setup_engine():
                     st.selectbox("3. Select Class:", ["🔒 Waiting for System..."], disabled=True, key="sb_cls_dis")
                     sel_sub_class = "-- Select Class --"
 
-            # ------------------------------------------------------------------
             # 4. DISCIPLINE DROPDOWN
-            # ------------------------------------------------------------------
             with col_d:
                 if st.session_state.step3_cls != "-- Select Class --":
                     disciplines_list = ["-- Select Discipline --"] + run_query("SELECT DISTINCT discipline_title FROM disciplines")['discipline_title'].tolist()
@@ -626,9 +618,7 @@ def render_master_setup_engine():
                     st.selectbox("4. Select Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="sb_disc_dis")
                     sel_sub_discipline = "-- Select Discipline --"
 
-            # ------------------------------------------------------------------
             # 5. SECTION DROPDOWN
-            # ------------------------------------------------------------------
             with col_e:
                 if st.session_state.step4_disc != "-- Select Discipline --":
                     sections_list = ["-- Select Section --"] + run_query("SELECT DISTINCT section_name FROM sections")['section_name'].tolist()
@@ -644,9 +634,7 @@ def render_master_setup_engine():
                     st.selectbox("5. Select Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="sb_sec_dis")
                     sel_sub_section = "-- Select Section --"
 
-            # ------------------------------------------------------------------
             # 6. SUBJECT DROPDOWN
-            # ------------------------------------------------------------------
             with col_f:
                 if st.session_state.step5_sec != "-- Select Section --":
                     subjects_list = ["-- Select Subject --"] + run_query("SELECT DISTINCT subject_name FROM subjects")['subject_name'].tolist()
@@ -660,9 +648,7 @@ def render_master_setup_engine():
                     st.selectbox("6. Select Subject:", ["🔒 Waiting for Section..."], disabled=True, key="sb_sub_dis")
                     sel_sub_subject = "-- Select Subject --"
 
-            # ------------------------------------------------------------------
             # 7. TEACHER DROPDOWN
-            # ------------------------------------------------------------------
             with col_g:
                 if st.session_state.step6_sub != "-- Select Subject --":
                     teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
@@ -676,9 +662,7 @@ def render_master_setup_engine():
                     st.selectbox("7. Select Teacher:", ["🔒 Waiting for Subject..."], disabled=True, key="sb_tchr_dis")
                     sel_sub_teacher = "-- Select Teacher --"
 
-            # ------------------------------------------------------------------
             # TRANSACTION SUBMISSION
-            # ------------------------------------------------------------------
             st.markdown("---")
             
             ready_to_commit = all([
