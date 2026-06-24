@@ -4782,6 +4782,19 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # Clean sidebar placement for sub-navigation parameters
     sub_menu = st.sidebar.radio("Navigate Module:", menu_options, key="teacher_sub_menu")
 
+    # 🌎 SOURCE OF TRUTH INTEGRATION: Load the Master Global Configuration Grid
+    grid = st.session_state.get("GLOBAL_GRID", {})
+    if not grid:
+        st.error("❌ Critical Error: The GLOBAL_GRID (Source of Truth) is missing from the session state.")
+        st.stop()
+
+    # Dynamic extraction of fallback structures from master source
+    available_sessions = grid.get("sessions", ["2025-27", "2026-28"])
+    annual_classes_list = grid.get("annual_classes", ["11th", "12th"])
+    semester_classes_list = grid.get("semester_classes", ["1st Semester", "2nd Semester"])
+    sections_map = grid.get("sections_map", {})
+    subjects_map = grid.get("subjects_map", {})
+
     # --------------------------------------------------------------------------
     # GLOBAL DEPENDENCY FETCH: Real-Time Registered Faculty Profiles
     # --------------------------------------------------------------------------
@@ -4801,17 +4814,16 @@ if menu_choice == "👨‍🏫 Teacher Management":
         st.warning(f"⚠️ Global Faculty Sync Pending: {e}")
         faculty_select_list = []
 
-    # Flatten Master Maps for global cross-referencing validation structures
+    # Flatten Master configuration maps dynamically for cross-referencing structure validations
     system_sections_pool = []
-    if 'DISCIPLINE_SECTIONS_MAP' in locals() or 'DISCIPLINE_SECTIONS_MAP' in globals():
-        for disc_name, class_dict in DISCIPLINE_SECTIONS_MAP.items():
-            for class_level, sections_list in class_dict.items():
-                for sec in sections_list:
-                    system_sections_pool.append({
-                        "Class Level": class_level,
-                        "Discipline": disc_name,
-                        "Section": sec
-                    })
+    for disc_name, class_dict in sections_map.items():
+        for class_level, sections_list in class_dict.items():
+            for sec in sections_list:
+                system_sections_pool.append({
+                    "Class Level": class_level,
+                    "Discipline": disc_name,
+                    "Section": sec
+                })
     sections_pool_df = pd.DataFrame(system_sections_pool) if system_sections_pool else pd.DataFrame(columns=["Class Level", "Discipline", "Section"])
 
     # ==============================================================================
@@ -4931,24 +4943,24 @@ if menu_choice == "👨‍🏫 Teacher Management":
     # ==============================================================================
     elif sub_menu == "📚 Subject Allocations":
         st.subheader("📋 Subject Allocation Matrix")
-        st.markdown("Map real database-registered faculty members to structural academic subjects.")
+        st.markdown("Map real database-registered faculty members to master configured academic subjects.")
         
         if not faculty_select_list:
             st.warning("⚠️ No active faculty records found in your database. Register an instructor first.")
         else:
-            avail_classes = list(CLASS_SUBJECTS_MASTER_MAP.keys())
+            avail_classes = list(subjects_map.keys())
             
             col_sel1, col_sel2 = st.columns(2)
             with col_sel1:
                 sel_class = st.selectbox("Select Academic Year/Tier:", avail_classes, key="alloc_tier")
             with col_sel2:
-                matched_disciplines = list(CLASS_SUBJECTS_MASTER_MAP[sel_class].keys())
+                matched_disciplines = list(subjects_map[sel_class].keys())
                 sel_disc = st.selectbox("Select Target Discipline Row:", matched_disciplines, key="alloc_disc")
                 
-            avail_subjects = CLASS_SUBJECTS_MASTER_MAP[sel_class][sel_disc]
+            avail_subjects = subjects_map[sel_class][sel_disc]
             
-            display_disc_key = "ICS (PHYSICS)" if sel_disc == "ICS_PHYSICS" else ("ICS (STATS)" if sel_disc == "ICS_STATS" else sel_disc)
-            valid_sections = DISCIPLINE_SECTIONS_MAP.get(display_disc_key, {}).get(sel_class, ["Default Node"])
+            # Map structural display keys to section paths matching GLOBAL_GRID definitions exactly
+            valid_sections = sections_map.get(sel_disc, {}).get(sel_class, ["Default Node"])
 
             st.markdown("---")
             st.markdown("##### ⚙️ Allocate Subject Faculty Link")
@@ -4969,7 +4981,13 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     tid = int(assigned_prof.split(" - ")[0])
                     tname = assigned_prof.split(" - ")[1]
                     
-                    # Ensure database schema persistence using standard relational types
+                    # 🌎 ALIGNMENT STEP: Normalize section string codes to fit production database storage targets
+                    db_target_sec = target_sec.strip().upper()
+                    if db_target_sec == "IG1":
+                        db_target_sec = "IG"
+                    elif db_target_sec == "IB1":
+                        db_target_sec = "IB"
+
                     with engine.begin() as conn:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS subject_allocations (
@@ -4986,7 +5004,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                         conn.execute(text("""
                             INSERT INTO subject_allocations (teacher_id, teacher_name, class_level, discipline, subject_name, section)
                             VALUES (:tid, :tname, :cls, :disc, :sub, :sec)
-                        """), {"tid": tid, "tname": tname, "cls": sel_class, "disc": sel_disc, "sub": target_sub, "sec": target_sec})
+                        """), {"tid": tid, "tname": tname, "cls": sel_class, "disc": sel_disc, "sub": target_sub, "sec": db_target_sec})
                         
                     st.success(f"🎉 Database payload optimized: **{tname}** assigned to **{target_sub}** inside Section **{target_sec}** ({sel_class}).")
                 except Exception as ex:
@@ -5002,7 +5020,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
         if not faculty_select_list:
             st.warning("⚠️ Missing registered teacher structures. Add profile nodes inside registration framework before mapping values.")
         else:
-            # Sync database schema layout definitions explicitly with relational types
             try:
                 with engine.begin() as conn:
                     conn.execute(text("""
@@ -5026,26 +5043,20 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 col_i1, col_i2, col_i3 = st.columns(3)
                 
                 with col_i1:
-                    # Sync using global AVAILABLE_SESSIONS list object from config parameters
-                    session_pool = AVAILABLE_SESSIONS if 'AVAILABLE_SESSIONS' in locals() or 'AVAILABLE_SESSIONS' in globals() else ["2025-27", "2026-28"]
-                    sel_session = st.selectbox("Select Session:", session_pool)
-                    
-                    # Differentiate matrix boundaries automatically based on text matching patterns
-                    sel_academic_system = st.selectbox("Academic System:", ["Annual System", "Semester System"])
+                    sel_session = st.selectbox("Select Session Scope:", available_sessions)
+                    sel_academic_system = st.selectbox("Academic System Matrix:", ["Annual System", "Semester System"])
                 
                 with col_i2:
-                    # Isolate master key options dynamically 
-                    all_available_classes = list(CLASS_SUBJECTS_MASTER_MAP.keys())
                     if sel_academic_system == "Annual System":
-                        class_options = [c for c in all_available_classes if "th" in c.lower()]
+                        class_options = annual_classes_list
                     else:
-                        class_options = [c for c in all_available_classes if "semester" in c.lower()]
+                        class_options = semester_classes_list
                         
-                    sel_class = st.selectbox("Class:", class_options if class_options else all_available_classes)
+                    sel_class = st.selectbox("Class Level Target:", class_options)
                     
-                    # Compute dynamic mapping paths matching DISCIPLINE_SECTIONS_MAP values exactly
+                    # Compute dynamic mapping sections from sections_map source map paths
                     computed_sections_list = []
-                    for disc_key, inner_classes in DISCIPLINE_SECTIONS_MAP.items():
+                    for disc_key, inner_classes in sections_map.items():
                         if sel_class in inner_classes:
                             computed_sections_list.extend(inner_classes[sel_class])
                             
@@ -5053,11 +5064,11 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     if not computed_sections_list:
                         computed_sections_list = ["Default Node"]
                         
-                    sel_section = st.selectbox("Section:", computed_sections_list)
+                    sel_section = st.selectbox("Designated Section Pool:", computed_sections_list)
                 
                 with col_i3:
                     sel_teacher = st.selectbox("Select Teacher In-Charge:", faculty_select_list)
-                    st.write("") # Pad vertical layout spacing
+                    st.write("") 
                     st.write("")
                     apply_incharge = st.form_submit_button("👑 Live Link Class Incharge", type="primary", use_container_width=True)
             
@@ -5066,16 +5077,23 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     tid = int(sel_teacher.split(" - ")[0])
                     tname = sel_teacher.split(" - ")[1].strip()
                     
+                    # 🌎 ALIGNMENT STEP: Normalize configuration targets to raw DB structure names
+                    db_sel_section = sel_section.strip().upper()
+                    if db_sel_section == "IG1":
+                        db_sel_section = "IG"
+                    elif db_sel_section == "IB1":
+                        db_sel_section = "IB"
+                    
                     with engine.begin() as conn:
-                        # Clear any existing matching structural allocation paths to avoid room duplicate overlap clashes
+                        # Clear matching historic paths to prevent room constraint violations or duplications
                         conn.execute(text("""
                             DELETE FROM incharge_allocations 
                             WHERE session = :session 
                               AND class_level = :cls 
                               AND section = :sec
-                        """), {"session": str(sel_session), "cls": str(sel_class), "sec": str(sel_section)})
+                        """), {"session": str(sel_session), "cls": str(sel_class), "sec": db_sel_section})
                         
-                        # Apply clear record configuration line insertion
+                        # Persist corrected relational alignment record string values
                         conn.execute(text("""
                             INSERT INTO incharge_allocations (session, academic_system, class_level, section, teacher_id, teacher_name)
                             VALUES (:session, :sys, :cls, :sec, :tid, :tname)
@@ -5083,7 +5101,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                             "session": str(sel_session),
                             "sys": str(sel_academic_system),
                             "cls": str(sel_class),
-                            "sec": str(sel_section),
+                            "sec": db_sel_section,
                             "tid": tid,
                             "tname": tname
                         })
@@ -5111,12 +5129,10 @@ if menu_choice == "👨‍🏫 Teacher Management":
                 st.info("No tracking matrix configuration datasets are initialized inside database pipelines.")
                 
             if not current_allocations_df.empty:
-                # Output scannable clear reference block data table layout
                 st.dataframe(current_allocations_df.drop(columns=["Allocation ID"]), use_container_width=True, hide_index=True)
                 
                 st.markdown("### 🛠️ Manage Active Structural Allocations")
                 
-                # Setup dynamic interactive select mapping to quickly handle deletion/updates
                 inline_options_list = [
                     f"{row['Allocation ID']} - {row['Teacher In-Charge']} ({row['Class']} {row['Section']})"
                     for _, row in current_allocations_df.iterrows()
@@ -5129,7 +5145,6 @@ if menu_choice == "👨‍🏫 Teacher Management":
                     
                     with st.form("edit_incharge_allocation_form"):
                         st.info(f"Modifying operational path control parameters for: **Class {matched_row['Class']} - {matched_row['Section']} ({matched_row['Session']})**")
-                        
                         updated_teacher_map = st.selectbox("Assign Alternative Teacher Node Vector:", faculty_select_list)
                         
                         col_m1, col_m2 = st.columns(2)
@@ -5168,6 +5183,7 @@ if menu_choice == "👨‍🏫 Teacher Management":
                                     st.error(f"❌ Purge execution error tracking response: {d_err}")
             else:
                 st.info("No active institutional class in-charge slots are assigned or recorded yet.")
+
     # ==============================================================================
     # SUB-MODULE 4: TEACHER MARKS PORTAL
     # ==============================================================================
