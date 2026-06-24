@@ -1273,6 +1273,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
     
     # 🌎 GLOBAL MASTER CONFIGURATION GRID (Source of Truth Alignment)
     grid = st.session_state.get("GLOBAL_GRID", {})
+    sections_grid_map = grid.get("sections_map", {})
     
     # Extract synchronized session arrays directly from the master grid parameters
     session_options = grid.get("sessions", ["2025-27", "2026-28", "2027-29"])
@@ -1311,21 +1312,31 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
         
         # 🌟 Dynamic class matrix extraction matching GLOBAL_GRID strategy
         grid_key = "annual_classes" if academic_system == "Annual System" else "semester_classes"
-        class_options = grid.get(grid_key, ["11th", "12th"] if academic_system == "Annual System" else ["Semester 1", "Semester 2"])
+        class_options = grid.get(grid_key, ["11th", "12th"] if academic_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"])
         
         with d3: 
             sel_class = st.selectbox("Class:", class_options, key="adm_daily_cls")
         
-        # 🌟 Dynamic section mapping lookups matching academic system boundaries
-        sections_map = grid.get("sections_map", {}).get(academic_system, {})
-        section_options = sections_map.get(sel_class, ["IG", "IB", "FB", "FG", "MG_BLUE"])
+        # 🌟 Dynamic section mapping lookups traversing system matrix parameters
+        section_options = []
+        target_disciplines = grid.get("annual_disciplines", []) if academic_system == "Annual System" else grid.get("semester_disciplines", [])
+        
+        for discipline in target_disciplines:
+            class_map = sections_grid_map.get(discipline, {})
+            sections_list = class_map.get(sel_class, [])
+            section_options.extend(sections_list)
+            
+        # Cleanse entries and sort array variables alphabetically
+        section_options = sorted(list(set([str(s).strip() for s in section_options if s])))
+        if not section_options:
+            section_options = ["⚠️ No Sections Configured"]
         
         with d4: 
             sel_section = st.selectbox("Section:", section_options, key="adm_daily_sec")
             
         target_date = st.date_input("Date:", value=datetime.date.today(), key="adm_daily_date")
 
-        if sel_section and sel_session:
+        if sel_section and sel_session and "⚠️" not in str(sel_section):
             roster_df = run_query("""
                 SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus", NULL AS "Remarks" 
                 FROM students s 
@@ -1501,7 +1512,7 @@ elif menu_choice in ["📅 Attendance Entry Management", "Attendance Entry Manag
                                             SET remarks = :remarks,
                                                 remarks_updated_at = NOW() AT TIME ZONE 'Asia/Karachi'
                                             WHERE student_id = :s_id AND attendance_date = :att_date
-                                """), {
+                                        """), {
                                             "remarks": formatted_remarks, 
                                             "s_id": int(s_id), 
                                             "att_date": resolved_date
@@ -1676,75 +1687,105 @@ elif "Absent" in str(menu_choice) or "Remarks" in str(menu_choice):
     import time
     st.title("❌ Absent Student Remarks Panel")
     
+    # 🌎 GLOBAL MASTER CONFIGURATION GRID (Source of Truth Alignment)
+    grid = st.session_state.get("GLOBAL_GRID", {})
+    sections_grid_map = grid.get("sections_map", {})
+    
     user_role = st.session_state.get("user_role", "Admin")
     scope_str = st.session_state.get("db_class_scope", None)
     target_session = st.session_state.get("db_assigned_session", "2025-27")
     
-    c1, c2, c3 = st.columns([1.5, 1.5, 2])
+    c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.5, 1.5])
+    
+    with c1:
+        academic_system = st.selectbox("System:", ["Annual System", "Semester System"], key="f_rem_sys")
+        
+    grid_key = "annual_classes" if academic_system == "Annual System" else "semester_classes"
+    fallback_classes = ["11th", "12th"] if academic_system == "Annual System" else ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"]
+    class_options = grid.get(grid_key, fallback_classes)
+
     if user_role in ["Teacher", "Faculty"] and scope_str:
         clean_scope = str(scope_str).strip()
-        forced_class = clean_scope.split(" - ")[0].strip() if " - " in clean_scope else "11th"
+        forced_class = clean_scope.split(" - ")[0].strip() if " - " in clean_scope else class_options[0]
         forced_section = clean_scope.split(" - ")[1].strip() if " - " in clean_scope else "IG"
-        with c1: st.text_input("Class:", value=forced_class, disabled=True, key="f_rem_c")
-        with c2: st.text_input("Section:", value=forced_section, disabled=True, key="f_rem_s")
+        with c2: st.text_input("Class:", value=forced_class, disabled=True, key="f_rem_c")
+        with c3: st.text_input("Section:", value=forced_section, disabled=True, key="f_rem_s")
         sel_class, sel_section = forced_class, forced_section
     else:
-        with c1: sel_class = st.selectbox("Select Class:", ["11th", "12th"], key="f_rem_c_adm")
-        with c2: sel_section = st.selectbox("Select Section:", ["IG", "IB", "FB", "FG", "MG_BLUE"], key="f_rem_s_adm")
+        with c2: 
+            sel_class = st.selectbox("Select Class:", class_options, key="f_rem_c_adm")
         
-    with c3: target_date = st.date_input("Select Date:", value=datetime.date.today(), key="f_rem_dt")
+        # 🌎 GLOBAL REFERENCE: Dynamically pull matching structural array sections
+        section_options = []
+        target_disciplines = grid.get("annual_disciplines", []) if academic_system == "Annual System" else grid.get("semester_disciplines", [])
+        
+        for discipline in target_disciplines:
+            class_map = sections_grid_map.get(discipline, {})
+            sections_list = class_map.get(sel_class, [])
+            section_options.extend(sections_list)
+            
+        section_options = sorted(list(set([str(s).strip() for s in section_options if s])))
+        if not section_options:
+            section_options = ["⚠️ None"]
+            
+        with c3: 
+            sel_section = st.selectbox("Select Section:", section_options, key="f_rem_s_adm")
+        
+    with c4: 
+        target_date = st.date_input("Select Date:", value=datetime.date.today(), key="f_rem_dt")
     st.markdown("---")
 
-    absent_roster = run_query("""
-        SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
-        FROM students s
-        JOIN daily_attendance d ON s.id = d.student_id
-        WHERE d.attendance_date = :att_date
-          AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
-          AND UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
-          AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
-        ORDER BY s.id ASC
-    """, {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(target_session).strip()})
+    if "⚠️" not in str(sel_section):
+        absent_roster = run_query("""
+            SELECT s.id AS "ID", s.name AS "Student Name", d.status AS "SavedStatus"
+            FROM students s
+            JOIN daily_attendance d ON s.id = d.student_id
+            WHERE d.attendance_date = :att_date
+              AND UPPER(TRIM(d.status)) IN ('A', 'ABSENT', '0')
+              AND UPPER(TRIM(s.section)) = UPPER(TRIM(:section))
+              AND UPPER(TRIM(CAST(s.session AS VARCHAR))) = UPPER(TRIM(:session))
+            ORDER BY s.id ASC
+        """, {"att_date": str(target_date), "section": str(sel_section).strip().upper(), "session": str(target_session).strip()})
 
-    if absent_roster.empty:
-        st.success(f"🎉 No students are marked absent for Class {sel_class} ({sel_section}) on {target_date.strftime('%d-%b-%Y')}.")
-    else:
-        st.warning(f"📋 Found {len(absent_roster)} absent student(s). Log tracking details below:")
-        
-        with st.form("dedicated_absent_remarks_form"):
-            remarks_tracking_inputs = {}
-            for idx, row in absent_roster.iterrows():
-                col_info, col_input = st.columns([2, 3])
-                col_info.write(f"🛑 **Roll No {row['ID']}** — {row['Student Name']}")
-                remarks_tracking_inputs[row['ID']] = col_input.text_input(
-                    "Reason:", 
-                    key=f"ded_rem_box_{row['ID']}", 
-                    placeholder="e.g., Leave application, Unexcused"
-                )
-                
-            if st.form_submit_button("💾 Save Absence Remarks", type="primary", use_container_width=True):
-                try:
-                    with engine.begin() as conn:
-                        for student_id, remark_text in remarks_tracking_inputs.items():
-                            if remark_text.strip():
-                                conn.execute(text("""
-                                    UPDATE daily_attendance 
-                                    SET remarks = :remarks,
-                                        remarks_updated_at = CURRENT_TIMESTAMP
-                                    WHERE student_id = :s_id 
-                                      AND attendance_date = :att_date
-                                """), {
-                                    "remarks": str(remark_text).strip(),
-                                    "s_id": int(student_id),
-                                    "att_date": str(target_date)
-                                })
-                                
-                    st.success("🎉 Remarks saved securely with an automatic system timestamp!")
-                    time.sleep(1.0)
-                    st.rerun()
+        if absent_roster.empty:
+            st.success(f"🎉 No students are marked absent for Class {sel_class} ({sel_section}) on {target_date.strftime('%d-%b-%Y')}.")
+        else:
+            st.warning(f"📋 Found {len(absent_roster)} absent student(s). Log tracking details below:")
+            
+            with st.form("dedicated_absent_remarks_form"):
+                remarks_tracking_inputs = {}
+                for idx, row in absent_roster.iterrows():
+                    col_info, col_input = st.columns([2, 3])
+                    col_info.write(f"🛑 **Roll No {row['ID']}** — {row['Student Name']}")
+                    remarks_tracking_inputs[row['ID']] = col_input.text_input(
+                        "Reason:", 
+                        key=f"ded_rem_box_{row['ID']}", 
+                        placeholder="e.g., Leave application, Unexcused"
+                    )
                     
-                except Exception as e:
-                    st.error(f"⚠️ SQL Update failed. Ensure you ran the alter table command: {e}")
+                if st.form_submit_button("💾 Save Absence Remarks", type="primary", use_container_width=True):
+                    try:
+                        with engine.begin() as conn:
+                            for student_id, remark_text in remarks_tracking_inputs.items():
+                                if remark_text.strip():
+                                    conn.execute(text("""
+                                        UPDATE daily_attendance 
+                                        SET remarks = :remarks,
+                                            remarks_updated_at = NOW() AT TIME ZONE 'Asia/Karachi'
+                                        WHERE student_id = :s_id 
+                                          AND attendance_date = :att_date
+                                    """), {
+                                        "remarks": str(remark_text).strip(),
+                                        "s_id": int(student_id),
+                                        "att_date": str(target_date)
+                                    })
+                                    
+                        st.success("🎉 Remarks saved securely with an automatic system timestamp!")
+                        time.sleep(1.0)
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"⚠️ SQL Update failed. Ensure you ran the alter table command: {e}")
 
 
 # ----------------- 📊 HOME DASHBOARD -----------------
