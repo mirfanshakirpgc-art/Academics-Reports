@@ -305,50 +305,25 @@ def render_master_setup_engine():
             else: st.info("No tracked sections exist.")
 
         # ----------------------------------------------------------------------
-        # 5. SUBJECTS MANAGEMENT (ADD & EDIT)
+        # 5. SUBJECTS MANAGEMENT (ADD & EDIT) - CLEANED
         # ----------------------------------------------------------------------
         elif setup_type == "Subjects":
             st.markdown("#### ➕ Add New Academic Subject")
             with st.form("form_subjects"):
-                col1, col2, col3 = st.columns(3)
-                with col1: sub_name = st.text_input("Subject Official Title Name:", placeholder="e.g., Mathematics")
-                with col2: sub_code = st.text_input("Subject Ident Code:", placeholder="e.g., MATH-101").upper()
-                with col3: credit_hours = st.number_input("Credit Hours Weight:", min_value=1, max_value=6, value=3)
+                sub_name = st.text_input("Subject Official Title Name:", placeholder="e.g., Mathematics")
                 submit = st.form_submit_button("➕ Register Academic Subject", type="primary")
                 if submit:
-                    if sub_name and sub_code:
+                    if sub_name.strip():
                         try:
                             with engine.begin() as conn:
-                                conn.execute(text("INSERT INTO subjects (subject_name, subject_code, credit_hours) VALUES (:name, :code, :ch)"), 
-                                             {"name": sub_name, "code": sub_code, "ch": credit_hours})
-                            st.success(f"🎉 Core Subject Registry item locked: [{sub_code}] - {sub_name}")
+                                # Storing placeholder empty strings to prevent breaking existing schema constraints
+                                conn.execute(text("INSERT INTO subjects (subject_name, subject_code, credit_hours) VALUES (:name, '', 1)"), 
+                                             {"name": sub_name.strip()})
+                            st.success(f"🎉 Core Subject Registry item locked: {sub_name}")
                             time.sleep(0.5)
                             st.rerun()
                         except Exception as e: st.error(f"❌ Database error: {e}")
                     else: st.error("❌ Heading labels are mandatory entries.")
-
-            st.markdown("---")
-            st.markdown("#### ✏️ Edit Existing Course Modules")
-            subjects_df = run_query("SELECT id, subject_name, subject_code, credit_hours FROM subjects")
-            if not subjects_df.empty:
-                sub_options = [f"{row['id']} - [{row['subject_code']}] {row['subject_name']}" for _, row in subjects_df.iterrows()]
-                selected_sub = st.selectbox("Select Target Course To Update:", sub_options, key="edit_sub_select")
-                target_id = int(selected_sub.split(" - ")[0])
-                current_data = subjects_df[subjects_df['id'] == target_id].iloc[0]
-                
-                with st.form("edit_form_sub"):
-                    col1, col2, col3 = st.columns(3)
-                    with col1: update_name = st.text_input("Modify Course Title:", value=current_data['subject_name'])
-                    with col2: update_code = st.text_input("Modify Alpha Code ID:", value=current_data['subject_code']).upper()
-                    with col3: update_ch = st.number_input("Modify Credit Weight Allocation:", min_value=1, max_value=6, value=int(current_data['credit_hours']))
-                    if st.form_submit_button("💾 Save Subject Profile Changes", type="secondary"):
-                        with engine.begin() as conn:
-                            conn.execute(text("UPDATE subjects SET subject_name = :name, subject_code = :code, credit_hours = :ch WHERE id = :id"),
-                                         {"name": update_name, "code": update_code, "ch": update_ch, "id": target_id})
-                        st.success("🎉 Course catalogue adjustments saved dynamically.")
-                        time.sleep(0.5)
-                        st.rerun()
-            else: st.info("Course mapping matrix arrays are blank.")
 
         # ----------------------------------------------------------------------
         # 6. TEST/EXAM SCHEME MANAGEMENT (ADD & EDIT)
