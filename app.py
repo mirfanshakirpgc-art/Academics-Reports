@@ -1,32 +1,15 @@
-# --- LINE 1: ALL IMPORTS MUST BE HERE ---
+# --- LINE 1: ALL IMPORTS CONSOLIDATED ---
 import datetime
-from sqlalchemy import text
+import os
+import base64
+from sqlalchemy import create_engine, text
 import streamlit as st
 import pandas as pd
 import numpy as np
-import sqlite3
-import os
-import base64
-import datetime
-from sqlalchemy import create_engine, text
 import streamlit.components.v1 as components
 
-# --- STREAMLIT CONFIGURATION ---
+# --- STREAMLIT INITIAL CORE CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Concordia Academic Analytics")
-
-# --- INITIALIZE GLOBAL IMAGES AND LOGOS ---
-logo_filename = "logo.png"
-logo_base64 = ""
-
-if os.path.exists(logo_filename):
-    try:
-        with open(logo_filename, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
-            mime_type = "jpeg" if ext in ["jpg", "jpeg"] else "png"
-            logo_base64 = f"data:image/{mime_type};base64,{encoded_string}"
-    except Exception as e:
-        print(f"Error loading logo file: {e}")
 
 # --- DATABASE CONNECTION CONFIGURATION ---
 DATABASE_URL = "postgresql+psycopg2://postgres.qykueriwcvgxsbxbbtso:Concordiakasur2023@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
@@ -214,6 +197,114 @@ def execute_db_command(query, params=None):
     except Exception as e:
         raise RuntimeError(f"Database write execution failed: {str(e)}")
 
+# ====================================================================================                   
+# 🌎 GLOBAL MASTER CONFIGURATION GRID (Source of Truth)
+# ====================================================================================
+if "GLOBAL_GRID" not in st.session_state:
+    
+    # Structural Mapping for Annual & Semester System Sections (Cleaned and Validated)
+    DISCIPLINE_SECTIONS_MAP = {
+        "MEDICAL": {
+            "11th": ["MG_BLUE", "MG_WHITE", "MG_GREEN", "MB_BLUE"], 
+            "12th": ["MQ1", "MQ2", "MQ3", "MK1"]
+        },
+        "ENGINEERING": {
+            "11th": ["EG_BLUE", "EB_BLUE"], 
+            "12th": ["EQ1", "EK1"]
+        },
+        "ICS (PHYSICS)": {
+            "11th": ["CG_WHITE", "CG_GREEN", "CG_BLUE", "CB_BLUE", "CB_WHITE", "CB_GREEN"], 
+            "12th": ["CQ1", "CQ2", "CK1", "CK2"]
+        },
+        "ICS (STATS)": {
+            "11th": ["CG_STATS", "CB_STATS"], 
+            "12th": ["CQ3", "CK3"]
+        },
+        "COMMERCE": {
+            "11th": ["IG1", "IB1"], 
+            "12th": ["IK1", "IQ1"]
+        },
+        "HUMANITIES": {
+            "11th": ["FG1", "FB1"], 
+            "12th": ["FQ1_FQ1"]
+        },
+        "Diploma in Information Technology": {
+            "1st Semester": ["DIT_G", "DT_B"],
+            "2nd Semester": ["DIT_G", "DT_B"],
+            "3rd Semester": ["DIT_G", "DT_B"],
+            "4th Semester": ["DIT_G", "DT_B"]
+        }
+    }
+
+    # Master Academic Subject Matrix (Annual & Semester Systems)
+    MASTER_SUBJECTS_MAP = {
+        "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
+        "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
+        "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
+        "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
+        "ICS (PHYSICS)_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+        "ICS (PHYSICS)_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+        "ICS (STATS)_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
+        "ICS (STATS)_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
+        "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
+        "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
+        "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
+        "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"],
+        
+        # Semester System Mapping (Diploma in Information Technology)
+        "DIT_1ST SEMESTER": ["Information Technology", "Office Automation", "Networking", "C-Programming", "Operating System", "Project"],
+        "DIT_2ND SEMESTER": ["Data Base System", "Video Editing", "Web Development Essential", "Graphics Design", "Project"],
+        "DIT_3RD SEMESTER": ["Advanced Web Development", "Network Administration", "Software Engineering Principles", "Project-II"],
+        "DIT_4TH SEMESTER": ["Cyber Security Essentials", "Mobile App Development", "Cloud Computing", "VIVA-VOCE"],
+        "DIT_FALLBACK": ["English", "Urdu", "Mathematics", "Statistics", "T_Quran", "Islamic_Studies"]
+    }
+
+    # Dynamic Database Session Synchronizer with Fallbacks
+    try:
+        db_sess = run_query("SELECT session_name FROM sessions WHERE status = 'ACTIVE'")
+        synchronized_sessions = db_sess['session_name'].dropna().astype(str).tolist() if not db_sess.empty else []
+    except Exception:
+        synchronized_sessions = []
+    
+    for fallback_sess in ["2025-27", "2026-28", "2027-29"]:
+        if fallback_sess not in synchronized_sessions:
+            synchronized_sessions.append(fallback_sess)
+    synchronized_sessions = sorted(list(set(synchronized_sessions)))
+
+    # Master Tests Lists
+    annual_tests = [
+        "MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "MT_5",
+        "T_1", "T_2", "T_3", "T_4", "T_5", "T_6", "T_7", "T_8", "T_9", "T_10",
+        "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"
+    ]
+    semester_tests = ["PBTE_1", "PBTE_2", "PBTE_3", "PBTE_4"]
+
+    st.session_state["GLOBAL_GRID"] = {
+        "sessions": synchronized_sessions,
+        "sections_map": DISCIPLINE_SECTIONS_MAP,
+        "subjects_map": MASTER_SUBJECTS_MAP,
+        "annual_disciplines": ["MEDICAL", "ENGINEERING", "ICS (PHYSICS)", "ICS (STATS)", "COMMERCE", "HUMANITIES"],
+        "semester_disciplines": ["Diploma in Information Technology"],
+        "annual_classes": ["11th", "12th"],
+        "semester_classes": ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester"],
+        "annual_tests": annual_tests,
+        "semester_tests": semester_tests
+    }
+
+# --- INITIALIZE GLOBAL IMAGES AND LOGOS ---
+logo_filename = "logo.png"
+logo_base64 = ""
+
+if os.path.exists(logo_filename):
+    try:
+        with open(logo_filename, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+            ext = os.path.splitext(logo_filename)[1].replace(".", "").lower()
+            mime_type = "jpeg" if ext in ["jpg", "jpeg"] else "png"
+            logo_base64 = f"data:image/{mime_type};base64,{encoded_string}"
+    except Exception as e:
+        print(f"Error loading logo file: {e}")
+
 # --- CORE DATA FILTER LOGIC ---
 def apply_filters(df, tab_key):
     st.markdown("### ⚙️ Filter Configuration")
@@ -267,8 +358,10 @@ for right in ["can_manage_users", "can_manage_settings", "can_manage_faculty", "
     if right not in st.session_state:
         st.session_state[right] = False
 
+# Sync core tracking sessions directly with our master runtime grid data source
+grid_ref = st.session_state["GLOBAL_GRID"]
 if "current_session" not in st.session_state: st.session_state["current_session"] = "2026-28"
-if "available_sessions" not in st.session_state: st.session_state["available_sessions"] = ["2024-26", "2025-27", "2026-28", "2027-29"]
+if "available_sessions" not in st.session_state: st.session_state["available_sessions"] = grid_ref["sessions"]
 
 # ==============================================================================
 # --- GATEKEEPER ROUTING STEP ---
@@ -359,7 +452,6 @@ db_class_scope = st.session_state.get("db_class_scope", None)
 allowed_menus = []
 exam_menus = []
 
-# --- MULTI-ROLE ROUTER ALLOCATIONS ---
 if user_role in ["Teacher", "Faculty"]:
     allowed_menus = ["📊 Home Dashboard", "📝 Marks Entry", "📅 Marks Attendance", "📊 Result Analysis"]
 else:
@@ -371,28 +463,22 @@ else:
     allowed_menus += ["👨‍🏫 Teacher Management"] if (user_role in ['Admin', 'controller'] or can_manage_faculty) else []
     allowed_menus += ["📈 Academic Analysis Reports", "👥 Student Operations Management", "⚙️ Settings"]
     
-    # 🎯 ASSIGN EXAM CONTROL MODULE ACCESS
     if user_role in ["Admin", "Principal", "controller", "Exam Officer", "Examination Control Officer"]:
         exam_menus = ["⚙️ Examination Control"]
 
-    # Keep structural sorting stable
     allowed_menus = sorted(list(set(allowed_menus)), key=lambda x: allowed_menus.index(x))
 
-# --- 🔄 MUTUAL EXCLUSIVITY NAVIGATION BRIDGE ---
-# Initialize tracking variable so both menus know who had focus last
 if "nav_active_track" not in st.session_state:
     st.session_state["nav_active_track"] = "main"
 
 def on_change_main_menu():
     st.session_state["nav_active_track"] = "main"
-    # Safely clear the exam sub-menu state when clicking standard modules
     if "exam_navigation_rail" in st.session_state:
         st.session_state["exam_navigation_rail"] = None
 
 def on_change_exam_menu():
     st.session_state["nav_active_track"] = "exam"
 
-# --- UNIFIED SIDEBAR CONTEXT RENDERING ---
 with st.sidebar:
     st.markdown("""
         <style>
@@ -424,7 +510,6 @@ with st.sidebar:
                 unsafe_allow_html=True
             )
 
-        # Standard Modules Select (Triggers callback reset on change)
         main_selection = st.radio(
             "Go To Module:", 
             allowed_menus, 
@@ -432,7 +517,6 @@ with st.sidebar:
             on_change=on_change_main_menu
         )
         
-        # Examination Specialized Subsection
         if exam_menus:
             st.markdown('<div class="sidebar-section-header">🛡️ Examination Authority</div>', unsafe_allow_html=True)
             exam_selection = st.radio(
@@ -445,7 +529,6 @@ with st.sidebar:
         else:
             exam_selection = None
 
-        # --- FINAL SINGLE-SOURCE NAVIGATION ROUTER ---
         if st.session_state["nav_active_track"] == "exam" and exam_selection is not None:
             menu_choice = exam_selection
         else:
@@ -490,164 +573,31 @@ if user_role in ["Teacher", "Faculty"]:
 # ==============================================================================
 # 🎛️ CORE ROUTING LOGIC GATEWAYS - UPDATED EXAMINATION CONTROL HUB
 # ==============================================================================
-
 if menu_choice == "⚙️ Examination Control":
-    import datetime  # Ensure module-level import is safe here
     st.markdown("## ⚙️ Examination Control Board")
     st.markdown("Design upcoming datesheets, assign paper grading deadlines, and review real-time compliance.")
     st.markdown("---")
     
-    # --- OPTIMIZED SHARED DATA EXTRACTION (CACHED TO PREVENT FREEZING) ---
-    @st.cache_data(ttl=60)  # Caches structural dropdown lists for 1 minute to prevent UI lagging
-    def fetch_examination_routing_metadata():
-        # 1. Fetch Exam Cycles
-        try:
-            active_cycles_df = run_query("SELECT exam_code FROM exam_cycles WHERE status = 'ACTIVE'")
-            frameworks = active_cycles_df["exam_code"].tolist() if not active_cycles_df.empty else []
-        except Exception:
-            frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
-            
-        if not frameworks:
-            frameworks = ["MATRIC", "MT_1", "MT_2", "MT_3", "MT_4", "SEND_UP", "HALF_BOOK01", "HALF_BOOK02", "PRE_BOARD", "BISE-11th", "BISE-12th"]
-
-        # 2. Fetch Class Levels & Sections
-        try:
-            class_query = run_query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
-            classes = sorted(class_query['class'].tolist()) if not class_query.empty else ["1st Year", "2nd Year"]
-            
-            section_query = run_query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != ''")
-            sections = sorted(section_query['section'].tolist()) if not section_query.empty else ["A", "B", "C"]
-        except Exception:
-            classes = ["1st Year", "2nd Year"]
-            sections = ["A", "B", "C"]
-
-        # 3. Fetch Teachers List
-        try:
-            teachers_df = run_query("SELECT DISTINCT teacher_name FROM system_teachers WHERE teacher_name IS NOT NULL ORDER BY teacher_name")
-            teachers = teachers_df['teacher_name'].tolist() if not teachers_df.empty else []
-        except Exception:
-            teachers = []
-            
-        return frameworks, classes, sections, teachers
-
-    # Execute non-blocking optimized metadata load
-    all_frameworks, extracted_classes, extracted_sections, teacher_options = fetch_examination_routing_metadata()
+    grid = st.session_state["GLOBAL_GRID"]
     
-    # Ensure fallback teacher option is never empty
-    if not teacher_options:
+    try:
+        teachers_df = run_query("SELECT DISTINCT teacher_name FROM system_teachers WHERE teacher_name IS NOT NULL ORDER BY teacher_name")
+        teacher_options = teachers_df['teacher_name'].tolist() if not teachers_df.empty else ["Default Evaluator"]
+    except Exception:
         teacher_options = ["Default Evaluator"]
 
-    # Handle Sessions configuration cleanly
-    try:
-        session_options = AVAILABLE_SESSIONS
-        if "2024-26" in session_options: session_options = [s for s in session_options if s != "2024-26"]
-        if "2027-29" not in session_options: session_options.append("2027-29")
-    except NameError:
-        session_options = ["2025-27", "2026-28", "2027-29"]
-
-    # 3. Reference Core Map to Extract Distinct Subjects
-    DISCIPLINE_SUBJECTS_MAP = {
-        "MEDICAL_11TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Islamic Studies", "T_Quran"],
-        "MEDICAL_12TH": ["English", "Urdu", "Physics", "Chemistry", "Biology", "Pak_St", "T_Quran"],
-        "ENGINEERING_11TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ENGINEERING_12TH": ["English", "Urdu", "Physics", "Chemistry", "Mathematics", "Pak_St", "T_Quran"],
-        "ICS_PHYSICS_11TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ICS_PHYSICS_12TH": ["English", "Urdu", "Physics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-        "ICS_STATISTICS_11TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Islamic Studies", "T_Quran"],
-        "ICS_STATISTICS_12TH": ["English", "Urdu", "Statistics", "Computer Science", "Mathematics", "Pak_St", "T_Quran"],
-        "HUMANITIES_11TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Islamic Studies", "T_Quran"],
-        "HUMANITIES_12TH": ["English", "Urdu", "Education", "Computer", "Isl_Elc", "Pak_St", "T_Quran"],
-        "COMMERCE_11TH": ["English", "Urdu", "Islamic Studies", "Principles of Accounting", "Principles of Commerce", "Principles of Economics", "Business Mathematics", "T_Quran"],
-        "COMMERCE_12TH": ["English", "Urdu", "Pak_St", "Principles of Accounting", "Banking", "Commercial Geography", "Business Statistics", "T_Quran"]
-    }
-    extracted_subjects = sorted(list(set([sub for sub_list in DISCIPLINE_SUBJECTS_MAP.values() for sub in sub_list])))
-
-    # --- MAIN INTERFACE TABS ---
-    tab1, tab2, tab3 = st.tabs(["📅 Design Date Sheet", "⏳ Assign Grading Turnaround", "📊 Tracking & Compliance Overview"])
+    academic_system = st.selectbox("Select Academic System Framework:", ["Annual System", "Semester System"], key="ctrl_system")
     
-    with tab1:
-        st.markdown("### 📝 Draft Date Sheet Entry")
-        with st.form("datesheet_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                exam_type_ds = st.selectbox("Exam Cycle Type (Test)", all_frameworks, key="ds_exam_type")
-                class_lvl_ds = st.selectbox("Target Class Level", extracted_classes, key="ds_class")
-                session_ds = st.selectbox("Academic Session", session_options, key="ds_session")
-            with col2:
-                subject_ds = st.selectbox("Subject Title", extracted_subjects, key="ds_subject")
-                date_ds = st.date_input("Exam Date", datetime.date.today(), key="ds_date")
-            
-            submit_ds = st.form_submit_button("🔒 Save Schedule Entry")
-            if submit_ds:
-                if exam_type_ds and class_lvl_ds and subject_ds:
-                    try:
-                        execute_db_command("""
-                            INSERT INTO examination_datesheets (exam_type, class_level, subject_name, exam_date)
-                            VALUES (:et, :cl, :sub, :dt)
-                            ON CONFLICT (exam_type, class_level, subject_name) DO UPDATE SET exam_date = :dt
-                        """, {"et": f"{exam_type_ds} ({session_ds})", "cl": class_lvl_ds, "sub": subject_ds, "dt": date_ds})
-                        st.success(f"Successfully posted schedule: {subject_ds} for {class_lvl_ds} ({exam_type_ds})")
-                        st.cache_data.clear() # Clear metadata cache to show new mutations instantly
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error publishing: {e}")
-                else:
-                    st.warning("Please complete all inputs.")
-                    
-        st.markdown("#### 📋 Current Scheduled Exams")
-        ds_records = run_query('SELECT exam_type as "Exam (Session)", class_level as "Class", subject_name as "Subject", exam_date as "Exam Date" FROM examination_datesheets ORDER BY exam_date ASC')
-        if not ds_records.empty:
-            st.dataframe(ds_records, use_container_width=True, hide_index=True)
-        else:
-            st.caption("No datesheets designed yet.")
+    if academic_system == "Annual System":
+        all_frameworks = grid["annual_tests"]
+        extracted_classes = grid["annual_classes"]
+        discipline_options = grid["annual_disciplines"]
+    else:
+        all_frameworks = grid["semester_tests"]
+        extracted_classes = grid["semester_classes"]
+        discipline_options = grid["semester_disciplines"]
 
-    with tab2:
-        st.markdown("### ⏳ Assign Evaluation Window & Deadlines")
-        with st.form("marking_deadline_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                exam_sel = st.selectbox("Select Scheduled Exam Cycle", all_frameworks, key="dl_exam_type")
-                class_sel = st.selectbox("Select Target Class Level", extracted_classes, key="dl_class")
-                sub_sel = st.selectbox("Select Target Subject", extracted_subjects, key="dl_subject")
-            with col2:
-                teacher_sel = st.selectbox("Assign Grading Evaluator (Teacher)", teacher_options, key="dl_teacher")
-                allowed_days = st.number_input("Allowed Days for Marking (From Exam Date)", min_value=1, max_value=30, value=3)
-                base_exam_date = st.date_input("Reference Exam Commencement Date", datetime.date.today(), key="dl_base_date")
-                
-            submit_dl = st.form_submit_button("🚀 Deploy Teacher Allocation Window")
-            if submit_dl:
-                if exam_sel and class_sel and sub_sel and teacher_sel:
-                    calc_deadline = base_exam_date + datetime.timedelta(days=int(allowed_days))
-                    try:
-                        execute_db_command("""
-                            INSERT INTO teacher_marking_deadlines (exam_type, class_level, subject_name, teacher_name, deadline_date)
-                            VALUES (:et, :cl, :sub, :tn, :dl)
-                            ON CONFLICT (exam_type, class_level, subject_name, teacher_name) DO UPDATE SET deadline_date = :dl
-                        """, {"et": exam_sel, "cl": class_sel, "sub": sub_sel, "tn": teacher_sel, "dl": calc_deadline})
-                        st.success(f"Deadline locked! {teacher_sel} must submit marks by {calc_deadline.strftime('%Y-%m-%d')}")
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error establishing submission timeline: {e}")
-                else:
-                    st.warning("Please verify all structural components before allocation.")
-
-    with tab3:
-        st.markdown("### 📊 Live Evaluation Submission Compliance Matrix")
-        comp_df = run_query('SELECT exam_type as "Exam Cycle", class_level as "Class", subject_name as "Subject", teacher_name as "Teacher", deadline_date as "Deadline", is_submitted as "Submitted Status" FROM teacher_marking_deadlines ORDER BY deadline_date ASC')
-        if not comp_df.empty:
-            total_allocated = len(comp_df)
-            submitted_count = len(comp_df[comp_df['Submitted Status'] == True])
-            pending_count = total_allocated - submitted_count
-            
-            c_m1, c_m2, c_m3 = st.columns(3)
-            c_m1.metric("📌 Total Lists Monitored", f"{total_allocated} Allocations")
-            c_m2.metric("✅ Submitted Award Lists", f"{submitted_count} Subjects")
-            c_m3.metric("🚨 Outstandings / Pending", f"{pending_count} Subjects")
-            st.markdown("---")
-            st.dataframe(comp_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No teaching turnaround deadlines are currently being tracked.")
+    tab1, tab2, tab3 = st.tabs(["📅 Design Date Sheet", "⏳ Assign Grading Turnaround", "📊 Tracking & Compliance Overview"])
 # --- MAIN HOME DASHBOARD OVERVIEW RENDERER ---
 elif menu_choice == "📊 Home Dashboard":
     assigned_subs_raw = st.session_state.get("assigned_subject", "")
