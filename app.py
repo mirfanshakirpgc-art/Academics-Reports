@@ -1081,7 +1081,7 @@ def render_student_management_workspace():
                     st.error(f"❌ Fatal streaming data processing breakdown error: {e}")
 
     # ==============================================================================
-    # TAB 3: SEARCH & EDIT (BATCH SECTION OR SINGLE PROFILE)
+    # TAB 3: SEARCH & EDIT (BATCH SECTION OR SINGLE PROFILE WITH SEARCH FILTER)
     # ==============================================================================
     with tab3:
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
@@ -1091,7 +1091,7 @@ def render_student_management_workspace():
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
         st.markdown("📁 **Step 1: Locate Active Target Parameters**")
-        col_s1, col_s2, col_s3, col_s4 = st.columns([1, 1, 1, 1.2])
+        col_s1, col_s2, col_s3, col_s4 = st.columns([1, 1, 1, 1.5])
         
         with col_s1:
             search_session = st.selectbox("Filter Session:", options=sessions_list, key="search_sess")
@@ -1115,7 +1115,6 @@ def render_student_management_workspace():
                 search_sec = "-- Select Section --"
         
         with col_s4:
-            # Operational scope toggle switch
             edit_scope = st.radio(
                 "Modification Scope:",
                 options=["✨ Modify Single Student", "📊 Batch Edit Entire Section"],
@@ -1125,7 +1124,7 @@ def render_student_management_workspace():
                 
         st.markdown("---")
         
-        # Verify scoping keys before querying database layers
+        # Verify filtering keys are correctly set before processing queries
         if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
             try:
                 matched_students = run_query("""
@@ -1142,13 +1141,12 @@ def render_student_management_workspace():
                 st.info(f"ℹ️ No active student records found matching: {search_session} | Class {search_class} | Section {search_sec}")
             
             # ==================================================================
-            # OPTION A: BATCH EDIT ENTIRE SECTION LAYER
+            # OPTION A: BATCH EDIT ENTIRE SECTION
             # ==================================================================
             elif edit_scope == "📊 Batch Edit Entire Section":
                 st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})`")
-                st.caption("💡 Double-click any cell inside the matrix grid below to modify values directly. Click the blue button below to save changes.")
+                st.caption("💡 Edit any cell directly inside the grid below, then click the blue save button.")
                 
-                # Render an interactive data frame grid view editor layout
                 edited_df = st.data_editor(
                     matched_students,
                     column_config={
@@ -1165,10 +1163,9 @@ def render_student_management_workspace():
                     },
                     hide_index=True,
                     use_container_width=True,
-                    key="section_data_editor"
+                    key=f"sec_editor_{search_session}_{search_class}_{search_sec}" # Dynamic key to force refresh on context swap
                 )
                 
-                # Check for updates by evaluating structural divergence matrices
                 if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
                     try:
                         with engine.begin() as conn:
@@ -1191,74 +1188,89 @@ def render_student_management_workspace():
                                     "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) else None,
                                     "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) else None,
                                     "c1": str(row['contact_1']).strip(),
-                                    "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) else None,
+                                    "contact_2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) else None,
                                     "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) else None,
                                     "id": row['student_id']
                                 })
-                        st.success(f"🎉 Roster synced! All profiles in Section {search_sec} have been successfully updated.")
+                        st.success(f"🎉 Roster synced! All records in Section {search_sec} have been successfully updated.")
                         time.sleep(0.8)
                         st.rerun()
                     except Exception as bulk_err:
                         st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
 
             # ==================================================================
-            # OPTION B: SINGLE STUDENT PROFILE EDIT LAYER
+            # OPTION B: SINGLE STUDENT PROFILE WITH SEARCH BY NAME OR ID
             # ==================================================================
             else:
-                student_options = [f"{row['student_id']} - Roll #{row['roll_no']} - {row['student_name']}" for _, row in matched_students.iterrows()]
-                selected_profile_str = st.selectbox("🎯 Select Student Profile To Edit:", options=student_options)
+                st.markdown("#### 🔍 Search & Filter Student Profile")
+                search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001").strip().lower()
                 
-                if selected_profile_str:
-                    target_id = selected_profile_str.split(" - ")[0].strip()
-                    student_data = matched_students[matched_students['student_id'] == target_id].iloc[0]
+                # Apply filter query directly to match against ID or Name variables
+                if search_query:
+                    filtered_df = matched_students[
+                        matched_students['student_id'].str.lower().str.contains(search_query) | 
+                        matched_students['student_name'].str.lower().str.contains(search_query)
+                    ]
+                else:
+                    filtered_df = matched_students
+
+                if filtered_df.empty:
+                    st.warning("⚠️ No student records match your text filter query.")
+                else:
+                    student_options = [f"{row['student_id']} - Roll #{row['roll_no']} - {row['student_name']}" for _, row in filtered_df.iterrows()]
+                    selected_profile_str = st.selectbox("🎯 Select Target Student Profile to Open Form:", options=student_options)
                     
-                    st.markdown(f"#### ✏️ Modifying Records for ID: `{target_id}`")
-                    
-                    with st.form("edit_student_profile_form"):
-                        col_e1, col_e2, col_e3 = st.columns(3)
-                        with col_e1: edit_name = st.text_input("Student Name:*", value=str(student_data['student_name']))
-                        with col_e2: edit_fname = st.text_input("Father's Name:*", value=str(student_data['father_name']))
-                        with col_e3: edit_roll = st.number_input("Roll Number:*", value=int(student_data['roll_no']), min_value=1, step=1)
+                    if selected_profile_str:
+                        target_id = selected_profile_str.split(" - ")[0].strip()
+                        student_data = filtered_df[filtered_df['student_id'] == target_id].iloc[0]
                         
-                        col_e4, col_e5, col_e6 = st.columns(3)
-                        with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or ''))
-                        with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or ''))
-                        with col_e6: edit_c1 = st.text_input("Emergency Contact-1:*", value=str(student_data['contact_1']))
+                        st.markdown(f"#### ✏️ Modifying Records for ID: `{target_id}`")
                         
-                        col_e7, col_e8 = st.columns([1, 2])
-                        with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or ''))
-                        with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or ''))
-                        
-                        submit_edit = st.form_submit_button("💾 Save Changes & Update Registry Node", type="primary", use_container_width=True)
-                        
-                        if submit_edit:
-                            if not edit_name.strip() or not edit_fname.strip() or not edit_c1.strip():
-                                st.error("❌ Validation Failed: All mandatory (*) fields must contain text.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text("""
-                                            UPDATE students SET
-                                                student_name = :name,
-                                                father_name = :fname,
-                                                roll_no = :roll,
-                                                whatsapp_no = :whatsapp,
-                                                student_no = :sno,
-                                                contact_1 = :c1,
-                                                contact_2 = :c2,
-                                                home_address = :addr
-                                            WHERE student_id = :id
-                                        """), {
-                                            "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
-                                            "whatsapp": edit_whatsapp.strip() or None, "sno": edit_student_no.strip() or None,
-                                            "c1": edit_c1.strip(), "c2": edit_c2.strip() or None, "addr": edit_addr.strip() or None,
-                                            "id": target_id
-                                        })
-                                    st.success(f"🎉 Changes saved successfully for node {target_id}!")
-                                    time.sleep(0.5)
-                                    st.rerun()
-                                except Exception as update_err:
-                                    st.error(f"❌ Database Transaction Interrupted: {update_err}")
+                        with st.form("edit_student_profile_form"):
+                            col_e1, col_e2, col_e3 = st.columns(3)
+                            with col_e1: edit_name = st.text_input("Student Name:*", value=str(student_data['student_name']))
+                            with col_e2: edit_fname = st.text_input("Father's Name:*", value=str(student_data['father_name']))
+                            with col_e3: edit_roll = st.number_input("Roll Number:*", value=int(student_data['roll_no']), min_value=1, step=1)
+                            
+                            col_e4, col_e5, col_e6 = st.columns(3)
+                            with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or ''))
+                            with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or ''))
+                            with col_e6: edit_c1 = st.text_input("Emergency Contact-1:*", value=str(student_data['contact_1']))
+                            
+                            col_e7, col_e8 = st.columns([1, 2])
+                            with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or ''))
+                            with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or ''))
+                            
+                            submit_edit = st.form_submit_button("💾 Save Changes & Update Registry Node", type="primary", use_container_width=True)
+                            
+                            if submit_edit:
+                                if not edit_name.strip() or not edit_fname.strip() or not edit_c1.strip():
+                                    st.error("❌ Validation Failed: All mandatory (*) fields must contain text.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            conn.execute(text("""
+                                                UPDATE students SET
+                                                    student_name = :name,
+                                                    father_name = :fname,
+                                                    roll_no = :roll,
+                                                    whatsapp_no = :whatsapp,
+                                                    student_no = :sno,
+                                                    contact_1 = :c1,
+                                                    contact_2 = :c2,
+                                                    home_address = :addr
+                                                WHERE student_id = :id
+                                            """), {
+                                                "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
+                                                "whatsapp": edit_whatsapp.strip() or None, "sno": edit_student_no.strip() or None,
+                                                "c1": edit_c1.strip(), "c2": edit_c2.strip() or None, "addr": edit_addr.strip() or None,
+                                                "id": target_id
+                                            })
+                                        st.success(f"🎉 Changes saved successfully for node {target_id}!")
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                    except Exception as update_err:
+                                        st.error(f"❌ Database Transaction Interrupted: {update_err}")
         else:
             st.warning("⏳ Please finish selecting the three filtering scope parameters above to unlock directory lookup entries.")
 
