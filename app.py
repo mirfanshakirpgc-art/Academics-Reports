@@ -1146,6 +1146,30 @@ def render_student_management_workspace():
     with tab3:
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
         
+        # 👇 PASTE THE TEMPORARY TRACE BLOCK HERE 👇
+        st.markdown("### 🔍 Real-Time Database Storage Tracer")
+        try:
+            count_test = run_query("SELECT COUNT(*) as total FROM students")
+            total_in_db = count_test['total'].iloc[0] if not count_test.empty else 0
+            
+            st.write(f"📊 **Total records physically saved in `students` table:** `{total_in_db}`")
+            
+            if total_in_db > 0:
+                st.success("🎯 Data IS being stored! Here are the exact raw rows currently sitting in your database:")
+                raw_data = run_query("SELECT student_id, student_name, session, academic_system, class_level, discipline, section FROM students")
+                st.dataframe(raw_data)
+            else:
+                st.error("❌ The database table has 0 rows. The data entered in the Admission Entry form is not getting saved.")
+        except Exception as trace_err:
+            st.error(f"❌ Failed to trace table. Error message: {trace_err}")
+
+        st.markdown("---")
+        # 👆 END OF TRACE BLOCK 👆
+
+        # Pull reference indices dynamically from Tab 1 Structural Variables
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        ...
+        
         # Pull reference indices dynamically from Tab 1 Structural Variables
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
