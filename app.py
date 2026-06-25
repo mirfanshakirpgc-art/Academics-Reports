@@ -962,7 +962,7 @@ def render_student_management_workspace():
                 st.error(f"❌ File compilation processing failure: {e}")
 
     # ==============================================================================
-    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (Deep Search & Diagnostic Alignment)
+    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (Fixed NameError Typo)
     # ==============================================================================
     with tab3:
         st.write("### Search & Edit Active Profiles")
@@ -982,13 +982,13 @@ def render_student_management_workspace():
             search_term = st.text_input("🔍 Step 2: Search Student Profile by Name or Student ID:", key="student_workspace_search", placeholder="Type name or ID (e.g., 1002)...").strip()
             
             if search_term:
-                # Target Scope Lookup
+                # Target Scope Lookup - Fixed the variable binding here
                 matched_students = run_query("""
                     SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, 
                            contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section 
                     FROM students 
                     WHERE (student_name LIKE :search OR student_id LIKE :search) AND TRIM(session) = TRIM(:sess)
-                """, {"search": f"%{search}", "sess": selected_search_session})
+                """, {"search": f"%{search_term}%", "sess": selected_search_session})
 
                 # FALLBACK: If missing, look globally across ALL sessions to diagnose placement mismatch
                 if matched_students.empty:
@@ -996,7 +996,7 @@ def render_student_management_workspace():
                         SELECT student_id, student_name, session, class_level, section 
                         FROM students 
                         WHERE student_name LIKE :search OR student_id LIKE :search
-                    """, {"search": f"%{search}%"})
+                    """, {"search": f"%{search_term}%"})
                 else:
                     global_diagnostic = pd.DataFrame()
 
