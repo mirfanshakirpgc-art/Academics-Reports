@@ -966,9 +966,6 @@ def render_student_management_workspace():
         # --- PHASE 3: STREAM UPLOADER GATEWAY UNLOCKED ONLY WHEN ALL 5 SELECTIONS VALIDATED ---
     if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [bulk_session, bulk_system, bulk_class, bulk_discipline, bulk_sec]):
         st.warning("⏳ Please complete setting all 5 Academic Placement drop-down targets above to activate the file upload channel.")
-    else:
-        st.markdown(f"📁 **Step 3: Upload Roster Stream for Class `{bulk_class} ({bulk_sec})`**")
-        uploaded_file = st.file_uploader("Upload completed admission roster data stream:", type=["xlsx", "xls", "csv"])
         
         if uploaded_file is not None:
             try:
