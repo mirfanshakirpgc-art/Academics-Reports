@@ -772,59 +772,89 @@ def render_student_management_workspace():
     # ==============================================================================
     with tab1:
         st.write("### 🆕 Register New Student Particulars")
-        
-        # --- PHASE 1: CASCADING PLACEMENT FILTERS FIRST ---
         st.write("📁 **Step 1: Assign Target Academic Placement Attributes**")
         
+        # 1. Fetch data
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
+        # 2. Selectors
         col_a1, col_a2, col_a3 = st.columns(3)
-        with col_a1:
-            new_session = st.selectbox("1. Target Session:*", options=sessions_list, key="manual_sess")
+        new_session = col_a1.selectbox("1. Target Session:*", options=sessions_list, key="manual_sess")
 
-        with col_a2:
-            if new_session != "-- Select Session --":
-                systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
-                new_system = st.selectbox("2. Target Academic System:*", options=systems_list, key="manual_sys")
-            else:
-                st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="manual_sys_dis")
-                new_system = "-- Select Session --"
+        if new_session != "-- Select Session --":
+            systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+            systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+            new_system = col_a2.selectbox("2. Target Academic System:*", options=systems_list, key="manual_sys")
+        else:
+            new_system = col_a2.selectbox("2. Target Academic System:", ["-- Select System --"], disabled=True)
 
-        with col_a3:
-            if new_system != "-- Select System --":
-                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
-                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
-                new_class = st.selectbox("3. Target Class:*", options=classes_list, key="manual_cls")
-            else:
-                st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="manual_cls_dis")
-                new_class = "-- Select Class --"
+        if new_system != "-- Select System --":
+            classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+            classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+            new_class = col_a3.selectbox("3. Target Class:*", options=classes_list, key="manual_cls")
+        else:
+            new_class = col_a3.selectbox("3. Target Class:", ["-- Select Class --"], disabled=True)
 
         col_a4, col_a5, col_a6 = st.columns(3)
-        with col_a4:
-            if new_class != "-- Select Class --":
-                disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-                disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
-                new_discipline = st.selectbox("4. Target Discipline:*", options=disciplines_list, key="manual_disc")
-            else:
-                st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="manual_disc_dis")
-                new_discipline = "-- Select Discipline --"
-
-        with col_a5:
-            if new_class != "-- Select Class --":
-                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
-                new_sec = st.selectbox("5. Target Section:*", options=sections_list, key="manual_sec")
-            else:
-                st.selectbox("5. Target Section:", ["🔒 Waiting for Class..."], disabled=True, key="manual_sec_dis")
-                new_sec = "-- Select Section --"
-
-        with col_a6:
-            new_roll = st.number_input("6. Class Arrangement Roll No:*", min_value=1, step=1, key="manual_roll")
+        if new_class != "-- Select Class --":
+            disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
+            disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+            new_discipline = col_a4.selectbox("4. Target Discipline:*", options=disciplines_list, key="manual_disc")
+            
+            sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+            sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+            new_sec = col_a5.selectbox("5. Target Section:*", options=sections_list, key="manual_sec")
+        else:
+            new_discipline = col_a4.selectbox("4. Target Discipline:", ["-- Select Discipline --"], disabled=True)
+            new_sec = col_a5.selectbox("5. Target Section:", ["-- Select Section --"], disabled=True)
+            
+        new_roll = col_a6.number_input("6. Class Arrangement Roll No:*", min_value=1, step=1, key="manual_roll")
 
         st.markdown("---")
 
+        # 3. Form Submission logic
+        if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] 
+               for f in [new_session, new_system, new_class, new_discipline, new_sec]):
+            st.warning("⏳ Please complete selecting all 5 Academic Placement Attributes above.")
+        else:
+            with st.form("student_profile_text_fields_form", clear_on_submit=True):
+                st.write(f"📝 **Step 2: Enter Student Particulars for Class `{new_class} ({new_sec})`**")
+                c1, c2, c3 = st.columns(3)
+                new_id = c1.text_input("Student ID:*")
+                new_name = c2.text_input("Student Name:*")
+                father_name = c3.text_input("Father Name:*")
+                
+                c4, c5, c6 = st.columns(3)
+                whatsapp = c4.text_input("WhatsApp No:")
+                stu_no = c5.text_input("Student No:")
+                contact1 = c6.text_input("Emergency Contact-1:*")
+                
+                contact2 = st.text_input("Alternative Contact-2:")
+                address = st.text_input("Home Address:")
+                
+                submit_manual = st.form_submit_button("🚀 Save Student Record")
+
+            if submit_manual:
+                if not new_id or not new_name or not father_name or not contact1:
+                    st.error("❌ Mandatory fields missing!")
+                else:
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO students (student_id, student_name, father_name, whatsapp_no, 
+                                student_no, contact_1, contact_2, home_address, session, 
+                                academic_system, class_level, discipline, section, roll_no)
+                                VALUES (:id, :name, :fname, :wap, :sno, :c1, :c2, :addr, :sess, :sys, :cls, :disc, :sec, :roll)
+                            """), {
+                                "id": new_id, "name": new_name, "fname": father_name, "wap": whatsapp, 
+                                "sno": stu_no, "c1": contact1, "c2": contact2, "addr": address, 
+                                "sess": new_session, "sys": new_system, "cls": new_class, 
+                                "disc": new_discipline, "sec": new_sec, "roll": new_roll
+                            })
+                        st.success(f"🎉 Registered: {new_name}")
+                    except Exception as e:
+                        st.error(f"❌ Error: {e}")
         # --- PHASE 2: CORE DATA FORM LOCK OUT GATED UNTIL ALL DROP-DOWNS SELECTED ---
         if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_sec]):
             st.warning("⏳ Please complete selecting all mandatory Academic Placement Attributes above to unlock the Student Information input cards.")
