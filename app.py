@@ -763,8 +763,8 @@ def render_student_management_workspace():
         """))
 
     # ==============================================================================
-    # TAB 1: MANUAL ADMISSION ENTRY
-    # ==============================================================================
+# TAB 1: MANUAL ADMISSION ENTRY
+# ==============================================================================
     with tab1:
         st.write("### 🆕 Register New Student Particulars")
         st.write("📁 **Step 1: Assign Target Academic Placement Attributes**")
@@ -775,8 +775,7 @@ def render_student_management_workspace():
         
         # 2. Selectors
         col_a1, col_a2, col_a3 = st.columns(3)
-        # We use None as the actual value, but display the placeholder text
-        new_session = col_a1.selectbox("1. Target Session:*", options=["-- Select Session --"] + sessions_list[1:], key="manual_sess")
+        new_session = col_a1.selectbox("1. Target Session:*", options=sessions_list, key="manual_sess")
 
         # Helper to treat "-- Select X --" as None
         def get_val(val): return None if val.startswith("--") else val
@@ -811,6 +810,7 @@ def render_student_management_workspace():
         new_roll = col_a6.number_input("6. Class Arrangement Roll No:*", min_value=1, step=1, key="manual_roll")
 
         st.markdown("---")
+        
         # 3. Form Submission logic
         if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] 
                for f in [new_session, new_system, new_class, new_discipline, new_sec]):
@@ -833,26 +833,29 @@ def render_student_management_workspace():
                 
                 submit_manual = st.form_submit_button("🚀 Save Student Record")
 
-            if submit_manual:
-                if not new_id or not new_name or not father_name or not contact1:
-                    st.error("❌ Mandatory fields missing!")
-                else:
-                    try:
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO students (student_id, student_name, father_name, whatsapp_no, 
-                                student_no, contact_1, contact_2, home_address, session, 
-                                academic_system, class_level, discipline, section, roll_no)
-                                VALUES (:id, :name, :fname, :wap, :sno, :c1, :c2, :addr, :sess, :sys, :cls, :disc, :sec, :roll)
-                            """), {
-                                "id": new_id, "name": new_name, "fname": father_name, "wap": whatsapp, 
-                                "sno": stu_no, "c1": contact1, "c2": contact2, "addr": address, 
-                                "sess": new_session, "sys": new_system, "cls": new_class, 
-                                "disc": new_discipline, "sec": new_sec, "roll": new_roll
-                            })
-                        st.success(f"🎉 Registered: {new_name}")
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
+                # 🎯 FIXED: Moved this execution block INSIDE the form container!
+                if submit_manual:
+                    if not new_id.strip() or not new_name.strip() or not father_name.strip() or not contact1.strip():
+                        st.error("❌ Mandatory fields missing!")
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO students (student_id, student_name, father_name, whatsapp_no, 
+                                    student_no, contact_1, contact_2, home_address, session, 
+                                    academic_system, class_level, discipline, section, roll_no)
+                                    VALUES (:id, :name, :fname, :wap, :sno, :c1, :c2, :addr, :sess, :sys, :cls, :disc, :sec, :roll)
+                                """), {
+                                    "id": new_id.strip(), "name": new_name.strip(), "fname": father_name.strip(), "wap": whatsapp.strip(), 
+                                    "sno": stu_no.strip(), "c1": contact1.strip(), "c2": contact2.strip(), "addr": address.strip(), 
+                                    "sess": new_session, "sys": new_system, "cls": new_class, 
+                                    "disc": new_discipline, "sec": new_sec, "roll": int(new_roll)
+                                })
+                            st.success(f"🎉 Successfully Registered: {new_name}")
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Database Transaction Interrupted: {e}")
         # --- PHASE 2: CORE DATA FORM LOCK OUT GATED UNTIL ALL DROP-DOWNS SELECTED ---
         if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_sec]):
             st.warning("⏳ Please complete selecting all mandatory Academic Placement Attributes above to unlock the Student Information input cards.")
