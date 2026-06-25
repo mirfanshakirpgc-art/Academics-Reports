@@ -1111,7 +1111,8 @@ with tab3:
         
     with col_s2:
         if search_session != "-- Select Session --":
-            classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")
+            # FALLBACK SAFE: Swapped out complex ordering to ensure basic validation stability
+            classes_df = run_query("SELECT DISTINCT class_level FROM classes")
             classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
             search_class = st.selectbox("Filter Class:", options=classes_list, key="search_cls")
         else:
