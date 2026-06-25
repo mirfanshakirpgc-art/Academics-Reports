@@ -129,12 +129,11 @@ def init_db():
 init_db()
 
 def run_query(query, params=None):
-    """Helper function to safely fetch data into a Pandas DataFrame using parameterized inputs."""
-    if params is None:
-        params = {}
+    """Executes a read query against the unified Supabase engine."""
+    import pandas as pd
+    # Crucial: Use the global engine connected to Supabase
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
-
 
 # ==============================================================================
 # 2. SHARED REUSABLE FUNCTIONS (Shared between Authorized Roles)
@@ -1233,10 +1232,13 @@ def render_student_management_workspace():
                 st.markdown("#### 🔍 Search & Filter Student Profile")
                 search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001").strip().lower()
                 
+                # Normalize matched_students DataFrame columns to lowercase for strict validation alignment
+                matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
+                
                 if search_query:
                     filtered_df = matched_students[
-                        matched_students['student_id'].str.lower().str.contains(search_query, na=False) | 
-                        matched_students['student_name'].str.lower().str.contains(search_query, na=False)
+                        matched_students['student_id'].astype(str).str.lower().str.contains(search_query, na=False) | 
+                        matched_students['student_name'].astype(str).str.lower().str.contains(search_query, na=False)
                     ]
                 else:
                     filtered_df = matched_students
@@ -1244,7 +1246,7 @@ def render_student_management_workspace():
                 if filtered_df.empty:
                     st.warning("⚠️ No student records match your text filter query.")
                 else:
-                    student_options = [f"{row['student_id']} - Roll #{row['roll_no']} - {row['student_name']}" for _, row in filtered_df.iterrows()]
+                    student_options = [f"{row['student_id']} - Roll #{int(row['roll_no'])} - {row['student_name']}" for _, row in filtered_df.iterrows()]
                     selected_profile_str = st.selectbox("🎯 Select Target Student Profile to Open Form:", options=student_options)
                     
                     if selected_profile_str:
@@ -1260,13 +1262,13 @@ def render_student_management_workspace():
                             with col_e3: edit_roll = st.number_input("Roll Number:*", value=int(student_data['roll_no']), min_value=1, step=1)
                             
                             col_e4, col_e5, col_e6 = st.columns(3)
-                            with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or ''))
-                            with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or ''))
+                            with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or '') if pd.notna(student_data['whatsapp_no']) else '')
+                            with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or '') if pd.notna(student_data['student_no']) else '')
                             with col_e6: edit_c1 = st.text_input("Emergency Contact-1:*", value=str(student_data['contact_1']))
                             
                             col_e7, col_e8 = st.columns([1, 2])
-                            with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or ''))
-                            with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or ''))
+                            with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or '') if pd.notna(student_data['contact_2']) else '')
+                            with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or '') if pd.notna(student_data['home_address']) else '')
                             
                             submit_edit = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
                             
@@ -1289,17 +1291,19 @@ def render_student_management_workspace():
                                                 WHERE student_id = :id
                                             """), {
                                                 "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
-                                                "whatsapp": edit_whatsapp.strip() or None, "sno": edit_student_no.strip() or None,
-                                                "c1": edit_c1.strip(), "c2": edit_c2.strip() or None, "addr": edit_addr.strip() or None,
+                                                "whatsapp": edit_whatsapp.strip() if edit_whatsapp.strip() else None, 
+                                                "sno": edit_student_no.strip() if edit_student_no.strip() else None,
+                                                "c1": edit_c1.strip(), 
+                                                "c2": edit_c2.strip() if edit_c2.strip() else None, 
+                                                "addr": edit_addr.strip() if edit_addr.strip() else None,
                                                 "id": target_id
                                             })
                                         st.success(f"🎉 Saved successfully!")
+                                        import time
                                         time.sleep(0.5)
                                         st.rerun()
                                     except Exception as update_err:
                                         st.error(f"❌ Database Error: {update_err}")
-        else:
-            st.warning("⏳ Please select Session, Class, and Section above to fetch records.")
 
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
