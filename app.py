@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # --- SUPABASE CONNECTION CONFIGURATION ---
-# ⚠️ Replace 'YOUR_DB_PASSWORD' with the actual database password you set in Supabase!
+# ⚠️ Replace 'YOUR_DB_PASSWORD' with your actual Supabase database password
 DB_URL = "postgresql://postgres.qykueriwcvgxsbxbbtso:YOUR_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
 @st.cache_resource
@@ -26,6 +26,7 @@ engine = get_db_engine()
 
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
+    # engine.begin() automatically opens a transaction and COMMITS it safely when the block exits!
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
@@ -87,8 +88,7 @@ def init_db():
             );
         """))
         
-        # Explicitly flush the creation operations out to Supabase
-        conn.commit()
+        # ❌ REMOVED conn.commit() FROM HERE TO PREVENT THE INVALIDREQUESTERROR
         # ----------------------------------------------------------------------
         # CRITICAL RE-INITIALIZATION TRIGGER
         # ----------------------------------------------------------------------
