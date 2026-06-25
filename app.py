@@ -838,21 +838,19 @@ def render_student_management_workspace():
                     st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
 
     # ==============================================================================
-    # TAB 2: BULK IMPORT VIA EXCEL (With Sample Template Downloader)
+    # TAB 2: BULK IMPORT VIA NATIVE CSV (Resolves Openpyxl Engine Missing Failures)
     # ==============================================================================
     with tab2:
         st.write("### 📤 Bulk Upload Student Spreadsheets")
-        st.info("💡 To ensure a successful upload, your spreadsheet columns must exactly match our structural template layout parameters.")
+        st.info("💡 To ensure a successful upload, your spreadsheet columns must exactly match our structural template layout parameters. This template uses native CSV formatting to prevent Excel dependency errors.")
         
         # --- DYNAMIC SAMPLE TEMPLATE GENERATOR ---
-        # 1. Define the exact columns matching our database ingest criteria
         sample_columns = [
             "Student ID", "Student Name", "Father Name", "WhatsApp", 
             "Student Number", "Contact 1", "Contact 2", "Home Address", 
-            "Class Level", "Section", "Roll Number"
+            "Session", "Academic System", "Class Level", "Discipline", "Section", "Roll Number"
         ]
         
-        # 2. Add realistic placeholder/guideline data rows
         sample_data = [
             {
                 "Student ID": "STU-2026-001",
@@ -860,11 +858,14 @@ def render_student_management_workspace():
                 "Father Name": "Asif Ali",
                 "WhatsApp": "+923001234567",
                 "Student Number": "+923151234567",
-                "Contact 1": "+923219876543 (Mother)",
-                "Contact 2": "+9251123456 (Home)",
+                "Contact 1": "+923219876543",
+                "Contact 2": "+9251123456",
                 "Home Address": "House 12, Street 4, Sector F-11, Islamabad",
-                "Class Level": available_classes[0] if available_classes else "11th",
-                "Section": "A",
+                "Session": "2025-27",
+                "Academic System": "Annual",
+                "Class Level": "11th",
+                "Discipline": "Medical",
+                "Section": "MG_BLUE",
                 "Roll Number": 1
             },
             {
@@ -873,37 +874,28 @@ def render_student_management_workspace():
                 "Father Name": "Tariq Khan",
                 "WhatsApp": "+923335556677",
                 "Student Number": "",
-                "Contact 1": "+923451112233 (Father)",
+                "Contact 1": "+923451112233",
                 "Contact 2": "",
                 "Home Address": "Apartment 4B, Gulberg Heights, Lahore",
-                "Class Level": available_classes[0] if available_classes else "11th",
-                "Section": "B",
+                "Session": "2025-27",
+                "Academic System": "Annual",
+                "Class Level": "11th",
+                "Discipline": "Engineering",
+                "Section": "EG_PINK",
                 "Roll Number": 2
             }
         ]
         
-        # 3. Compile layout to binary Excel stream data helper
-        import io
+        # Compile directly to standard CSV bytes data string without openpyxl reliance
         template_df = pd.DataFrame(sample_data, columns=sample_columns)
+        csv_data = template_df.to_csv(index=False).encode('utf-8')
         
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            template_df.to_excel(writer, index=False, sheet_name='Student Roster Template')
-            # Auto-adjust column width lengths inside workbook for aesthetic clarity
-            worksheet = writer.sheets['Student Roster Template']
-            for idx, col in enumerate(template_df.columns):
-                series = template_df[col]
-                max_len = max(series.astype(str).map(len).max(), len(col)) + 3
-                worksheet.set_column(idx, idx, max_len)
-        
-        buffer.seek(0)
-        
-        # 4. Render the Download Button widget
+        # Render the Download Button widget
         st.download_button(
-            label="📥 Download Sample Excel Template (.xlsx)",
-            data=buffer,
-            file_name="student_admission_template.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            label="📥 Download Clean Student Template (.csv)",
+            data=csv_data,
+            file_name="student_admission_template.csv",
+            mime="text/csv",
             use_container_width=True,
             help="Click here to download a perfectly pre-formatted spreadsheet template."
         )
@@ -911,16 +903,16 @@ def render_student_management_workspace():
         st.markdown("---")
         
         # --- SPREADSHEET INGESTION FILE UPLOADER ENGINE ---
-        uploaded_file = st.file_uploader("Upload Completed Student Spreadsheet Ledger:", type=["xlsx"])
+        uploaded_file = st.file_uploader("Upload Completed Student Spreadsheet Ledger:", type=["csv"])
         
         if uploaded_file is not None:
             try:
-                df = pd.read_excel(uploaded_file)
+                df = pd.read_csv(uploaded_file)
                 st.write("📋 **Previewing First 5 Rows of Uploaded Records:**")
                 st.dataframe(df.head(5), use_container_width=True)
                 
-                if st.button("🚀 Process & Commit Excel Records", type="primary", use_container_width=True):
-                    required_cols = ["Student ID", "Student Name", "Father Name", "Contact 1"]
+                if st.button("🚀 Process & Commit CSV Records", type="primary", use_container_width=True):
+                    required_cols = ["Student ID", "Student Name", "Father Name", "Contact 1", "Session", "Academic System", "Class Level", "Discipline", "Section", "Roll Number"]
                     missing_cols = [c for c in required_cols if c not in df.columns]
                     
                     if missing_cols:
@@ -937,23 +929,30 @@ def render_student_management_workspace():
                                 c1 = str(row.get("Contact 1")).strip()
                                 c2 = str(row.get("Contact 2", "")) if pd.notna(row.get("Contact 2")) else ""
                                 addr = str(row.get("Home Address", "")) if pd.notna(row.get("Home Address")) else ""
-                                cls_lvl = str(row.get("Class Level", "")) if pd.notna(row.get("Class Level")) else ""
-                                sec = str(row.get("Section", "")).strip().upper() if pd.notna(row.get("Section")) else ""
                                 
-                                # Safe parsing formatting for Roll numbers
+                                sess = str(row.get("Session", "")).strip()
+                                sys_name = str(row.get("Academic System", "")).strip()
+                                cls_lvl = str(row.get("Class Level", "")).strip()
+                                disc = str(row.get("Discipline", "")).strip()
+                                sec = str(row.get("Section", "")).strip().upper()
+                                
                                 try:
                                     roll = int(row.get("Roll Number")) if pd.notna(row.get("Roll Number")) else None
-                                # Fallback gracefully if structural content conversion encounters strings
                                 except (ValueError, TypeError):
                                     roll = None
                                 
                                 if s_id and s_name:
                                     conn.execute(text("""
-                                        INSERT OR REPLACE INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, class_level, section, roll_no)
-                                        VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :class_lvl, :sec, :roll)
+                                        INSERT OR REPLACE INTO students (
+                                            student_id, student_name, father_name, whatsapp_no, student_no, 
+                                            contact_1, contact_2, home_address, session, academic_system, 
+                                            class_level, discipline, section, roll_no
+                                        )
+                                        VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :sess, :sys, :class_lvl, :disc, :sec, :roll)
                                     """), {
                                         "id": s_id, "name": s_name, "fname": f_name, "whatsapp": w_no,
-                                        "sno": s_no, "c1": c1, "c2": c2, "addr": addr, "class_lvl": cls_lvl, "sec": sec, "roll": roll
+                                        "sno": s_no, "c1": c1, "c2": c2, "addr": addr, "sess": sess, 
+                                        "sys": sys_name, "class_lvl": cls_lvl, "disc": disc, "sec": sec, "roll": roll
                                     })
                                     counter += 1
                         st.success(f"🎉 Bulk operation successful! {counter} student profiles integrated smoothly.")
@@ -961,13 +960,18 @@ def render_student_management_workspace():
                         st.rerun()
             except Exception as e:
                 st.error(f"❌ File compilation processing failure: {e}")
+
+    # ==============================================================================
+    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (With Complete 14-Column Support)
+    # ==============================================================================
     with tab3:
         st.write("### Search & Edit Active Profiles")
         search_term = st.text_input("🔍 Search Student Profile by Name:", key="student_workspace_search")
         
         if search_term:
             matched_students = run_query("""
-                SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, class_level, section 
+                SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, 
+                       contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section 
                 FROM students 
                 WHERE student_name LIKE :search
             """, {"search": f"%{search_term}%"})
@@ -995,14 +999,16 @@ def render_student_management_workspace():
                     edit_addr = st.text_input("Modify Home Address:", value=str(current_target_row["home_address"] or ""))
                     
                     st.markdown("---")
+                    st.write("⚙️ **Modify Academic Placements**")
                     col_e7, col_e8, col_e9 = st.columns(3)
-                    try:
-                        cls_idx = available_classes.index(str(current_target_row["class_level"]))
-                    except ValueError:
-                        cls_idx = 0
-                    with col_e7: edit_class = st.selectbox("Update Class Level:", available_classes, index=cls_idx)
-                    with col_e8: edit_sec = st.text_input("Update Section:", value=str(current_target_row["section"] or "")).upper()
-                    with col_e9: edit_roll = st.number_input("Update Roll Number:", value=int(current_target_row["roll_no"] or 1), min_value=1)
+                    with col_e7: edit_session = st.text_input("Update Session:", value=str(current_target_row["session"] or ""))
+                    with col_e8: edit_system = st.text_input("Update Academic System:", value=str(current_target_row["academic_system"] or ""))
+                    with col_e9: edit_class = st.text_input("Update Class Level:", value=str(current_target_row["class_level"] or ""))
+                    
+                    col_e10, col_e11, col_e12 = st.columns(3)
+                    with col_e10: edit_discipline = st.text_input("Update Discipline:", value=str(current_target_row["discipline"] or ""))
+                    with col_e11: edit_sec = st.text_input("Update Section:", value=str(current_target_row["section"] or "")).upper()
+                    with col_e12: edit_roll = st.number_input("Update Class arrangement No.", value=int(current_target_row["roll_no"] or 1), min_value=1)
                     
                     save_student_edits = st.form_submit_button("💾 Save Profile Modification Changes", type="primary")
                     if save_student_edits:
@@ -1012,12 +1018,14 @@ def render_student_management_workspace():
                                     UPDATE students 
                                     SET student_name = :name, father_name = :fname, whatsapp_no = :whatsapp, 
                                         student_no = :sno, contact_1 = :c1, contact_2 = :c2, home_address = :addr,
-                                        class_level = :class_lvl, section = :sec, roll_no = :roll
+                                        session = :sess, academic_system = :sys, class_level = :class_lvl, 
+                                        discipline = :disc, section = :sec, roll_no = :roll
                                     WHERE student_id = :sid
                                 """), {
                                     "name": edit_name, "fname": edit_fname, "whatsapp": edit_whatsapp,
                                     "sno": edit_sno, "c1": edit_c1, "c2": edit_c2, "addr": edit_addr,
-                                    "class_lvl": edit_class, "sec": edit_sec, "roll": edit_roll, "sid": target_id
+                                    "sess": edit_session, "sys": edit_system, "class_lvl": edit_class, 
+                                    "disc": edit_discipline, "sec": edit_sec, "roll": edit_roll, "sid": target_id
                                 })
                             st.success("🎉 Student record updated cleanly inside the relational directory!")
                             time.sleep(0.5)
@@ -1026,6 +1034,7 @@ def render_student_management_workspace():
                             st.error(f"❌ Modification processing failed: {e}")
             else: 
                 st.info("No matching student profile entries discovered.")
+
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
@@ -1054,8 +1063,8 @@ def render_universal_attendance_workspace():
         """, {"class_val": sel_class, "sec_val": sel_section})
     except Exception:
         students_df = pd.DataFrame([
-            {"student_id": 501, "roll_no": 1, "student_name": "Universal Student A"},
-            {"student_id": 502, "roll_no": 2, "student_name": "Universal Student B"}
+            {"student_id": "STU-001", "roll_no": 1, "student_name": "Universal Student A"},
+            {"student_id": "STU-002", "roll_no": 2, "student_name": "Universal Student B"}
         ])
         st.caption("⚠️ Displaying structural simulation data. Connect 'students' table to view live records.")
         
