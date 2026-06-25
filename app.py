@@ -1030,7 +1030,7 @@ def render_student_management_workspace():
                             with engine.begin() as conn:
                                 for index, row in uploaded_df.iterrows():
                                     s_id = str(row['student_id']).strip().upper()
-                                    if not s_id or s_id == 'NAN':
+                                    if not s_id or s_id == 'NAN' or pd.isna(row['student_id']):
                                         continue
                                     try:
                                         # Deduce proper numbering offset via chosen user handling rules
@@ -1074,9 +1074,15 @@ def render_student_management_workspace():
                                         success_count += 1
                                     except Exception as inner_e:
                                         error_log.append(f"Row {index + 2} (ID: {s_id}): {str(inner_e)}")
+                                
+                                # Explicitly push bulk structural additions to storage node
+                                conn.commit()
                             
                             if success_count > 0:
                                 st.success(f"🎉 Processing Complete: {success_count} student profile nodes written or synced successfully!")
+                                import time
+                                time.sleep(1.0)
+                                st.rerun()
                             if error_log:
                                 with st.expander("⚠️ Review Log Exceptions"):
                                     for log in error_log:
