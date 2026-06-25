@@ -1081,7 +1081,7 @@ def render_student_management_workspace():
                     st.error(f"❌ Fatal streaming data processing breakdown error: {e}")
 
     # ==============================================================================
-    # TAB 3: SEARCH & EDIT (BATCH SECTION OR SINGLE PROFILE WITH SEARCH FILTER)
+    # TAB 3: SEARCH & EDIT (WITH INPUT CLEANING & DIAGNOSTICS)
     # ==============================================================================
     with tab3:
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
@@ -1127,10 +1127,13 @@ def render_student_management_workspace():
         # Verify filtering keys are correctly set before processing queries
         if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
             try:
+                # Added TRIM() to bypass any accidental whitespace padding during insertions
                 matched_students = run_query("""
                     SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
                     FROM students
-                    WHERE session = :sess AND class_level = :cls AND section = :sec
+                    WHERE TRIM(session) = TRIM(:sess) 
+                      AND TRIM(class_level) = TRIM(:cls) 
+                      AND TRIM(section) = TRIM(:sec)
                     ORDER BY roll_no ASC
                 """, {"sess": search_session, "cls": search_class, "sec": search_sec})
             except Exception as e:
@@ -1139,13 +1142,23 @@ def render_student_management_workspace():
                 
             if matched_students.empty:
                 st.info(f"ℹ️ No active student records found matching: {search_session} | Class {search_class} | Section {search_sec}")
+                
+                # --- AUTOMATED ENGINE DIAGNOSTIC DOCK ---
+                with st.expander("🔍 Run Database Troubleshooting Check"):
+                    st.write("Let's look at what is actually stored inside your `students` table:")
+                    debug_df = run_query("SELECT student_id, student_name, session, class_level, section FROM students LIMIT 10")
+                    if debug_df.empty:
+                        st.warning("The `students` table is completely empty. Go to Tab 1 or Tab 2 to add records first.")
+                    else:
+                        st.write("Here are the last 10 records added to your database. Compare these strings against your filters:")
+                        st.dataframe(debug_df, use_container_width=True)
             
             # ==================================================================
             # OPTION A: BATCH EDIT ENTIRE SECTION
             # ==================================================================
             elif edit_scope == "📊 Batch Edit Entire Section":
                 st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})`")
-                st.caption("💡 Edit any cell directly inside the grid below, then click the blue save button.")
+                st.caption("💡 Edit any cell directly inside the grid below, then click the save button.")
                 
                 edited_df = st.data_editor(
                     matched_students,
@@ -1163,7 +1176,7 @@ def render_student_management_workspace():
                     },
                     hide_index=True,
                     use_container_width=True,
-                    key=f"sec_editor_{search_session}_{search_class}_{search_sec}" # Dynamic key to force refresh on context swap
+                    key=f"sec_editor_{search_session}_{search_class}_{search_sec}"
                 )
                 
                 if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
@@ -1192,24 +1205,23 @@ def render_student_management_workspace():
                                     "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) else None,
                                     "id": row['student_id']
                                 })
-                        st.success(f"🎉 Roster synced! All records in Section {search_sec} have been successfully updated.")
+                        st.success(f"🎉 Roster synced successfully!")
                         time.sleep(0.8)
                         st.rerun()
                     except Exception as bulk_err:
                         st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
 
             # ==================================================================
-            # OPTION B: SINGLE STUDENT PROFILE WITH SEARCH BY NAME OR ID
+            # OPTION B: SINGLE STUDENT PROFILE WITH FILTER SEARCH
             # ==================================================================
             else:
                 st.markdown("#### 🔍 Search & Filter Student Profile")
                 search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001").strip().lower()
                 
-                # Apply filter query directly to match against ID or Name variables
                 if search_query:
                     filtered_df = matched_students[
-                        matched_students['student_id'].str.lower().str.contains(search_query) | 
-                        matched_students['student_name'].str.lower().str.contains(search_query)
+                        matched_students['student_id'].str.lower().str.contains(search_query, na=False) | 
+                        matched_students['student_name'].str.lower().str.contains(search_query, na=False)
                     ]
                 else:
                     filtered_df = matched_students
@@ -1241,11 +1253,11 @@ def render_student_management_workspace():
                             with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or ''))
                             with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or ''))
                             
-                            submit_edit = st.form_submit_button("💾 Save Changes & Update Registry Node", type="primary", use_container_width=True)
+                            submit_edit = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
                             
                             if submit_edit:
                                 if not edit_name.strip() or not edit_fname.strip() or not edit_c1.strip():
-                                    st.error("❌ Validation Failed: All mandatory (*) fields must contain text.")
+                                    st.error("❌ Validation Failed: All mandatory fields must contain text.")
                                 else:
                                     try:
                                         with engine.begin() as conn:
@@ -1266,13 +1278,13 @@ def render_student_management_workspace():
                                                 "c1": edit_c1.strip(), "c2": edit_c2.strip() or None, "addr": edit_addr.strip() or None,
                                                 "id": target_id
                                             })
-                                        st.success(f"🎉 Changes saved successfully for node {target_id}!")
+                                        st.success(f"🎉 Saved successfully!")
                                         time.sleep(0.5)
                                         st.rerun()
                                     except Exception as update_err:
-                                        st.error(f"❌ Database Transaction Interrupted: {update_err}")
+                                        st.error(f"❌ Database Error: {update_err}")
         else:
-            st.warning("⏳ Please finish selecting the three filtering scope parameters above to unlock directory lookup entries.")
+            st.warning("⏳ Please select Session, Class, and Section above to fetch records.")
 
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
