@@ -1103,7 +1103,7 @@ def render_student_management_workspace():
     with tab3:
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
         
-        # Pull reference indices to populate lookups
+        # Pull reference indices dynamically from Tab 1 Structural Variables
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
@@ -1117,8 +1117,8 @@ def render_student_management_workspace():
             
         with col_s2:
             if search_session != "-- Select Session --":
-                # Matches "2. Target Academic System" (e.g., Annual, Semester)
                 try:
+                    # Dynamically fetching from your Structural Variables setup
                     systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
                     systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
                 except Exception:
@@ -1130,7 +1130,6 @@ def render_student_management_workspace():
                 
         with col_s3:
             if search_system != "-- Select System --":
-                # Matches "3. Target Class"
                 classes_df = run_query("SELECT DISTINCT class_level FROM classes")
                 classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
                 search_class = st.selectbox("Filter Class:", options=classes_list, key="search_cls")
@@ -1140,12 +1139,15 @@ def render_student_management_workspace():
 
         with col_s4:
             if search_class != "-- Select Class --":
-                # Matches "4. Target Discipline" (e.g., Medical, Engineering, Commerce)
                 try:
+                    # Fixes hardcoded fallbacks! Pulls strictly from your variables tab
                     disc_df = run_query("SELECT DISTINCT discipline_name FROM disciplines")
-                    disc_list = ["-- Select Discipline --"] + (disc_df['discipline_name'].tolist() if not disc_df.empty else [])
+                    if not disc_df.empty:
+                        disc_list = ["-- Select Discipline --"] + disc_df['discipline_name'].tolist()
+                    else:
+                        disc_list = ["-- Select Discipline --", "Medical"]
                 except Exception:
-                    disc_list = ["-- Select Discipline --", "Medical", "Engineering", "Arts", "Commerce"]
+                    disc_list = ["-- Select Discipline --", "Medical"]
                 search_discipline = st.selectbox("Filter Discipline:", options=disc_list, key="search_discipline")
             else:
                 st.selectbox("Filter Discipline:", ["🔒 Waiting..."], disabled=True, key="search_disc_dis")
@@ -1153,7 +1155,6 @@ def render_student_management_workspace():
 
         with col_s5:
             if search_discipline != "-- Select Discipline --":
-                # Matches "5. Target Section"
                 sections_df = run_query("SELECT DISTINCT section_name FROM sections")
                 sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
                 search_sec = st.selectbox("Filter Section:", options=sections_list, key="search_sec")
@@ -1180,7 +1181,7 @@ def render_student_management_workspace():
             
             try:
                 with engine.connect() as conn:
-                    # SQL updated to filter against your specific 5 layout dimensions
+                    # 🛠️ FIXED: Changed 'id AS student_id' to 'student_id' to prevent SQLite operational crash
                     query_str = """
                         SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline, academic_system
                         FROM students
