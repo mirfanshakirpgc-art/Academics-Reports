@@ -1153,9 +1153,10 @@ with tab3:
     if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
         try:
             # Query pulling matching student sets using case-insensitive and whitespace comparisons
+            # FIX: Aliased 'id AS student_id' to resolve the PostgreSQL 42703 missing column error
             with engine.connect() as conn:
                 query_str = """
-                    SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
+                    SELECT id AS student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
                     FROM students
                     WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
                       AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls)) 
@@ -1178,7 +1179,7 @@ with tab3:
             with st.expander("🔍 Run Database Troubleshooting Check", expanded=True):
                 st.write("Let's look at what is actually stored inside your `students` table:")
                 try:
-                    debug_df = run_query("SELECT student_id, student_name, session, class_level, section FROM students LIMIT 10")
+                    debug_df = run_query("SELECT id, student_name, session, class_level, section FROM students LIMIT 10")
                 except Exception:
                     debug_df = pd.DataFrame()
 
@@ -1230,12 +1231,12 @@ with tab3:
                                 "c1": str(row['contact_1']).strip(),
                                 "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() and str(row['contact_2']).strip() != 'None' else None,
                                 "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() and str(row['home_address']).strip() != 'None' else None,
-                                "id": row['student_id']
+                                "id": row['student_id'] # This maps to the original unique 'id'
                             })
                     
                     if changed_records:
                         try:
-                            # Fire updates via optimized list variable bindings
+                            # Fire updates via optimized single batch payload transaction
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE students SET
@@ -1247,9 +1248,9 @@ with tab3:
                                         contact_1 = :c1,
                                         contact_2 = :c2,
                                         home_address = :addr
-                                    WHERE student_id = :id
+                                    WHERE id = :id
                                 """), changed_records)
-                            st.success(f"🎉 Roster synced successfully! Updated {len(changed_records)} modified profile vectors.")
+                            st.success(f"🎉 Roster synced successfully! Updated {len(changed_records)} modified profile records.")
                             time.sleep(0.8)
                             st.rerun()
                         except Exception as bulk_err:
@@ -1317,7 +1318,7 @@ with tab3:
                                                     contact_1 = :c1,
                                                     contact_2 = :c2,
                                                     home_address = :addr
-                                                WHERE student_id = :id
+                                                WHERE id = :id
                                             """), {
                                                 "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
                                                 "whatsapp": edit_whatsapp.strip() if edit_whatsapp.strip() else None, 
@@ -1332,6 +1333,8 @@ with tab3:
                                         st.rerun()
                                     except Exception as update_err:
                                         st.error(f"❌ Database Error: {update_err}")
+    else:
+        st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
     else:
         st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
 def render_universal_attendance_workspace():
