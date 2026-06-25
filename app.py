@@ -732,7 +732,7 @@ def render_student_management_workspace():
     with tab1:
         st.write("### Register New Student Particulars")
         
-        # --- CORE PROFILE DATA (Static input layout) ---
+        # --- CORE PROFILE DATA ---
         col1, col2, col3 = st.columns(3)
         with col1: new_id = st.text_input("1. Student ID / Registration No:*", placeholder="e.g., STU-2026-001").strip().upper()
         with col2: new_name = st.text_input("2. Student Full Name:*", placeholder="e.g., John Doe").strip()
@@ -747,7 +747,7 @@ def render_student_management_workspace():
         with col7: contact_2 = st.text_input("7. Alternative Contact-2:", placeholder="e.g., Guardian/Landline").strip()
         with col8: home_address = st.text_input("8. Home Address:", placeholder="e.g., House #123, Street 5, Sector G-10").strip()
         
-        # --- CASCADING PLACEMENT FILTERS (Placed outside form for real-time reactivity) ---
+        # --- CASCADING PLACEMENT FILTERS ---
         st.markdown("---")
         st.write("📁 **Academic Placement Attributes**")
         
@@ -769,7 +769,8 @@ def render_student_management_workspace():
 
         with col_a3:
             if new_system != "-- Select System --":
-                classes_df = run_query("SELECT DISTINCT class_level FROM classes")
+                # ORDER BY sort_order forces the sequence alignment (e.g. 5th appears at its explicit numeric sequence index)
+                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
                 classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
                 new_class = st.selectbox("3. Target Class:", options=classes_list, key="manual_cls")
             else:
@@ -796,7 +797,8 @@ def render_student_management_workspace():
                 new_sec = "-- Select Section --"
 
         with col_a6:
-            new_roll = st.number_input("Assign Roll Number / Class Arrangement No:", min_value=1, step=1, key="manual_roll")
+            # Renamed strictly to "Class arrangement No."
+            new_roll = st.number_input("Class arrangement No.", min_value=1, step=1, key="manual_roll")
         
         st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
         
