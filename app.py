@@ -962,7 +962,7 @@ def render_student_management_workspace():
                 st.error(f"❌ File compilation processing failure: {e}")
 
     # ==============================================================================
-    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (Cascading Structural Selectors)
+    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (Deep Search & Diagnostic Alignment)
     # ==============================================================================
     with tab3:
         st.write("### Search & Edit Active Profiles")
@@ -979,16 +979,28 @@ def render_student_management_workspace():
         if selected_search_session == "-- Select Session --":
             st.info("💡 Please select an academic session from the dropdown above to enable profile searching.")
         else:
-            search_term = st.text_input("🔍 Step 2: Search Student Profile by Name or Student ID:", key="student_workspace_search", placeholder="Type name or Student ID here...")
+            search_term = st.text_input("🔍 Step 2: Search Student Profile by Name or Student ID:", key="student_workspace_search", placeholder="Type name or ID (e.g., 1002)...").strip()
             
             if search_term:
+                # Target Scope Lookup
                 matched_students = run_query("""
                     SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, 
                            contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section 
                     FROM students 
-                    WHERE (student_name LIKE :search OR student_id LIKE :search) AND session = :sess
-                """, {"search": f"%{search_term.strip()}%", "sess": selected_search_session})
+                    WHERE (student_name LIKE :search OR student_id LIKE :search) AND TRIM(session) = TRIM(:sess)
+                """, {"search": f"%{search}", "sess": selected_search_session})
 
+                # FALLBACK: If missing, look globally across ALL sessions to diagnose placement mismatch
+                if matched_students.empty:
+                    global_diagnostic = run_query("""
+                        SELECT student_id, student_name, session, class_level, section 
+                        FROM students 
+                        WHERE student_name LIKE :search OR student_id LIKE :search
+                    """, {"search": f"%{search}%"})
+                else:
+                    global_diagnostic = pd.DataFrame()
+
+                # --- Scenario A: Found inside selected session ---
                 if not matched_students.empty:
                     student_options = [
                         f"{row['student_id']} - ID: {row['student_id']} | {row['student_name']} s/o {row['father_name']}"
@@ -998,7 +1010,6 @@ def render_student_management_workspace():
                     target_id = selected_edit_target.split(" - ")[0]
                     current_target_row = matched_students[matched_students["student_id"] == target_id].iloc[0]
                     
-                    # Pull operational lists from DB to populate dropdown selectors safely
                     try:
                         systems_list = run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist()
                         classes_list = run_query("SELECT DISTINCT class_level FROM classes")['class_level'].tolist()
@@ -1027,10 +1038,8 @@ def render_student_management_workspace():
                         st.write("⚙️ **Modify Academic Placements Attributes**")
                         col_e7, col_e8, col_e9 = st.columns(3)
                         
-                        # Session remains uneditable to protect the relational scope integrity
-                        with col_e7: edit_session = st.text_input("Current Session Block:", value=str(current_target_row["session"] or ""), disabled=True)
+                        with col_e7: edit_session = st.text_input("Current Session Block (Read-Only):", value=str(current_target_row["session"] or ""), disabled=True)
                         
-                        # Dynamic infrastructure indices fallbacks
                         sys_val = current_target_row["academic_system"]
                         sys_idx = systems_list.index(sys_val) if sys_val in systems_list else 0
                         with col_e8: edit_system = st.selectbox("Update Academic System:", options=systems_list, index=sys_idx)
@@ -1047,7 +1056,6 @@ def render_student_management_workspace():
                         sec_val = current_target_row["section"]
                         sec_idx = sections_list.index(sec_val) if sec_val in sections_list else 0
                         with col_e11: edit_sec = st.selectbox("Update Target Section:", options=sections_list, index=sec_idx)
-                        
                         with col_e12: edit_roll = st.number_input("Update Class Arrangement No:", value=int(current_target_row["roll_no"] or 1), min_value=1)
                         
                         save_student_edits = st.form_submit_button("💾 Save Profile Modification Changes", type="primary")
@@ -1072,8 +1080,17 @@ def render_student_management_workspace():
                                 st.rerun()
                             except Exception as e: 
                                 st.error(f"❌ Modification processing failed: {e}")
+
+                # --- Scenario B: Global Session Mismatch Found ---
+                elif not global_diagnostic.empty:
+                    st.warning(f"⚠️ Record '{search_term}' found, but it is registered under a DIFFERENT session configuration!")
+                    st.write("🔍 **Database Location Diagnostic Registry:**")
+                    st.dataframe(global_diagnostic, use_container_width=True)
+                    st.info(f"💡 To view or edit this profile, please change **Step 1** (Session Dropdown) to match the session value shown in the table above.")
+
+                # --- Scenario C: Genuine Empty Result ---
                 else: 
-                    st.warning(f"❌ No matching student profile entries found for '{search_term}' within Session: {selected_search_session}.")
+                    st.error(f"❌ No matching student profile entries found for '{search_term}' anywhere within the database ledger.")
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
