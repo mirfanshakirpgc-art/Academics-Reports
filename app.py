@@ -1108,7 +1108,9 @@ def render_student_management_workspace():
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
         st.markdown("📁 **Step 1: Locate Active Target Parameters**")
-        col_s1, col_s2, col_s3, col_s4 = st.columns([1, 1, 1, 1.5])
+        
+        # 🌟 Split into 5 clean parameter columns + 1 wide column for the radio toggle
+        col_s1, col_s2, col_s3, col_s4, col_s5, col_scope = st.columns([1, 1, 1, 1, 1, 2])
         
         with col_s1:
             search_session = st.selectbox("Filter Session:", options=sessions_list, key="search_sess")
@@ -1130,8 +1132,35 @@ def render_student_management_workspace():
             else:
                 st.selectbox("Filter Section:", ["🔒 Waiting..."], disabled=True, key="search_sec_dis")
                 search_sec = "-- Select Section --"
-        
+
         with col_s4:
+            # 🌟 Added Dropdown 4: Shift
+            if search_sec != "-- Select Section --":
+                # Fallback list if table doesn't exist, else fetch from DB
+                try:
+                    shifts_df = run_query("SELECT DISTINCT shift_name FROM shifts")
+                    shifts_list = ["-- Select Shift --"] + (shifts_df['shift_name'].tolist() if not shifts_df.empty else [])
+                except Exception:
+                    shifts_list = ["-- Select Shift --", "Morning", "Evening"]
+                search_shift = st.selectbox("Filter Shift:", options=shifts_list, key="search_shift")
+            else:
+                st.selectbox("Filter Shift:", ["🔒 Waiting..."], disabled=True, key="search_shift_dis")
+                search_shift = "-- Select Shift --"
+
+        with col_s5:
+            # 🌟 Added Dropdown 5: Medium / Discipline
+            if search_shift != "-- Select Shift --":
+                try:
+                    disc_df = run_query("SELECT DISTINCT discipline_name FROM disciplines")
+                    disc_list = ["-- Select Medium --"] + (disc_df['discipline_name'].tolist() if not disc_df.empty else [])
+                except Exception:
+                    disc_list = ["-- Select Medium --", "English", "Urdu"]
+                search_discipline = st.selectbox("Filter Medium:", options=disc_list, key="search_discipline")
+            else:
+                st.selectbox("Filter Medium:", ["🔒 Waiting..."], disabled=True, key="search_discipline_dis")
+                search_discipline = "-- Select Medium --"
+        
+        with col_scope:
             edit_scope = st.radio(
                 "Modification Scope:",
                 options=["✨ Modify Single Student", "📊 Batch Edit Entire Section"],
@@ -1141,50 +1170,64 @@ def render_student_management_workspace():
                 
         st.markdown("---")
         
-        # Verify filtering keys are correctly set before processing queries
-        if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
+        # 🌟 Check all 5 validation variables before continuing
+        if (search_session != "-- Select Session --" and 
+            search_class != "-- Select Class --" and 
+            search_sec != "-- Select Section --" and 
+            search_shift != "-- Select Shift --" and 
+            search_discipline != "-- Select Medium --"):
+            
             try:
-                # Query pulling matching student sets using case-insensitive and whitespace comparisons
+                # Query pulling matching student sets matching all 5 keys
                 with engine.connect() as conn:
                     query_str = """
-                        SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
+                        SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline, shift
                         FROM students
                         WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
                           AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls)) 
                           AND LOWER(TRIM(section)) = LOWER(TRIM(:sec))
+                          AND LOWER(TRIM(shift)) = LOWER(TRIM(:shift))
+                          AND LOWER(TRIM(discipline)) = LOWER(TRIM(:disc))
                         ORDER BY roll_no ASC
                     """
-                    matched_students = pd.read_sql(text(query_str), conn, params={"sess": search_session, "cls": search_class, "sec": search_sec})
+                    matched_students = pd.read_sql(
+                        text(query_str), 
+                        conn, 
+                        params={
+                            "sess": search_session, 
+                            "cls": search_class, 
+                            "sec": search_sec,
+                            "shift": search_shift,
+                            "disc": search_discipline
+                        }
+                    )
                 
-                # Sync DataFrame column indices to continuous lowercase strings 
                 matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
             except Exception as e:
                 st.error(f"Error fetching directory: {e}")
                 matched_students = pd.DataFrame()
                 
-            # --- CONDITIONAL SUB-INTERFACE SWITCH DOCK ---
             if matched_students.empty:
-                st.info(f"ℹ️ No active student records found matching: {search_session} | Class {search_class} | Section {search_sec}")
+                st.info(f"ℹ️ No active student records found matching: {search_session} | Class {search_class} | Section {search_sec} | Shift {search_shift} | Medium {search_discipline}")
                 
-                # --- AUTOMATED ENGINE DIAGNOSTIC EXPANDER ---
                 with st.expander("🔍 Run Database Troubleshooting Check", expanded=True):
                     st.write("Let's look at what is actually stored inside your `students` table:")
                     try:
-                        debug_df = run_query("SELECT student_id, student_name, session, class_level, section FROM students LIMIT 10")
+                        debug_df = run_query("SELECT student_id, student_name, session, class_level, section, shift, discipline FROM students LIMIT 10")
                     except Exception:
                         debug_df = pd.DataFrame()
 
                     if debug_df.empty:
                         st.warning("The `students` table is completely empty. Go to Tab 1 or Tab 2 to add records first.")
                     else:
-                        st.write("Here are the last 10 records added to your database. Compare these strings against your filters:")
+                        st.write("Here are the last 10 records added to your database. Check their exact text properties:")
                         st.dataframe(debug_df, use_container_width=True)
             else:
                 # ------------------------------------------------------------------
                 # WORKSPACE ACTION A: BATCH EDIT ENTIRE SECTION
                 # ------------------------------------------------------------------
                 if edit_scope == "📊 Batch Edit Entire Section":
-                    st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})`")
+                    st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})` - {search_shift} ({search_discipline})")
                     st.caption("💡 Edit any cell directly inside the grid below, then click the save button.")
                     
                     edited_df = st.data_editor(
@@ -1199,11 +1242,12 @@ def render_student_management_workspace():
                             "contact_1": st.column_config.TextColumn("Contact-1*", required=True),
                             "contact_2": st.column_config.TextColumn("Contact-2"),
                             "home_address": st.column_config.TextColumn("Home Address"),
-                            "discipline": st.column_config.TextColumn("Discipline 🔒", disabled=True)
+                            "discipline": st.column_config.TextColumn("Discipline 🔒", disabled=True),
+                            "shift": st.column_config.TextColumn("Shift 🔒", disabled=True)
                         },
                         hide_index=True,
                         use_container_width=True,
-                        key=f"sec_editor_{search_session}_{search_class}_{search_sec}"
+                        key=f"sec_editor_{search_session}_{search_class}_{search_sec}_{search_shift}_{search_discipline}"
                     )
                     
                     if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
@@ -1323,8 +1367,7 @@ def render_student_management_workspace():
                                         except Exception as update_err:
                                             st.error(f"❌ Database Error: {update_err}")
         else:
-            st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
-
+            st.warning("⏳ Please complete setting all 5 Academic Placement drop-down targets above to view and modify student data options.")
 # ==============================================================================
 # GLOBAL OPERATIONAL WORKSPACES
 # ==============================================================================
