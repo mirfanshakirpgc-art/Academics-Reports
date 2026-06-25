@@ -898,16 +898,228 @@ def render_student_management_workspace():
                     st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
 
     # ==============================================================================
-    # TAB 2: BULK IMPORT VIA NATIVE CSV
+    # TAB 2: BULK IMPORT VIA EXCEL / CSV
     # ==============================================================================
     with tab2:
-        pass
+        st.write("### 📤 Bulk Import Student Registry via Excel or CSV File")
+        st.markdown(
+            "Upload structured rosters to register multiple records simultaneously. "
+            "Ensure your file contains these identical header column tags: "
+            "`student_id`, `student_name`, `father_name`, `whatsapp_no`, `student_no`, "
+            "`contact_1`, `contact_2`, `home_address`, `session`, `academic_system`, "
+            "`class_level`, `discipline`, `section`, `roll_no`."
+        )
+        
+        uploaded_file = st.file_uploader("Choose an admission excel roster data stream:", type=["xlsx", "xls", "csv"])
+        
+        if uploaded_file is not None:
+            try:
+                # Load matrix flexibly depending on incoming file extension channel
+                if uploaded_file.name.endswith('.csv'):
+                    uploaded_df = pd.read_csv(uploaded_file)
+                else:
+                    uploaded_df = pd.read_excel(uploaded_file)
+                
+                # Sanitize column string names to maintain consistency
+                uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
+                
+                st.write("#### 📋 Parsed Raw Data Matrix Preview", uploaded_df.head(5))
+                
+                # Verify structural field dependencies before allowing transaction execution
+                required_cols = ['student_id', 'student_name', 'father_name', 'contact_1']
+                missing_critical_cols = [c for c in required_cols if c not in uploaded_df.columns]
+                
+                if missing_critical_cols:
+                    st.error(f"❌ Structural Validation Denied: The uploaded file is missing critical parameters: {missing_critical_cols}")
+                else:
+                    # Provide default placeholders for missing elective schema keys
+                    optional_fields = [
+                        'whatsapp_no', 'student_no', 'contact_2', 'home_address', 
+                        'session', 'academic_system', 'class_level', 'discipline', 'section', 'roll_no'
+                    ]
+                    for opt in optional_fields:
+                        if opt not in uploaded_df.columns:
+                            uploaded_df[opt] = None if opt != 'roll_no' else 1
+
+                    total_rows = len(uploaded_df)
+                    st.info(f"⚡ System status ready to ingest {total_rows} records into the active database layer.")
+                    
+                    if st.button("🚀 Commit File Records To Database", type="primary", use_container_width=True):
+                        success_count = 0
+                        error_log = []
+                        
+                        # Batch parsing optimization block
+                        with engine.begin() as conn:
+                            for index, row in uploaded_df.iterrows():
+                                s_id = str(row['student_id']).strip().upper()
+                                if not s_id or s_id == 'NAN':
+                                    continue
+                                try:
+                                    # Safe extraction parsing filters
+                                    roll_val = int(row['roll_no']) if pd.notna(row['roll_no']) else 1
+                                    
+                                    conn.execute(text("""
+                                        INSERT INTO students (
+                                            student_id, student_name, father_name, whatsapp_no, student_no, 
+                                            contact_1, contact_2, home_address, session, academic_system, 
+                                            class_level, discipline, section, roll_no
+                                        ) VALUES (
+                                            :id, :name, :fname, :whatsapp, :sno, 
+                                            :c1, :c2, :addr, :sess, :sys, 
+                                            :class_lvl, :disc, :sec, :roll
+                                        )
+                                        ON CONFLICT(student_id) DO UPDATE SET
+                                            student_name=EXCLUDED.student_name,
+                                            father_name=EXCLUDED.father_name,
+                                            whatsapp_no=EXCLUDED.whatsapp_no,
+                                            student_no=EXCLUDED.student_no,
+                                            contact_1=EXCLUDED.contact_1,
+                                            contact_2=EXCLUDED.contact_2,
+                                            home_address=EXCLUDED.home_address,
+                                            session=EXCLUDED.session,
+                                            academic_system=EXCLUDED.academic_system,
+                                            class_level=EXCLUDED.class_level,
+                                            discipline=EXCLUDED.discipline,
+                                            section=EXCLUDED.section,
+                                            roll_no=EXCLUDED.roll_no;
+                                    """), {
+                                        "id": s_id,
+                                        "name": str(row['student_name']).strip(),
+                                        "fname": str(row['father_name']).strip(),
+                                        "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) else None,
+                                        "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) else None,
+                                        "c1": str(row['contact_1']).strip(),
+                                        "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) else None,
+                                        "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) else None,
+                                        "sess": str(row['session']).strip() if pd.notna(row['session']) else None,
+                                        "sys": str(row['academic_system']).strip() if pd.notna(row['academic_system']) else None,
+                                        "class_lvl": str(row['class_level']).strip() if pd.notna(row['class_level']) else None,
+                                        "disc": str(row['discipline']).strip() if pd.notna(row['discipline']) else None,
+                                        "sec": str(row['section']).strip() if pd.notna(row['section']) else None,
+                                        "roll": roll_val
+                                    })
+                                    success_count += 1
+                                except Exception as inner_e:
+                                    error_log.append(f"Row {index + 2} (ID: {s_id}): {str(inner_e)}")
+                        
+                        if success_count > 0:
+                            st.success(f"🎉 Roster transaction processed: {success_count} student nodes written or synced successfully.")
+                        if error_log:
+                            with st.expander("⚠️ Review File Parse Non-Fatal Warnings"):
+                                for log in error_log:
+                                    st.warning(log)
+                                    
+            except Exception as e:
+                st.error(f"❌ Fatal streaming evaluation breakdown error: {e}")
 
     # ==============================================================================
     # TAB 3: SEARCH & EDIT ACTIVE PROFILES 
     # ==============================================================================
     with tab3:
-        pass
+        st.write("### ✏️ Search & Modify Existing Student Profiles")
+        
+        # Pull reference indices to populate lookups
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        
+        st.markdown("📁 **Step 1: Locate Active Target Parameters**")
+        col_s1, col_s2, col_s3 = st.columns(3)
+        
+        with col_s1:
+            search_session = st.selectbox("Filter Current Session:", options=sessions_list, key="search_sess")
+            
+        with col_s2:
+            if search_session != "-- Select Session --":
+                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                search_class = st.selectbox("Filter Current Class:", options=classes_list, key="search_cls")
+            else:
+                st.selectbox("Filter Current Class:", ["🔒 Waiting for Session Selection..."], disabled=True, key="search_cls_dis")
+                search_class = "-- Select Class --"
+                
+        with col_s3:
+            if search_class != "-- Select Class --":
+                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                search_sec = st.selectbox("Filter Current Section:", options=sections_list, key="search_sec")
+            else:
+                st.selectbox("Filter Current Section:", ["🔒 Waiting for Class Selection..."], disabled=True, key="search_sec_dis")
+                search_sec = "-- Select Section --"
+                
+        st.markdown("---")
+        
+        # Display list if initial lookups are selected
+        if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
+            try:
+                matched_students = run_query("""
+                    SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
+                    FROM students
+                    WHERE session = :sess AND class_level = :cls AND section = :sec
+                    ORDER BY roll_no ASC
+                """, {"sess": search_session, "cls": search_class, "sec": search_sec})
+            except Exception:
+                matched_students = pd.DataFrame()
+                
+            if not matched_students.empty:
+                student_options = [f"{row['student_id']} - Roll #{row['roll_no']} - {row['student_name']}" for _, row in matched_students.iterrows()]
+                selected_profile_str = st.selectbox("🎯 Select Student Profile To Edit:", options=student_options)
+                
+                if selected_profile_str:
+                    target_id = selected_profile_str.split(" - ")[0].strip()
+                    student_data = matched_students[matched_students['student_id'] == target_id].iloc[0]
+                    
+                    st.markdown(f"#### ✏️ Modifying Records for ID: `{target_id}`")
+                    
+                    # Transaction Modification Panel
+                    with st.form("edit_student_profile_form"):
+                        col_e1, col_e2, col_e3 = st.columns(3)
+                        with col_e1: edit_name = st.text_input("Student Name:*", value=str(student_data['student_name']))
+                        with col_e2: edit_fname = st.text_input("Father's Name:*", value=str(student_data['father_name']))
+                        with col_e3: edit_roll = st.number_input("Roll Number:*", value=int(student_data['roll_no']), min_value=1, step=1)
+                        
+                        col_e4, col_e5, col_e6 = st.columns(3)
+                        with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or ''))
+                        with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or ''))
+                        with col_e6: edit_c1 = st.text_input("Emergency Contact-1:*", value=str(student_data['contact_1']))
+                        
+                        col_e7, col_e8 = st.columns([1, 2])
+                        with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or ''))
+                        with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or ''))
+                        
+                        submit_edit = st.form_submit_button("💾 Save Changes & Update Registry Node", type="primary", use_container_width=True)
+                        
+                        if submit_edit:
+                            if not edit_name.strip() or not edit_fname.strip() or not edit_c1.strip():
+                                st.error("❌ Validation Failed: All mandatory (*) fields must contain text.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("""
+                                            UPDATE students SET
+                                                student_name = :name,
+                                                father_name = :fname,
+                                                roll_no = :roll,
+                                                whatsapp_no = :whatsapp,
+                                                student_no = :sno,
+                                                contact_1 = :c1,
+                                                contact_2 = :c2,
+                                                home_address = :addr
+                                            WHERE student_id = :id
+                                        """), {
+                                            "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
+                                            "whatsapp": edit_whatsapp.strip() or None, "sno": edit_student_no.strip() or None,
+                                            "c1": edit_c1.strip(), "c2": edit_c2.strip() or None, "addr": edit_addr.strip() or None,
+                                            "id": target_id
+                                        })
+                                    st.success(f"🎉 Changes saved successfully for node {target_id}!")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                except Exception as update_err:
+                                    st.error(f"❌ Database Transaction Interrupted: {update_err}")
+            else:
+                st.info(f"ℹ️ No student profiles map to current configuration framework: {search_session} | Class {search_class} | Section {search_sec}")
+        else:
+            st.warning("⏳ Please finish selecting the three filtering scope parameters above to unlock directory lookup entries.")
 
 
 def render_universal_attendance_workspace():
