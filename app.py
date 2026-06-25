@@ -868,7 +868,7 @@ def render_student_management_workspace():
                         except Exception as transaction_error:
                             st.error(f"❌ Cloud Sync Aborted: {transaction_error}")
     # ==============================================================================
-    # TAB 2: BULK IMPORT VIA EXCEL / CSV
+    # TAB 2: BULK IMPORT VIA EXCEL / CSV (DOWNLOAD CONFIGURATION LAYOUT ONLY)
     # ==============================================================================
     with tab2:
         st.write("### 📤 Bulk Import Student Registry via File Streaming")
@@ -907,7 +907,7 @@ def render_student_management_workspace():
             
         st.markdown("---")
         
-        # --- PHASE 2: ALL 6 CASCADING PLACEMENT FILTERS ENFORCED ---
+        # --- PHASE 2: CASCADING PLACEMENT FILTERS VIEW ---
         st.markdown("📁 **Step 2: Assign Destination Academic Framework Attributes**")
         
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
@@ -961,102 +961,11 @@ def render_student_management_workspace():
                 key="bulk_roll_mode"
             )
                 
-                # Validation for mandatory student bio fields
-                required_cols = ['student_id', 'student_name', 'father_name', 'contact_1']
-                missing_critical_cols = [c for c in required_cols if c not in uploaded_df.columns]
-                
-                if missing_critical_cols:
-                    st.error(f"❌ Upload Blocked: File is missing core data structural headers: {missing_critical_cols}")
-                else:
-                    # Ensure optional attributes don't throw KeyErrors if absent
-                    optional_fields = ['whatsapp_no', 'student_no', 'contact_2', 'home_address', 'roll_no']
-                    for opt in optional_fields:
-                        if opt not in uploaded_df.columns:
-                            uploaded_df[opt] = None if opt != 'roll_no' else 1
-
-                    total_rows = len(uploaded_df)
-                    st.info(f"⚡ Verification clear! Ready to upload {total_rows} student records directly into the assigned configuration context.")
-                    
-                    if st.button("🚀 Commit File Records To Database", type="primary", use_container_width=True):
-                        records_to_batch = []
-                        
-                        # Pack all structured row iterations into an in-memory dictionary list
-                        for index, row in uploaded_df.iterrows():
-                            s_id = str(row['student_id']).strip().upper()
-                            if not s_id or s_id == 'NAN' or pd.isna(row['student_id']):
-                                continue
-                            
-                            # Choose proper numbering offset via handling logic configurations
-                            if bulk_roll_mode == "Use Roll No from File Row" and pd.notna(row['roll_no']):
-                                roll_val = int(row['roll_no'])
-                            else:
-                                roll_val = index + 1
-                                
-                            records_to_batch.append({
-                                "id": s_id, 
-                                "name": str(row['student_name']).strip(), 
-                                "fname": str(row['father_name']).strip(),
-                                "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() != 'nan' else None,
-                                "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() != 'nan' else None,
-                                "c1": str(row['contact_1']).strip(), 
-                                "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() != 'nan' else None,
-                                "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() != 'nan' else None,
-                                "sess": bulk_session, 
-                                "sys": bulk_system, 
-                                "class_lvl": bulk_class, 
-                                "disc": bulk_discipline, 
-                                "sec": bulk_sec, 
-                                "roll": roll_val
-                            })
-                        
-                        if records_to_batch:
-                            try:
-                                # Fire a singular optimized structural transaction array payload
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        INSERT INTO students (
-                                            student_id, student_name, father_name, whatsapp_no, student_no, 
-                                            contact_1, contact_2, home_address, session, academic_system, 
-                                            class_level, discipline, section, roll_no
-                                        ) VALUES (
-                                            :id, :name, :fname, :whatsapp, :sno, 
-                                            :c1, :c2, :addr, :sess, :sys, 
-                                            :class_lvl, :disc, :sec, :roll
-                                        )
-                                        ON CONFLICT(student_id) DO UPDATE SET
-                                            student_name=EXCLUDED.student_name,
-                                            father_name=EXCLUDED.father_name,
-                                            whatsapp_no=EXCLUDED.whatsapp_no,
-                                            student_no=EXCLUDED.student_no,
-                                            contact_1=EXCLUDED.contact_1,
-                                            contact_2=EXCLUDED.contact_2,
-                                            home_address=EXCLUDED.home_address,
-                                            session=EXCLUDED.session,
-                                            academic_system=EXCLUDED.academic_system,
-                                            class_level=EXCLUDED.class_level,
-                                            discipline=EXCLUDED.discipline,
-                                            section=EXCLUDED.section,
-                                            roll_no=EXCLUDED.roll_no;
-                                    """), records_to_batch)
-                                
-                                st.success(f"🎉 Processing Complete: {len(records_to_batch)} student profile nodes written or synced successfully!")
-                                time.sleep(1.0)
-                                st.rerun()
-                                
-                            except Exception as batch_e:
-                                st.error(f"❌ Structural batch insertion failure: {batch_e}")
-                        else:
-                            st.warning("⚠️ No valid structural rows with parseable Student IDs were discovered in the spreadsheet template.")
-                                    
-            except Exception as e:
-                st.error(f"❌ Fatal streaming data processing breakdown error: {e}")
-
-# Last lines of Tab 2...
         st.markdown("---")
 
-# ==============================================================================
-# TAB 3: SEARCH & EDIT (WITH ADVANCED STRUCTURAL OPERATIONS)
-# ==============================================================================
+    # ==============================================================================
+    # TAB 3: SEARCH & EDIT (WITH ADVANCED STRUCTURAL OPERATIONS)
+    # ==============================================================================
     with tab3:
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
 
