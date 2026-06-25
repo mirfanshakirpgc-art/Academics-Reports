@@ -732,22 +732,27 @@ def render_student_management_workspace():
     with tab1:
         st.write("### Register New Student Particulars")
         
-        # --- CORE PROFILE DATA ---
-        col1, col2, col3 = st.columns(3)
-        with col1: new_id = st.text_input("1. Student ID / Registration No:*", placeholder="e.g., STU-2026-001").strip().upper()
-        with col2: new_name = st.text_input("2. Student Full Name:*", placeholder="e.g., John Doe").strip()
-        with col3: father_name = st.text_input("3. Student's Father Name:*", placeholder="e.g., Robert Doe").strip()
-        
-        col4, col5, col6 = st.columns(3)
-        with col4: whatsapp_no = st.text_input("4. WhatsApp Number:", placeholder="e.g., +923001234567").strip()
-        with col5: student_no = st.text_input("5. Student Mobile Number:", placeholder="e.g., +923151234567").strip()
-        with col6: contact_1 = st.text_input("6. Emergency Contact-1:*", placeholder="e.g., Mother's Mobile").strip()
-        
-        col7, col8 = st.columns([1, 2])
-        with col7: contact_2 = st.text_input("7. Alternative Contact-2:", placeholder="e.g., Guardian/Landline").strip()
-        with col8: home_address = st.text_input("8. Home Address:", placeholder="e.g., House #123, Street 5, Sector G-10").strip()
-        
-        # --- CASCADING PLACEMENT FILTERS ---
+        # We use a form to securely hold and capture text fields without losing data on click
+        with st.form("student_profile_text_fields_form"):
+            # --- CORE PROFILE DATA ---
+            col1, col2, col3 = st.columns(3)
+            with col1: new_id = st.text_input("1. Student ID / Registration No:*", placeholder="e.g., STU-2026-001").strip().upper()
+            with col2: new_name = st.text_input("2. Student Full Name:*", placeholder="e.g., John Doe").strip()
+            with col3: father_name = st.text_input("3. Student's Father Name:*", placeholder="e.g., Robert Doe").strip()
+            
+            col4, col5, col6 = st.columns(3)
+            with col4: whatsapp_no = st.text_input("4. WhatsApp Number:", placeholder="e.g., +923001234567").strip()
+            with col5: student_no = st.text_input("5. Student Mobile Number:", placeholder="e.g., +923151234567").strip()
+            with col6: contact_1 = st.text_input("6. Emergency Contact-1:*", placeholder="e.g., Mother's Mobile").strip()
+            
+            col7, col8 = st.columns([1, 2])
+            with col7: contact_2 = st.text_input("7. Alternative Contact-2:", placeholder="e.g., Guardian/Landline").strip()
+            with col8: home_address = st.text_input("8. Home Address:", placeholder="e.g., House #123, Street 5, Sector G-10").strip()
+            
+            # Form button to temporarily submit text data to state
+            lock_profile = st.form_submit_button("🔒 Step A: Lock & Verify Core Profile Fields")
+
+        # --- CASCADING PLACEMENT FILTERS (Kept outside form for real-time reactivity) ---
         st.markdown("---")
         st.write("📁 **Academic Placement Attributes**")
         
@@ -769,7 +774,6 @@ def render_student_management_workspace():
 
         with col_a3:
             if new_system != "-- Select System --":
-                # ORDER BY sort_order forces the sequence alignment (e.g. 5th appears at its explicit numeric sequence index)
                 classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
                 classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
                 new_class = st.selectbox("3. Target Class:", options=classes_list, key="manual_cls")
@@ -797,17 +801,17 @@ def render_student_management_workspace():
                 new_sec = "-- Select Section --"
 
         with col_a6:
-            # Renamed strictly to "Class arrangement No."
             new_roll = st.number_input("Class arrangement No.", min_value=1, step=1, key="manual_roll")
         
         st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
+        st.markdown("---")
         
-        # --- SUBMIT LAYOUT ---
-        if st.button("➕ Save Record to Database Instance", type="primary", use_container_width=True):
+        # --- FINAL SAVE ACTION ---
+        if st.button("🚀 Step B: Finalize Registration & Save Student", type="primary", use_container_width=True):
             if not new_id or not new_name or not father_name or not contact_1:
-                st.error("❌ Validation Error: Student ID, Full Name, Father Name, and Contact-1 are strictly mandatory.")
+                st.error("❌ Validation Error: Please type the core data fields inside Step A first and hit 'Lock & Verify Core Profile Fields'.")
             elif any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_discipline, new_sec]):
-                st.error("❌ Validation Error: Please select all 5 options under Academic Placement Attributes.")
+                st.error("❌ Validation Error: Please select all 5 dropdown filter paths under Academic Placement Attributes.")
             else:
                 try:
                     with engine.begin() as conn:
@@ -819,7 +823,7 @@ def render_student_management_workspace():
                             "sno": student_no, "c1": contact_1, "c2": contact_2, "addr": home_address,
                             "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
                         })
-                    st.success(f"🎉 Student successfully registered: {new_name} assigned to Section {new_sec}!")
+                    st.success(f"🎉 Student node successfully registered: {new_name} added successfully!")
                     time.sleep(1.0)
                     st.rerun()
                 except Exception as e: 
