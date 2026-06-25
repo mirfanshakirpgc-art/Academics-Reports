@@ -962,7 +962,7 @@ def render_student_management_workspace():
                 st.error(f"❌ File compilation processing failure: {e}")
 
     # ==============================================================================
-    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (With Session Pre-Filter Dropdown)
+    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (Search by Name and ID)
     # ==============================================================================
     with tab3:
         st.write("### Search & Edit Active Profiles")
@@ -981,16 +981,16 @@ def render_student_management_workspace():
             st.info("💡 Please select an academic session from the dropdown above to enable profile searching.")
         else:
             # 3. Session is selected, now display the search bar
-            search_term = st.text_input("🔍 Step 2: Search Student Profile by Name:", key="student_workspace_search", placeholder="Type student name here...")
+            search_term = st.text_input("🔍 Step 2: Search Student Profile by Name or Student ID:", key="student_workspace_search", placeholder="Type name or Student ID here...")
             
             if search_term:
-                # Query filtered strictly by both student_name and selected session
+                # Modified query to check BOTH student_name AND student_id matching the selected session
                 matched_students = run_query("""
                     SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, 
                            contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section 
                     FROM students 
-                    WHERE student_name LIKE :search AND session = :sess
-                """, {"search": f"%{search_term}%", "sess": selected_search_session})
+                    WHERE (student_name LIKE :search OR student_id LIKE :search) AND session = :sess
+                """, {"search": f"%{search_term.strip()}%", "sess": selected_search_session})
 
                 if not matched_students.empty:
                     student_options = [
