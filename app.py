@@ -1173,6 +1173,10 @@ def render_student_management_workspace():
                     else:
                         filtered_df = matched_students
 
+                    # Establish base defaults for tracking variables safely across blocks
+                    target_id = None
+                    student_data = None
+
                     if filtered_df.empty:
                         st.warning("⚠️ No student records match text query.")
                     else:
@@ -1239,12 +1243,12 @@ def render_student_management_workspace():
                 st.markdown("### 🛠️ Structural Actions Panel")
                 st.caption("Apply bulk structural migrations, section re-allocations, cycle promotions, or drop entries.")
                 
-                # Setup operational scope variables safely
+                # Setup operational scope variables safely using resolved variables
                 target_student_id = None
                 target_student_name = ""
                 
                 if edit_scope == "✨ Modify Single Student":
-                    if 'target_id' in locals() and not filtered_df.empty:
+                    if target_id is not None and student_data is not None:
                         target_student_id = target_id
                         target_student_name = student_data['student_name']
                         st.info(f"Targeting profile: **{target_student_name}** (`ID: {target_student_id}`) Only")
@@ -1283,11 +1287,11 @@ def render_student_management_workspace():
                         # Setup standard target query routing clauses
                         if edit_scope == "✨ Modify Single Student":
                             if not target_student_id:
-                                st.error("No valid student targeted.")
+                                st.error("❌ Action Blocked: No target student has been explicitly selected from the filtering dropdown options above.")
                                 st.form_submit_button("Execution Locked", disabled=True)
-                                raise ValueError("Target profile missing.")
-                            scope_clause = "WHERE student_id = :tgt_id"
-                            params["tgt_id"] = target_student_id
+                            else:
+                                scope_clause = "WHERE student_id = :tgt_id"
+                                params["tgt_id"] = target_student_id
                         else:
                             scope_clause = "WHERE LOWER(TRIM(session)) = LOWER(TRIM(:cur_sess)) AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:cur_sys)) AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cur_cls)) AND LOWER(TRIM(discipline)) = LOWER(TRIM(:cur_disc)) AND LOWER(TRIM(section)) = LOWER(TRIM(:cur_sec))"
                             params.update({
@@ -1295,63 +1299,65 @@ def render_student_management_workspace():
                                 "cur_cls": search_class, "cur_disc": search_discipline, "cur_sec": search_sec
                             })
 
-                        # 1. SECTION CHANGE
-                        if admin_action == "🔄 Section Change":
-                            new_val = st.selectbox("Select New Target Section:", options=sec_opts)
-                            query_template = f"UPDATE students SET section = :new_val {scope_clause}"
-                            params["new_val"] = new_val
+                        # Proceed only if variables are set or operating on full section
+                        if edit_scope != "✨ Modify Single Student" or target_student_id:
+                            # 1. SECTION CHANGE
+                            if admin_action == "🔄 Section Change":
+                                new_val = st.selectbox("Select New Target Section:", options=sec_opts)
+                                query_template = f"UPDATE students SET section = :new_val {scope_clause}"
+                                params["new_val"] = new_val
 
-                        # 2. SESSION CHANGE
-                        elif admin_action == "📅 Session Change":
-                            new_val = st.selectbox("Select New Target Session Cycle:", options=sess_opts)
-                            query_template = f"UPDATE students SET session = :new_val {scope_clause}"
-                            params["new_val"] = new_val
+                            # 2. SESSION CHANGE
+                            elif admin_action == "📅 Session Change":
+                                new_val = st.selectbox("Select New Target Session Cycle:", options=sess_opts)
+                                query_template = f"UPDATE students SET session = :new_val {scope_clause}"
+                                params["new_val"] = new_val
 
-                        # 3. ACADEMIC SYSTEM CHANGE
-                        elif admin_action == "🏛️ Academic System Change":
-                            new_val = st.selectbox("Select New Academic System Scheme:", options=sys_opts)
-                            query_template = f"UPDATE students SET academic_system = :new_val {scope_clause}"
-                            params["new_val"] = new_val
+                            # 3. ACADEMIC SYSTEM CHANGE
+                            elif admin_action == "🏛️ Academic System Change":
+                                new_val = st.selectbox("Select New Academic System Scheme:", options=sys_opts)
+                                query_template = f"UPDATE students SET academic_system = :new_val {scope_clause}"
+                                params["new_val"] = new_val
 
-                        # 4. CLASS CHANGE
-                        elif admin_action == "📈 Class Change":
-                            new_val = st.selectbox("Select New Target Class Level:", options=cls_opts)
-                            query_template = f"UPDATE students SET class_level = :new_val {scope_clause}"
-                            params["new_val"] = new_val
+                            # 4. CLASS CHANGE
+                            elif admin_action == "📈 Class Change":
+                                new_val = st.selectbox("Select New Target Class Level:", options=cls_opts)
+                                query_template = f"UPDATE students SET class_level = :new_val {scope_clause}"
+                                params["new_val"] = new_val
 
-                        # 5. PROMOTE STUDENTS
-                        elif admin_action == "🚀 Promote Students":
-                            st.write("💡 Promotions migrate records into a new Session AND Class level simultaneously.")
-                            col_p1, col_p2 = st.columns(2)
-                            p_sess = col_p1.selectbox("Select Next Cycle Session:", options=sess_opts)
-                            p_cls = col_p2.selectbox("Select Next Grade Class Level:", options=cls_opts)
-                            query_template = f"UPDATE students SET session = :p_sess, class_level = :p_cls {scope_clause}"
-                            params["p_sess"] = p_sess
-                            params["p_cls"] = p_cls
+                            # 5. PROMOTE STUDENTS
+                            elif admin_action == "🚀 Promote Students":
+                                st.write("💡 Promotions migrate records into a new Session AND Class level simultaneously.")
+                                col_p1, col_p2 = st.columns(2)
+                                p_sess = col_p1.selectbox("Select Next Cycle Session:", options=sess_opts)
+                                p_cls = col_p2.selectbox("Select Next Grade Class Level:", options=cls_opts)
+                                query_template = f"UPDATE students SET session = :p_sess, class_level = :p_cls {scope_clause}"
+                                params["p_sess"] = p_sess
+                                params["p_cls"] = p_cls
 
-                        # 6. DELETE FROM SYSTEM
-                        elif admin_action == "❌ Delete from System":
-                            st.error("⚠️ CRITICAL SECURITY WARNING: Deletion is absolute and permanent!")
-                            confirm_delete = st.checkbox("I verify I want to purge these student record entries from the core database.")
-                            query_template = f"DELETE FROM students {scope_clause}"
+                            # 6. DELETE FROM SYSTEM
+                            elif admin_action == "❌ Delete from System":
+                                st.error("⚠️ CRITICAL SECURITY WARNING: Deletion is absolute and permanent!")
+                                confirm_delete = st.checkbox("I verify I want to purge these student record entries from the core database.")
+                                query_template = f"DELETE FROM students {scope_clause}"
 
-                        # Submission Engine
-                        commit_action = st.form_submit_button("🔥 Commit Administrative Update", type="primary", use_container_width=True)
+                            # Submission Engine
+                            commit_action = st.form_submit_button("🔥 Commit Administrative Update", type="primary", use_container_width=True)
 
-                        if commit_action:
-                            if admin_action == "❌ Delete from System" and not confirm_delete:
-                                st.warning("🔒 Transaction aborted: You must check the security confirmation box first.")
-                            else:
-                                try:
-                                    with engine.begin() as conn:
-                                        conn.execute(text(query_template), params)
-                                    st.success("🎉 Administrative structural transaction executed successfully!")
-                                    time.sleep(0.6)
-                                    st.rerun()
-                                except Exception as admin_err:
-                                    st.error(f"❌ Structural Update Interrupted: {admin_err}")
-        else:
-            st.warning("⏳ Please complete setting all 5 Academic Placement drop-down targets above to filter student data profiles.")
+                            if commit_action:
+                                if admin_action == "❌ Delete from System" and not confirm_delete:
+                                    st.warning("🔒 Transaction aborted: You must check the security confirmation box first.")
+                                elif not query_template:
+                                    st.error("❌ Action configuration invalid.")
+                                else:
+                                    try:
+                                        with engine.begin() as conn:
+                                            conn.execute(text(query_template), params)
+                                        st.success("🎉 Administrative structural transaction executed successfully!")
+                                        time.sleep(0.6)
+                                        st.rerun()
+                                    except Exception as admin_err:
+                                        st.error(f"❌ Structural Update Interrupted: {admin_err}")
                 # ------------------------------------------------------------------
                 # WORKSPACE ACTION A: BATCH EDIT ENTIRE SECTION
                 # ------------------------------------------------------------------
