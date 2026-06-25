@@ -1224,7 +1224,61 @@ def render_student_management_workspace():
                         st.rerun()
                     except Exception as bulk_err:
                         st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
+# ==============================================================================
+# FETCH DATA FOR EDIT TAB (Place this right before Option A / Option B choices)
+# ==============================================================================
 
+# 1. Cleanly pull values from your UI drop-downs
+filter_session = st.session_state.get("bulk_sess", "2025-27") 
+# Note: Check what the exact keys are for your Filter drop-downs (e.g., 'Filter Current Session')
+
+# 2. Query your live Supabase Engine directly
+try:
+    with engine.connect() as conn:
+        # We explicitly cast parameters to matching text types
+        query_str = """
+            SELECT * FROM students 
+            WHERE LOWER(session) = LOWER(:sess) 
+              AND LOWER(class_level) = LOWER(:cls) 
+              AND LOWER(section) = LOWER(:sec)
+        """
+        matched_students = pd.read_sql(
+            text(query_str), 
+            conn, 
+            params={
+                "sess": str(st.session_state.get("filter_sess_key", "2025-27")).strip(),
+                "cls": str(st.session_state.get("filter_class_key", "11th")).strip(),
+                "sec": str(st.session_state.get("filter_section_key", "MG_BLUE")).strip()
+            }
+        )
+    
+    # Force columns to lowercase to prevent panda desyncs
+    matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
+
+except Exception as e:
+    st.error(f"⚠️ Failed to read data from Supabase: {e}")
+    matched_students = pd.DataFrame()
+
+# ==============================================================================
+# DATABASE TROUBLESHOOTING CHECK ACCORDING TO SUPABASE MATRIX
+# ==============================================================================
+if matched_students.empty:
+    st.info(f"ℹ️ No active student records found matching selection context.")
+    
+    with st.expander("🔍 Run Database Troubleshooting Check", expanded=True):
+        # Let's perform a raw check to see if the table has ANY records at all
+        try:
+            with engine.connect() as conn:
+                total_check = pd.read_sql(text("SELECT COUNT(*) as count FROM students;"), conn)
+                row_count = total_check['count'].iloc[0]
+        except Exception as check_err:
+            row_count = 0
+            st.error(f"Could not connect to table matrix: {check_err}")
+            
+        if row_count == 0:
+            st.warning("The students table is completely empty in your Supabase Cloud cluster. Go to Tab 1 or Tab 2 to add records first.")
+        else:
+            st.success(f"💡 Cloud sync active! The database actually contains {row_count} total records, but none match the specific filters selected above.")
             # ==================================================================
             # OPTION B: SINGLE STUDENT PROFILE WITH FILTER SEARCH
             # ==================================================================
