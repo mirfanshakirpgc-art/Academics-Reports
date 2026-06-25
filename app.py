@@ -960,11 +960,6 @@ def render_student_management_workspace():
                 options=["Use Roll No from File Row", "Auto-Generate Sequential Index"], 
                 key="bulk_roll_mode"
             )
-
-        st.markdown("---")
-                
-                # Standardize columns to lowercase strings
-                st.write("#### 📋 Parsed File Content Preview", uploaded_df.head(5))
                 
                 # Validation for mandatory student bio fields
                 required_cols = ['student_id', 'student_name', 'father_name', 'contact_1']
