@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.0.2
+# Force-rebuild anchor: v1.0.3
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -26,7 +26,6 @@ engine = get_db_engine()
 
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
-    # engine.begin() automatically opens a transaction and COMMITS it safely when the block exits!
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
@@ -88,13 +87,8 @@ def init_db():
             );
         """))
         
-        # ❌ REMOVED conn.commit() FROM HERE TO PREVENT THE INVALIDREQUESTERROR
-        # ----------------------------------------------------------------------
-        # CRITICAL RE-INITIALIZATION TRIGGER
-        # ----------------------------------------------------------------------
-        # Wipes the old outmoded table schema structure to clear OperationalErrors.
-        # COMMENT OUT OR REMOVE THIS DROP LINE AFTER YOUR FIRST SUCCESSFUL SUBMISSION!
-        conn.execute(text("DROP TABLE IF EXISTS students;"))
+        # 🛡️ FIXED: Commented out the DROP table behavior to prevent your data from being instantly deleted!
+        # conn.execute(text("DROP TABLE IF EXISTS students;"))
         
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
@@ -114,9 +108,11 @@ def init_db():
                 roll_no INTEGER NOT NULL
             );
         """))
+        
+        # 🛡️ FIXED: Replaced SQLite-specific AUTOINCREMENT with PostgreSQL SERIAL style for compatibility with Supabase
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS incharge_allocations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 session TEXT,
                 academic_system TEXT,
                 class_level TEXT,
@@ -131,7 +127,6 @@ init_db()
 def run_query(query, params=None):
     """Executes a read query against the unified Supabase engine."""
     import pandas as pd
-    # Crucial: Use the global engine connected to Supabase
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
 
@@ -1186,13 +1181,17 @@ def render_student_management_workspace():
         with col_s4:
             if search_class != "-- Select Class --":
                 try:
-                    disc_df = run_query("SELECT DISTINCT discipline_name FROM disciplines")
+                    # 🎯 FIXED: Changed column from discipline_name to discipline_title
+                    disc_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
                     if not disc_df.empty:
-                        disc_list = ["-- Select Discipline --"] + disc_df['discipline_name'].tolist()
+                        disc_list = ["-- Select Discipline --"] + disc_df['discipline_title'].tolist()
                     else:
                         disc_list = ["-- Select Discipline --", "Medical"]
-                except Exception:
+                except Exception as e:
+                    # Temporary debug error if something goes wrong
+                    st.sidebar.error(f"Discipline query failed: {e}")
                     disc_list = ["-- Select Discipline --", "Medical"]
+                    
                 search_discipline = st.selectbox("Filter Discipline:", options=disc_list, key="search_discipline")
             else:
                 st.selectbox("Filter Discipline:", ["🔒 Waiting..."], disabled=True, key="search_disc_dis")
