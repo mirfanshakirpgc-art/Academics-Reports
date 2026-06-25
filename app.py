@@ -1102,230 +1102,228 @@ def render_student_management_workspace():
 # ==============================================================================
     with tab3:
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
-    
-    # Pull reference indices to populate lookups
-    sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-    sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
-    
-    st.markdown("📁 **Step 1: Locate Active Target Parameters**")
-    col_s1, col_s2, col_s3, col_s4 = st.columns([1, 1, 1, 1.5])
-    
-    with col_s1:
-        search_session = st.selectbox("Filter Session:", options=sessions_list, key="search_sess")
         
-    with col_s2:
-        if search_session != "-- Select Session --":
-            # FALLBACK SAFE: Swapped out complex ordering to ensure basic validation stability
-            classes_df = run_query("SELECT DISTINCT class_level FROM classes")
-            classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
-            search_class = st.selectbox("Filter Class:", options=classes_list, key="search_cls")
-        else:
-            st.selectbox("Filter Class:", ["🔒 Waiting..."], disabled=True, key="search_cls_dis")
-            search_class = "-- Select Class --"
+        # Pull reference indices to populate lookups
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        
+        st.markdown("📁 **Step 1: Locate Active Target Parameters**")
+        col_s1, col_s2, col_s3, col_s4 = st.columns([1, 1, 1, 1.5])
+        
+        with col_s1:
+            search_session = st.selectbox("Filter Session:", options=sessions_list, key="search_sess")
             
-    with col_s3:
-        if search_class != "-- Select Class --":
-            sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-            sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
-            search_sec = st.selectbox("Filter Section:", options=sections_list, key="search_sec")
-        else:
-            st.selectbox("Filter Section:", ["🔒 Waiting..."], disabled=True, key="search_sec_dis")
-            search_sec = "-- Select Section --"
-    
-    with col_s4:
-        edit_scope = st.radio(
-            "Modification Scope:",
-            options=["✨ Modify Single Student", "📊 Batch Edit Entire Section"],
-            horizontal=True,
-            key="edit_scope_toggle"
-        )
-            
-    st.markdown("---")
-    
-    # Verify filtering keys are correctly set before processing queries
-    if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
-        try:
-            # Query pulling matching student sets using case-insensitive and whitespace comparisons
-            with engine.connect() as conn:
-                query_str = """
-                    SELECT id AS student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
-                    FROM students
-                    WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
-                      AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls)) 
-                      AND LOWER(TRIM(section)) = LOWER(TRIM(:sec))
-                    ORDER BY roll_no ASC
-                """
-                matched_students = pd.read_sql(text(query_str), conn, params={"sess": search_session, "cls": search_class, "sec": search_sec})
-            
-            # Sync DataFrame column indices to continuous lowercase strings 
-            matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
-        except Exception as e:
-            st.error(f"Error fetching directory: {e}")
-            matched_students = pd.DataFrame()
-            
-        # --- CONDITIONAL SUB-INTERFACE SWITCH DOCK ---
-        if matched_students.empty:
-            st.info(f"ℹ️ No active student records found matching: {search_session} | Class {search_class} | Section {search_sec}")
-            
-            # --- AUTOMATED ENGINE DIAGNOSTIC EXPANDER ---
-            with st.expander("🔍 Run Database Troubleshooting Check", expanded=True):
-                st.write("Let's look at what is actually stored inside your `students` table:")
-                try:
-                    debug_df = run_query("SELECT id, student_name, session, class_level, section FROM students LIMIT 10")
-                except Exception:
-                    debug_df = pd.DataFrame()
-
-                if debug_df.empty:
-                    st.warning("The `students` table is completely empty. Go to Tab 1 or Tab 2 to add records first.")
-                else:
-                    st.write("Here are the last 10 records added to your database. Compare these strings against your filters:")
-                    st.dataframe(debug_df, use_container_width=True)
-        else:
-            # ------------------------------------------------------------------
-            # WORKSPACE ACTION A: BATCH EDIT ENTIRE SECTION
-            # ------------------------------------------------------------------
-            if edit_scope == "📊 Batch Edit Entire Section":
-                st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})`")
-                st.caption("💡 Edit any cell directly inside the grid below, then click the save button.")
-                
-                edited_df = st.data_editor(
-                    matched_students,
-                    column_config={
-                        "student_id": st.column_config.TextColumn("Student ID 🔒", disabled=True),
-                        "roll_no": st.column_config.NumberColumn("Roll No*", min_value=1, step=1, required=True),
-                        "student_name": st.column_config.TextColumn("Student Name*", required=True),
-                        "father_name": st.column_config.TextColumn("Father Name*", required=True),
-                        "whatsapp_no": st.column_config.TextColumn("WhatsApp No"),
-                        "student_no": st.column_config.TextColumn("Student No"),
-                        "contact_1": st.column_config.TextColumn("Contact-1*", required=True),
-                        "contact_2": st.column_config.TextColumn("Contact-2"),
-                        "home_address": st.column_config.TextColumn("Home Address"),
-                        "discipline": st.column_config.TextColumn("Discipline 🔒", disabled=True)
-                    },
-                    hide_index=True,
-                    use_container_width=True,
-                    key=f"sec_editor_{search_session}_{search_class}_{search_sec}"
-                )
-                
-                if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
-                    changed_records = []
-                    
-                    for idx, row in edited_df.iterrows():
-                        orig_row = matched_students.iloc[idx]
-                        if not row.equals(orig_row):
-                            changed_records.append({
-                                "name": str(row['student_name']).strip(),
-                                "fname": str(row['father_name']).strip(),
-                                "roll": int(row['roll_no']),
-                                "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() and str(row['whatsapp_no']).strip() != 'None' else None,
-                                "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() and str(row['student_no']).strip() != 'None' else None,
-                                "c1": str(row['contact_1']).strip(),
-                                "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() and str(row['contact_2']).strip() != 'None' else None,
-                                "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() and str(row['home_address']).strip() != 'None' else None,
-                                "id": row['student_id']
-                            })
-                    
-                    if changed_records:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE students SET
-                                        student_name = :name,
-                                        father_name = :fname,
-                                        roll_no = :roll,
-                                        whatsapp_no = :whatsapp,
-                                        student_no = :sno,
-                                        contact_1 = :c1,
-                                        contact_2 = :c2,
-                                        home_address = :addr
-                                    WHERE id = :id
-                                """), changed_records)
-                            st.success(f"🎉 Roster synced successfully! Updated {len(changed_records)} modified profile records.")
-                            time.sleep(0.8)
-                            st.rerun()
-                        except Exception as bulk_err:
-                            st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
-                    else:
-                        st.info("ℹ️ No profile record changes detected in the data layout editor grid framework.")
-
-            # ------------------------------------------------------------------
-            # WORKSPACE ACTION B: SINGLE STUDENT PROFILE WITH FILTER SEARCH
-            # ------------------------------------------------------------------
+        with col_s2:
+            if search_session != "-- Select Session --":
+                classes_df = run_query("SELECT DISTINCT class_level FROM classes")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                search_class = st.selectbox("Filter Class:", options=classes_list, key="search_cls")
             else:
-                st.markdown("#### 🔍 Search & Filter Student Profile")
-                search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001", key="search_query_tab3").strip().lower()
+                st.selectbox("Filter Class:", ["🔒 Waiting..."], disabled=True, key="search_cls_dis")
+                search_class = "-- Select Class --"
                 
-                if search_query:
-                    filtered_df = matched_students[
-                        matched_students['student_id'].astype(str).str.lower().str.contains(search_query, na=False) | 
-                        matched_students['student_name'].astype(str).str.lower().str.contains(search_query, na=False)
-                    ]
-                else:
-                    filtered_df = matched_students
+        with col_s3:
+            if search_class != "-- Select Class --":
+                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                search_sec = st.selectbox("Filter Section:", options=sections_list, key="search_sec")
+            else:
+                st.selectbox("Filter Section:", ["🔒 Waiting..."], disabled=True, key="search_sec_dis")
+                search_sec = "-- Select Section --"
+        
+        with col_s4:
+            edit_scope = st.radio(
+                "Modification Scope:",
+                options=["✨ Modify Single Student", "📊 Batch Edit Entire Section"],
+                horizontal=True,
+                key="edit_scope_toggle"
+            )
+                
+        st.markdown("---")
+        
+        # Verify filtering keys are correctly set before processing queries
+        if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
+            try:
+                # Query pulling matching student sets using case-insensitive and whitespace comparisons
+                with engine.connect() as conn:
+                    query_str = """
+                        SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
+                        FROM students
+                        WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
+                          AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls)) 
+                          AND LOWER(TRIM(section)) = LOWER(TRIM(:sec))
+                        ORDER BY roll_no ASC
+                    """
+                    matched_students = pd.read_sql(text(query_str), conn, params={"sess": search_session, "cls": search_class, "sec": search_sec})
+                
+                # Sync DataFrame column indices to continuous lowercase strings 
+                matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
+            except Exception as e:
+                st.error(f"Error fetching directory: {e}")
+                matched_students = pd.DataFrame()
+                
+            # --- CONDITIONAL SUB-INTERFACE SWITCH DOCK ---
+            if matched_students.empty:
+                st.info(f"ℹ️ No active student records found matching: {search_session} | Class {search_class} | Section {search_sec}")
+                
+                # --- AUTOMATED ENGINE DIAGNOSTIC EXPANDER ---
+                with st.expander("🔍 Run Database Troubleshooting Check", expanded=True):
+                    st.write("Let's look at what is actually stored inside your `students` table:")
+                    try:
+                        debug_df = run_query("SELECT student_id, student_name, session, class_level, section FROM students LIMIT 10")
+                    except Exception:
+                        debug_df = pd.DataFrame()
 
-                if filtered_df.empty:
-                    st.warning("⚠️ No student records match your text filter query.")
-                else:
-                    student_options = [f"{row['student_id']} - Roll #{int(row['roll_no'])} - {row['student_name']}" for _, row in filtered_df.iterrows()]
-                    selected_profile_str = st.selectbox("🎯 Select Target Student Profile to Open Form:", options=student_options)
+                    if debug_df.empty:
+                        st.warning("The `students` table is completely empty. Go to Tab 1 or Tab 2 to add records first.")
+                    else:
+                        st.write("Here are the last 10 records added to your database. Compare these strings against your filters:")
+                        st.dataframe(debug_df, use_container_width=True)
+            else:
+                # ------------------------------------------------------------------
+                # WORKSPACE ACTION A: BATCH EDIT ENTIRE SECTION
+                # ------------------------------------------------------------------
+                if edit_scope == "📊 Batch Edit Entire Section":
+                    st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})`")
+                    st.caption("💡 Edit any cell directly inside the grid below, then click the save button.")
                     
-                    if selected_profile_str:
-                        target_id = selected_profile_str.split(" - ")[0].strip()
-                        student_data = filtered_df[filtered_df['student_id'] == target_id].iloc[0]
+                    edited_df = st.data_editor(
+                        matched_students,
+                        column_config={
+                            "student_id": st.column_config.TextColumn("Student ID 🔒", disabled=True),
+                            "roll_no": st.column_config.NumberColumn("Roll No*", min_value=1, step=1, required=True),
+                            "student_name": st.column_config.TextColumn("Student Name*", required=True),
+                            "father_name": st.column_config.TextColumn("Father Name*", required=True),
+                            "whatsapp_no": st.column_config.TextColumn("WhatsApp No"),
+                            "student_no": st.column_config.TextColumn("Student No"),
+                            "contact_1": st.column_config.TextColumn("Contact-1*", required=True),
+                            "contact_2": st.column_config.TextColumn("Contact-2"),
+                            "home_address": st.column_config.TextColumn("Home Address"),
+                            "discipline": st.column_config.TextColumn("Discipline 🔒", disabled=True)
+                        },
+                        hide_index=True,
+                        use_container_width=True,
+                        key=f"sec_editor_{search_session}_{search_class}_{search_sec}"
+                    )
+                    
+                    if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
+                        changed_records = []
                         
-                        st.markdown(f"#### ✏️ Modifying Records for ID: `{target_id}`")
+                        for idx, row in edited_df.iterrows():
+                            orig_row = matched_students.iloc[idx]
+                            if not row.equals(orig_row):
+                                changed_records.append({
+                                    "name": str(row['student_name']).strip(),
+                                    "fname": str(row['father_name']).strip(),
+                                    "roll": int(row['roll_no']),
+                                    "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() and str(row['whatsapp_no']).strip() != 'None' else None,
+                                    "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() and str(row['student_no']).strip() != 'None' else None,
+                                    "c1": str(row['contact_1']).strip(),
+                                    "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() and str(row['contact_2']).strip() != 'None' else None,
+                                    "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() and str(row['home_address']).strip() != 'None' else None,
+                                    "id": row['student_id']
+                                })
                         
-                        with st.form("edit_student_profile_form"):
-                            col_e1, col_e2, col_e3 = st.columns(3)
-                            with col_e1: edit_name = st.text_input("Student Name:*", value=str(student_data['student_name']))
-                            with col_e2: edit_fname = st.text_input("Father's Name:*", value=str(student_data['father_name']))
-                            with col_e3: edit_roll = st.number_input("Roll Number:*", value=int(student_data['roll_no']), min_value=1, step=1)
-                            
-                            col_e4, col_e5, col_e6 = st.columns(3)
-                            with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or '') if pd.notna(student_data['whatsapp_no']) and str(student_data['whatsapp_no']) != 'None' else '')
-                            with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or '') if pd.notna(student_data['student_no']) and str(student_data['student_no']) != 'None' else '')
-                            with col_e6: edit_c1 = st.text_input("Emergency Contact-1:*", value=str(student_data['contact_1']))
-                            
-                            col_e7, col_e8 = st.columns([1, 2])
-                            with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or '') if pd.notna(student_data['contact_2']) and str(student_data['contact_2']) != 'None' else '')
-                            with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or '') if pd.notna(student_data['home_address']) and str(student_data['home_address']) != 'None' else '')
-                            
-                            submit_edit = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
-                            
-                            if submit_edit:
-                                if not edit_name.strip() or not edit_fname.strip() or not edit_c1.strip():
-                                    st.error("❌ Validation Failed: All mandatory fields must contain text.")
-                                else:
-                                    try:
-                                        with engine.begin() as conn:
-                                            conn.execute(text("""
-                                                UPDATE students SET
-                                                    student_name = :name,
-                                                    father_name = :fname,
-                                                    roll_no = :roll,
-                                                    whatsapp_no = :whatsapp,
-                                                    student_no = :sno,
-                                                    contact_1 = :c1,
-                                                    contact_2 = :c2,
-                                                    home_address = :addr
-                                                WHERE id = :id
-                                            """), {
-                                                "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
-                                                "whatsapp": edit_whatsapp.strip() if edit_whatsapp.strip() else None, 
-                                                "sno": edit_student_no.strip() if edit_student_no.strip() else None,
-                                                "c1": edit_c1.strip(), 
-                                                "c2": edit_c2.strip() if edit_c2.strip() else None, 
-                                                "addr": edit_addr.strip() if edit_addr.strip() else None,
-                                                "id": target_id
-                                            })
-                                        st.success(f"🎉 Saved successfully!")
-                                        time.sleep(0.5)
-                                        st.rerun()
-                                    except Exception as update_err:
-                                        st.error(f"❌ Database Error: {update_err}")
-    else:
-        st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
+                        if changed_records:
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        UPDATE students SET
+                                            student_name = :name,
+                                            father_name = :fname,
+                                            roll_no = :roll,
+                                            whatsapp_no = :whatsapp,
+                                            student_no = :sno,
+                                            contact_1 = :c1,
+                                            contact_2 = :c2,
+                                            home_address = :addr
+                                        WHERE student_id = :id
+                                    """), changed_records)
+                                st.success(f"🎉 Roster synced successfully! Updated {len(changed_records)} modified profile records.")
+                                time.sleep(0.8)
+                                st.rerun()
+                            except Exception as bulk_err:
+                                st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
+                        else:
+                            st.info("ℹ️ No profile record changes detected in the data layout editor grid framework.")
 
+                # ------------------------------------------------------------------
+                # WORKSPACE ACTION B: SINGLE STUDENT PROFILE WITH FILTER SEARCH
+                # ------------------------------------------------------------------
+                else:
+                    st.markdown("#### 🔍 Search & Filter Student Profile")
+                    search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001", key="search_query_tab3").strip().lower()
+                    
+                    if search_query:
+                        filtered_df = matched_students[
+                            matched_students['student_id'].astype(str).str.lower().str.contains(search_query, na=False) | 
+                            matched_students['student_name'].astype(str).str.lower().str.contains(search_query, na=False)
+                        ]
+                    else:
+                        filtered_df = matched_students
+
+                    if filtered_df.empty:
+                        st.warning("⚠️ No student records match your text filter query.")
+                    else:
+                        student_options = [f"{row['student_id']} - Roll #{int(row['roll_no'])} - {row['student_name']}" for _, row in filtered_df.iterrows()]
+                        selected_profile_str = st.selectbox("🎯 Select Target Student Profile to Open Form:", options=student_options)
+                        
+                        if selected_profile_str:
+                            target_id = selected_profile_str.split(" - ")[0].strip()
+                            student_data = filtered_df[filtered_df['student_id'] == target_id].iloc[0]
+                            
+                            st.markdown(f"#### ✏️ Modifying Records for ID: `{target_id}`")
+                            
+                            with st.form("edit_student_profile_form"):
+                                col_e1, col_e2, col_e3 = st.columns(3)
+                                with col_e1: edit_name = st.text_input("Student Name:*", value=str(student_data['student_name']))
+                                with col_e2: edit_fname = st.text_input("Father's Name:*", value=str(student_data['father_name']))
+                                with col_e3: edit_roll = st.number_input("Roll Number:*", value=int(student_data['roll_no']), min_value=1, step=1)
+                                
+                                col_e4, col_e5, col_e6 = st.columns(3)
+                                with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or '') if pd.notna(student_data['whatsapp_no']) and str(student_data['whatsapp_no']) != 'None' else '')
+                                with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or '') if pd.notna(student_data['student_no']) and str(student_data['student_no']) != 'None' else '')
+                                with col_e6: edit_c1 = st.text_input("Emergency Contact-1:*", value=str(student_data['contact_1']))
+                                
+                                col_e7, col_e8 = st.columns([1, 2])
+                                with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or '') if pd.notna(student_data['contact_2']) and str(student_data['contact_2']) != 'None' else '')
+                                with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or '') if pd.notna(student_data['home_address']) and str(student_data['home_address']) != 'None' else '')
+                                
+                                submit_edit = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
+                                
+                                if submit_edit:
+                                    if not edit_name.strip() or not edit_fname.strip() or not edit_c1.strip():
+                                        st.error("❌ Validation Failed: All mandatory fields must contain text.")
+                                    else:
+                                        try:
+                                            with engine.begin() as conn:
+                                                conn.execute(text("""
+                                                    UPDATE students SET
+                                                        student_name = :name,
+                                                        father_name = :fname,
+                                                        roll_no = :roll,
+                                                        whatsapp_no = :whatsapp,
+                                                        student_no = :sno,
+                                                        contact_1 = :c1,
+                                                        contact_2 = :c2,
+                                                        home_address = :addr
+                                                    WHERE student_id = :id
+                                                """), {
+                                                    "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
+                                                    "whatsapp": edit_whatsapp.strip() if edit_whatsapp.strip() else None, 
+                                                    "sno": edit_student_no.strip() if edit_student_no.strip() else None,
+                                                    "c1": edit_c1.strip(), 
+                                                    "c2": edit_c2.strip() if edit_c2.strip() else None, 
+                                                    "addr": edit_addr.strip() if edit_addr.strip() else None,
+                                                    "id": target_id
+                                                })
+                                            st.success(f"🎉 Saved successfully!")
+                                            time.sleep(0.5)
+                                            st.rerun()
+                                        except Exception as update_err:
+                                            st.error(f"❌ Database Error: {update_err}")
+        else:
+            st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
 
 # ==============================================================================
 # GLOBAL OPERATIONAL WORKSPACES
