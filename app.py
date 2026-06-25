@@ -1153,7 +1153,6 @@ with tab3:
     if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
         try:
             # Query pulling matching student sets using case-insensitive and whitespace comparisons
-            # FIX: Aliased 'id AS student_id' to resolve the PostgreSQL 42703 missing column error
             with engine.connect() as conn:
                 query_str = """
                     SELECT id AS student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline
@@ -1218,7 +1217,6 @@ with tab3:
                 if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
                     changed_records = []
                     
-                    # Optimization: Compare baseline metrics to only compile truly changed records
                     for idx, row in edited_df.iterrows():
                         orig_row = matched_students.iloc[idx]
                         if not row.equals(orig_row):
@@ -1231,12 +1229,11 @@ with tab3:
                                 "c1": str(row['contact_1']).strip(),
                                 "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() and str(row['contact_2']).strip() != 'None' else None,
                                 "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() and str(row['home_address']).strip() != 'None' else None,
-                                "id": row['student_id'] # This maps to the original unique 'id'
+                                "id": row['student_id']
                             })
                     
                     if changed_records:
                         try:
-                            # Fire updates via optimized single batch payload transaction
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE students SET
@@ -1263,7 +1260,7 @@ with tab3:
             # ------------------------------------------------------------------
             else:
                 st.markdown("#### 🔍 Search & Filter Student Profile")
-                search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001").strip().lower()
+                search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001", key="search_query_tab3").strip().lower()
                 
                 if search_query:
                     filtered_df = matched_students[
@@ -1335,8 +1332,11 @@ with tab3:
                                         st.error(f"❌ Database Error: {update_err}")
     else:
         st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
-    else:
-        st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
+
+
+# ==============================================================================
+# GLOBAL OPERATIONAL WORKSPACES
+# ==============================================================================
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
@@ -1358,7 +1358,7 @@ def render_universal_attendance_workspace():
     
     try:
         students_df = run_query("""
-            SELECT student_id, roll_no, student_name 
+            SELECT id AS student_id, roll_no, student_name 
             FROM students 
             WHERE class_level = :class_val AND section = :sec_val
             ORDER BY roll_no ASC
@@ -1392,7 +1392,8 @@ def render_universal_attendance_workspace():
             submit_attendance = st.form_submit_button("💾 Save & Commit Section Attendance Register (Admin Override)", type="primary", use_container_width=True)
             if submit_attendance:
                 st.success(f"🎉 Attendance override map successfully executed for {attendance_date}!")
-    else: st.info(f"No student profiles are mapped to Class {sel_class}-{sel_section}.")
+    else: 
+        st.info(f"No student profiles are mapped to Class {sel_class}-{sel_section}.")
 
 
 def render_universal_marks_entry_workspace():
