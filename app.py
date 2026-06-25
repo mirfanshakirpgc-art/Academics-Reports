@@ -869,7 +869,7 @@ def render_student_management_workspace():
                 if field not in st.session_state:
                     st.session_state[field] = ""
 
-            with st.form("student_profile_text_fields_form"):
+            with st.form("edit_student_profile_form_unique"):
                 col1, col2, col3 = st.columns(3)
                 with col1: 
                     new_id = st.text_input("1. Student ID / Registration No:*", value=st.session_state["new_id"], key="new_id_input", placeholder="e.g., STU-2026-001").strip().upper()
