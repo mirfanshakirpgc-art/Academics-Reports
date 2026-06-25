@@ -862,33 +862,43 @@ def render_student_management_workspace():
                 st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
                 
                 # --- SAVE COMPACT FORM ACTION ---
-                submit_manual = st.form_submit_button("🚀 Finalize Registration & Save Student Record", type="primary", use_container_width=True)
-                
                 if submit_manual:
                     if not new_id or not new_name or not father_name or not contact_1:
-                        st.error("❌ Validation Error: Please fill in all mandatory core data fields before saving.")
+                        st.error("❌ Validation Error: Please fill in all mandatory core data fields.")
                     else:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section, roll_no)
-                                    VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :sess, :sys, :class_lvl, :disc, :sec, :roll)
+                                    INSERT INTO students (
+                                        student_id, student_name, father_name, whatsapp_no, 
+                                        student_no, contact_1, contact_2, home_address, 
+                                        session, academic_system, class_level, discipline, 
+                                        section, roll_no
+                                    ) VALUES (
+                                        :id, :name, :fname, :whatsapp, :sno, 
+                                        :c1, :c2, :addr, :sess, :sys, 
+                                        :class_lvl, :disc, :sec, :roll
+                                    )
                                 """), {
-                                    "id": new_id, "name": new_name, "fname": father_name, "whatsapp": whatsapp_no or None,
-                                    "sno": student_no or None, "c1": contact_1, "c2": contact_2 or None, "addr": home_address or None,
-                                    "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
+                                    "id": new_id, "name": new_name, "fname": father_name, 
+                                    "whatsapp": whatsapp_no or None, "sno": student_no or None, 
+                                    "c1": contact_1, "c2": contact_2 or None, 
+                                    "addr": home_address or None, "sess": new_session, 
+                                    "sys": new_system, "class_lvl": new_class, 
+                                    "disc": new_discipline, "sec": new_sec, "roll": new_roll
                                 })
-                                conn.commit()
-                                
-                            st.success(f"🎉 Student node successfully registered: {new_name} added successfully!")
+                            # REMOVE conn.commit() - it is NOT needed here.
                             
-                            for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
-                                st.session_state[field] = ""
+                            st.success(f"🎉 Student node successfully registered: {new_name} added!")
+                            
+                            # Reset fields
+                            for field in ["new_id_input", "new_name_input", "father_name_input"]:
+                                if field in st.session_state: st.session_state[field] = ""
                                 
                             time.sleep(1.0)
                             st.rerun()
                         except Exception as e: 
-                            st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
+                            st.error(f"❌ Database error: {e}")
 
     # ==============================================================================
     # TAB 2: BULK IMPORT VIA EXCEL / CSV
