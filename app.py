@@ -1093,11 +1093,14 @@ def render_student_management_workspace():
             except Exception as e:
                 st.error(f"❌ Fatal streaming data processing breakdown error: {e}")
 
+# Last lines of Tab 2...
+        st.markdown("---")
+
 # ==============================================================================
 # TAB 3: SEARCH & EDIT (WITH INPUT CLEANING & DIAGNOSTICS)
 # ==============================================================================
-with tab3:
-    st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
+    with tab3:
+        st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
     
     # Pull reference indices to populate lookups
     sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
