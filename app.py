@@ -1032,21 +1032,41 @@ with tab2:
                     st.info(f"⚡ Verification clear! Ready to upload {total_rows} student records directly into the assigned configuration context.")
                     
                     if st.button("🚀 Commit File Records To Database", type="primary", use_container_width=True):
-                        success_count = 0
-                        error_log = []
+                        records_to_batch = []
                         
-                        with engine.begin() as conn:
-                            for index, row in uploaded_df.iterrows():
-                                s_id = str(row['student_id']).strip().upper()
-                                if not s_id or s_id == 'NAN' or pd.isna(row['student_id']):
-                                    continue
-                                try:
-                                    # Deduce proper numbering offset via chosen user handling rules
-                                    if bulk_roll_mode == "Use Roll No from File Row" and pd.notna(row['roll_no']):
-                                        roll_val = int(row['roll_no'])
-                                    else:
-                                        roll_val = index + 1
-                                    
+                        # Pack all structured row iterations into an in-memory dictionary list
+                        for index, row in uploaded_df.iterrows():
+                            s_id = str(row['student_id']).strip().upper()
+                            if not s_id or s_id == 'NAN' or pd.isna(row['student_id']):
+                                continue
+                            
+                            # Choose proper numbering offset via handling logic configurations
+                            if bulk_roll_mode == "Use Roll No from File Row" and pd.notna(row['roll_no']):
+                                roll_val = int(row['roll_no'])
+                            else:
+                                roll_val = index + 1
+                                
+                            records_to_batch.append({
+                                "id": s_id, 
+                                "name": str(row['student_name']).strip(), 
+                                "fname": str(row['father_name']).strip(),
+                                "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() != 'nan' else None,
+                                "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() != 'nan' else None,
+                                "c1": str(row['contact_1']).strip(), 
+                                "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() != 'nan' else None,
+                                "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() != 'nan' else None,
+                                "sess": bulk_session, 
+                                "sys": bulk_system, 
+                                "class_lvl": bulk_class, 
+                                "disc": bulk_discipline, 
+                                "sec": bulk_sec, 
+                                "roll": roll_val
+                            })
+                        
+                        if records_to_batch:
+                            try:
+                                # Fire a singular optimized structural transaction array payload
+                                with engine.begin() as conn:
                                     conn.execute(text("""
                                         INSERT INTO students (
                                             student_id, student_name, father_name, whatsapp_no, student_no, 
@@ -1071,26 +1091,16 @@ with tab2:
                                             discipline=EXCLUDED.discipline,
                                             section=EXCLUDED.section,
                                             roll_no=EXCLUDED.roll_no;
-                                    """), {
-                                        "id": s_id, "name": str(row['student_name']).strip(), "fname": str(row['father_name']).strip(),
-                                        "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) else None,
-                                        "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) else None,
-                                        "c1": str(row['contact_1']).strip(), "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) else None,
-                                        "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) else None,
-                                        "sess": bulk_session, "sys": bulk_system, "class_lvl": bulk_class, "disc": bulk_discipline, "sec": bulk_sec, "roll": roll_val
-                                    })
-                                    success_count += 1
-                                except Exception as inner_e:
-                                    error_log.append(f"Row {index + 2} (ID: {s_id}): {str(inner_e)}")
-                        
-                        if success_count > 0:
-                            st.success(f"🎉 Processing Complete: {success_count} student profile nodes written or synced successfully!")
-                            time.sleep(1.0)
-                            st.rerun()
-                        if error_log:
-                            with st.expander("⚠️ Review Log Exceptions"):
-                                for log in error_log:
-                                    st.warning(log)
+                                    """), records_to_batch)
+                                
+                                st.success(f"🎉 Processing Complete: {len(records_to_batch)} student profile nodes written or synced successfully!")
+                                time.sleep(1.0)
+                                st.rerun()
+                                
+                            except Exception as batch_e:
+                                st.error(f"❌ Structural batch insertion failure: {batch_e}")
+                        else:
+                            st.warning("⚠️ No valid structural rows with parseable Student IDs were discovered in the spreadsheet template.")
                                     
             except Exception as e:
                 st.error(f"❌ Fatal streaming data processing breakdown error: {e}")
@@ -1205,9 +1215,28 @@ with tab3:
                 )
                 
                 if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
-                    try:
-                        with engine.begin() as conn:
-                            for _, row in edited_df.iterrows():
+                    changed_records = []
+                    
+                    # Optimization: Compare baseline metrics to only compile truly changed records
+                    for idx, row in edited_df.iterrows():
+                        orig_row = matched_students.iloc[idx]
+                        if not row.equals(orig_row):
+                            changed_records.append({
+                                "name": str(row['student_name']).strip(),
+                                "fname": str(row['father_name']).strip(),
+                                "roll": int(row['roll_no']),
+                                "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() and str(row['whatsapp_no']).strip() != 'None' else None,
+                                "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() and str(row['student_no']).strip() != 'None' else None,
+                                "c1": str(row['contact_1']).strip(),
+                                "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() and str(row['contact_2']).strip() != 'None' else None,
+                                "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() and str(row['home_address']).strip() != 'None' else None,
+                                "id": row['student_id']
+                            })
+                    
+                    if changed_records:
+                        try:
+                            # Fire updates via optimized list variable bindings
+                            with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE students SET
                                         student_name = :name,
@@ -1219,22 +1248,14 @@ with tab3:
                                         contact_2 = :c2,
                                         home_address = :addr
                                     WHERE student_id = :id
-                                """), {
-                                    "name": str(row['student_name']).strip(),
-                                    "fname": str(row['father_name']).strip(),
-                                    "roll": int(row['roll_no']),
-                                    "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() else None,
-                                    "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() else None,
-                                    "c1": str(row['contact_1']).strip(),
-                                    "contact_2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() else None,
-                                    "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() else None,
-                                    "id": row['student_id']
-                                })
-                        st.success(f"🎉 Roster synced successfully!")
-                        time.sleep(0.8)
-                        st.rerun()
-                    except Exception as bulk_err:
-                        st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
+                                """), changed_records)
+                            st.success(f"🎉 Roster synced successfully! Updated {len(changed_records)} modified profile vectors.")
+                            time.sleep(0.8)
+                            st.rerun()
+                        except Exception as bulk_err:
+                            st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
+                    else:
+                        st.info("ℹ️ No profile record changes detected in the data layout editor grid framework.")
 
             # ------------------------------------------------------------------
             # WORKSPACE ACTION B: SINGLE STUDENT PROFILE WITH FILTER SEARCH
@@ -1270,13 +1291,13 @@ with tab3:
                             with col_e3: edit_roll = st.number_input("Roll Number:*", value=int(student_data['roll_no']), min_value=1, step=1)
                             
                             col_e4, col_e5, col_e6 = st.columns(3)
-                            with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or '') if pd.notna(student_data['whatsapp_no']) else '')
-                            with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or '') if pd.notna(student_data['student_no']) else '')
+                            with col_e4: edit_whatsapp = st.text_input("WhatsApp No:", value=str(student_data['whatsapp_no'] or '') if pd.notna(student_data['whatsapp_no']) and str(student_data['whatsapp_no']) != 'None' else '')
+                            with col_e5: edit_student_no = st.text_input("Student No:", value=str(student_data['student_no'] or '') if pd.notna(student_data['student_no']) and str(student_data['student_no']) != 'None' else '')
                             with col_e6: edit_c1 = st.text_input("Emergency Contact-1:*", value=str(student_data['contact_1']))
                             
                             col_e7, col_e8 = st.columns([1, 2])
-                            with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or '') if pd.notna(student_data['contact_2']) else '')
-                            with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or '') if pd.notna(student_data['home_address']) else '')
+                            with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or '') if pd.notna(student_data['contact_2']) and str(student_data['contact_2']) != 'None' else '')
+                            with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or '') if pd.notna(student_data['home_address']) and str(student_data['home_address']) != 'None' else '')
                             
                             submit_edit = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
                             
@@ -1313,7 +1334,6 @@ with tab3:
                                         st.error(f"❌ Database Error: {update_err}")
     else:
         st.warning("⏳ Please select Session, Class, and Section filters above to view and modify student data options.")
-
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
