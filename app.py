@@ -780,16 +780,20 @@ def render_student_management_workspace():
         
         # 2. Selectors
         col_a1, col_a2, col_a3 = st.columns(3)
-        new_session = col_a1.selectbox("1. Target Session:*", options=sessions_list, key="manual_sess")
+        # We use None as the actual value, but display the placeholder text
+        new_session = col_a1.selectbox("1. Target Session:*", options=["-- Select Session --"] + sessions_list[1:], key="manual_sess")
 
-        if new_session != "-- Select Session --":
+        # Helper to treat "-- Select X --" as None
+        def get_val(val): return None if val.startswith("--") else val
+
+        if get_val(new_session):
             systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
             systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
             new_system = col_a2.selectbox("2. Target Academic System:*", options=systems_list, key="manual_sys")
         else:
             new_system = col_a2.selectbox("2. Target Academic System:", ["-- Select System --"], disabled=True)
 
-        if new_system != "-- Select System --":
+        if get_val(new_system):
             classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
             classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
             new_class = col_a3.selectbox("3. Target Class:*", options=classes_list, key="manual_cls")
@@ -797,7 +801,7 @@ def render_student_management_workspace():
             new_class = col_a3.selectbox("3. Target Class:", ["-- Select Class --"], disabled=True)
 
         col_a4, col_a5, col_a6 = st.columns(3)
-        if new_class != "-- Select Class --":
+        if get_val(new_class):
             disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
             disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
             new_discipline = col_a4.selectbox("4. Target Discipline:*", options=disciplines_list, key="manual_disc")
@@ -812,7 +816,6 @@ def render_student_management_workspace():
         new_roll = col_a6.number_input("6. Class Arrangement Roll No:*", min_value=1, step=1, key="manual_roll")
 
         st.markdown("---")
-
         # 3. Form Submission logic
         if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] 
                for f in [new_session, new_system, new_class, new_discipline, new_sec]):
