@@ -790,7 +790,7 @@ def render_student_management_workspace():
                 new_system = st.selectbox("2. Target Academic System:*", options=systems_list, key="manual_sys")
             else:
                 st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="manual_sys_dis")
-                new_system = "-- Select System --"
+                new_system = "-- Select Session --"
 
         with col_a3:
             if new_system != "-- Select System --":
@@ -812,12 +812,12 @@ def render_student_management_workspace():
                 new_discipline = "-- Select Discipline --"
 
         with col_a5:
-            if new_discipline != "-- Select Discipline --":
+            if new_class != "-- Select Class --":
                 sections_df = run_query("SELECT DISTINCT section_name FROM sections")
                 sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
                 new_sec = st.selectbox("5. Target Section:*", options=sections_list, key="manual_sec")
             else:
-                st.selectbox("5. Target Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="manual_sec_dis")
+                st.selectbox("5. Target Section:", ["🔒 Waiting for Class..."], disabled=True, key="manual_sec_dis")
                 new_sec = "-- Select Section --"
 
         with col_a6:
@@ -826,8 +826,8 @@ def render_student_management_workspace():
         st.markdown("---")
 
         # --- PHASE 2: CORE DATA FORM LOCK OUT GATED UNTIL ALL DROP-DOWNS SELECTED ---
-        if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_discipline, new_sec]):
-            st.warning("⏳ Please complete selecting all 5 Academic Placement Attributes above to unlock the Student Information input cards.")
+        if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_sec]):
+            st.warning("⏳ Please complete selecting all mandatory Academic Placement Attributes above to unlock the Student Information input cards.")
         else:
             st.write(f"📝 **Step 2: Enter Student Particulars for Class `{new_class} ({new_sec})`**")
             
@@ -878,127 +878,114 @@ def render_student_management_workspace():
                                     "sno": student_no or None, "c1": contact_1, "c2": contact_2 or None, "addr": home_address or None,
                                     "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
                                 })
-                                # Force database sync explicitly
                                 conn.commit()
                                 
                             st.success(f"🎉 Student node successfully registered: {new_name} added successfully!")
                             
-                            # Clear session state cache registers cleanly
                             for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
                                 st.session_state[field] = ""
                                 
-                            import time
                             time.sleep(1.0)
                             st.rerun()
                         except Exception as e: 
                             st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
-import pandas as pd
-import streamlit as st
-import time
-import io
-from sqlalchemy import text
 
-# Assuming tab2, tab3, run_query, and engine are defined in your outer script context
-
-# ==============================================================================
-# TAB 2: BULK IMPORT VIA EXCEL / CSV
-# ==============================================================================
-with tab2:
-    st.write("### 📤 Bulk Import Student Registry via File Streaming")
-    
-    # --- SAMPLE FILE MAKER TEMPLATE DOCK ---
-    st.markdown("📁 **Step 1: Download Required Roster Configuration Layout**")
-    sample_df = pd.DataFrame(columns=[
-        'student_id', 'student_name', 'father_name', 'whatsapp_no', 'student_no',
-        'contact_1', 'contact_2', 'home_address', 'roll_no'
-    ])
-    # Populate template with placeholder data to illustrate layout structure
-    sample_df.loc[0] = ['STU-2026-001', 'John Doe', 'Robert Doe', '+923001234567', '+923151234567', '+923331112222', '', 'Main Street, Block A', 1]
-    
-    # Buffer conversions for format selection downloads
-    csv_buffer = sample_df.to_csv(index=False).encode('utf-8')
-    
-    col_dl1, col_dl2 = st.columns(2)
-    with col_dl1:
-        st.download_button(
-            label="📥 Download Template (.CSV Format)",
-            data=csv_buffer,
-            file_name="student_onboarding_template.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    with col_dl2:
-        excel_io = io.BytesIO()
-        with pd.ExcelWriter(excel_io, engine='xlsxwriter') as writer:
-            sample_df.to_excel(writer, index=False, sheet_name='Students')
-        st.download_button(
-            label="📥 Download Template (.XLSX Format)",
-            data=excel_io.getvalue(),
-            file_name="student_onboarding_template.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
+    # ==============================================================================
+    # TAB 2: BULK IMPORT VIA EXCEL / CSV
+    # ==============================================================================
+    with tab2:
+        st.write("### 📤 Bulk Import Student Registry via File Streaming")
         
-    st.markdown("---")
-    
-    # --- PHASE 2: ALL 6 CASCADING PLACEMENT FILTERS ENFORCED ---
-    st.markdown("📁 **Step 2: Assign Destination Academic Framework Attributes**")
-    
-    sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-    sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
-    
-    col_b1, col_b2, col_b3 = st.columns(3)
-    with col_b1:
-        bulk_session = st.selectbox("1. Target Session:*", options=sessions_list, key="bulk_sess")
+        # --- SAMPLE FILE MAKER TEMPLATE DOCK ---
+        st.markdown("📁 **Step 1: Download Required Roster Configuration Layout**")
+        sample_df = pd.DataFrame(columns=[
+            'student_id', 'student_name', 'father_name', 'whatsapp_no', 'student_no',
+            'contact_1', 'contact_2', 'home_address', 'roll_no'
+        ])
+        sample_df.loc[0] = ['STU-2026-001', 'John Doe', 'Robert Doe', '+923001234567', '+923151234567', '+923331112222', '', 'Main Street, Block A', 1]
+        
+        csv_buffer = sample_df.to_csv(index=False).encode('utf-8')
+        
+        col_dl1, col_dl2 = st.columns(2)
+        with col_dl1:
+            st.download_button(
+                label="📥 Download Template (.CSV Format)",
+                data=csv_buffer,
+                file_name="student_onboarding_template.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_dl2:
+            excel_io = io.BytesIO()
+            with pd.ExcelWriter(excel_io, engine='xlsxwriter') as writer:
+                sample_df.to_excel(writer, index=False, sheet_name='Students')
+            st.download_button(
+                label="📥 Download Template (.XLSX Format)",
+                data=excel_io.getvalue(),
+                file_name="student_onboarding_template.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+        st.markdown("---")
+        
+        # --- PHASE 2: ALL 6 CASCADING PLACEMENT FILTERS ENFORCED ---
+        st.markdown("📁 **Step 2: Assign Destination Academic Framework Attributes**")
+        
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        
+        col_b1, col_b2, col_b3 = st.columns(3)
+        with col_b1:
+            bulk_session = st.selectbox("1. Target Session:*", options=sessions_list, key="bulk_sess")
 
-    with col_b2:
-        if bulk_session != "-- Select Session --":
-            systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-            systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
-            bulk_system = st.selectbox("2. Target Academic System:*", options=systems_list, key="bulk_sys")
-        else:
-            st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="bulk_sys_dis")
-            bulk_system = "-- Select System --"
+        with col_b2:
+            if bulk_session != "-- Select Session --":
+                systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                bulk_system = st.selectbox("2. Target Academic System:*", options=systems_list, key="bulk_sys")
+            else:
+                st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="bulk_sys_dis")
+                bulk_system = "-- Select System --"
 
-    with col_b3:
-        if bulk_system != "-- Select System --":
-            classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
-            classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
-            bulk_class = st.selectbox("3. Target Class:*", options=classes_list, key="bulk_cls")
-        else:
-            st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="bulk_cls_dis")
-            bulk_class = "-- Select Class --"
+        with col_b3:
+            if bulk_system != "-- Select System --":
+                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                bulk_class = st.selectbox("3. Target Class:*", options=classes_list, key="bulk_cls")
+            else:
+                st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="bulk_cls_dis")
+                bulk_class = "-- Select Class --"
 
-    col_b4, col_b5, col_b6 = st.columns(3)
-    with col_b4:
-        if bulk_class != "-- Select Class --":
-            disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-            disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
-            bulk_discipline = st.selectbox("4. Target Discipline:*", options=disciplines_list, key="bulk_disc")
-        else:
-            st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="bulk_disc_dis")
-            bulk_discipline = "-- Select Discipline --"
+        col_b4, col_b5, col_b6 = st.columns(3)
+        with col_b4:
+            if bulk_class != "-- Select Class --":
+                disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
+                disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                bulk_discipline = st.selectbox("4. Target Discipline:*", options=disciplines_list, key="bulk_disc")
+            else:
+                st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="bulk_disc_dis")
+                bulk_discipline = "-- Select Discipline --"
 
-    with col_b5:
-        # UPDATED: Changed condition check from bulk_discipline to bulk_class
-        if bulk_class != "-- Select Class --":
-            sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-            sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
-            bulk_sec = st.selectbox("5. Target Section:*", options=sections_list, key="bulk_sec")
-        else:
-            st.selectbox("5. Target Section:", ["🔒 Waiting for Class..."], disabled=True, key="bulk_sec_dis")
-            bulk_sec = "-- Select Section --"
+        with col_b5:
+            if bulk_class != "-- Select Class --":
+                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                bulk_sec = st.selectbox("5. Target Section:*", options=sections_list, key="bulk_sec")
+            else:
+                st.selectbox("5. Target Section:", ["🔒 Waiting for Class..."], disabled=True, key="bulk_sec_dis")
+                bulk_sec = "-- Select Section --"
 
-    with col_b6:
-        bulk_roll_mode = st.selectbox(
-            "6. Roll No Handling Mode:*", 
-            options=["Use Roll No from File Row", "Auto-Generate Sequential Index"], 
-            key="bulk_roll_mode"
-        )
+        with col_b6:
+            bulk_roll_mode = st.selectbox(
+                "6. Roll No Handling Mode:*", 
+                options=["Use Roll No from File Row", "Auto-Generate Sequential Index"], 
+                key="bulk_roll_mode"
+            )
 
-    st.markdown("---")
+        st.markdown("---")
 
-    # --- PHASE 3: STREAM UPLOADER GATEWAY UNLOCKED ONLY WHEN ALL 5 SELECTIONS VALIDATED ---
+        # --- PHASE 3: STREAM UPLOADER GATEWAY UNLOCKED ONLY WHEN ALL 5 SELECTIONS VALIDATED ---
     if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [bulk_session, bulk_system, bulk_class, bulk_discipline, bulk_sec]):
         st.warning("⏳ Please complete setting all 5 Academic Placement drop-down targets above to activate the file upload channel.")
     else:
