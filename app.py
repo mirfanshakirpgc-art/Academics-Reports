@@ -769,30 +769,31 @@ def render_student_management_workspace():
         st.write("### 🆕 Register New Student Particulars")
         st.write("📁 **Step 1: Assign Target Academic Placement Attributes**")
         
-        # 1. Fetch data
+        # 1. Fetch live metadata drop targets from Supabase
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
-        # 2. Selectors
+        # 2. Sequential layout configuration selectors
         col_a1, col_a2, col_a3 = st.columns(3)
         new_session = col_a1.selectbox("1. Target Session:*", options=sessions_list, key="manual_sess")
 
-        # Helper to treat "-- Select X --" as None
-        def get_val(val): return None if val.startswith("--") else val
+        # Helper logic to handle selection validation strings safely
+        def get_val(val): 
+            return None if not val or val.startswith("--") else val
 
         if get_val(new_session):
             systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
             systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
             new_system = col_a2.selectbox("2. Target Academic System:*", options=systems_list, key="manual_sys")
         else:
-            new_system = col_a2.selectbox("2. Target Academic System:", ["-- Select System --"], disabled=True)
+            new_system = col_a2.selectbox("2. Target Academic System:", ["-- Select System --"], disabled=True, key="manual_sys_dis")
 
         if get_val(new_system):
             classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
             classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
             new_class = col_a3.selectbox("3. Target Class:*", options=classes_list, key="manual_cls")
         else:
-            new_class = col_a3.selectbox("3. Target Class:", ["-- Select Class --"], disabled=True)
+            new_class = col_a3.selectbox("3. Target Class:", ["-- Select Class --"], disabled=True, key="manual_cls_dis")
 
         col_a4, col_a5, col_a6 = st.columns(3)
         if get_val(new_class):
@@ -804,133 +805,68 @@ def render_student_management_workspace():
             sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
             new_sec = col_a5.selectbox("5. Target Section:*", options=sections_list, key="manual_sec")
         else:
-            new_discipline = col_a4.selectbox("4. Target Discipline:", ["-- Select Discipline --"], disabled=True)
-            new_sec = col_a5.selectbox("5. Target Section:", ["-- Select Section --"], disabled=True)
+            new_discipline = col_a4.selectbox("4. Target Discipline:", ["-- Select Discipline --"], disabled=True, key="manual_disc_dis")
+            new_sec = col_a5.selectbox("5. Target Section:", ["-- Select Section --"], disabled=True, key="manual_sec_dis")
             
         new_roll = col_a6.number_input("6. Class Arrangement Roll No:*", min_value=1, step=1, key="manual_roll")
 
         st.markdown("---")
         
-        # 3. Form Submission logic
+        # 3. Secure Container Verification Block
         if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] 
                for f in [new_session, new_system, new_class, new_discipline, new_sec]):
-            st.warning("⏳ Please complete selecting all 5 Academic Placement Attributes above.")
+            st.warning("⏳ Please complete selecting all 5 Academic Placement Attributes above to reveal the registration entry form.")
         else:
+            # ALL inputs and form logic are completely bundled inside here
             with st.form("student_profile_text_fields_form", clear_on_submit=True):
                 st.write(f"📝 **Step 2: Enter Student Particulars for Class `{new_class} ({new_sec})`**")
+                
                 c1, c2, c3 = st.columns(3)
-                new_id = c1.text_input("Student ID:*")
-                new_name = c2.text_input("Student Name:*")
-                father_name = c3.text_input("Father Name:*")
+                new_id = c1.text_input("1. Student ID / Registration No:*")
+                new_name = c2.text_input("2. Student Full Name:*")
+                father_name = c3.text_input("3. Student's Father Name:*")
                 
                 c4, c5, c6 = st.columns(3)
-                whatsapp = c4.text_input("WhatsApp No:")
-                stu_no = c5.text_input("Student No:")
-                contact1 = c6.text_input("Emergency Contact-1:*")
+                whatsapp = c4.text_input("4. WhatsApp Number:")
+                stu_no = c5.text_input("5. Student Mobile Number:")
+                contact1 = c6.text_input("6. Emergency Contact-1:*")
                 
-                contact2 = st.text_input("Alternative Contact-2:")
-                address = st.text_input("Home Address:")
+                c7, c8 = st.columns([1, 2])
+                contact2 = c7.text_input("7. Alternative Contact-2:")
+                address = c8.text_input("8. Home Address:")
                 
-                submit_manual = st.form_submit_button("🚀 Save Student Record")
+                # The submit button belongs explicitly inside the form boundary context
+                submit_manual = st.form_submit_button("🚀 Save Student Record", type="primary", use_container_width=True)
 
-                # 🎯 FIXED: Moved this execution block INSIDE the form container!
                 if submit_manual:
                     if not new_id.strip() or not new_name.strip() or not father_name.strip() or not contact1.strip():
-                        st.error("❌ Mandatory fields missing!")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO students (student_id, student_name, father_name, whatsapp_no, 
-                                    student_no, contact_1, contact_2, home_address, session, 
-                                    academic_system, class_level, discipline, section, roll_no)
-                                    VALUES (:id, :name, :fname, :wap, :sno, :c1, :c2, :addr, :sess, :sys, :cls, :disc, :sec, :roll)
-                                """), {
-                                    "id": new_id.strip(), "name": new_name.strip(), "fname": father_name.strip(), "wap": whatsapp.strip(), 
-                                    "sno": stu_no.strip(), "c1": contact1.strip(), "c2": contact2.strip(), "addr": address.strip(), 
-                                    "sess": new_session, "sys": new_system, "cls": new_class, 
-                                    "disc": new_discipline, "sec": new_sec, "roll": int(new_roll)
-                                })
-                            st.success(f"🎉 Successfully Registered: {new_name}")
-                            time.sleep(0.5)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Database Transaction Interrupted: {e}")
-        # --- PHASE 2: CORE DATA FORM LOCK OUT GATED UNTIL ALL DROP-DOWNS SELECTED ---
-        if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_sec]):
-            st.warning("⏳ Please complete selecting all mandatory Academic Placement Attributes above to unlock the Student Information input cards.")
-        else:
-            st.write(f"📝 **Step 2: Enter Student Particulars for Class `{new_class} ({new_sec})`**")
-            
-            # Initialize Session State fallback values to safeguard against rerender drops
-            for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
-                if field not in st.session_state:
-                    st.session_state[field] = ""
-
-            with st.form("edit_student_profile_form_unique"):
-                col1, col2, col3 = st.columns(3)
-                with col1: 
-                    new_id = st.text_input("1. Student ID / Registration No:*", value=st.session_state["new_id"], key="new_id_input", placeholder="e.g., STU-2026-001").strip().upper()
-                with col2: 
-                    new_name = st.text_input("2. Student Full Name:*", value=st.session_state["new_name"], key="new_name_input", placeholder="e.g., John Doe").strip()
-                with col3: 
-                    father_name = st.text_input("3. Student's Father Name:*", value=st.session_state["father_name"], key="father_name_input", placeholder="e.g., Robert Doe").strip()
-                
-                col4, col5, col6 = st.columns(3)
-                with col4: 
-                    whatsapp_no = st.text_input("4. WhatsApp Number:", value=st.session_state["whatsapp_no"], key="whatsapp_no_input", placeholder="e.g., +923001234567").strip()
-                with col5: 
-                    student_no = st.text_input("5. Student Mobile Number:", value=st.session_state["student_no"], key="student_no_input", placeholder="e.g., +923151234567").strip()
-                with col6: 
-                    contact_1 = st.text_input("6. Emergency Contact-1:*", value=st.session_state["contact_1"], key="contact_1_input", placeholder="e.g., Mother's Mobile").strip()
-                
-                col7, col8 = st.columns([1, 2])
-                with col7: 
-                    contact_2 = st.text_input("7. Alternative Contact-2:", value=st.session_state["contact_2"], key="contact_2_input", placeholder="e.g., Guardian/Landline").strip()
-                with col8: 
-                    home_address = st.text_input("8. Home Address:", value=st.session_state["home_address"], key="home_address_input", placeholder="e.g., House #123, Street 5").strip()
-                
-                st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
-                
-                # --- SAVE COMPACT FORM ACTION ---
-                if submit_manual:
-                    if not new_id or not new_name or not father_name or not contact_1:
-                        st.error("❌ Validation Error: Please fill in all mandatory core data fields.")
+                        st.error("❌ Form Submission Rejected: Please fill out all required fields flagged with (*).")
                     else:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     INSERT INTO students (
                                         student_id, student_name, father_name, whatsapp_no, 
-                                        student_no, contact_1, contact_2, home_address, 
-                                        session, academic_system, class_level, discipline, 
-                                        section, roll_no
+                                        student_no, contact_1, contact_2, home_address, session, 
+                                        academic_system, class_level, discipline, section, roll_no
                                     ) VALUES (
-                                        :id, :name, :fname, :whatsapp, :sno, 
-                                        :c1, :c2, :addr, :sess, :sys, 
-                                        :class_lvl, :disc, :sec, :roll
+                                        :id, :name, :fname, :wap, :sno, :c1, :c2, :addr, :sess, :sys, :cls, :disc, :sec, :roll
                                     )
                                 """), {
-                                    "id": new_id, "name": new_name, "fname": father_name, 
-                                    "whatsapp": whatsapp_no or None, "sno": student_no or None, 
-                                    "c1": contact_1, "c2": contact_2 or None, 
-                                    "addr": home_address or None, "sess": new_session, 
-                                    "sys": new_system, "class_lvl": new_class, 
-                                    "disc": new_discipline, "sec": new_sec, "roll": new_roll
+                                    "id": new_id.strip(), "name": new_name.strip(), "fname": father_name.strip(), 
+                                    "wap": whatsapp.strip() if whatsapp.strip() else None, 
+                                    "sno": stu_no.strip() if stu_no.strip() else None, 
+                                    "c1": contact1.strip(), 
+                                    "c2": contact2.strip() if contact2.strip() else None, 
+                                    "addr": address.strip() if address.strip() else None, 
+                                    "sess": new_session, "sys": new_system, "cls": new_class, 
+                                    "disc": new_discipline, "sec": new_sec, "roll": int(new_roll)
                                 })
-                            # REMOVE conn.commit() - it is NOT needed here.
-                            
-                            st.success(f"🎉 Student node successfully registered: {new_name} added!")
-                            
-                            # Reset fields
-                            for field in ["new_id_input", "new_name_input", "father_name_input"]:
-                                if field in st.session_state: st.session_state[field] = ""
-                                
-                            time.sleep(1.0)
+                            st.success(f"🎉 Successfully Registered: {new_name} has been securely committed to the system database!")
+                            time.sleep(0.6)
                             st.rerun()
-                        except Exception as e: 
-                            st.error(f"❌ Database error: {e}")
-
+                        except Exception as transaction_error:
+                            st.error(f"❌ Cloud Sync Aborted: {transaction_error}")
     # ==============================================================================
     # TAB 2: BULK IMPORT VIA EXCEL / CSV
     # ==============================================================================
