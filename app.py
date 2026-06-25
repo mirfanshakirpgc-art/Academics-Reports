@@ -897,7 +897,7 @@ def render_student_management_workspace():
             'student_id', 'student_name', 'father_name', 'whatsapp_no', 'student_no',
             'contact_1', 'contact_2', 'home_address', 'roll_no'
         ])
-        # Populate template with placeholder data to illustrate structure clear as water
+        # Populate template with placeholder data to illustrate layout structure
         sample_df.loc[0] = ['STU-2026-001', 'John Doe', 'Robert Doe', '+923001234567', '+923151234567', '+923331112222', '', 'Main Street, Block A', 1]
         
         # Buffer conversions for format selection downloads
@@ -913,9 +913,9 @@ def render_student_management_workspace():
                 use_container_width=True
             )
         with col_dl2:
-            # Inline conditional mapping converter using xlsxwriter engine
             import io
             excel_io = io.BytesIO()
+            # Fixed engine option to seamlessly use 'xlsxwriter' package from your environment
             with pd.ExcelWriter(excel_io, engine='xlsxwriter') as writer:
                 sample_df.to_excel(writer, index=False, sheet_name='Students')
             st.download_button(
@@ -928,40 +928,68 @@ def render_student_management_workspace():
             
         st.markdown("---")
         
-        # --- ACADEMIC ATTRIBUTES ENFORCEMENT BEFORE LOADING FILE ---
+        # --- PHASE 2: ALL 6 CASCADING PLACEMENT FILTERS ENFORCED ---
         st.markdown("📁 **Step 2: Assign Destination Academic Framework Attributes**")
-        col_b1, col_b2, col_b3 = st.columns(3)
         
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
+        col_b1, col_b2, col_b3 = st.columns(3)
         with col_b1:
-            bulk_session = st.selectbox("Assign Global Session Target:", options=sessions_list, key="bulk_sess")
+            bulk_session = st.selectbox("1. Target Session:*", options=sessions_list, key="bulk_sess")
+
         with col_b2:
             if bulk_session != "-- Select Session --":
-                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")
-                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
-                bulk_class = st.selectbox("Assign Global Class Target:", options=classes_list, key="bulk_cls")
+                systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                bulk_system = st.selectbox("2. Target Academic System:*", options=systems_list, key="bulk_sys")
             else:
-                st.selectbox("Assign Global Class Target:", ["🔒 Waiting for Session..."], disabled=True, key="bulk_cls_dis")
-                bulk_class = "-- Select Class --"
+                st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="bulk_sys_dis")
+                bulk_system = "-- Select System --"
+
         with col_b3:
+            if bulk_system != "-- Select System --":
+                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                bulk_class = st.selectbox("3. Target Class:*", options=classes_list, key="bulk_cls")
+            else:
+                st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="bulk_cls_dis")
+                bulk_class = "-- Select Class --"
+
+        col_b4, col_b5, col_b6 = st.columns(3)
+        with col_b4:
             if bulk_class != "-- Select Class --":
+                disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
+                disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                bulk_discipline = st.selectbox("4. Target Discipline:*", options=disciplines_list, key="bulk_disc")
+            else:
+                st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="bulk_disc_dis")
+                bulk_discipline = "-- Select Discipline --"
+
+        with col_b5:
+            if bulk_discipline != "-- Select Discipline --":
                 sections_df = run_query("SELECT DISTINCT section_name FROM sections")
                 sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
-                bulk_sec = st.selectbox("Assign Global Section Target:", options=sections_list, key="bulk_sec")
+                bulk_sec = st.selectbox("5. Target Section:*", options=sections_list, key="bulk_sec")
             else:
-                st.selectbox("Assign Global Section Target:", ["🔒 Waiting for Class..."], disabled=True, key="bulk_sec_dis")
+                st.selectbox("5. Target Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="bulk_sec_dis")
                 bulk_sec = "-- Select Section --"
+
+        with col_b6:
+            bulk_roll_mode = st.selectbox(
+                "6. Roll No Handling Mode:*", 
+                options=["Use Roll No from File Row", "Auto-Generate Sequential Index"], 
+                key="bulk_roll_mode"
+            )
 
         st.markdown("---")
 
-        # --- STREAM UPLOADER GATEWAY UNLOCKED ONLY WHEN DROPDOWNS VALIDATED ---
-        if bulk_session == "-- Select Session --" or bulk_class == "-- Select Class --" or bulk_sec == "-- Select Section --":
-            st.warning("⏳ Please complete setting all global destination drop-down targets in Step 2 to activate file parsing channels.")
+        # --- PHASE 3: STREAM UPLOADER GATEWAY UNLOCKED ONLY WHEN ALL 5 SELECTIONS VALIDATED ---
+        if any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [bulk_session, bulk_system, bulk_class, bulk_discipline, bulk_sec]):
+            st.warning("⏳ Please complete setting all 5 Academic Placement drop-down targets above to activate the file upload channel.")
         else:
-            st.markdown(f"📁 **Step 3: Upload Roster Stream for `{bulk_session} | Class {bulk_class} ({bulk_sec})`**")
-            uploaded_file = st.file_uploader("Upload filled admission roster data stream:", type=["xlsx", "xls", "csv"])
+            st.markdown(f"📁 **Step 3: Upload Roster Stream for Class `{bulk_class} ({bulk_sec})`**")
+            uploaded_file = st.file_uploader("Upload completed admission roster data stream:", type=["xlsx", "xls", "csv"])
             
             if uploaded_file is not None:
                 try:
@@ -970,32 +998,29 @@ def render_student_management_workspace():
                     else:
                         uploaded_df = pd.read_excel(uploaded_file)
                     
+                    # Standardize columns to lowercase strings
                     uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
                     st.write("#### 📋 Parsed File Content Preview", uploaded_df.head(5))
                     
+                    # Validation for mandatory student bio fields
                     required_cols = ['student_id', 'student_name', 'father_name', 'contact_1']
                     missing_critical_cols = [c for c in required_cols if c not in uploaded_df.columns]
                     
                     if missing_critical_cols:
-                        st.error(f"❌ Upload Blocked: File is missing core functional structural headers: {missing_critical_cols}")
+                        st.error(f"❌ Upload Blocked: File is missing core data structural headers: {missing_critical_cols}")
                     else:
+                        # Ensure optional attributes don't throw KeyErrors if absent
                         optional_fields = ['whatsapp_no', 'student_no', 'contact_2', 'home_address', 'roll_no']
                         for opt in optional_fields:
                             if opt not in uploaded_df.columns:
                                 uploaded_df[opt] = None if opt != 'roll_no' else 1
 
                         total_rows = len(uploaded_df)
-                        st.info(f"⚡ Ingest readiness validation clear. {total_rows} items mapped to `{bulk_session}` framework structural layer.")
+                        st.info(f"⚡ Verification clear! Ready to upload {total_rows} student records directly into the assigned configuration context.")
                         
                         if st.button("🚀 Commit File Records To Database", type="primary", use_container_width=True):
                             success_count = 0
                             error_log = []
-                            
-                            # Query secondary parameters dynamically from global selections
-                            sys_match = run_query("SELECT system_name FROM academic_systems LIMIT 1")
-                            global_sys = sys_match['system_name'].iloc[0] if not sys_match.empty else "Standard"
-                            disc_match = run_query("SELECT discipline_title FROM disciplines LIMIT 1")
-                            global_disc = disc_match['discipline_title'].iloc[0] if not disc_match.empty else "General"
                             
                             with engine.begin() as conn:
                                 for index, row in uploaded_df.iterrows():
@@ -1003,7 +1028,11 @@ def render_student_management_workspace():
                                     if not s_id or s_id == 'NAN':
                                         continue
                                     try:
-                                        roll_val = int(row['roll_no']) if pd.notna(row['roll_no']) else index + 1
+                                        # Deduce proper numbering offset via chosen user handling rules
+                                        if bulk_roll_mode == "Use Roll No from File Row" and pd.notna(row['roll_no']):
+                                            roll_val = int(row['roll_no'])
+                                        else:
+                                            roll_val = index + 1
                                         
                                         conn.execute(text("""
                                             INSERT INTO students (
@@ -1024,7 +1053,9 @@ def render_student_management_workspace():
                                                 contact_2=EXCLUDED.contact_2,
                                                 home_address=EXCLUDED.home_address,
                                                 session=EXCLUDED.session,
+                                                academic_system=EXCLUDED.academic_system,
                                                 class_level=EXCLUDED.class_level,
+                                                discipline=EXCLUDED.discipline,
                                                 section=EXCLUDED.section,
                                                 roll_no=EXCLUDED.roll_no;
                                         """), {
@@ -1033,21 +1064,21 @@ def render_student_management_workspace():
                                             "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) else None,
                                             "c1": str(row['contact_1']).strip(), "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) else None,
                                             "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) else None,
-                                            "sess": bulk_session, "sys": global_sys, "class_lvl": bulk_class, "disc": global_disc, "sec": bulk_sec, "roll": roll_val
+                                            "sess": bulk_session, "sys": bulk_system, "class_lvl": bulk_class, "disc": bulk_discipline, "sec": bulk_sec, "roll": roll_val
                                         })
                                         success_count += 1
                                     except Exception as inner_e:
                                         error_log.append(f"Row {index + 2} (ID: {s_id}): {str(inner_e)}")
                             
                             if success_count > 0:
-                                st.success(f"🎉 Processing Complete: {success_count} entries committed successfully under global class assignment profiles.")
+                                st.success(f"🎉 Processing Complete: {success_count} student profile nodes written or synced successfully!")
                             if error_log:
                                 with st.expander("⚠️ Review Log Exceptions"):
                                     for log in error_log:
                                         st.warning(log)
                                         
                 except Exception as e:
-                    st.error(f"❌ Fatal stream evaluation processing breakdown error: {e}")
+                    st.error(f"❌ Fatal streaming data processing breakdown error: {e}")
 
     # ==============================================================================
     # TAB 3: SEARCH & EDIT ACTIVE PROFILES 
