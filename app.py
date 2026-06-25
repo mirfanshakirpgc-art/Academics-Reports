@@ -980,12 +980,13 @@ with tab2:
             bulk_discipline = "-- Select Discipline --"
 
     with col_b5:
-        if bulk_discipline != "-- Select Discipline --":
+        # UPDATED: Changed condition check from bulk_discipline to bulk_class
+        if bulk_class != "-- Select Class --":
             sections_df = run_query("SELECT DISTINCT section_name FROM sections")
             sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
             bulk_sec = st.selectbox("5. Target Section:*", options=sections_list, key="bulk_sec")
         else:
-            st.selectbox("5. Target Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="bulk_sec_dis")
+            st.selectbox("5. Target Section:", ["🔒 Waiting for Class..."], disabled=True, key="bulk_sec_dis")
             bulk_sec = "-- Select Section --"
 
     with col_b6:
