@@ -730,100 +730,98 @@ def render_student_management_workspace():
     # TAB 1: MANUAL ADMISSION ENTRY
     # ==============================================================================
     with tab1:
-        with st.form("add_new_student_form", clear_on_submit=True):
-            st.write("### Register New Student Particulars")
-            
-            # Row 1: Core Identification
-            col1, col2, col3 = st.columns(3)
-            with col1: new_id = st.text_input("1. Student ID / Registration No:*", placeholder="e.g., STU-2026-001").strip().upper()
-            with col2: new_name = st.text_input("2. Student Full Name:*", placeholder="e.g., John Doe").strip()
-            with col3: father_name = st.text_input("3. Student's Father Name:*", placeholder="e.g., Robert Doe").strip()
-            
-            # Row 2: Communication Vectors
-            col4, col5, col6 = st.columns(3)
-            with col4: whatsapp_no = st.text_input("4. WhatsApp Number:", placeholder="e.g., +923001234567").strip()
-            with col5: student_no = st.text_input("5. Student Mobile Number:", placeholder="e.g., +923151234567").strip()
-            with col6: contact_1 = st.text_input("6. Emergency Contact-1:*", placeholder="e.g., Mother's Mobile").strip()
-            
-            # Row 3: Extended Details
-            col7, col8 = st.columns([1, 2])
-            with col7: contact_2 = st.text_input("7. Alternative Contact-2:", placeholder="e.g., Guardian/Landline").strip()
-            with col8: home_address = st.text_input("8. Home Address:", placeholder="e.g., House #123, Street 5, Sector G-10").strip()
-            
-            # Row 4: Upgraded Cascading Academic Placement Filters
-            st.markdown("---")
-            st.write("📁 **Academic Placement Attributes**")
-            
-            col_a1, col_a2, col_a3 = st.columns(3)
-            with col_a1:
-                sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-                sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
-                new_session = st.selectbox("1. Target Session:", options=sessions_list, key="manual_sess")
+        st.write("### Register New Student Particulars")
+        
+        # --- CORE PROFILE DATA (Static input layout) ---
+        col1, col2, col3 = st.columns(3)
+        with col1: new_id = st.text_input("1. Student ID / Registration No:*", placeholder="e.g., STU-2026-001").strip().upper()
+        with col2: new_name = st.text_input("2. Student Full Name:*", placeholder="e.g., John Doe").strip()
+        with col3: father_name = st.text_input("3. Student's Father Name:*", placeholder="e.g., Robert Doe").strip()
+        
+        col4, col5, col6 = st.columns(3)
+        with col4: whatsapp_no = st.text_input("4. WhatsApp Number:", placeholder="e.g., +923001234567").strip()
+        with col5: student_no = st.text_input("5. Student Mobile Number:", placeholder="e.g., +923151234567").strip()
+        with col6: contact_1 = st.text_input("6. Emergency Contact-1:*", placeholder="e.g., Mother's Mobile").strip()
+        
+        col7, col8 = st.columns([1, 2])
+        with col7: contact_2 = st.text_input("7. Alternative Contact-2:", placeholder="e.g., Guardian/Landline").strip()
+        with col8: home_address = st.text_input("8. Home Address:", placeholder="e.g., House #123, Street 5, Sector G-10").strip()
+        
+        # --- CASCADING PLACEMENT FILTERS (Placed outside form for real-time reactivity) ---
+        st.markdown("---")
+        st.write("📁 **Academic Placement Attributes**")
+        
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        
+        col_a1, col_a2, col_a3 = st.columns(3)
+        with col_a1:
+            new_session = st.selectbox("1. Target Session:", options=sessions_list, key="manual_sess")
 
-            with col_a2:
-                if new_session != "-- Select Session --":
-                    systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-                    systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
-                    new_system = st.selectbox("2. Target Academic System:", options=systems_list, key="manual_sys")
-                else:
-                    st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="manual_sys_dis")
-                    new_system = "-- Select System --"
+        with col_a2:
+            if new_session != "-- Select Session --":
+                systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                new_system = st.selectbox("2. Target Academic System:", options=systems_list, key="manual_sys")
+            else:
+                st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="manual_sys_dis")
+                new_system = "-- Select System --"
 
-            with col_a3:
-                if new_system not in ["-- Select System --", "", None]:
-                    classes_df = run_query("SELECT DISTINCT class_level FROM classes")
-                    classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
-                    new_class = st.selectbox("3. Target Class:", options=classes_list, key="manual_cls")
-                else:
-                    st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="manual_cls_dis")
-                    new_class = "-- Select Class --"
+        with col_a3:
+            if new_system != "-- Select System --":
+                classes_df = run_query("SELECT DISTINCT class_level FROM classes")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                new_class = st.selectbox("3. Target Class:", options=classes_list, key="manual_cls")
+            else:
+                st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="manual_cls_dis")
+                new_class = "-- Select Class --"
 
-            col_a4, col_a5, col_a6 = st.columns(3)
-            with col_a4:
-                if new_class not in ["-- Select Class --", "", None]:
-                    disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-                    disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
-                    new_discipline = st.selectbox("4. Target Discipline:", options=disciplines_list, key="manual_disc")
-                else:
-                    st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="manual_disc_dis")
-                    new_discipline = "-- Select Discipline --"
+        col_a4, col_a5, col_a6 = st.columns(3)
+        with col_a4:
+            if new_class != "-- Select Class --":
+                disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
+                disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                new_discipline = st.selectbox("4. Target Discipline:", options=disciplines_list, key="manual_disc")
+            else:
+                st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="manual_disc_dis")
+                new_discipline = "-- Select Discipline --"
 
-            with col_a5:
-                if new_discipline not in ["-- Select Discipline --", "", None]:
-                    sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-                    sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
-                    new_sec = st.selectbox("5. Target Section:", options=sections_list, key="manual_sec")
-                else:
-                    st.selectbox("5. Target Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="manual_sec_dis")
-                    new_sec = "-- Select Section --"
+        with col_a5:
+            if new_discipline != "-- Select Discipline --":
+                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                new_sec = st.selectbox("5. Target Section:", options=sections_list, key="manual_sec")
+            else:
+                st.selectbox("5. Target Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="manual_sec_dis")
+                new_sec = "-- Select Section --"
 
-            with col_a6:
-                new_roll = st.number_input("Assign Roll Number:", min_value=1, step=1, key="manual_roll")
-            
-            st.markdown("<small style='color: gray;'>* Indicates a mandatory infrastructure metric field.</small>", unsafe_allow_html=True)
-            submit_new_student = st.form_submit_button("➕ Save Record to Database Instance", type="primary")
-            
-            if submit_new_student:
-                if not new_id or not new_name or not father_name or not contact_1:
-                    st.error("❌ Validation Error: Student ID, Full Name, Father Name, and Contact-1 are strictly mandatory.")
-                elif any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_discipline, new_sec]):
-                    st.error("❌ Validation Error: All 5 Academic Placement filters must be selected before saving.")
-                else:
-                    try:
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section, roll_no)
-                                VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :sess, :sys, :class_lvl, :disc, :sec, :roll)
-                            """), {
-                                "id": new_id, "name": new_name, "fname": father_name, "whatsapp": whatsapp_no,
-                                "sno": student_no, "c1": contact_1, "c2": contact_2, "addr": home_address,
-                                "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
-                            })
-                        st.success(f"🎉 Student node successfully registered: {new_name} added to {new_class}-{new_sec} ({new_session})")
-                        time.sleep(0.5)
-                        st.rerun()
-                    except Exception as e: 
-                        st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
+        with col_a6:
+            new_roll = st.number_input("Assign Roll Number / Class Arrangement No:", min_value=1, step=1, key="manual_roll")
+        
+        st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
+        
+        # --- SUBMIT LAYOUT ---
+        if st.button("➕ Save Record to Database Instance", type="primary", use_container_width=True):
+            if not new_id or not new_name or not father_name or not contact_1:
+                st.error("❌ Validation Error: Student ID, Full Name, Father Name, and Contact-1 are strictly mandatory.")
+            elif any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_discipline, new_sec]):
+                st.error("❌ Validation Error: Please select all 5 options under Academic Placement Attributes.")
+            else:
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section, roll_no)
+                            VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :sess, :sys, :class_lvl, :disc, :sec, :roll)
+                        """), {
+                            "id": new_id, "name": new_name, "fname": father_name, "whatsapp": whatsapp_no,
+                            "sno": student_no, "c1": contact_1, "c2": contact_2, "addr": home_address,
+                            "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
+                        })
+                    st.success(f"🎉 Student successfully registered: {new_name} assigned to Section {new_sec}!")
+                    time.sleep(1.0)
+                    st.rerun()
+                except Exception as e: 
+                    st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
 
     # ==============================================================================
     # TAB 2: BULK IMPORT VIA EXCEL (With Sample Template Downloader)
