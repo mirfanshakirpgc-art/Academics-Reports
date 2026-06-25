@@ -463,56 +463,60 @@ def render_master_setup_engine():
         # 8. TEACHERS MANAGEMENT (ADD & EDIT)
         # ----------------------------------------------------------------------
         elif setup_type == "Teachers":
-            st.markdown("#### ➕ Add New Faculty Profile")
+            st.markdown("#### ➕ Add New Instructor / Teacher Profile")
             with st.form("form_teachers"):
                 col1, col2 = st.columns(2)
-                with col1: t_id = st.text_input("Teacher ID / Employment Code:", placeholder="e.g., T-101").strip().upper()
-                with col2: t_name = st.text_input("Full Name:", placeholder="e.g., Prof. Jane Doe").strip()
+                with col1: t_id = st.text_input("Teacher ID/Code Prefix:", placeholder="e.g., T-101").strip()
+                with col2: t_name = st.text_input("Full Registered Name:", placeholder="e.g., Prof. Sarah Khan")
                 
                 col3, col4 = st.columns(2)
-                with col3: t_phone = st.text_input("Contact Number:", placeholder="e.g., +123456789")
-                with col4: t_email = st.text_input("Email Address:", placeholder="e.g., jane.doe@school.edu")
+                with col3: t_phone = st.text_input("Primary Contact Number:", placeholder="e.g., +923001234567")
+                with col4: t_email = st.text_input("Official Email Address:", placeholder="e.g., sarah.khan@school.edu")
                 
-                submit = st.form_submit_button("➕ Register Teacher Profile", type="primary")
+                submit = st.form_submit_button("➕ Register Faculty Instructor", type="primary")
                 if submit:
                     if t_id and t_name:
                         try:
                             with engine.begin() as conn:
-                                conn.execute(text("INSERT INTO teachers (teacher_id, full_name, contact_number, email) VALUES (:id, :name, :phone, :email)"), 
-                                             {"id": t_id, "name": t_name, "phone": t_phone, "email": t_email})
-                            st.success(f"🎉 Faculty Profile initialized successfully for [{t_id}] {t_name}!")
+                                conn.execute(text("""
+                                    INSERT INTO teachers (teacher_id, full_name, contact_number, email) 
+                                    VALUES (:id, :name, :phone, :email)
+                                """), {"id": t_id, "name": t_name, "phone": t_phone, "email": t_email})
+                            st.success(f"🎉 Faculty record initialized for '{t_name}'!")
                             time.sleep(0.5)
                             st.rerun()
-                        except Exception as e: st.error(f"❌ Database error (Check if ID is unique): {e}")
-                    else: st.error("❌ Teacher ID and Full Name fields are mandatory structural parameters.")
+                        except Exception as e: st.error(f"❌ Database error (Check for duplicate IDs): {e}")
+                    else: st.error("❌ Teacher ID and Full Name are completely mandatory.")
 
             st.markdown("---")
-            st.markdown("#### ✏️ Edit Existing Faculty Profiles")
+            st.markdown("#### ✏️ Edit Existing Faculty Rosters")
             teachers_df = run_query("SELECT teacher_id, full_name, contact_number, email FROM teachers")
             if not teachers_df.empty:
                 teacher_options = [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()]
-                selected_tchr = st.selectbox("Select Profile Node to Update:", teacher_options, key="edit_tchr_select")
-                target_id = selected_tchr.split(" - ")[0]
+                selected_tch = st.selectbox("Select Target Instructor to Modify:", teacher_options, key="edit_tch_select")
+                target_id = selected_tch.split(" - ")[0]
                 current_data = teachers_df[teachers_df['teacher_id'] == target_id].iloc[0]
                 
-                with st.form("edit_form_tchr"):
+                with st.form("edit_form_tch"):
                     col1, col2 = st.columns(2)
-                    with col1: update_name = st.text_input("Modify Full Name:", value=current_data['full_name']).strip()
+                    with col1: update_name = st.text_input("Modify Full Name:", value=current_data['full_name'])
                     with col2: update_phone = st.text_input("Modify Contact Number:", value=current_data['contact_number'] or "")
                     
                     update_email = st.text_input("Modify Email Address:", value=current_data['email'] or "")
                     
-                    if st.form_submit_button("💾 Save Profile Changes", type="secondary"):
-                        if update_name:
+                    if st.form_submit_button("💾 Save Instructor Changes", type="secondary"):
+                        if update_name.strip():
                             with engine.begin() as conn:
-                                conn.execute(text("UPDATE teachers SET full_name = :name, contact_number = :phone, email = :email WHERE teacher_id = :id"),
-                                             {"name": update_name, "phone": update_phone, "email": update_email, "id": target_id})
-                            st.success("🎉 Teacher management profiles synchronized successfully!")
+                                conn.execute(text("""
+                                    UPDATE teachers 
+                                    SET full_name = :name, contact_number = :phone, email = :email 
+                                    WHERE teacher_id = :id
+                                """), {"name": update_name.strip(), "phone": update_phone, "email": update_email, "id": target_id})
+                            st.success("🎉 Instructor profile configuration metrics updated safely.")
                             time.sleep(0.5)
                             st.rerun()
-                        else:
-                            st.error("❌ Full Name cannot be left blank.")
-            else: st.info("No recorded faculty elements discovered in relational memory.")
+                        else: st.error("❌ Full Name column cannot be written as empty.")
+            else: st.info("No active faculty staff logs loaded inside structural storage.")
 
     with tab2:
         st.markdown("### Map Institutional Dependencies")
@@ -645,47 +649,74 @@ def render_master_setup_engine():
         # ----------------------------------------------------------------------
         # 3. CLASS IN-CHARGE ALLOCATIONS (Moved from sidebar to right side tab)
         # ----------------------------------------------------------------------
+        st.markdown("### Manage Class In-Charge Allocations")
         st.markdown("### 📋 Class In-Charge Mapping Management")
         
-        try:
-            sessions_list = run_query("SELECT session_name FROM sessions")['session_name'].tolist()
-            systems_list = run_query("SELECT system_name FROM academic_systems")['system_name'].tolist()
-            classes_list = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
-            sections_list = run_query("SELECT section_name FROM sections")['section_name'].tolist()
-            teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
-        except Exception:
-            sessions_list, systems_list, classes_list, sections_list = [], [], [], []
-            teachers_df = pd.DataFrame()
-
-        # Fallbacks for empty sandbox state
-        if not sessions_list: sessions_list = ["No Sessions Registered"]
-        if not systems_list: systems_list = ["No Systems Registered"]
-        if not classes_list: classes_list = ["11th", "12th", "Matric"]
-        if not sections_list: sections_list = ["A", "B", "C"]
-
-        with st.form("form_incharge_allocation"):
-            st.write("#### Assign Faculty Member as Section In-Charge")
-            col_inc1, col_inc2 = st.columns(2)
-            with col_inc1: sel_session = st.selectbox("Select Session Year:", sessions_list)
-            with col_inc2: sel_system = st.selectbox("Select Academic Framework:", systems_list)
-            
-            col_inc3, col_inc4 = st.columns(2)
-            with col_inc3: sel_class = st.selectbox("Assign Class Level Scope:", classes_list, key="inc_cls")
-            with col_inc4: sel_section = st.selectbox("Assign Section Branch:", sections_list, key="inc_sec")
-            
-            if not teachers_df.empty:
-                teacher_options = [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()]
-                selected_teacher = st.selectbox("Select Assigned Faculty Member:", teacher_options)
+        # 1. Session Dropdown
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        
+        col_inc1, col_inc2 = st.columns(2)
+        with col_inc1: 
+            sel_session = st.selectbox("1. Select Session Year:", options=sessions_list, key="inc_sess")
+        
+        # 2. Academic System Dropdown (Cascading from Session)
+        with col_inc2:
+            if sel_session != "-- Select Session --":
+                systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                sel_system = st.selectbox("2. Select Academic Framework:", options=systems_list, key="inc_sys")
             else:
-                selected_teacher = st.selectbox("Select Assigned Faculty Member:", ["No Registered Teachers Available"])
+                st.selectbox("2. Select Academic Framework:", ["🔒 Waiting for Session..."], disabled=True, key="inc_sys_dis")
+                sel_system = "-- Select System --"
                 
-            submit_inc = st.form_submit_button("🔗 Link Class In-Charge Assignment", type="primary")
-            if submit_inc:
-                if "No Registered" in selected_teacher or "No Sessions" in sel_session:
-                    st.error("❌ Prerequisites missing: Make sure a Session and a Teacher profile are created first.")
-                else:
-                    t_id = selected_teacher.split(" - ")[0]
-                    t_name = selected_teacher.split(" - ")[1]
+        col_inc3, col_inc4 = st.columns(2)
+        
+        # 3. Class Level Dropdown (Cascading from System)
+        with col_inc3:
+            if sel_system not in ["-- Select System --", "", None]:
+                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                sel_class = st.selectbox("3. Assign Class Level Scope:", options=classes_list, key="inc_cls")
+            else:
+                st.selectbox("3. Assign Class Level Scope:", ["🔒 Waiting for System..."], disabled=True, key="inc_cls_dis")
+                sel_class = "-- Select Class --"
+                
+        # 4. Section Dropdown (Cascading from Class)
+        with col_inc4:
+            if sel_class not in ["-- Select Class --", "", None]:
+                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                sel_section = st.selectbox("4. Assign Section Branch:", options=sections_list, key="inc_sec")
+            else:
+                st.selectbox("4. Assign Section Branch:", ["🔒 Waiting for Class..."], disabled=True, key="inc_sec_dis")
+                sel_section = "-- Select Section --"
+                
+        # 5. Teacher Dropdown (Cascading from Section)
+        if sel_section not in ["-- Select Section --", "", None]:
+            teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
+            teachers_list = ["-- Select Teacher --"] + [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()] if not teachers_df.empty else ["-- Select Teacher --"]
+            selected_teacher = st.selectbox("5. Select Assigned Faculty Member:", options=teachers_list, key="inc_tchr")
+        else:
+            st.selectbox("5. Select Assigned Faculty Member:", ["🔒 Waiting for Section Selection..."], disabled=True, key="inc_tchr_dis")
+            selected_teacher = "-- Select Teacher --"
+            
+        st.markdown("---")
+        
+        # Submission Validation Gate
+        ready_to_submit_inc = all([
+            sel_session != "-- Select Session --",
+            sel_system != "-- Select System --",
+            sel_class != "-- Select Class --",
+            sel_section != "-- Select Section --",
+            selected_teacher != "-- Select Teacher --"
+        ])
+        
+        with st.form("form_incharge_allocation_gate"):
+            if ready_to_submit_inc:
+                if st.form_submit_button("🔗 Link Class In-Charge Assignment", type="primary", use_container_width=True):
+                    t_id = selected_teacher.split(" - ")[0].strip()
+                    t_name = selected_teacher.split(" - ")[1].strip()
                     try:
                         with engine.begin() as conn:
                             conn.execute(text("""
@@ -693,8 +724,12 @@ def render_master_setup_engine():
                                 VALUES (:sess, :sys, :cls, :sec, :tid, :tname)
                             """), {"sess": sel_session, "sys": sel_system, "cls": sel_class, "sec": sel_section, "tid": t_id, "tname": t_name})
                         st.success(f"🎉 Mapping Complete: {t_name} is now designated In-Charge for Class {sel_class}-{sel_section}!")
+                        time.sleep(0.5)
+                        st.rerun()
                     except Exception as e:
                         st.error(f"❌ Database error: {e}")
+            else:
+                st.form_submit_button("🔗 Complete Steps 1-5 above to unlock assignment", disabled=True, use_container_width=True)
 
 
 def render_student_management_workspace():
@@ -708,15 +743,7 @@ def render_student_management_workspace():
         "✏️ Edit Student Profiles"
     ])
     
-    # Safely pull structural metadata from database layer for selection menus
-    try:
-        available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
-        if not available_classes:
-            available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
-    except Exception:
-        available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
-
-    # Ensure database schema table structure accommodates our 8 primary fields
+    # Ensure database schema table structure accommodates our 14 required structural fields
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
@@ -728,165 +755,161 @@ def render_student_management_workspace():
                 contact_1 TEXT NOT NULL,
                 contact_2 TEXT,
                 home_address TEXT,
+                session TEXT,
+                academic_system TEXT,
                 class_level TEXT,
+                discipline TEXT,
                 section TEXT,
                 roll_no INTEGER
             );
         """))
 
-    import streamlit as pd
-import pandas as pd
-import time
-from sqlalchemy import text
-
-# ==============================================================================
-# TAB 1: MANUAL ADMISSION ENTRY
-# ==============================================================================
-with tab1:
-    st.write("### Register New Student Particulars")
-    
-    # Initialize Session State fallback values for core text fields to prevent rerender data loss
-    for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
-        if field not in st.session_state:
-            st.session_state[field] = ""
-
-    # --- CORE PROFILE DATA FORM ---
-    with st.form("student_profile_text_fields_form"):
-        col1, col2, col3 = st.columns(3)
-        with col1: 
-            new_id = st.text_input("1. Student ID / Registration No:*", value=st.session_state["new_id"], placeholder="e.g., STU-2026-001").strip().upper()
-        with col2: 
-            new_name = st.text_input("2. Student Full Name:*", value=st.session_state["new_name"], placeholder="e.g., John Doe").strip()
-        with col3: 
-            father_name = st.text_input("3. Student's Father Name:*", value=st.session_state["father_name"], placeholder="e.g., Robert Doe").strip()
+    # ==============================================================================
+    # TAB 1: MANUAL ADMISSION ENTRY
+    # ==============================================================================
+    with tab1:
+        st.write("### Register New Student Particulars")
         
-        col4, col5, col6 = st.columns(3)
-        with col4: 
-            whatsapp_no = st.text_input("4. WhatsApp Number:", value=st.session_state["whatsapp_no"], placeholder="e.g., +923001234567").strip()
-        with col5: 
-            student_no = st.text_input("5. Student Mobile Number:", value=st.session_state["student_no"], placeholder="e.g., +923151234567").strip()
-        with col6: 
-            contact_1 = st.text_input("6. Emergency Contact-1:*", value=st.session_state["contact_1"], placeholder="e.g., Mother's Mobile").strip()
+        # Initialize Session State fallback values for core text fields to prevent rerender data loss
+        for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
+            if field not in st.session_state:
+                st.session_state[field] = ""
+
+        # --- CORE PROFILE DATA FORM ---
+        with st.form("student_profile_text_fields_form"):
+            col1, col2, col3 = st.columns(3)
+            with col1: 
+                new_id = st.text_input("1. Student ID / Registration No:*", value=st.session_state["new_id"], placeholder="e.g., STU-2026-001").strip().upper()
+            with col2: 
+                new_name = st.text_input("2. Student Full Name:*", value=st.session_state["new_name"], placeholder="e.g., John Doe").strip()
+            with col3: 
+                father_name = st.text_input("3. Student's Father Name:*", value=st.session_state["father_name"], placeholder="e.g., Robert Doe").strip()
+            
+            col4, col5, col6 = st.columns(3)
+            with col4: 
+                whatsapp_no = st.text_input("4. WhatsApp Number:", value=st.session_state["whatsapp_no"], placeholder="e.g., +923001234567").strip()
+            with col5: 
+                student_no = st.text_input("5. Student Mobile Number:", value=st.session_state["student_no"], placeholder="e.g., +923151234567").strip()
+            with col6: 
+                contact_1 = st.text_input("6. Emergency Contact-1:*", value=st.session_state["contact_1"], placeholder="e.g., Mother's Mobile").strip()
+            
+            col7, col8 = st.columns([1, 2])
+            with col7: 
+                contact_2 = st.text_input("7. Alternative Contact-2:", value=st.session_state["contact_2"], placeholder="e.g., Guardian/Landline").strip()
+            with col8: 
+                home_address = st.text_input("8. Home Address:", value=st.session_state["home_address"], placeholder="e.g., House #123, Street 5, Sector G-10").strip()
+            
+            # Form button to temporarily submit text data to state
+            lock_profile = st.form_submit_button("🔒 Step A: Lock & Verify Core Profile Fields")
+            if lock_profile:
+                st.session_state["new_id"] = new_id
+                st.session_state["new_name"] = new_name
+                st.session_state["father_name"] = father_name
+                st.session_state["whatsapp_no"] = whatsapp_no
+                st.session_state["student_no"] = student_no
+                st.session_state["contact_1"] = contact_1
+                st.session_state["contact_2"] = contact_2
+                st.session_state["home_address"] = home_address
+                st.success("✅ Profile fields locked into current interaction window state!")
+
+        # --- CASCADING PLACEMENT FILTERS (Kept outside form for real-time reactivity) ---
+        st.markdown("---")
+        st.write("📁 **Academic Placement Attributes**")
         
-        col7, col8 = st.columns([1, 2])
-        with col7: 
-            contact_2 = st.text_input("7. Alternative Contact-2:", value=st.session_state["contact_2"], placeholder="e.g., Guardian/Landline").strip()
-        with col8: 
-            home_address = st.text_input("8. Home Address:", value=st.session_state["home_address"], placeholder="e.g., House #123, Street 5, Sector G-10").strip()
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
-        # Form button to temporarily submit text data to state
-        lock_profile = st.form_submit_button("🔒 Step A: Lock & Verify Core Profile Fields")
-        if lock_profile:
-            st.session_state["new_id"] = new_id
-            st.session_state["new_name"] = new_name
-            st.session_state["father_name"] = father_name
-            st.session_state["whatsapp_no"] = whatsapp_no
-            st.session_state["student_no"] = student_no
-            st.session_state["contact_1"] = contact_1
-            st.session_state["contact_2"] = contact_2
-            st.session_state["home_address"] = home_address
-            st.success("✅ Profile fields locked into current interaction window state!")
+        col_a1, col_a2, col_a3 = st.columns(3)
+        with col_a1:
+            new_session = st.selectbox("1. Target Session:", options=sessions_list, key="manual_sess")
 
-    # --- CASCADING PLACEMENT FILTERS (Kept outside form for real-time reactivity) ---
-    st.markdown("---")
-    st.write("📁 **Academic Placement Attributes**")
-    
-    sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-    sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
-    
-    col_a1, col_a2, col_a3 = st.columns(3)
-    with col_a1:
-        new_session = st.selectbox("1. Target Session:", options=sessions_list, key="manual_sess")
+        with col_a2:
+            if new_session != "-- Select Session --":
+                systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                new_system = st.selectbox("2. Target Academic System:", options=systems_list, key="manual_sys")
+            else:
+                st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="manual_sys_dis")
+                new_system = "-- Select System --"
 
-    with col_a2:
-        if new_session != "-- Select Session --":
-            systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-            systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
-            new_system = st.selectbox("2. Target Academic System:", options=systems_list, key="manual_sys")
-        else:
-            st.selectbox("2. Target Academic System:", ["🔒 Waiting for Session..."], disabled=True, key="manual_sys_dis")
-            new_system = "-- Select System --"
+        with col_a3:
+            if new_system != "-- Select System --":
+                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                new_class = st.selectbox("3. Target Class:", options=classes_list, key="manual_cls")
+            else:
+                st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="manual_cls_dis")
+                new_class = "-- Select Class --"
 
-    with col_a3:
-        if new_system != "-- Select System --":
-            classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
-            classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
-            new_class = st.selectbox("3. Target Class:", options=classes_list, key="manual_cls")
-        else:
-            st.selectbox("3. Target Class:", ["🔒 Waiting for System..."], disabled=True, key="manual_cls_dis")
-            new_class = "-- Select Class --"
+        col_a4, col_a5, col_a6 = st.columns(3)
+        with col_a4:
+            if new_class != "-- Select Class --":
+                disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
+                disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                new_discipline = st.selectbox("4. Target Discipline:", options=disciplines_list, key="manual_disc")
+            else:
+                st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="manual_disc_dis")
+                new_discipline = "-- Select Discipline --"
 
-    col_a4, col_a5, col_a6 = st.columns(3)
-    with col_a4:
-        if new_class != "-- Select Class --":
-            disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-            disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
-            new_discipline = st.selectbox("4. Target Discipline:", options=disciplines_list, key="manual_disc")
-        else:
-            st.selectbox("4. Target Discipline:", ["🔒 Waiting for Class..."], disabled=True, key="manual_disc_dis")
-            new_discipline = "-- Select Discipline --"
+        with col_a5:
+            if new_discipline != "-- Select Discipline --":
+                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                new_sec = st.selectbox("5. Target Section:", options=sections_list, key="manual_sec")
+            else:
+                st.selectbox("5. Target Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="manual_sec_dis")
+                new_sec = "-- Select Section --"
 
-    with col_a5:
-        if new_discipline != "-- Select Discipline --":
-            sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-            sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
-            new_sec = st.selectbox("5. Target Section:", options=sections_list, key="manual_sec")
-        else:
-            st.selectbox("5. Target Section:", ["🔒 Waiting for Discipline..."], disabled=True, key="manual_sec_dis")
-            new_sec = "-- Select Section --"
-
-    with col_a6:
-        new_roll = st.number_input("Class arrangement No.", min_value=1, step=1, key="manual_roll")
-    
-    st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    # --- FINAL SAVE ACTION ---
-    if st.button("🚀 Step B: Finalize Registration & Save Student", type="primary", use_container_width=True):
-        # Read directly from session_state data vectors to catch locked inputs
-        id_to_save = st.session_state["new_id"] or new_id
-        name_to_save = st.session_state["new_name"] or new_name
-        fname_to_save = st.session_state["father_name"] or father_name
-        c1_to_save = st.session_state["contact_1"] or contact_1
+        with col_a6:
+            new_roll = st.number_input("Class arrangement No.", min_value=1, step=1, key="manual_roll")
         
-        if not id_to_save or not name_to_save or not fname_to_save or not c1_to_save:
-            st.error("❌ Validation Error: Please type the core data fields inside Step A first and hit 'Lock & Verify Core Profile Fields'.")
-        elif any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_discipline, new_sec]):
-            st.error("❌ Validation Error: Please select all 5 dropdown filter paths under Academic Placement Attributes.")
-        else:
-            try:
-                with engine.begin() as conn:
-                    conn.execute(text("""
-                        INSERT INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section, roll_no)
-                        VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :sess, :sys, :class_lvl, :disc, :sec, :roll)
-                    """), {
-                        "id": id_to_save, "name": name_to_save, "fname": fname_to_save, "whatsapp": st.session_state["whatsapp_no"],
-                        "sno": st.session_state["student_no"], "c1": c1_to_save, "c2": st.session_state["contact_2"], "addr": st.session_state["home_address"],
-                        "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
-                    })
-                st.success(f"🎉 Student node successfully registered: {name_to_save} added successfully!")
-                
-                # Clear session state items upon successful write
-                for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
-                    st.session_state[field] = ""
-                time.sleep(1.0)
-                st.rerun()
-            except Exception as e: 
-                st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
+        st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
+        st.markdown("---")
+        
+        # --- FINAL SAVE ACTION ---
+        if st.button("🚀 Step B: Finalize Registration & Save Student", type="primary", use_container_width=True):
+            # Read directly from session_state data vectors to catch locked inputs
+            id_to_save = st.session_state["new_id"] or new_id
+            name_to_save = st.session_state["new_name"] or new_name
+            fname_to_save = st.session_state["father_name"] or father_name
+            c1_to_save = st.session_state["contact_1"] or contact_1
+            
+            if not id_to_save or not name_to_save or not fname_to_save or not c1_to_save:
+                st.error("❌ Validation Error: Please type the core data fields inside Step A first and hit 'Lock & Verify Core Profile Fields'.")
+            elif any(f in ["-- Select Session --", "-- Select System --", "-- Select Class --", "-- Select Discipline --", "-- Select Section --"] for f in [new_session, new_system, new_class, new_discipline, new_sec]):
+                st.error("❌ Validation Error: Please select all 5 dropdown filter paths under Academic Placement Attributes.")
+            else:
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO students (student_id, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section, roll_no)
+                            VALUES (:id, :name, :fname, :whatsapp, :sno, :c1, :c2, :addr, :sess, :sys, :class_lvl, :disc, :sec, :roll)
+                        """), {
+                            "id": id_to_save, "name": name_to_save, "fname": fname_to_save, "whatsapp": st.session_state["whatsapp_no"],
+                            "sno": st.session_state["student_no"], "c1": c1_to_save, "c2": st.session_state["contact_2"], "addr": st.session_state["home_address"],
+                            "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
+                        })
+                    st.success(f"🎉 Student node successfully registered: {name_to_save} added successfully!")
+                    
+                    # Clear session state items upon successful write
+                    for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
+                        st.session_state[field] = ""
+                    time.sleep(1.0)
+                    st.rerun()
+                except Exception as e: 
+                    st.error(f"❌ Database execution failure: {e}. Check if Student ID already exists.")
 
-# ==============================================================================
-# TAB 2: BULK IMPORT VIA NATIVE CSV
-# ==============================================================================
-with tab2:
-    # ... (Your Tab 2 implementation works fine and is unchanged) ...
-    pass
+    # ==============================================================================
+    # TAB 2: BULK IMPORT VIA NATIVE CSV
+    # ==============================================================================
+    with tab2:
+        pass
 
-# ==============================================================================
-# TAB 3: SEARCH & EDIT ACTIVE PROFILES 
-# ==============================================================================
-with tab3:
-    # ... (Your Tab 3 implementation works fine and is unchanged) ...
-    pass
+    # ==============================================================================
+    # TAB 3: SEARCH & EDIT ACTIVE PROFILES 
+    # ==============================================================================
+    with tab3:
+        pass
 
 
 def render_universal_attendance_workspace():
@@ -948,12 +971,10 @@ def render_universal_attendance_workspace():
 
 
 def render_universal_marks_entry_workspace():
-    # ... (Your marks implementation works fine and is unchanged) ...
     pass
 
 
 def render_institutional_report_generator():
-    # ... (Your reports implementation works fine and is unchanged) ...
     pass
 
 
