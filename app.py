@@ -913,10 +913,10 @@ def render_student_management_workspace():
                 use_container_width=True
             )
         with col_dl2:
-            # Inline conditional mapping converter to excel bytes stream 
+            # Inline conditional mapping converter using xlsxwriter engine
             import io
             excel_io = io.BytesIO()
-            with pd.ExcelWriter(excel_io, engine='openpyxl') as writer:
+            with pd.ExcelWriter(excel_io, engine='xlsxwriter') as writer:
                 sample_df.to_excel(writer, index=False, sheet_name='Students')
             st.download_button(
                 label="📥 Download Template (.XLSX Format)",
