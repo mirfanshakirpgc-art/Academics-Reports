@@ -964,7 +964,6 @@ def render_student_management_workspace():
         st.markdown("---")
                 
                 # Standardize columns to lowercase strings
-                uploaded_df.columns = [str(col).strip().lower() for col in uploaded_df.columns]
                 st.write("#### 📋 Parsed File Content Preview", uploaded_df.head(5))
                 
                 # Validation for mandatory student bio fields
