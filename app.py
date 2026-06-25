@@ -1167,75 +1167,89 @@ def render_student_management_workspace():
                         st.write("Here are the last 10 records added to your database. Compare these strings against your filters:")
                         st.dataframe(debug_df, use_container_width=True)
             
-            # ==================================================================
-            # OPTION A: BATCH EDIT ENTIRE SECTION
-            # ==================================================================
-            elif edit_scope == "📊 Batch Edit Entire Section":
-                st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})`")
-                st.caption("💡 Edit any cell directly inside the grid below, then click the save button.")
-                
-                edited_df = st.data_editor(
-                    matched_students,
-                    column_config={
-                        "student_id": st.column_config.TextColumn("Student ID 🔒", disabled=True),
-                        "roll_no": st.column_config.NumberColumn("Roll No*", min_value=1, step=1, required=True),
-                        "student_name": st.column_config.TextColumn("Student Name*", required=True),
-                        "father_name": st.column_config.TextColumn("Father Name*", required=True),
-                        "whatsapp_no": st.column_config.TextColumn("WhatsApp No"),
-                        "student_no": st.column_config.TextColumn("Student No"),
-                        "contact_1": st.column_config.TextColumn("Contact-1*", required=True),
-                        "contact_2": st.column_config.TextColumn("Contact-2"),
-                        "home_address": st.column_config.TextColumn("Home Address"),
-                        "discipline": st.column_config.TextColumn("Discipline 🔒", disabled=True)
-                    },
-                    hide_index=True,
-                    use_container_width=True,
-                    key=f"sec_editor_{search_session}_{search_class}_{search_sec}"
-                )
-                
-                if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
-                    try:
-                        with engine.begin() as conn:
-                            for _, row in edited_df.iterrows():
-                                conn.execute(text("""
-                                    UPDATE students SET
-                                        student_name = :name,
-                                        father_name = :fname,
-                                        roll_no = :roll,
-                                        whatsapp_no = :whatsapp,
-                                        student_no = :sno,
-                                        contact_1 = :c1,
-                                        contact_2 = :c2,
-                                        home_address = :addr
-                                    WHERE student_id = :id
-                                """), {
-                                    "name": str(row['student_name']).strip(),
-                                    "fname": str(row['father_name']).strip(),
-                                    "roll": int(row['roll_no']),
-                                    "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) else None,
-                                    "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) else None,
-                                    "c1": str(row['contact_1']).strip(),
-                                    "contact_2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) else None,
-                                    "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) else None,
-                                    "id": row['student_id']
-                                })
-                        st.success(f"🎉 Roster synced successfully!")
-                        time.sleep(0.8)
-                        st.rerun()
-                    except Exception as bulk_err:
-                        st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
+            import pandas as pd
+import streamlit as st
+import time
+from sqlalchemy import text
+
+# ==================================================================
+# OPTION A: BATCH EDIT ENTIRE SECTION
+# ==================================================================
+if edit_scope == "📊 Batch Edit Entire Section":
+    # Safely resolve display variables from session state if locals aren't present
+    disp_session = locals().get('search_session', st.session_state.get("filter_sess_key", "2025-27"))
+    disp_class = locals().get('search_class', st.session_state.get("filter_class_key", "11th"))
+    disp_sec = locals().get('search_sec', st.session_state.get("filter_section_key", "MG_BLUE"))
+
+    st.markdown(f"#### 📊 Batch Registry Grid: Class `{disp_class} ({disp_sec})`")
+    st.caption("💡 Edit any cell directly inside the grid below, then click the save button.")
+    
+    # Force columns of input data to lowercase to align with configuration mapping
+    matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
+    
+    edited_df = st.data_editor(
+        matched_students,
+        column_config={
+            "student_id": st.column_config.TextColumn("Student ID 🔒", disabled=True),
+            "roll_no": st.column_config.NumberColumn("Roll No*", min_value=1, step=1, required=True),
+            "student_name": st.column_config.TextColumn("Student Name*", required=True),
+            "father_name": st.column_config.TextColumn("Father Name*", required=True),
+            "whatsapp_no": st.column_config.TextColumn("WhatsApp No"),
+            "student_no": st.column_config.TextColumn("Student No"),
+            "contact_1": st.column_config.TextColumn("Contact-1*", required=True),
+            "contact_2": st.column_config.TextColumn("Contact-2"),
+            "home_address": st.column_config.TextColumn("Home Address"),
+            "discipline": st.column_config.TextColumn("Discipline 🔒", disabled=True)
+        },
+        hide_index=True,
+        use_container_width=True,
+        key=f"sec_editor_{disp_session}_{disp_class}_{disp_sec}"
+    )
+    
+    if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
+        try:
+            with engine.begin() as conn:
+                for _, row in edited_df.iterrows():
+                    # Direct lowercase dictionary mapping alignment
+                    conn.execute(text("""
+                        UPDATE students SET
+                            student_name = :name,
+                            father_name = :fname,
+                            roll_no = :roll,
+                            whatsapp_no = :whatsapp,
+                            student_no = :sno,
+                            contact_1 = :c1,
+                            contact_2 = :c2,
+                            home_address = :addr
+                        WHERE student_id = :id
+                    """), {
+                        "name": str(row['student_name']).strip(),
+                        "fname": str(row['father_name']).strip(),
+                        "roll": int(row['roll_no']),
+                        "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() else None,
+                        "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() else None,
+                        "c1": str(row['contact_1']).strip(),
+                        "contact_2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() else None,
+                        "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() else None,
+                        "id": row['student_id']
+                    })
+            st.success(f"🎉 Roster synced successfully!")
+            time.sleep(0.8)
+            st.rerun()
+        except Exception as bulk_err:
+            st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
+
 # ==============================================================================
-# FETCH DATA FOR EDIT TAB (Place this right before Option A / Option B choices)
+# FETCH DATA FOR EDIT TAB
 # ==============================================================================
 
-# 1. Cleanly pull values from your UI drop-downs
-filter_session = st.session_state.get("bulk_sess", "2025-27") 
-# Note: Check what the exact keys are for your Filter drop-downs (e.g., 'Filter Current Session')
+# Extract selection keys directly from UI components
+current_sess = str(st.session_state.get("filter_sess_key", "2025-27")).strip()
+current_cls = str(st.session_state.get("filter_class_key", "11th")).strip()
+current_sec = str(st.session_state.get("filter_section_key", "MG_BLUE")).strip()
 
-# 2. Query your live Supabase Engine directly
 try:
     with engine.connect() as conn:
-        # We explicitly cast parameters to matching text types
         query_str = """
             SELECT * FROM students 
             WHERE LOWER(session) = LOWER(:sess) 
@@ -1246,13 +1260,13 @@ try:
             text(query_str), 
             conn, 
             params={
-                "sess": str(st.session_state.get("filter_sess_key", "2025-27")).strip(),
-                "cls": str(st.session_state.get("filter_class_key", "11th")).strip(),
-                "sec": str(st.session_state.get("filter_section_key", "MG_BLUE")).strip()
+                "sess": current_sess,
+                "cls": current_cls,
+                "sec": current_sec
             }
         )
     
-    # Force columns to lowercase to prevent panda desyncs
+    # Sync headings to strict lower parameters
     matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
 
 except Exception as e:
@@ -1263,10 +1277,9 @@ except Exception as e:
 # DATABASE TROUBLESHOOTING CHECK ACCORDING TO SUPABASE MATRIX
 # ==============================================================================
 if matched_students.empty:
-    st.info(f"ℹ️ No active student records found matching selection context.")
+    st.info(f"ℹ         No active student records found matching selection context: {current_sess} | Class {current_cls} | Section {current_sec}")
     
     with st.expander("🔍 Run Database Troubleshooting Check", expanded=True):
-        # Let's perform a raw check to see if the table has ANY records at all
         try:
             with engine.connect() as conn:
                 total_check = pd.read_sql(text("SELECT COUNT(*) as count FROM students;"), conn)
@@ -1279,9 +1292,6 @@ if matched_students.empty:
             st.warning("The students table is completely empty in your Supabase Cloud cluster. Go to Tab 1 or Tab 2 to add records first.")
         else:
             st.success(f"💡 Cloud sync active! The database actually contains {row_count} total records, but none match the specific filters selected above.")
-            # ==================================================================
-            # OPTION B: SINGLE STUDENT PROFILE WITH FILTER SEARCH
-            # ==================================================================
             else:
                 st.markdown("#### 🔍 Search & Filter Student Profile")
                 search_query = st.text_input("Type Student Name or Student ID to filter options:", placeholder="e.g., John or STU-2026-001").strip().lower()
