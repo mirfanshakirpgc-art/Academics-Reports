@@ -765,7 +765,7 @@ def render_student_management_workspace():
         """))
 
     # ==============================================================================
-    # TAB 1: MANUAL ADMISSION ENTRY
+    # TAB 1: MANUAL ADMISSION ENTRY (Now correctly indented inside the function)
     # ==============================================================================
     with tab1:
         st.write("### Register New Student Particulars")
@@ -812,7 +812,7 @@ def render_student_management_workspace():
                 st.session_state["home_address"] = home_address
                 st.success("✅ Profile fields locked into current interaction window state!")
 
-        # --- CASCADING PLACEMENT FILTERS (Kept outside form for real-time reactivity) ---
+        # --- CASCADING PLACEMENT FILTERS ---
         st.markdown("---")
         st.write("📁 **Academic Placement Attributes**")
         
@@ -868,7 +868,6 @@ def render_student_management_workspace():
         
         # --- FINAL SAVE ACTION ---
         if st.button("🚀 Step B: Finalize Registration & Save Student", type="primary", use_container_width=True):
-            # Read directly from session_state data vectors to catch locked inputs
             id_to_save = st.session_state["new_id"] or new_id
             name_to_save = st.session_state["new_name"] or new_name
             fname_to_save = st.session_state["father_name"] or father_name
@@ -891,7 +890,6 @@ def render_student_management_workspace():
                         })
                     st.success(f"🎉 Student node successfully registered: {name_to_save} added successfully!")
                     
-                    # Clear session state items upon successful write
                     for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
                         st.session_state[field] = ""
                     time.sleep(1.0)
