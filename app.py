@@ -1081,40 +1081,51 @@ def render_student_management_workspace():
                     st.error(f"❌ Fatal streaming data processing breakdown error: {e}")
 
     # ==============================================================================
-    # TAB 3: SEARCH & EDIT ACTIVE PROFILES 
+    # TAB 3: SEARCH & EDIT (BATCH SECTION OR SINGLE PROFILE)
     # ==============================================================================
     with tab3:
-        st.write("### ✏️ Search & Modify Existing Student Profiles")
+        st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
         
+        # Pull reference indices to populate lookups
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
         st.markdown("📁 **Step 1: Locate Active Target Parameters**")
-        col_s1, col_s2, col_s3 = st.columns(3)
+        col_s1, col_s2, col_s3, col_s4 = st.columns([1, 1, 1, 1.2])
         
         with col_s1:
-            search_session = st.selectbox("Filter Current Session:", options=sessions_list, key="search_sess")
+            search_session = st.selectbox("Filter Session:", options=sessions_list, key="search_sess")
             
         with col_s2:
             if search_session != "-- Select Session --":
                 classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")
                 classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
-                search_class = st.selectbox("Filter Current Class:", options=classes_list, key="search_cls")
+                search_class = st.selectbox("Filter Class:", options=classes_list, key="search_cls")
             else:
-                st.selectbox("Filter Current Class:", ["🔒 Waiting for Session Selection..."], disabled=True, key="search_cls_dis")
+                st.selectbox("Filter Class:", ["🔒 Waiting..."], disabled=True, key="search_cls_dis")
                 search_class = "-- Select Class --"
                 
         with col_s3:
             if search_class != "-- Select Class --":
                 sections_df = run_query("SELECT DISTINCT section_name FROM sections")
                 sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
-                search_sec = st.selectbox("Filter Current Section:", options=sections_list, key="search_sec")
+                search_sec = st.selectbox("Filter Section:", options=sections_list, key="search_sec")
             else:
-                st.selectbox("Filter Current Section:", ["🔒 Waiting for Class Selection..."], disabled=True, key="search_sec_dis")
+                st.selectbox("Filter Section:", ["🔒 Waiting..."], disabled=True, key="search_sec_dis")
                 search_sec = "-- Select Section --"
+        
+        with col_s4:
+            # Operational scope toggle switch
+            edit_scope = st.radio(
+                "Modification Scope:",
+                options=["✨ Modify Single Student", "📊 Batch Edit Entire Section"],
+                horizontal=True,
+                key="edit_scope_toggle"
+            )
                 
         st.markdown("---")
         
+        # Verify scoping keys before querying database layers
         if search_session != "-- Select Session --" and search_class != "-- Select Class --" and search_sec != "-- Select Section --":
             try:
                 matched_students = run_query("""
@@ -1123,10 +1134,77 @@ def render_student_management_workspace():
                     WHERE session = :sess AND class_level = :cls AND section = :sec
                     ORDER BY roll_no ASC
                 """, {"sess": search_session, "cls": search_class, "sec": search_sec})
-            except Exception:
+            except Exception as e:
+                st.error(f"Error fetching directory: {e}")
                 matched_students = pd.DataFrame()
                 
-            if not matched_students.empty:
+            if matched_students.empty:
+                st.info(f"ℹ️ No active student records found matching: {search_session} | Class {search_class} | Section {search_sec}")
+            
+            # ==================================================================
+            # OPTION A: BATCH EDIT ENTIRE SECTION LAYER
+            # ==================================================================
+            elif edit_scope == "📊 Batch Edit Entire Section":
+                st.markdown(f"#### 📊 Batch Registry Grid: Class `{search_class} ({search_sec})`")
+                st.caption("💡 Double-click any cell inside the matrix grid below to modify values directly. Click the blue button below to save changes.")
+                
+                # Render an interactive data frame grid view editor layout
+                edited_df = st.data_editor(
+                    matched_students,
+                    column_config={
+                        "student_id": st.column_config.TextColumn("Student ID 🔒", disabled=True),
+                        "roll_no": st.column_config.NumberColumn("Roll No*", min_value=1, step=1, required=True),
+                        "student_name": st.column_config.TextColumn("Student Name*", required=True),
+                        "father_name": st.column_config.TextColumn("Father Name*", required=True),
+                        "whatsapp_no": st.column_config.TextColumn("WhatsApp No"),
+                        "student_no": st.column_config.TextColumn("Student No"),
+                        "contact_1": st.column_config.TextColumn("Contact-1*", required=True),
+                        "contact_2": st.column_config.TextColumn("Contact-2"),
+                        "home_address": st.column_config.TextColumn("Home Address"),
+                        "discipline": st.column_config.TextColumn("Discipline 🔒", disabled=True)
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                    key="section_data_editor"
+                )
+                
+                # Check for updates by evaluating structural divergence matrices
+                if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
+                    try:
+                        with engine.begin() as conn:
+                            for _, row in edited_df.iterrows():
+                                conn.execute(text("""
+                                    UPDATE students SET
+                                        student_name = :name,
+                                        father_name = :fname,
+                                        roll_no = :roll,
+                                        whatsapp_no = :whatsapp,
+                                        student_no = :sno,
+                                        contact_1 = :c1,
+                                        contact_2 = :c2,
+                                        home_address = :addr
+                                    WHERE student_id = :id
+                                """), {
+                                    "name": str(row['student_name']).strip(),
+                                    "fname": str(row['father_name']).strip(),
+                                    "roll": int(row['roll_no']),
+                                    "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) else None,
+                                    "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) else None,
+                                    "c1": str(row['contact_1']).strip(),
+                                    "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) else None,
+                                    "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) else None,
+                                    "id": row['student_id']
+                                })
+                        st.success(f"🎉 Roster synced! All profiles in Section {search_sec} have been successfully updated.")
+                        time.sleep(0.8)
+                        st.rerun()
+                    except Exception as bulk_err:
+                        st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
+
+            # ==================================================================
+            # OPTION B: SINGLE STUDENT PROFILE EDIT LAYER
+            # ==================================================================
+            else:
                 student_options = [f"{row['student_id']} - Roll #{row['roll_no']} - {row['student_name']}" for _, row in matched_students.iterrows()]
                 selected_profile_str = st.selectbox("🎯 Select Student Profile To Edit:", options=student_options)
                 
@@ -1181,11 +1259,8 @@ def render_student_management_workspace():
                                     st.rerun()
                                 except Exception as update_err:
                                     st.error(f"❌ Database Transaction Interrupted: {update_err}")
-            else:
-                st.info(f"ℹ️ No student profiles map to current configuration framework: {search_session} | Class {search_class} | Section {search_sec}")
         else:
             st.warning("⏳ Please finish selecting the three filtering scope parameters above to unlock directory lookup entries.")
-
 
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
