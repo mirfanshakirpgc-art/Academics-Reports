@@ -962,79 +962,94 @@ def render_student_management_workspace():
                 st.error(f"❌ File compilation processing failure: {e}")
 
     # ==============================================================================
-    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (With Complete 14-Column Support)
+    # TAB 3: SEARCH & EDIT ACTIVE PROFILES (With Session Pre-Filter Dropdown)
     # ==============================================================================
     with tab3:
         st.write("### Search & Edit Active Profiles")
-        search_term = st.text_input("🔍 Search Student Profile by Name:", key="student_workspace_search")
         
-        if search_term:
-            matched_students = run_query("""
-                SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, 
-                       contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section 
-                FROM students 
-                WHERE student_name LIKE :search
-            """, {"search": f"%{search_term}%"})
+        # 1. Fetch available sessions from the database for the pre-filter dropdown
+        try:
+            sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+            sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        except Exception:
+            sessions_list = ["-- Select Session --"]
 
-            if not matched_students.empty:
-                student_options = [
-                    f"{row['student_id']} - ID: {row['student_id']} | {row['student_name']} s/o {row['father_name']}"
-                    for _, row in matched_students.iterrows()
-                ]
-                selected_edit_target = st.selectbox("Select Target Record to Update:", student_options)
-                target_id = selected_edit_target.split(" - ")[0]
-                current_target_row = matched_students[matched_students["student_id"] == target_id].iloc[0]
-                
-                with st.form("edit_student_data_form"):
-                    col_e1, col_e2, col_e3 = st.columns(3)
-                    with col_e1: edit_name = st.text_input("Modify Name:", value=current_target_row["student_name"])
-                    with col_e2: edit_fname = st.text_input("Modify Father Name:", value=current_target_row["father_name"])
-                    with col_e3: edit_whatsapp = st.text_input("Modify WhatsApp Number:", value=str(current_target_row["whatsapp_no"] or ""))
-                    
-                    col_e4, col_e5, col_e6 = st.columns(3)
-                    with col_e4: edit_sno = st.text_input("Modify Mobile Number:", value=str(current_target_row["student_no"] or ""))
-                    with col_e5: edit_c1 = st.text_input("Modify Contact-1:", value=str(current_target_row["contact_1"] or ""))
-                    with col_e6: edit_c2 = st.text_input("Modify Contact-2:", value=str(current_target_row["contact_2"] or ""))
-                    
-                    edit_addr = st.text_input("Modify Home Address:", value=str(current_target_row["home_address"] or ""))
-                    
-                    st.markdown("---")
-                    st.write("⚙️ **Modify Academic Placements**")
-                    col_e7, col_e8, col_e9 = st.columns(3)
-                    with col_e7: edit_session = st.text_input("Update Session:", value=str(current_target_row["session"] or ""))
-                    with col_e8: edit_system = st.text_input("Update Academic System:", value=str(current_target_row["academic_system"] or ""))
-                    with col_e9: edit_class = st.text_input("Update Class Level:", value=str(current_target_row["class_level"] or ""))
-                    
-                    col_e10, col_e11, col_e12 = st.columns(3)
-                    with col_e10: edit_discipline = st.text_input("Update Discipline:", value=str(current_target_row["discipline"] or ""))
-                    with col_e11: edit_sec = st.text_input("Update Section:", value=str(current_target_row["section"] or "")).upper()
-                    with col_e12: edit_roll = st.number_input("Update Class arrangement No.", value=int(current_target_row["roll_no"] or 1), min_value=1)
-                    
-                    save_student_edits = st.form_submit_button("💾 Save Profile Modification Changes", type="primary")
-                    if save_student_edits:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE students 
-                                    SET student_name = :name, father_name = :fname, whatsapp_no = :whatsapp, 
-                                        student_no = :sno, contact_1 = :c1, contact_2 = :c2, home_address = :addr,
-                                        session = :sess, academic_system = :sys, class_level = :class_lvl, 
-                                        discipline = :disc, section = :sec, roll_no = :roll
-                                    WHERE student_id = :sid
-                                """), {
-                                    "name": edit_name, "fname": edit_fname, "whatsapp": edit_whatsapp,
-                                    "sno": edit_sno, "c1": edit_c1, "c2": edit_c2, "addr": edit_addr,
-                                    "sess": edit_session, "sys": edit_system, "class_lvl": edit_class, 
-                                    "disc": edit_discipline, "sec": edit_sec, "roll": edit_roll, "sid": target_id
-                                })
-                            st.success("🎉 Student record updated cleanly inside the relational directory!")
-                            time.sleep(0.5)
-                            st.rerun()
-                        except Exception as e: 
-                            st.error(f"❌ Modification processing failed: {e}")
-            else: 
-                st.info("No matching student profile entries discovered.")
+        # 2. Force the user to select a session first
+        selected_search_session = st.selectbox("📁 Step 1: Select Active Academic Session to Search Within:", options=sessions_list, key="edit_search_session_filter")
+        
+        if selected_search_session == "-- Select Session --":
+            st.info("💡 Please select an academic session from the dropdown above to enable profile searching.")
+        else:
+            # 3. Session is selected, now display the search bar
+            search_term = st.text_input("🔍 Step 2: Search Student Profile by Name:", key="student_workspace_search", placeholder="Type student name here...")
+            
+            if search_term:
+                # Query filtered strictly by both student_name and selected session
+                matched_students = run_query("""
+                    SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, 
+                           contact_1, contact_2, home_address, session, academic_system, class_level, discipline, section 
+                    FROM students 
+                    WHERE student_name LIKE :search AND session = :sess
+                """, {"search": f"%{search_term}%", "sess": selected_search_session})
 
+                if not matched_students.empty:
+                    student_options = [
+                        f"{row['student_id']} - ID: {row['student_id']} | {row['student_name']} s/o {row['father_name']}"
+                        for _, row in matched_students.iterrows()
+                    ]
+                    selected_edit_target = st.selectbox("Select Target Record to Update:", student_options)
+                    target_id = selected_edit_target.split(" - ")[0]
+                    current_target_row = matched_students[matched_students["student_id"] == target_id].iloc[0]
+                    
+                    with st.form("edit_student_data_form"):
+                        col_e1, col_e2, col_e3 = st.columns(3)
+                        with col_e1: edit_name = st.text_input("Modify Name:", value=current_target_row["student_name"])
+                        with col_e2: edit_fname = st.text_input("Modify Father Name:", value=current_target_row["father_name"])
+                        with col_e3: edit_whatsapp = st.text_input("Modify WhatsApp Number:", value=str(current_target_row["whatsapp_no"] or ""))
+                        
+                        col_e4, col_e5, col_e6 = st.columns(3)
+                        with col_e4: edit_sno = st.text_input("Modify Mobile Number:", value=str(current_target_row["student_no"] or ""))
+                        with col_e5: edit_c1 = st.text_input("Modify Contact-1:", value=str(current_target_row["contact_1"] or ""))
+                        with col_e6: edit_c2 = st.text_input("Modify Contact-2:", value=str(current_target_row["contact_2"] or ""))
+                        
+                        edit_addr = st.text_input("Modify Home Address:", value=str(current_target_row["home_address"] or ""))
+                        
+                        st.markdown("---")
+                        st.write("⚙️ **Modify Academic Placements**")
+                        col_e7, col_e8, col_e9 = st.columns(3)
+                        with col_e7: edit_session = st.text_input("Update Session:", value=str(current_target_row["session"] or ""), disabled=True)
+                        with col_e8: edit_system = st.text_input("Update Academic System:", value=str(current_target_row["academic_system"] or ""))
+                        with col_e9: edit_class = st.text_input("Update Class Level:", value=str(current_target_row["class_level"] or ""))
+                        
+                        col_e10, col_e11, col_e12 = st.columns(3)
+                        with col_e10: edit_discipline = st.text_input("Update Discipline:", value=str(current_target_row["discipline"] or ""))
+                        with col_e11: edit_sec = st.text_input("Update Section:", value=str(current_target_row["section"] or "")).upper()
+                        with col_e12: edit_roll = st.number_input("Update Class arrangement No.", value=int(current_target_row["roll_no"] or 1), min_value=1)
+                        
+                        save_student_edits = st.form_submit_button("💾 Save Profile Modification Changes", type="primary")
+                        if save_student_edits:
+                            try:
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        UPDATE students 
+                                        SET student_name = :name, father_name = :fname, whatsapp_no = :whatsapp, 
+                                            student_no = :sno, contact_1 = :c1, contact_2 = :c2, home_address = :addr,
+                                            session = :sess, academic_system = :sys, class_level = :class_lvl, 
+                                            discipline = :disc, section = :sec, roll_no = :roll
+                                        WHERE student_id = :sid
+                                    """), {
+                                        "name": edit_name, "fname": edit_fname, "whatsapp": edit_whatsapp,
+                                        "sno": edit_sno, "c1": edit_c1, "c2": edit_c2, "addr": edit_addr,
+                                        "sess": edit_session, "sys": edit_system, "class_lvl": edit_class, 
+                                        "disc": edit_discipline, "sec": edit_sec, "roll": edit_roll, "sid": target_id
+                                    })
+                                st.success("🎉 Student record updated cleanly inside the database directory!")
+                                time.sleep(0.5)
+                                st.rerun()
+                            except Exception as e: 
+                                st.error(f"❌ Modification processing failed: {e}")
+                else: 
+                    st.warning(f"❌ No matching student profile entries found for '{search_term}' within Session: {selected_search_session}.")
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
