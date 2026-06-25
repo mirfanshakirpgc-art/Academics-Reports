@@ -1072,15 +1072,11 @@ def render_student_management_workspace():
         st.markdown("---")
 
 # ==============================================================================
-# TAB 3: SEARCH & EDIT (WITH INPUT CLEANING & DIAGNOSTICS)
+# TAB 3: SEARCH & EDIT (WITH ADVANCED STRUCTURAL OPERATIONS)
 # ==============================================================================
     with tab3:
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
 
-        # Pull reference indices dynamically from Tab 1 Structural Variables
-        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-        ...
-        
         # Pull reference indices dynamically from Tab 1 Structural Variables
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
@@ -1117,14 +1113,12 @@ def render_student_management_workspace():
         with col_s4:
             if search_class != "-- Select Class --":
                 try:
-                    # 🎯 FIXED: Changed column from discipline_name to discipline_title
                     disc_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
                     if not disc_df.empty:
                         disc_list = ["-- Select Discipline --"] + disc_df['discipline_title'].tolist()
                     else:
                         disc_list = ["-- Select Discipline --", "Medical"]
                 except Exception as e:
-                    # Temporary debug error if something goes wrong
                     st.sidebar.error(f"Discipline query failed: {e}")
                     disc_list = ["-- Select Discipline --", "Medical"]
                     
@@ -1207,7 +1201,7 @@ def render_student_management_workspace():
                         st.error(f"Could not read table structure: {diag_err}")
             else:
                 # ------------------------------------------------------------------
-                # WORKSPACE ACTION A: BATCH EDIT ENTIRE SECTION
+                # WORKSPACE ACTION A: BATCH EDIT ENTIRE SECTION (INLINE GRID)
                 # ------------------------------------------------------------------
                 if edit_scope == "📊 Batch Edit Entire Section":
                     st.markdown(f"#### 📊 Batch Grid: `{search_class} ({search_sec})` — {search_discipline} ({search_system})")
@@ -1312,7 +1306,7 @@ def render_student_management_workspace():
                                 with col_e7: edit_c2 = st.text_input("Alternative Contact-2:", value=str(student_data['contact_2'] or '') if pd.notna(student_data['contact_2']) and str(student_data['contact_2']) != 'None' else '')
                                 with col_e8: edit_addr = st.text_input("Home Address:", value=str(student_data['home_address'] or '') if pd.notna(student_data['home_address']) and str(student_data['home_address']) != 'None' else '')
                                 
-                                submit_edit = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
+                                submit_edit = st.form_submit_button("💾 Save Profile Field Changes", type="primary", use_container_width=True)
                                 
                                 if submit_edit:
                                     if not edit_name.strip() or not edit_fname.strip() or not edit_c1.strip():
@@ -1345,6 +1339,125 @@ def render_student_management_workspace():
                                             st.rerun()
                                         except Exception as update_err:
                                             st.error(f"❌ Database Error: {update_err}")
+
+                # ==============================================================================
+                # 🛠️ ADMINISTRATIVE STRUCTURAL OPERATIONS ENGINE (FOR SINGLE OR FULL SECTION)
+                # ==============================================================================
+                st.markdown("---")
+                st.markdown("### 🛠️ Structural Actions Panel")
+                st.caption("Apply bulk structural migrations, section re-allocations, cycle promotions, or drop entries.")
+                
+                # Setup operational scope variables safely
+                target_student_id = None
+                target_student_name = ""
+                
+                if edit_scope == "✨ Modify Single Student":
+                    if 'target_id' in locals() and not filtered_df.empty:
+                        target_student_id = target_id
+                        target_student_name = student_data['student_name']
+                        st.info(f"Targeting profile: **{target_student_name}** (`ID: {target_student_id}`) Only")
+                    else:
+                        st.warning("⚠️ Please select a student profile above to target structural changes.")
+                else:
+                    st.warning(f"⚠️ **ATTENTION:** Operating on **ALL {len(matched_students)} Students** within class `{search_class} ({search_sec})` simultaneously.")
+
+                # Action Choice Router
+                admin_action = st.selectbox(
+                    "Select Administrative Operation:",
+                    options=[
+                        "-- Select Structural Action --",
+                        "🔄 Section Change",
+                        "📅 Session Change",
+                        "🏛️ Academic System Change",
+                        "📈 Class Change",
+                        "🚀 Promote Students",
+                        "❌ Delete from System"
+                    ],
+                    key="admin_structural_action_router"
+                )
+
+                if admin_action != "-- Select Structural Action --":
+                    # Fetch database reference items for dropdowns dynamically
+                    sess_opts = run_query("SELECT DISTINCT session_name FROM sessions")['session_name'].tolist() if not run_query("SELECT DISTINCT session_name FROM sessions").empty else []
+                    sys_opts = run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist() if not run_query("SELECT DISTINCT system_name FROM academic_systems").empty else []
+                    cls_opts = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")['class_level'].tolist() if not run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC").empty else []
+                    sec_opts = run_query("SELECT DISTINCT section_name FROM sections")['section_name'].tolist() if not run_query("SELECT DISTINCT section_name FROM sections").empty else []
+
+                    # Block container for updating configurations securely
+                    with st.form("structural_modification_execution_form"):
+                        query_template = ""
+                        params = {}
+
+                        # Setup standard target query routing clauses
+                        if edit_scope == "✨ Modify Single Student":
+                            if not target_student_id:
+                                st.error("No valid student targeted.")
+                                st.form_submit_button("Execution Locked", disabled=True)
+                                raise ValueError("Target profile missing.")
+                            scope_clause = "WHERE student_id = :tgt_id"
+                            params["tgt_id"] = target_student_id
+                        else:
+                            scope_clause = "WHERE LOWER(TRIM(session)) = LOWER(TRIM(:cur_sess)) AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:cur_sys)) AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cur_cls)) AND LOWER(TRIM(discipline)) = LOWER(TRIM(:cur_disc)) AND LOWER(TRIM(section)) = LOWER(TRIM(:cur_sec))"
+                            params.update({
+                                "cur_sess": search_session, "cur_sys": search_system,
+                                "cur_cls": search_class, "cur_disc": search_discipline, "cur_sec": search_sec
+                            })
+
+                        # 1. SECTION CHANGE
+                        if admin_action == "🔄 Section Change":
+                            new_val = st.selectbox("Select New Target Section:", options=sec_opts)
+                            query_template = f"UPDATE students SET section = :new_val {scope_clause}"
+                            params["new_val"] = new_val
+
+                        # 2. SESSION CHANGE
+                        elif admin_action == "📅 Session Change":
+                            new_val = st.selectbox("Select New Target Session Cycle:", options=sess_opts)
+                            query_template = f"UPDATE students SET session = :new_val {scope_clause}"
+                            params["new_val"] = new_val
+
+                        # 3. ACADEMIC SYSTEM CHANGE
+                        elif admin_action == "🏛️ Academic System Change":
+                            new_val = st.selectbox("Select New Academic System Scheme:", options=sys_opts)
+                            query_template = f"UPDATE students SET academic_system = :new_val {scope_clause}"
+                            params["new_val"] = new_val
+
+                        # 4. CLASS CHANGE
+                        elif admin_action == "📈 Class Change":
+                            new_val = st.selectbox("Select New Target Class Level:", options=cls_opts)
+                            query_template = f"UPDATE students SET class_level = :new_val {scope_clause}"
+                            params["new_val"] = new_val
+
+                        # 5. PROMOTE STUDENTS
+                        elif admin_action == "🚀 Promote Students":
+                            st.write("💡 Promotions migrate records into a new Session AND Class level simultaneously.")
+                            col_p1, col_p2 = st.columns(2)
+                            p_sess = col_p1.selectbox("Select Next Cycle Session:", options=sess_opts)
+                            p_cls = col_p2.selectbox("Select Next Grade Class Level:", options=cls_opts)
+                            query_template = f"UPDATE students SET session = :p_sess, class_level = :p_cls {scope_clause}"
+                            params["p_sess"] = p_sess
+                            params["p_cls"] = p_cls
+
+                        # 6. DELETE FROM SYSTEM
+                        elif admin_action == "❌ Delete from System":
+                            st.error("⚠️ CRITICAL SECURITY WARNING: Deletion is absolute and permanent!")
+                            confirm_delete = st.checkbox("I verify I want to purge these student record entries from the core database.")
+                            query_template = f"DELETE FROM students {scope_clause}"
+
+                        # Submission Engine
+                        commit_action = st.form_submit_button("🔥 Commit Administrative Update", type="primary", use_container_width=True)
+
+                        if commit_action:
+                            if admin_action == "❌ Delete from System" and not confirm_delete:
+                                st.warning("🔒 Transaction aborted: You must check the security confirmation box first.")
+                            else:
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text(query_template), params)
+                                    st.success("🎉 Administrative structural transaction executed successfully!")
+                                    time.sleep(0.6)
+                                    st.rerun()
+                                except Exception as admin_err:
+                                    st.error(f"❌ Structural Update Interrupted: {admin_err}")
         else:
             st.warning("⏳ Please complete setting all 5 Academic Placement drop-down targets above to filter student data profiles.")
                 # ------------------------------------------------------------------
