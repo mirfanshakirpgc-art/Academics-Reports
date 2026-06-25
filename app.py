@@ -836,25 +836,25 @@ def render_student_management_workspace():
             with st.form("student_profile_text_fields_form"):
                 col1, col2, col3 = st.columns(3)
                 with col1: 
-                    new_id = st.text_input("1. Student ID / Registration No:*", value=st.session_state["new_id"], placeholder="e.g., STU-2026-001").strip().upper()
+                    new_id = st.text_input("1. Student ID / Registration No:*", value=st.session_state["new_id"], key="new_id_input", placeholder="e.g., STU-2026-001").strip().upper()
                 with col2: 
-                    new_name = st.text_input("2. Student Full Name:*", value=st.session_state["new_name"], placeholder="e.g., John Doe").strip()
+                    new_name = st.text_input("2. Student Full Name:*", value=st.session_state["new_name"], key="new_name_input", placeholder="e.g., John Doe").strip()
                 with col3: 
-                    father_name = st.text_input("3. Student's Father Name:*", value=st.session_state["father_name"], placeholder="e.g., Robert Doe").strip()
+                    father_name = st.text_input("3. Student's Father Name:*", value=st.session_state["father_name"], key="father_name_input", placeholder="e.g., Robert Doe").strip()
                 
                 col4, col5, col6 = st.columns(3)
                 with col4: 
-                    whatsapp_no = st.text_input("4. WhatsApp Number:", value=st.session_state["whatsapp_no"], placeholder="e.g., +923001234567").strip()
+                    whatsapp_no = st.text_input("4. WhatsApp Number:", value=st.session_state["whatsapp_no"], key="whatsapp_no_input", placeholder="e.g., +923001234567").strip()
                 with col5: 
-                    student_no = st.text_input("5. Student Mobile Number:", value=st.session_state["student_no"], placeholder="e.g., +923151234567").strip()
+                    student_no = st.text_input("5. Student Mobile Number:", value=st.session_state["student_no"], key="student_no_input", placeholder="e.g., +923151234567").strip()
                 with col6: 
-                    contact_1 = st.text_input("6. Emergency Contact-1:*", value=st.session_state["contact_1"], placeholder="e.g., Mother's Mobile").strip()
+                    contact_1 = st.text_input("6. Emergency Contact-1:*", value=st.session_state["contact_1"], key="contact_1_input", placeholder="e.g., Mother's Mobile").strip()
                 
                 col7, col8 = st.columns([1, 2])
                 with col7: 
-                    contact_2 = st.text_input("7. Alternative Contact-2:", value=st.session_state["contact_2"], placeholder="e.g., Guardian/Landline").strip()
+                    contact_2 = st.text_input("7. Alternative Contact-2:", value=st.session_state["contact_2"], key="contact_2_input", placeholder="e.g., Guardian/Landline").strip()
                 with col8: 
-                    home_address = st.text_input("8. Home Address:", value=st.session_state["home_address"], placeholder="e.g., House #123, Street 5").strip()
+                    home_address = st.text_input("8. Home Address:", value=st.session_state["home_address"], key="home_address_input", placeholder="e.g., House #123, Street 5").strip()
                 
                 st.markdown("<small style='color: gray;'>* Indicates a mandatory field.</small>", unsafe_allow_html=True)
                 
@@ -875,11 +875,16 @@ def render_student_management_workspace():
                                     "sno": student_no or None, "c1": contact_1, "c2": contact_2 or None, "addr": home_address or None,
                                     "sess": new_session, "sys": new_system, "class_lvl": new_class, "disc": new_discipline, "sec": new_sec, "roll": new_roll
                                 })
+                                # Force database sync explicitly
+                                conn.commit()
+                                
                             st.success(f"🎉 Student node successfully registered: {new_name} added successfully!")
                             
-                            # Reset session state memory registers
+                            # Clear session state cache registers cleanly
                             for field in ["new_id", "new_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address"]:
                                 st.session_state[field] = ""
+                                
+                            import time
                             time.sleep(1.0)
                             st.rerun()
                         except Exception as e: 
