@@ -13,7 +13,9 @@ st.set_page_config(
     layout="wide"
 )
 
-DB_URL = "sqlite:///academics.db" 
+# --- SUPABASE CONNECTION CONFIGURATION ---
+# ⚠️ Replace 'YOUR_DB_PASSWORD' with the actual database password you set in Supabase!
+DB_URL = "postgresql://postgres.qykueriwcvgxsbxbbtso:YOUR_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
 @st.cache_resource
 def get_db_engine():
@@ -27,35 +29,35 @@ def init_db():
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 session_name TEXT NOT NULL,
                 status TEXT NOT NULL
             );
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS academic_systems (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 system_name TEXT NOT NULL,
                 description TEXT
             );
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS classes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 class_level TEXT NOT NULL,
                 sort_order INTEGER
             );
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 section_name TEXT NOT NULL,
                 max_capacity INTEGER
             );
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS subjects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 subject_name TEXT NOT NULL,
                 subject_code TEXT NOT NULL,
                 credit_hours INTEGER
@@ -63,7 +65,7 @@ def init_db():
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS test_types (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 test_title TEXT NOT NULL,
                 total_marks INTEGER,
                 weightage INTEGER
@@ -71,7 +73,7 @@ def init_db():
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS disciplines (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 discipline_title TEXT NOT NULL,
                 short_code TEXT NOT NULL
             );
@@ -85,6 +87,8 @@ def init_db():
             );
         """))
         
+        # Explicitly flush the creation operations out to Supabase
+        conn.commit()
         # ----------------------------------------------------------------------
         # CRITICAL RE-INITIALIZATION TRIGGER
         # ----------------------------------------------------------------------
