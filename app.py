@@ -84,6 +84,14 @@ def init_db():
                 email TEXT
             );
         """))
+        
+        # ----------------------------------------------------------------------
+        # CRITICAL RE-INITIALIZATION TRIGGER
+        # ----------------------------------------------------------------------
+        # Wipes the old outmoded table schema structure to clear OperationalErrors.
+        # COMMENT OUT OR REMOVE THIS DROP LINE AFTER YOUR FIRST SUCCESSFUL SUBMISSION!
+        conn.execute(text("DROP TABLE IF EXISTS students;"))
+        
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 student_id TEXT PRIMARY KEY,
