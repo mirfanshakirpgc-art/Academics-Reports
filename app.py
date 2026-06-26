@@ -1358,66 +1358,155 @@ def render_student_management_workspace():
                                         st.rerun()
                                     except Exception as admin_err:
                                         st.error(f"❌ Structural Update Interrupted: {admin_err}")
-                # ------------------------------------------------------------------
-                # WORKSPACE ACTION A: BATCH EDIT ENTIRE SECTION
-                # ------------------------------------------------------------------
+                                        
+import datetime
+import pandas as pd
+import streamlit as st
+from sqlalchemy import text
+
 def render_universal_attendance_workspace():
     """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
-    st.info("🔓 Unrestricted administrative view enabled. You can monitor or verify attendance for all sections.")
+    st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, or override attendance maps for all sections.")
     
-    try:
-        available_classes = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC")['class_level'].tolist()
-        if not available_classes:
-            available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
-    except Exception:
-        available_classes = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11th", "12th"]
+    # ==============================================================================
+    # 📑 STEP 1: CASCADING ACADEMIC PLATFORM FILTERS
+    # ==============================================================================
+    sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+    sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+    
+    col_u1, col_u2, col_u3, col_u4 = st.columns(4)
+    
+    with col_u1:
+        sel_session = st.selectbox("1. Session Cycle:*", options=sessions_list, key="att_sess")
 
-    col_u1, col_u2, col_u3 = st.columns(3)
-    with col_u1: sel_class = st.selectbox("Target Class Scope:", available_classes, key="uni_class")
-    with col_u2: sel_section = st.text_input("Target Section Scope:", value="A", max_chars=2, key="uni_sec").upper()
-    with col_u3: attendance_date = st.date_input("Attendance Log Date:", value=time.strftime("%Y-%m-%d"), key="uni_date")
+    with col_u2:
+        if sel_session != "-- Select Session --":
+            systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+            systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+            sel_system = st.selectbox("2. Academic System:*", options=systems_list, key="att_sys")
+        else:
+            st.selectbox("2. Academic System:", ["🔒 Waiting..."], disabled=True, key="att_sys_dis")
+            sel_system = "-- Select System --"
+
+    with col_u3:
+        if sel_system != "-- Select System --":
+            classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+            classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+            sel_class = st.selectbox("3. Target Class:*", options=classes_list, key="att_cls")
+        else:
+            st.selectbox("3. Target Class:", ["🔒 Waiting..."], disabled=True, key="att_cls_dis")
+            sel_class = "-- Select Class --"
+
+    with col_u4:
+        if sel_class != "-- Select Class --":
+            sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+            sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+            sel_section = st.selectbox("4. Section Track:*", options=sections_list, key="att_sec")
+        else:
+            st.selectbox("4. Section Track:", ["🔒 Waiting..."], disabled=True, key="att_sec_dis")
+            sel_section = "-- Select Section --"
+
+    # Separate control block line for the operational log target date
+    col_date, _ = st.columns([1, 3])
+    with col_date:
+        attendance_date = st.date_input("Attendance Log Date:", value=datetime.date.today(), key="uni_date")
         
     st.markdown("---")
     
-    try:
-        students_df = run_query("""
-            SELECT id AS student_id, roll_no, student_name 
-            FROM students 
-            WHERE class_level = :class_val AND section = :sec_val
-            ORDER BY roll_no ASC
-        """, {"class_val": sel_class, "sec_val": sel_section})
-    except Exception:
-        students_df = pd.DataFrame([
-            {"student_id": "STU-001", "roll_no": 1, "student_name": "Universal Student A"},
-            {"student_id": "STU-002", "roll_no": 2, "student_name": "Universal Student B"}
-        ])
-        st.caption("⚠️ Displaying structural simulation data. Connect 'students' table to view live records.")
-        
-    if not students_df.empty:
-        with st.form("universal_attendance_submission_form"):
-            attendance_records = []
-            for idx, row in students_df.iterrows():
-                col_roll, col_name, col_status, col_remarks = st.columns([1, 3, 2, 4])
+    # ==============================================================================
+    # 📋 STEP 2: STUDENT POPULATION AND REGISTER INTERFACE
+    # ==============================================================================
+    # Only pull student roster if all 4 parameters are explicitly selected
+    if "-- Select" not in f"{sel_session}{sel_system}{sel_class}{sel_section}":
+        try:
+            students_df = run_query("""
+                SELECT student_id, roll_no, student_name 
+                FROM students 
+                WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess_val))
+                  AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys_val))
+                  AND LOWER(TRIM(class_level)) = LOWER(TRIM(:class_val)) 
+                  AND LOWER(TRIM(section)) = LOWER(TRIM(:sec_val))
+                ORDER BY roll_no ASC
+            """, {
+                "sess_val": sel_session,
+                "sys_val": sel_system,
+                "class_val": sel_class, 
+                "sec_val": sel_section
+            })
+        except Exception:
+            # Structurally valid simulation fallback block if table connectivity fails
+            students_df = pd.DataFrame([
+                {"student_id": "STU-DEMO-01", "roll_no": 1, "student_name": "Demo Student Alpha"},
+                {"student_id": "STU-DEMO-02", "roll_no": 2, "student_name": "Demo Student Beta"}
+            ])
+            st.caption("⚠️ Displaying structural simulation layout data. Sync table constraints to link active rosters.")
+            
+        if not students_df.empty:
+            st.write(f"### 📋 Attendance Register: `{sel_class} - {sel_section}` ({attendance_date})")
+            
+            with st.form("universal_attendance_submission_form"):
+                attendance_records = []
                 
-                with col_roll: st.write(f"**Roll #{row['roll_no']}**")
-                with col_name: st.write(row['student_name'])
-                with col_status: 
-                    status = st.radio(f"U_Status_{row['student_id']}", ["Present", "Absent"], horizontal=True, label_visibility="collapsed", key=f"radio_status_{row['student_id']}")
-                with col_remarks:
-                    if status == "Absent":
-                        remarks = st.text_input("Absent Remarks", placeholder="⚠️ Enter reason", key=f"urem_{row['student_id']}", label_visibility="collapsed")
+                for idx, row in students_df.iterrows():
+                    col_roll, col_name, col_status, col_remarks = st.columns([1, 3, 2, 4])
+                    
+                    with col_roll: 
+                        st.write(f"**Roll #{row['roll_no']}**")
+                    with col_name: 
+                        st.write(row['student_name'])
+                    with col_status: 
+                        status = st.radio(
+                            f"Status_{row['student_id']}", 
+                            ["Present", "Absent"], 
+                            horizontal=True, 
+                            label_visibility="collapsed", 
+                            key=f"radio_status_{row['student_id']}"
+                        )
+                    with col_remarks:
+                        if status == "Absent":
+                            remarks = st.text_input("Absent Remarks", placeholder="⚠️ Enter reason...", key=f"urem_{row['student_id']}", label_visibility="collapsed")
+                        else:
+                            remarks = st.text_input("Absent Remarks", value="—", disabled=True, key=f"urem_{row['student_id']}", label_visibility="collapsed")
+                    
+                    attendance_records.append({
+                        "student_id": row['student_id'], 
+                        "status": status, 
+                        "remarks": remarks if status == "Absent" else "",
+                        "att_date": attendance_date
+                    })
+                    st.markdown("<hr style='margin:0.2em; border-color:#f0f2f6;'>", unsafe_allow_html=True)
+                    
+                submit_attendance = st.form_submit_button("💾 Save & Commit Section Attendance Register (Admin Override)", type="primary", use_container_width=True)
+                
+                # ==============================================================================
+                # 💾 STEP 3: TRANSACTIONAL DATABASE TRANSACTION
+                # ==============================================================================
+                if submit_attendance:
+                    if attendance_records:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO attendance (
+                                        student_id, date, status, remarks
+                                    ) VALUES (
+                                        :student_id, :att_date, :status, :remarks
+                                    )
+                                    ON CONFLICT(student_id, date) DO UPDATE SET
+                                        status = EXCLUDED.status,
+                                        remarks = EXCLUDED.remarks;
+                                """), attendance_records)
+                            
+                            st.success(f"🎉 Attendance register saved and synced securely for session target date {attendance_date}!")
+                            st.rerun()
+                        except Exception as db_err:
+                            st.error(f"❌ Structural write operation aborted: {db_err}")
                     else:
-                        remarks = st.text_input("Absent Remarks", value="—", disabled=True, key=f"urem_{row['student_id']}", label_visibility="collapsed")
-                
-                attendance_records.append({"student_id": row['student_id'], "status": status, "remarks": remarks if status == "Absent" else ""})
-                st.markdown("<hr style='margin:0.2em; border-color:#f0f2f6;'>", unsafe_allow_html=True)
-                
-            submit_attendance = st.form_submit_button("💾 Save & Commit Section Attendance Register (Admin Override)", type="primary", use_container_width=True)
-            if submit_attendance:
-                st.success(f"🎉 Attendance override map successfully executed for {attendance_date}!")
-    else: 
-        st.info(f"No student profiles are mapped to Class {sel_class}-{sel_section}.")
+                        st.warning("⚠️ Operational array empty. No data payload found to sync.")
+        else: 
+            st.info(f"ℹ️ No active student profile rows are registered under `{sel_session} ➡️ {sel_class}-{sel_section}` components.")
+    else:
+        st.warning("⏳ Please finish setting up all 4 cascading placement targets above to query section attendance metrics.")
 
 
 def render_universal_marks_entry_workspace():
