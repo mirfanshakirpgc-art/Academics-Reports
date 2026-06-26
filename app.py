@@ -1365,9 +1365,9 @@ import streamlit as st
 from sqlalchemy import text
 
 def render_universal_attendance_workspace():
-    """Shared workspace allowing unrestricted global access to all sections for attendance processing."""
+    """Shared workspace allowing unrestricted global access to all sections for attendance processing and reporting."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
-    st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, or override attendance maps.")
+    st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, override, or export attendance maps.")
     
     # ==============================================================================
     # 🛠️ DATABASE SCHEMA INITIALIZATION
@@ -1395,7 +1395,7 @@ def render_universal_attendance_workspace():
     # ==============================================================================
     workspace_mode = st.radio(
         "Select Operation Scope:",
-        ["Process Bulk Section Register", "Mark Single Student Attendance"],
+        ["Process Bulk Section Register", "Mark Single Student Attendance", "📊 Generate & Print Reports"],
         horizontal=True,
         key="attendance_scope_mode"
     )
@@ -1403,9 +1403,117 @@ def render_universal_attendance_workspace():
     st.markdown("---")
 
     # ==============================================================================
-    # 🎯 MODE A: MARK SINGLE STUDENT ATTENDANCE
+    # 📊 MODE C: GENERATE & PRINT ATTENDANCE REPORTS
     # ==============================================================================
-    if workspace_mode == "Mark Single Student Attendance":
+    if workspace_mode == "📊 Generate & Print Reports":
+        st.markdown("### 🖨️ Attendance Report Generator Engine")
+        
+        report_scope = st.radio("Report Scope:", ["Single Section View", "All Sections Master View"], horizontal=True)
+        
+        col_r1, col_r2 = st.columns([1, 1])
+        with col_r1:
+            target_report_date = st.date_input("Select Target Report Date:", value=datetime.date.today(), key="rpt_date")
+            
+        if report_scope == "Single Section View":
+            st.markdown("##### Filter Targets for Single Section Export:")
+            sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+            sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+            
+            col_u1, col_u2, col_u3, col_u4, col_u5 = st.columns(5)
+            with col_u1: sel_session = st.selectbox("1. Session:", options=sessions_list, key="rpt_sess")
+            with col_u2:
+                if sel_session != "-- Select Session --":
+                    systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
+                    systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                    sel_system = st.selectbox("2. System:", options=systems_list, key="rpt_sys")
+                else:
+                    st.selectbox("2. System:", ["🔒 Waiting..."], disabled=True, key="rpt_sys_dis")
+                    sel_system = "-- Select System --"
+            with col_u3:
+                if sel_system != "-- Select System --":
+                    classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+                    classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                    sel_class = st.selectbox("3. Class:", options=classes_list, key="rpt_cls")
+                else:
+                    st.selectbox("3. Class:", ["🔒 Waiting..."], disabled=True, key="rpt_cls_dis")
+                    sel_class = "-- Select Class --"
+            with col_u4:
+                if sel_class != "-- Select Class --":
+                    disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
+                    disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                    sel_discipline = st.selectbox("4. Discipline:", options=disciplines_list, key="rpt_disc")
+                else:
+                    st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="rpt_disc_dis")
+                    sel_discipline = "-- Select Discipline --"
+            with col_u5:
+                if sel_discipline != "-- Select Discipline --":
+                    sections_df = run_query("SELECT DISTINCT section_name FROM sections")
+                    sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                    sel_section = st.selectbox("5. Section:", options=sections_list, key="rpt_sec")
+                else:
+                    st.selectbox("5. Section:", ["🔒 Waiting..."], disabled=True, key="rpt_sec_dis")
+                    sel_section = "-- Select Section --"
+
+            if "-- Select" not in f"{sel_session}{sel_system}{sel_class}{sel_discipline}{sel_section}":
+                report_df = run_query("""
+                    SELECT s.roll_no AS [Roll No], s.student_name AS [Student Name], 
+                           COALESCE(a.status, 'Not Marked') AS [Status], COALESCE(a.remarks, '—') AS [Remarks],
+                           s.contact_1 AS [Primary Contact]
+                    FROM students s
+                    LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
+                    WHERE LOWER(TRIM(s.session)) = LOWER(TRIM(:sess))
+                      AND LOWER(TRIM(s.academic_system)) = LOWER(TRIM(:sys))
+                      AND LOWER(TRIM(s.class_level)) = LOWER(TRIM(:cls))
+                      AND LOWER(TRIM(s.discipline)) = LOWER(TRIM(:disc))
+                      AND LOWER(TRIM(s.section)) = LOWER(TRIM(:sec))
+                    ORDER BY s.roll_no ASC
+                """, {"dt": target_report_date, "sess": sel_session, "sys": sel_system, "cls": sel_class, "disc": sel_discipline, "sec": sel_section})
+                
+                if not report_df.empty:
+                    st.markdown(f"#### 📄 Attendance Sheet: `{sel_class} - {sel_section}` for **{target_report_date}**")
+                    st.dataframe(report_df, use_container_width=True)
+                    
+                    csv_data = report_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download & Print Section Report (CSV)",
+                        data=csv_data,
+                        file_name=f"Attendance_{sel_class}_{sel_section}_{target_report_date}.csv",
+                        mime="text/csv",
+                        type="primary"
+                    )
+                else:
+                    st.info("ℹ️ No records found matching this configuration target.")
+                    
+        else:  # All Sections Master View
+            master_df = run_query("""
+                SELECT s.session AS [Session], s.academic_system AS [System], 
+                       s.class_level AS [Class], s.section AS [Section], s.roll_no AS [Roll No], 
+                       s.student_name AS [Student Name], COALESCE(a.status, 'Not Marked') AS [Status], 
+                       COALESCE(a.remarks, '—') AS [Remarks]
+                FROM students s
+                LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
+                ORDER BY s.session, s.class_level, s.section, s.roll_no ASC
+            """, {"dt": target_report_date})
+            
+            if not master_df.empty:
+                st.markdown(f"#### 🌍 Master Campus-Wide Attendance Sheet for **{target_report_date}**")
+                st.dataframe(master_df, use_container_width=True)
+                
+                master_csv = master_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download & Print Campus Master Sheet (CSV)",
+                    data=master_csv,
+                    file_name=f"Master_Attendance_{target_report_date}.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
+            else:
+                st.info("ℹ️ No records registered globally in the system roster.")
+
+    # ==============================================================================
+    # 🎯 MODE B: MARK SINGLE STUDENT ATTENDANCE
+    # ==============================================================================
+    elif workspace_mode == "Mark Single Student Attendance":
         st.markdown("### 🔍 Single Student Attendance Override")
         
         col_s1, col_s2 = st.columns([2, 1])
@@ -1415,7 +1523,6 @@ def render_universal_attendance_workspace():
             single_date = st.date_input("Attendance Target Date:", value=datetime.date.today(), key="single_att_date")
             
         if search_id:
-            # Query student details to verify section assignment and context
             student_profile = run_query("""
                 SELECT student_id, student_name, session, academic_system, class_level, section, roll_no, contact_1, whatsapp_no
                 FROM students 
@@ -1424,11 +1531,8 @@ def render_universal_attendance_workspace():
             
             if not student_profile.empty:
                 student = student_profile.iloc[0]
-                
-                # Render informational metadata badge card
                 st.success(f"🎯 **Student Profile Found:** {student['student_name']} (Roll #{student['roll_no']})")
                 
-                # Display target alignment properties
                 c_meta1, c_meta2, c_meta3 = st.columns(3)
                 c_meta1.markdown(f"🏫 **Class Group:** `{student['class_level']} - {student['section']}`")
                 c_meta2.markdown(f"📅 **Session Cycle:** `{student['session']}`")
@@ -1436,7 +1540,6 @@ def render_universal_attendance_workspace():
                 
                 st.markdown("##### Update Status Log")
                 with st.form("single_student_attendance_form"):
-                    # Check current status in DB if exists to pre-populate
                     current_log = run_query("""
                         SELECT status, remarks FROM attendance WHERE student_id = :sid AND date = :dt
                     """, {"sid": student['student_id'], "dt": single_date})
@@ -1477,7 +1580,7 @@ def render_universal_attendance_workspace():
                 st.error(f"❌ No student found matching ID tracking token '{search_id}'. Please check entry register.")
 
     # ==============================================================================
-    # 📋 MODE B: PROCESS BULK SECTION REGISTER (Your Existing Logic)
+    # 📋 MODE A: PROCESS BULK SECTION REGISTER
     # ==============================================================================
     else:
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
