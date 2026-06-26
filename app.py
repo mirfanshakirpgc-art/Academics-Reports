@@ -18,14 +18,17 @@ st.set_page_config(
 )
 
 # --- SUPABASE CONNECTION CONFIGURATION ---
-# 🛡️ FIXED: Clean checking sequence to guarantee connection string validity
 if "database" in st.secrets:
-    DB_URL = f"postgresql://{st.secrets['database']['username']}:{st.secrets['database']['password']}@{st.secrets['database']['host']}:{st.secrets['database']['port']}/{st.secrets['database']['database']}"
-elif "DATABASE_URL" in st.secrets:
-    DB_URL = st.secrets["DATABASE_URL"]
+    # 💡 ADVANCED NETWORK BYPASS: Force direct IPv4 pool routing
+    db_host = st.secrets['database']['host']
+    if db_host == "aws-0-ap-northeast-1.pooler.supabase.com":
+        # Hardcodes Supabase's underlying regional IPv4 address to bypass IPv6 blocks
+        db_host = "3.114.238.169" 
+        
+    DB_URL = f"postgresql://{st.secrets['database']['username']}:{st.secrets['database']['password']}@{db_host}:{st.secrets['database']['port']}/{st.secrets['database']['database']}"
 else:
-    # Set to None to prevent starting a connection loop that will crash the app engine
-    DB_URL = None
+    # Fallback checking string
+    DB_URL = st.secrets.get("DATABASE_URL", None)
 
 @st.cache_resource
 def get_db_engine():
