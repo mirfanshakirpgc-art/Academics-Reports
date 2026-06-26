@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.1.7
+# Force-rebuild anchor: v1.1.8
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- DIRECT COOPERATIVE POOLER ENGINE ---
+# --- CLEAN DATABASE ENGINE CONNECTION ---
 DB_URL = None
 
 if "database" in st.secrets:
@@ -19,17 +19,15 @@ if "database" in st.secrets:
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a connection engine optimized for dedicated regional pooler routing."""
+    """Generates a cached SQL connection engine pointing to Supabase."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
-    # We use connect_args to tell the driver to handle the connection parameters cleanly
     return create_engine(
         DB_URL, 
-        pool_pre_ping=True,
-        connect_args={"prepare_threshold": None}
+        pool_pre_ping=True
     )
 
-# --- CRITICAL FIX: Removed st.cache_resource.clear() from here to stop the infinite loop ---
+# Establish connection without loop-inducing resource clears
 engine = get_db_engine()
 
 def init_db():
