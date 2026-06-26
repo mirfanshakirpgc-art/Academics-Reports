@@ -1369,6 +1369,24 @@ def render_universal_attendance_workspace():
     st.subheader("🌐 Global Universal Attendance Control Desk")
     st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, or override attendance maps for all sections.")
     
+    # ==============================================================================
+    # 🛠️ DATABASE SCHEMA INITIALIZATION (FIXES THE "NO SUCH TABLE" ERROR)
+    # ==============================================================================
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id TEXT NOT NULL,
+                    date DATE NOT NULL,
+                    status TEXT NOT NULL,
+                    remarks TEXT,
+                    UNIQUE(student_id, date) -- Required for ON CONFLICT logic to operate smoothly
+                );
+            """))
+    except Exception as init_err:
+        st.error(f"⚠️ Structural initialization failed: {init_err}")
+
     # Initialize a clean temporary container for multi-step tracking inside memory logs
     if "active_absentee_ids" not in st.session_state:
         st.session_state.active_absentee_ids = []
@@ -1426,7 +1444,6 @@ def render_universal_attendance_workspace():
     # ==============================================================================
     if "-- Select" not in f"{sel_session}{sel_system}{sel_class}{sel_discipline}{sel_section}":
         try:
-            # Query active student metrics alongside phone listings securely
             students_df = run_query("""
                 SELECT student_id, roll_no, student_name, contact_1, contact_2, whatsapp_no, student_no
                 FROM students 
@@ -1450,7 +1467,6 @@ def render_universal_attendance_workspace():
             with st.form("attendance_checklist_form"):
                 status_mappings = {}
                 
-                # Table Headers
                 h_col1, h_col2, h_col3 = st.columns([1, 2, 5])
                 h_col1.markdown("**Roll #**")
                 h_col2.markdown("**Status Flag**")
@@ -1463,7 +1479,6 @@ def render_universal_attendance_workspace():
                     with col_roll:
                         st.write(f"#{row['roll_no']}")
                     with col_check:
-                        # Value default parameter is assigned True (Pre-checked/Present)
                         is_present = st.checkbox("Present", value=True, key=f"chk_{row['student_id']}", label_visibility="collapsed")
                     with col_name:
                         st.write(row['student_name'])
@@ -1508,7 +1523,6 @@ def render_universal_attendance_workspace():
                 st.error(f"⚠️ **Absentee Verification Workspace ({len(st.session_state.active_absentee_ids)} Students Missing)**")
                 st.caption("Review emergency calling cards and compile institutional grounds/remarks regarding their absence below.")
                 
-                # Isolate rows matching tracked absent IDs
                 absent_students_df = students_df[students_df['student_id'].isin(st.session_state.active_absentee_ids)]
                 
                 with st.form("absentee_remarks_and_contact_form"):
@@ -1517,13 +1531,11 @@ def render_universal_attendance_workspace():
                     for _, ab_row in absent_students_df.iterrows():
                         st.markdown(f"##### 👤 {ab_row['student_name']} (Roll #{ab_row['roll_no']})")
                         
-                        # Render Calling Contact Metrics Container
                         c1, c2, c3 = st.columns(3)
                         c1.markdown(f"📞 **Primary:** `{ab_row['contact_1']}`")
                         c2.markdown(f"📱 **WhatsApp:** `{ab_row['whatsapp_no'] if ab_row['whatsapp_no'] else 'None'}`")
                         c3.markdown(f"🏠 **Alternative:** `{ab_row['contact_2'] if ab_row['contact_2'] else 'None'}`")
                         
-                        # Input fields for remarks
                         note = st.text_input(
                             f"Reason for Absence ({ab_row['student_name']}):", 
                             placeholder="e.g., Parent called: Sick leave medical notice provided", 
@@ -1548,7 +1560,7 @@ def render_universal_attendance_workspace():
                                     WHERE student_id = :student_id AND date = :att_date;
                                 """), remarks_payload)
                             st.success("🎉 All operational registers, contact protocols, and remarks logged successfully!")
-                            st.session_state.active_absentee_ids = []  # Reset target tracking array on clear save execution
+                            st.session_state.active_absentee_ids = []
                             st.rerun()
                         except Exception as rem_err:
                             st.error(f"❌ Failed to attach log comments: {rem_err}")
