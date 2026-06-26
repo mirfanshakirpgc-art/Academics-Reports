@@ -1,7 +1,8 @@
-# Force-rebuild anchor: v2.0.1
+# Force-rebuild anchor: v2.0.2
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
+from sqlalchemy import text # ✅ Fixed: Stops "name 'text' is not defined" error globally
 
 # --- INTERFACE WEB CONFIGURATION ---
 st.set_page_config(
@@ -42,24 +43,34 @@ def run_query(table_name_or_query: str, params=None, select_query: str = "*"):
         st.error("Supabase API engine connection is inactive.")
         return pd.DataFrame()
     
-    # Clean up legacy SQL table names if passed as strings
-    table = table_name_or_query.lower()
+    # Clean up legacy SQL table names if passed as raw query strings
+    table = table_name_or_query.lower().strip()
     for word in ["select", "from", "where", "order", "by", ";", " "]:
         if word in table:
             # If it's a full SQL query, extract just the raw table name target
             table = table.split("from")[-1].strip().split(" ")[0].split(";")[0]
             break
+            
+    # Clean up any leftover punctuation or parentheses from raw string stripping
+    table = table.replace("(", "").replace(")", "").replace("'", "").replace('"', "")
     
     # 🔄 Fix: Auto-redirect legacy 'sessions' requests to the real database table name
-    if table == "sessions":
+    if table in ["sessions", "academic_sessions"]:
         table = "academic_sessions"
+        
+    # 🔄 Fix: Auto-redirect legacy 'subjects' lookup vectors to corrected 'subject_mappings' cache table
+    elif table in ["subjects", "subject_mappings"]:
+        table = "subject_mappings"
             
     try:
         response = supabase.table(table).select(select_query).execute()
+        # ✅ Fixed: Guarantees a safe empty DataFrame structure if payload returns Null / None
+        if response.data is None:
+            return pd.DataFrame()
         return pd.DataFrame(response.data)
     except Exception as e:
         st.error(f"HTTP GET fetch failure on table '{table}': {str(e)}")
-        return pd.DataFrame()
+        return pd.DataFrame() # Secure positional dataframe fallback (.iloc safety)
 
 def insert_data(table_name: str, row_dict: dict):
     """Inserts a record structure into your database table using HTTP POST."""
@@ -67,9 +78,13 @@ def insert_data(table_name: str, row_dict: dict):
         st.error("Supabase API engine connection is inactive.")
         return None
         
-    # 🔄 Fix: Ensure inserts to 'sessions' also point to 'academic_sessions'
-    if table_name.lower() == "sessions":
+    table_target = table_name.lower().strip()
+    
+    # 🔄 Fix: Ensure inserts to legacy endpoints also target correct structural variants
+    if table_target in ["sessions", "academic_sessions"]:
         table_name = "academic_sessions"
+    elif table_target in ["subjects", "subject_mappings"]:
+        table_name = "subject_mappings"
         
     try:
         return supabase.table(table_name).insert(row_dict).execute()
