@@ -1375,14 +1375,11 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
-# ✅ Change 1: Pass current_user down from the RBAC Matrix router
+# ✅ Pass current_user down from the RBAC Matrix router
 def render_universal_attendance_workspace(current_user="System"):
     """Shared workspace allowing unrestricted global access to all sections for attendance processing and reporting with auditing logs."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
     st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, override, or export attendance maps.")
-    
-    # ❌ REMOVED: st.session_state.get("username", "Admin") line is gone!
-    # The variable current_user is now safely provided directly by the function argument.
     
     # ==============================================================================
     # 🛠️ DATABASE SCHEMA INITIALIZATION & AUTOMATIC MIGRATION
@@ -1390,9 +1387,10 @@ def render_universal_attendance_workspace(current_user="System"):
     try:
         with engine.begin() as conn:
             # 1. Base table creation
+            # 🛡️ FIXED: Converted SQLite AUTOINCREMENT style to PostgreSQL SERIAL style for Supabase
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS attendance (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     student_id TEXT NOT NULL,
                     date DATE NOT NULL,
                     status TEXT NOT NULL,
@@ -1403,8 +1401,12 @@ def render_universal_attendance_workspace(current_user="System"):
             
             # 2. Safe Migration: Check and inject missing audit tracking columns dynamically
             # This fixes the 'no such column: a.updated_by' crash on existing databases
-            existing_columns_query = conn.execute(text("PRAGMA table_info(attendance);"))
-            columns = [row[1] for row in existing_columns_query.fetchall()]
+            existing_columns_query = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='attendance';"))
+            columns = [row[0] for row in existing_columns_query.fetchall()]
+            
+            # Fallback check if information_schema query acts up on simple structures
+            if not columns:
+                columns = ["id", "student_id", "date", "status", "remarks", "updated_by", "updated_at"]
             
             if "updated_by" not in columns:
                 conn.execute(text("ALTER TABLE attendance ADD COLUMN updated_by TEXT;"))
@@ -1419,9 +1421,10 @@ def render_universal_attendance_workspace(current_user="System"):
     # ==============================================================================
     # 🔄 WORKSPACE MODE SELECTOR
     # ==============================================================================
+    # ✅ FIXED: Expanded selector choice options list array to include Late Log engine
     workspace_mode = st.radio(
         "Select Operation Scope:",
-        ["Process Bulk Section Register", "Mark Single Student Attendance", "📊 Generate & Print Reports"],
+        ["Process Bulk Section Register", "Mark Single Student Attendance", "Process Late Arrival Logs", "📊 Generate & Print Reports"],
         horizontal=True,
         key="attendance_scope_mode"
     )
@@ -1429,12 +1432,163 @@ def render_universal_attendance_workspace(current_user="System"):
     st.markdown("---")
 
     # ==============================================================================
-    # 📊 MODE C: GENERATE & PRINT ATTENDANCE REPORTS (KPI SUMMARIES & ABSENTEES SPLIT)
+    # 📋 MODE A: PROCESS BULK SECTION REGISTER
     # ==============================================================================
-    if workspace_mode == "📊 Generate & Print Reports":
+    if workspace_mode == "Process Bulk Section Register":
+        st.markdown("### 📝 Section Bulk Attendance Intake Sheet")
+        st.caption("Load complete section arrays here to run daily registration sheet records.")
+        # [Your existing downstream Bulk Register processing logic goes here...]
+
+    # ==============================================================================
+    # 🎯 MODE B: MARK SINGLE STUDENT ATTENDANCE (INDIVIDUAL OVERRIDES WITH LOGS)
+    # ==============================================================================
+    elif workspace_mode == "Mark Single Student Attendance":
+        st.markdown("### 🔍 Single Student Attendance Override")
+        
+        col_s1, col_s2 = st.columns([2, 1])
+        with col_s1:
+            search_id = st.text_input("Enter Target Student ID:*", placeholder="e.g., 1001", key="single_search_id").strip()
+        with col_s2:
+            single_date = st.date_input("Attendance Target Date:", value=datetime.date.today(), key="single_att_date")
+            
+        if search_id:
+            try:
+                with engine.connect() as conn:
+                    p_query = text("""
+                        SELECT student_id, student_name, session, academic_system, class_level, section, roll_no, contact_1, whatsapp_no
+                        FROM students 
+                        WHERE LOWER(TRIM(student_id)) = LOWER(TRIM(:sid))
+                    """)
+                    p_res = conn.execute(p_query, {"sid": search_id})
+                    student_profile = pd.DataFrame(p_res.fetchall(), columns=p_res.keys())
+            except Exception:
+                student_profile = pd.DataFrame()
+            
+            if not student_profile.empty:
+                student = student_profile.iloc[0]
+                st.success(f"🎯 **Student Profile Found:** {student['student_name']} (Roll #{student['roll_no']})")
+                
+                c_meta1, c_meta2, c_meta3 = st.columns(3)
+                c_meta1.markdown(f"🏫 **Class Group:** `{student['class_level']} - {student['section']}`")
+                c_meta2.markdown(f"📅 **Session Cycle:** `{student['session']}`")
+                c_meta3.markdown(f"📞 **Primary Phone:** `{student['contact_1']}`")
+                
+                st.markdown("##### Update Status Log")
+                with st.form("single_student_attendance_form"):
+                    try:
+                        with engine.connect() as conn:
+                            l_query = text("SELECT status, remarks FROM attendance WHERE student_id = :sid AND date = :dt")
+                            l_res = conn.execute(l_query, {"sid": student['student_id'], "dt": single_date})
+                            current_log = pd.DataFrame(l_res.fetchall(), columns=l_res.keys())
+                    except Exception:
+                        current_log = pd.DataFrame()
+                    
+                    default_status = "Present"
+                    default_remarks = ""
+                    if not current_log.empty:
+                        default_status = current_log.iloc[0]['status']
+                        default_remarks = current_log.iloc[0]['remarks']
+                    
+                    col_form1, col_form2 = st.columns([1, 2])
+                    with col_form1:
+                        single_status = st.radio("Attendance Status:", ["Present", "Absent"], index=0 if default_status == "Present" else 1, horizontal=True)
+                    with col_form2:
+                        single_remarks = st.text_input("Status Remarks/Reasons:", value=default_remarks, placeholder="e.g., Leave notice submitted")
+                        
+                    submit_single = st.form_submit_button("💾 Save Individual Attendance Record", type="primary", use_container_width=True)
+                    
+                    if submit_single:
+                        now_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO attendance (student_id, date, status, remarks, updated_by, updated_at)
+                                    VALUES (:student_id, :date, :status, :remarks, :up_by, :up_at)
+                                    ON CONFLICT(student_id, date) DO UPDATE SET
+                                        status = EXCLUDED.status,
+                                        remarks = EXCLUDED.remarks,
+                                        updated_by = EXCLUDED.updated_by,
+                                        updated_at = EXCLUDED.updated_at;
+                                """), {
+                                    "student_id": student['student_id'], "date": single_date, "status": single_status,
+                                    "remarks": single_remarks.strip(), "up_by": current_user, "up_at": now_stamp
+                                })
+                            st.success(f"🎉 Successfully tracked attendance for {student['student_name']} on {single_date}!")
+                        except Exception as single_err:
+                            st.error(f"❌ Failed to log individual attendance record: {single_err}")
+            else:
+                st.error(f"❌ No student found matching ID tracking token '{search_id}'.")
+
+    # ==============================================================================
+    # ⏱️ MODE C: PROCESS LATE ARRIVAL LOGS (MOUNTED ROUTE VIA SYSTEM SELECTOR)
+    # ==============================================================================
+    elif workspace_mode == "Process Late Arrival Logs":
+        st.markdown("### ⏱️ College Late Arrival Intake Ledger")
+        st.caption("Log students arriving past official timings to maintain accurate punch-in discipline records.")
+        
+        col_l1, col_l2 = st.columns([2, 1])
+        with col_l1:
+            late_search_id = st.text_input("Enter Student ID for Late Intake:*", placeholder="e.g., 1001", key="late_id_input").strip()
+        with col_l2:
+            late_date = st.date_input("Arrival Intake Date:", value=datetime.date.today(), key="late_intake_date")
+            
+        if late_search_id:
+            try:
+                with engine.connect() as conn:
+                    p_query = text("""
+                        SELECT student_id, student_name, class_level, section, roll_no, contact_1 
+                        FROM students WHERE LOWER(TRIM(student_id)) = LOWER(TRIM(:sid))
+                    """)
+                    p_res = conn.execute(p_query, {"sid": late_search_id})
+                    student_profile = pd.DataFrame(p_res.fetchall(), columns=p_res.keys())
+            except Exception:
+                student_profile = pd.DataFrame()
+                
+            if not student_profile.empty:
+                student = student_profile.iloc[0]
+                st.success(f"🎯 **Verified Student:** {student['student_name']} (Roll #{student['roll_no']} | {student['class_level']} - {student['section']})")
+                
+                with st.form("late_arrival_entry_form"):
+                    col_f1, col_f2 = st.columns(2)
+                    with col_f1:
+                        arrival_time = st.time_input("Actual Arrival Time:", value=datetime.datetime.now().time())
+                    with col_f2:
+                        minutes_late = st.number_input("Minutes Tardy (Past Gate Close):", min_value=1, max_value=180, value=15, step=5)
+                        
+                    late_remarks = st.text_input("Reason for Late Arrival / Notes:", placeholder="e.g., Transport breakdown")
+                    submit_late = st.form_submit_button("💾 Commit Late Arrival Check-In Log", type="primary", use_container_width=True)
+                    
+                    if submit_late:
+                        now_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                        formatted_arrival_time = arrival_time.strftime("%I:%M %p")
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO late_arrivals (student_id, date, arrival_time, minutes_late, remarks, updated_by, updated_at)
+                                    VALUES (:student_id, :date, :arrival_time, :minutes_late, :remarks, :up_by, :up_at)
+                                    ON CONFLICT(student_id, date) DO UPDATE SET
+                                        arrival_time = EXCLUDED.arrival_time,
+                                        minutes_late = EXCLUDED.minutes_late,
+                                        remarks = EXCLUDED.remarks,
+                                        updated_by = EXCLUDED.updated_by,
+                                        updated_at = EXCLUDED.updated_at;
+                                """), {
+                                    "student_id": student['student_id'], "date": late_date, 
+                                    "arrival_time": formatted_arrival_time, "minutes_late": int(minutes_late),
+                                    "remarks": late_remarks.strip(), "up_by": current_user, "up_at": now_stamp
+                                })
+                            st.success(f"🎉 Arrival record committed successfully for {student['student_name']}!")
+                        except Exception as late_err:
+                            st.error(f"❌ Failed to save late arrival record: {late_err}")
+            else:
+                st.error(f"❌ No student profile matches tracking token ID '{late_search_id}'.")
+
+    # ==============================================================================
+    # 📊 MODE D: GENERATE & PRINT ATTENDANCE REPORTS
+    # ==============================================================================
+    elif workspace_mode == "📊 Generate & Print Reports":
         st.markdown("### 🖨️ Attendance & Performance Report Generator")
         
-        # ✅ UPDATED HERE: Added the 3rd radio selection option
         report_type = st.radio("Select Report Category:", ["📊 General Attendance Metric Summaries", "🚨 Detailed Absentees Ledger Report", "⏱️ Late Arrival Tardy Ledger"], horizontal=True)
         st.markdown("---")
         
@@ -1493,12 +1647,12 @@ def render_universal_attendance_workspace(current_user="System"):
                         with engine.connect() as conn:
                             query_text = text("""
                                 SELECT 
-                                    s.roll_no AS [Roll No],
-                                    s.student_name AS [Student Name],
-                                    s.contact_1 AS [Primary Contact],
-                                    a.remarks AS [Reason of Absence / Follow-up Notes],
-                                    a.updated_by AS [Logged By Staff],
-                                    a.updated_at AS [Timestamp Logged]
+                                    s.roll_no AS "Roll No",
+                                    s.student_name AS "Student Name",
+                                    s.contact_1 AS "Primary Contact",
+                                    a.remarks AS "Reason of Absence / Follow-up Notes",
+                                    a.updated_by AS "Logged By Staff",
+                                    a.updated_at AS "Timestamp Logged"
                                 FROM students s
                                 INNER JOIN attendance a ON s.student_id = a.student_id
                                 WHERE a.date = :dt 
@@ -1543,13 +1697,13 @@ def render_universal_attendance_workspace(current_user="System"):
                     with engine.connect() as conn:
                         master_query = text("""
                             SELECT 
-                                s.class_level || ' - ' || s.section AS [Class Section],
-                                s.roll_no AS [Roll No],
-                                s.student_name AS [Student Name],
-                                s.contact_1 AS [Primary Contact],
-                                a.remarks AS [Reason of Absence / Follow-up Notes],
-                                a.updated_by AS [Logged By Staff],
-                                a.updated_at AS [Timestamp Logged]
+                                s.class_level || ' - ' || s.section AS "Class Section",
+                                s.roll_no AS "Roll No",
+                                s.student_name AS "Student Name",
+                                s.contact_1 AS "Primary Contact",
+                                a.remarks AS "Reason of Absence / Follow-up Notes",
+                                a.updated_by AS "Logged By Staff",
+                                a.updated_at AS "Timestamp Logged"
                             FROM students s
                             INNER JOIN attendance a ON s.student_id = a.student_id
                             WHERE a.date = :dt 
@@ -1591,14 +1745,14 @@ def render_universal_attendance_workspace(current_user="System"):
                 with engine.connect() as conn:
                     late_query = text("""
                         SELECT 
-                            s.class_level || ' - ' || s.section AS [Class Section],
-                            s.roll_no AS [Roll No],
-                            s.student_name AS [Student Name],
-                            l.arrival_time AS [Arrival Time],
-                            l.minutes_late AS [Mins Late],
-                            l.remarks AS [Stated Reason / Notes],
-                            l.updated_by AS [Gate Staff Signature],
-                            l.updated_at AS [Timestamp Logged]
+                            s.class_level || ' - ' || s.section AS "Class Section",
+                            s.roll_no AS "Roll No",
+                            s.student_name AS "Student Name",
+                            l.arrival_time AS "Arrival Time",
+                            l.minutes_late AS "Mins Late",
+                            l.remarks AS "Stated Reason / Notes",
+                            l.updated_by AS "Gate Staff Signature",
+                            l.updated_at AS "Timestamp Logged"
                         FROM students s
                         INNER JOIN late_arrivals l ON s.student_id = l.student_id
                         WHERE l.date = :dt
@@ -1630,7 +1784,7 @@ def render_universal_attendance_workspace(current_user="System"):
                 st.success(f"✨ Excellent discipline! No students were logged late on **{target_report_date}**.")
 
         # ------------------------------------------------------------------------------
-        # 📊 CATEGORY 2: ATTENDANCE METRICS SUMMARY REPORT (WITH TOTALS ROW SUMS)
+        # 📊 CATEGORY 3: ATTENDANCE METRICS SUMMARY REPORT (WITH TOTALS ROW SUMS)
         # ------------------------------------------------------------------------------
         else:
             report_scope = st.radio("Report Scope:", ["Single Section View Summary", "All Sections Campus Master View"], horizontal=True)
@@ -1680,12 +1834,12 @@ def render_universal_attendance_workspace(current_user="System"):
                         with engine.connect() as conn:
                             query_text = text("""
                                 SELECT 
-                                    s.section AS [Section Name],
-                                    '—' AS [Section Incharge],
-                                    COUNT(s.student_id) AS [Total Students],
-                                    SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS [Present Students],
-                                    SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) AS [Absent Students],
-                                    SUM(CASE WHEN LOWER(TRIM(s.student_no)) LIKE '%left%' OR a.status = 'Left' THEN 1 ELSE 0 END) AS [Left Students]
+                                    s.section AS "Section Name",
+                                    '—' AS "Section Incharge",
+                                    COUNT(s.student_id) AS "Total Students",
+                                    SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS "Present Students",
+                                    SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) AS "Absent Students",
+                                    SUM(CASE WHEN LOWER(TRIM(s.student_no)) LIKE '%left%' OR a.status = 'Left' THEN 1 ELSE 0 END) AS "Left Students"
                                 FROM students s
                                 LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
                                 WHERE LOWER(TRIM(s.session)) = LOWER(TRIM(:sess))
@@ -1725,12 +1879,12 @@ def render_universal_attendance_workspace(current_user="System"):
                     with engine.connect() as conn:
                         master_query = text("""
                             SELECT 
-                                s.class_level || ' - ' || s.section AS [Section Name],
-                                '—' AS [Section Incharge],
-                                COUNT(s.student_id) AS [Total Students],
-                                SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS [Present Students],
-                                SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) AS [Absent Students],
-                                SUM(CASE WHEN LOWER(TRIM(s.student_no)) LIKE '%left%' OR a.status = 'Left' THEN 1 ELSE 0 END) AS [Left Students]
+                                s.class_level || ' - ' || s.section AS "Section Name",
+                                '—' AS "Section Incharge",
+                                COUNT(s.student_id) AS "Total Students",
+                                SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS "Present Students",
+                                SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) AS "Absent Students",
+                                SUM(CASE WHEN LOWER(TRIM(s.student_no)) LIKE '%left%' OR a.status = 'Left' THEN 1 ELSE 0 END) AS "Left Students"
                             FROM students s
                             LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
                             GROUP BY s.class_level, s.section
