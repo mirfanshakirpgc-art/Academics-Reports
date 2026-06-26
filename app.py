@@ -2,56 +2,45 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
+import logging
+
+st.set_page_config(
+    page_title="Academic Management & Reports System",
+    page_icon="🎓",
+    layout="wide"
+)
 
 # --- ADAPTIVE AUTHENTICATION ENGINE ---
 DB_URL = None
 
 if "database" in st.secrets:
     creds = st.secrets["database"]
-    
     # Try the clean username format first
     user = creds.get("username", "postgres")
     DB_URL = f"postgresql://{user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 
 @st.cache_resource
 def get_db_engine(url_str):
-    if not url_str or "YOUR_REAL_SUPABASE_PASSWORD" in url_str:
+    if not url_str or "YOUR_REAL_SUPABASE_PASSWORD" in url_str or "YOUR_ACTUAL_DB_PASSWORD" in url_str:
         return None
     try:
-        engine = create_engine(url_str, pool_pre_ping=True, connect_args={"connect_timeout": 5})
-        # Test connection actively
-        with engine.connect() as conn:
+        # Create engine and actively test connection
+        test_engine = create_engine(url_str, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+        with test_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return engine
+        return test_engine
     except Exception:
-        # Fallback to alternative pooler username format if the first attempt fails
+        # Fallback to alternative pooler username format (postgres.project-id) if the first attempt fails
         if "database" in st.secrets and "username_pooler" in st.secrets["database"]:
-            alt_user = st.secrets["database"]["username_pooler"]
             creds = st.secrets["database"]
+            alt_user = creds["username_pooler"]
             alt_url = f"postgresql://{alt_user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
-            return create_engine(alt_url, pool_pre_ping=True)
+            return create_engine(alt_url, pool_pre_ping=True, pool_size=10, max_overflow=20)
         return None
 
 # Wipe old cache targets completely 
 st.cache_resource.clear()
 engine = get_db_engine(DB_URL)
-    
-    # Adding connect_args sets a shorter connection timeout to prevent hanging
-    return create_engine(
-        DB_URL, 
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
-        connect_args={"connect_timeout": 10}
-    )
-
-# Explicitly clear old broken resource objects out of cache memory
-st.cache_resource.clear()
-
-try:
-    engine = get_db_engine()
-except Exception:
-    engine = None
 
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
