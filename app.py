@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.1.6
+# Force-rebuild anchor: v1.1.7
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -22,13 +22,14 @@ def get_db_engine():
     """Generates a connection engine optimized for dedicated regional pooler routing."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
+    # We use connect_args to tell the driver to handle the connection parameters cleanly
     return create_engine(
         DB_URL, 
-        pool_pre_ping=True
+        pool_pre_ping=True,
+        connect_args={"prepare_threshold": None}
     )
 
-# Clear old cached connections entirely from Streamlit's runtime memory
-st.cache_resource.clear()
+# --- CRITICAL FIX: Removed st.cache_resource.clear() from here to stop the infinite loop ---
 engine = get_db_engine()
 
 def init_db():
