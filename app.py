@@ -1407,13 +1407,13 @@ def render_universal_attendance_workspace():
             st.selectbox("4. Section Track:", ["🔒 Waiting for Class..."], disabled=True, key="att_sec_dis")
             sel_section = "-- Select Section --"
 
-    # Secondary control row for target logging execution date
+   # Secondary control row for target logging execution date
     col_date, _ = st.columns([1, 3])
     with col_date:
+        import datetime  # 👈 Add this line here to clear the NameError
         attendance_date = st.date_input("Attendance Log Date:", value=datetime.date.today(), key="uni_date")
         
     st.markdown("---")
-
 
 def render_universal_marks_entry_workspace():
     pass
