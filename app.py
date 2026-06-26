@@ -1722,7 +1722,7 @@ def render_universal_attendance_workspace(current_user="System"):
                             WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
                               AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys)) ORDER BY class_level ASC
                         """, {"sess": sel_session, "sys": sel_system})
-                        classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                        classes_list = ["-- Select Class --"] + (classes_df.iloc[:, 0].tolist() if not classes_df.empty else [])
                         sel_class = st.selectbox("3. Class:", options=classes_list, key="rpt_cls")
                     else:
                         st.selectbox("3. Class:", ["🔒 Waiting..."], disabled=True, key="rpt_cls_dis")
