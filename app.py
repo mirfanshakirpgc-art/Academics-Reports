@@ -87,9 +87,6 @@ def init_db():
             );
         """))
         
-        # 🛡️ FIXED: Commented out the DROP table behavior to prevent your data from being instantly deleted!
-        # conn.execute(text("DROP TABLE IF EXISTS students;"))
-        
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS students (
                 student_id TEXT PRIMARY KEY,
@@ -109,7 +106,6 @@ def init_db():
             );
         """))
         
-        # 🛡️ FIXED: Replaced SQLite-specific AUTOINCREMENT with PostgreSQL SERIAL style for compatibility with Supabase
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS incharge_allocations (
                 id SERIAL PRIMARY KEY,
@@ -119,6 +115,21 @@ def init_db():
                 section TEXT,
                 teacher_id TEXT,
                 teacher_name TEXT
+            );
+        """))
+
+        # ✨ ADDED HERE: PostgreSQL-compatible Late Arrivals ledger scheme
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS late_arrivals (
+                id SERIAL PRIMARY KEY,
+                student_id TEXT NOT NULL,
+                date DATE NOT NULL,
+                arrival_time TEXT NOT NULL,
+                minutes_late INTEGER NOT NULL,
+                remarks TEXT,
+                updated_by TEXT,
+                updated_at TEXT,
+                UNIQUE(student_id, date)
             );
         """))
 
