@@ -1207,57 +1207,47 @@ def render_student_management_workspace():
                 )
 
                 if admin_action != "-- Select Structural Action --":
-                    # Fetch database reference items for dropdowns dynamically
-                    sess_opts = run_query("SELECT DISTINCT session_name FROM sessions")['session_name'].tolist() if not run_query("SELECT DISTINCT session_name FROM sessions").empty else []
-                    sys_opts = run_query("SELECT DISTINCT system_name FROM academic_systems")['system_name'].tolist() if not run_query("SELECT DISTINCT system_name FROM academic_systems").empty else []
-                    cls_opts = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")['class_level'].tolist() if not run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC").empty else []
-                    sec_opts = run_query("SELECT DISTINCT section_name FROM sections")['section_name'].tolist() if not run_query("SELECT DISTINCT section_name FROM sections").empty else []
+                    # Fetch database reference items safely via updated HTTP API Client Engine
+                    sess_df = run_query("academic_sessions")
+                    sess_opts = sess_df['session_name'].tolist() if not sess_df.empty and 'session_name' in sess_df.columns else []
+                    
+                    sys_df = run_query("academic_systems")
+                    sys_opts = sys_df['system_name'].tolist() if not sys_df.empty and 'system_name' in sys_df.columns else []
+                    
+                    cls_df = run_query("classes")
+                    if not cls_df.empty and 'sort_order' in cls_df.columns:
+                        cls_df = cls_df.sort_values(by=['sort_order', 'id'], ascending=[True, True])
+                    cls_opts = cls_df['class_level'].tolist() if not cls_df.empty and 'class_level' in cls_df.columns else []
+                    
+                    sec_df = run_query("sections")
+                    sec_opts = sec_df['section_name'].tolist() if not sec_df.empty and 'section_name' in sec_df.columns else []
 
                     # Block container for updating configurations securely
                     with st.form("structural_modification_execution_form"):
-                        query_template = ""
-                        params = {}
-
-                        # Setup standard target query routing clauses
-                        if edit_scope == "✨ Modify Single Student":
-                            if not target_student_id:
-                                st.error("❌ Action Blocked: No target student has been explicitly selected from the filtering dropdown options above.")
-                                st.form_submit_button("Execution Locked", disabled=True)
-                            else:
-                                scope_clause = "WHERE student_id = :tgt_id"
-                                params["tgt_id"] = target_student_id
-                        else:
-                            scope_clause = "WHERE LOWER(TRIM(session)) = LOWER(TRIM(:cur_sess)) AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:cur_sys)) AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cur_cls)) AND LOWER(TRIM(discipline)) = LOWER(TRIM(:cur_disc)) AND LOWER(TRIM(section)) = LOWER(TRIM(:cur_sec))"
-                            params.update({
-                                "cur_sess": search_session, "cur_sys": search_system,
-                                "cur_cls": search_class, "cur_disc": search_discipline, "cur_sec": search_sec
-                            })
+                        payload = {}
+                        is_delete = False
 
                         # Proceed only if variables are set or operating on full section
                         if edit_scope != "✨ Modify Single Student" or target_student_id:
                             # 1. SECTION CHANGE
                             if admin_action == "🔄 Section Change":
                                 new_val = st.selectbox("Select New Target Section:", options=sec_opts)
-                                query_template = f"UPDATE students SET section = :new_val {scope_clause}"
-                                params["new_val"] = new_val
+                                payload = {"section": new_val}
 
                             # 2. SESSION CHANGE
                             elif admin_action == "📅 Session Change":
                                 new_val = st.selectbox("Select New Target Session Cycle:", options=sess_opts)
-                                query_template = f"UPDATE students SET session = :new_val {scope_clause}"
-                                params["new_val"] = new_val
+                                payload = {"session": new_val}
 
                             # 3. ACADEMIC SYSTEM CHANGE
                             elif admin_action == "🏛️ Academic System Change":
                                 new_val = st.selectbox("Select New Academic System Scheme:", options=sys_opts)
-                                query_template = f"UPDATE students SET academic_system = :new_val {scope_clause}"
-                                params["new_val"] = new_val
+                                payload = {"academic_system": new_val}
 
                             # 4. CLASS CHANGE
                             elif admin_action == "📈 Class Change":
                                 new_val = st.selectbox("Select New Target Class Level:", options=cls_opts)
-                                query_template = f"UPDATE students SET class_level = :new_val {scope_clause}"
-                                params["new_val"] = new_val
+                                payload = {"class_level": new_val}
 
                             # 5. PROMOTE STUDENTS
                             elif admin_action == "🚀 Promote Students":
@@ -1265,29 +1255,44 @@ def render_student_management_workspace():
                                 col_p1, col_p2 = st.columns(2)
                                 p_sess = col_p1.selectbox("Select Next Cycle Session:", options=sess_opts)
                                 p_cls = col_p2.selectbox("Select Next Grade Class Level:", options=cls_opts)
-                                query_template = f"UPDATE students SET session = :p_sess, class_level = :p_cls {scope_clause}"
-                                params["p_sess"] = p_sess
-                                params["p_cls"] = p_cls
+                                payload = {"session": p_sess, "class_level": p_cls}
 
                             # 6. DELETE FROM SYSTEM
                             elif admin_action == "❌ Delete from System":
                                 st.error("⚠️ CRITICAL SECURITY WARNING: Deletion is absolute and permanent!")
                                 confirm_delete = st.checkbox("I verify I want to purge these student record entries from the core database.")
-                                query_template = f"DELETE FROM students {scope_clause}"
+                                is_delete = True
 
                             # Submission Engine
                             commit_action = st.form_submit_button("🔥 Commit Administrative Update", type="primary", use_container_width=True)
 
                             if commit_action:
-                                if admin_action == "❌ Delete from System" and not confirm_delete:
+                                if is_delete and not confirm_delete:
                                     st.warning("🔒 Transaction aborted: You must check the security confirmation box first.")
-                                elif not query_template:
-                                    st.error("❌ Action configuration invalid.")
                                 else:
                                     try:
-                                        with engine.begin() as conn:
-                                            conn.execute(text(query_template), params)
+                                        # Construct target base filter query builder
+                                        query_builder = supabase.table("students")
+                                        
+                                        if edit_scope == "✨ Modify Single Student":
+                                            query_builder = query_builder.eq("student_id", target_student_id)
+                                        else:
+                                            query_builder = (query_builder
+                                                .eq("session", search_session)
+                                                .eq("academic_system", search_system)
+                                                .eq("class_level", search_class)
+                                                .eq("discipline", search_discipline)
+                                                .eq("section", search_sec)
+                                            )
+                                        
+                                        # Fire appropriate REST action payload 
+                                        if is_delete:
+                                            query_builder.delete().execute()
+                                        else:
+                                            query_builder.update(payload).execute()
+                                            
                                         st.success("🎉 Administrative structural transaction executed successfully!")
+                                        import time
                                         time.sleep(0.6)
                                         st.rerun()
                                     except Exception as admin_err:
@@ -1296,7 +1301,6 @@ def render_student_management_workspace():
 import datetime  # Make sure this is present at the top of your file
 import pandas as pd
 import streamlit as st
-from sqlalchemy import text
 
 # ✅ Pass current_user down from the RBAC Matrix router
 def render_universal_attendance_workspace(current_user="System"):
@@ -1305,49 +1309,17 @@ def render_universal_attendance_workspace(current_user="System"):
     st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, override, or export attendance maps.")
     
     # ==============================================================================
-    # 🛠️ DATABASE SCHEMA INITIALIZATION & AUTOMATIC MIGRATION
+    # 🛠️ DATABASE SCHEMA INITIALIZATION & AUTOMATIC MIGRATION (Supabase Managed Engine)
     # ==============================================================================
-    try:
-        with engine.begin() as conn:
-            # 1. Base table creation
-            # 🛡️ FIXED: Converted to native SQLite syntax (INTEGER PRIMARY KEY AUTOINCREMENT)
-            # 🛡️ FIXED: Included audit columns in the initial creation to avoid missing column bugs
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS attendance (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    student_id TEXT NOT NULL,
-                    date DATE NOT NULL,
-                    status TEXT NOT NULL,
-                    remarks TEXT,
-                    updated_by TEXT,
-                    updated_at TEXT,
-                    UNIQUE(student_id, date)
-                );
-            """))
-            
-            # 2. Safe Migration: Check and inject missing audit tracking columns dynamically
-            # 🛡️ FIXED: Replaced 'information_schema' (Postgres/MySQL) with SQLite's native 'pragma_table_info'
-            existing_columns_query = conn.execute(text("SELECT name FROM pragma_table_info('attendance');"))
-            columns = [row[0] for row in existing_columns_query.fetchall()]
-            
-            # Fallback check if pragma query acts up on simple structures
-            if not columns:
-                columns = ["id", "student_id", "date", "status", "remarks", "updated_by", "updated_at"]
-            
-            if "updated_by" not in columns:
-                conn.execute(text("ALTER TABLE attendance ADD COLUMN updated_by TEXT;"))
-            if "updated_at" not in columns:
-                conn.execute(text("ALTER TABLE attendance ADD COLUMN updated_at TEXT;"))
-    except Exception as init_err:
-        st.error(f"⚠️ Structural initialization or database migration failed: {init_err}")
-
+    # Note: Structural table schema setups and dynamic alter commands are managed 
+    # natively inside the Supabase SQL Editor GUI dashboard interface layer.
+    
     if "active_absentee_ids" not in st.session_state:
         st.session_state.active_absentee_ids = []
         
     # ==============================================================================
     # 🔄 WORKSPACE MODE SELECTOR
     # ==============================================================================
-    # ✅ FIXED: Expanded selector choice options list array to include Late Log engine
     workspace_mode = st.radio(
         "Select Operation Scope:",
         ["Process Bulk Section Register", "Mark Single Student Attendance", "Process Late Arrival Logs", "📊 Generate & Print Reports"],
@@ -1379,20 +1351,17 @@ def render_universal_attendance_workspace(current_user="System"):
             
         if search_id:
             try:
-                with engine.connect() as conn:
-                    p_query = text("""
-                        SELECT student_id, student_name, session, academic_system, class_level, section, roll_no, contact_1, whatsapp_no
-                        FROM students 
-                        WHERE LOWER(TRIM(student_id)) = LOWER(TRIM(:sid))
-                    """)
-                    p_res = conn.execute(p_query, {"sid": search_id})
-                    student_profile = pd.DataFrame(p_res.fetchall(), columns=p_res.keys())
+                # HTTP REST call replacement fetching matching student profile
+                res = supabase.table("students").select(
+                    "student_id, student_name, session, academic_system, class_level, section, roll_no, contact_1, whatsapp_no"
+                ).ilike("student_id", search_id.strip()).execute()
+                student_profile = pd.DataFrame(res.data)
             except Exception:
                 student_profile = pd.DataFrame()
             
             if not student_profile.empty:
                 student = student_profile.iloc[0]
-                st.success(f"🎯 **Student Profile Found:** {student['student_name']} (Roll #{student['roll_no']})")
+                st.success(f"🎯 **Student Profile Found:** {student['student_name']} (Roll #{int(student['roll_no']) if pd.notna(student['roll_no']) else 0})")
                 
                 c_meta1, c_meta2, c_meta3 = st.columns(3)
                 c_meta1.markdown(f"🏫 **Class Group:** `{student['class_level']} - {student['section']}`")
@@ -1402,10 +1371,9 @@ def render_universal_attendance_workspace(current_user="System"):
                 st.markdown("##### Update Status Log")
                 with st.form("single_student_attendance_form"):
                     try:
-                        with engine.connect() as conn:
-                            l_query = text("SELECT status, remarks FROM attendance WHERE student_id = :sid AND date = :dt")
-                            l_res = conn.execute(l_query, {"sid": student['student_id'], "dt": single_date})
-                            current_log = pd.DataFrame(l_res.fetchall(), columns=l_res.keys())
+                        # Fetch the existing attendance record data for the matching single row date
+                        log_res = supabase.table("attendance").select("status, remarks").eq("student_id", student['student_id']).eq("date", str(single_date)).execute()
+                        current_log = pd.DataFrame(log_res.data)
                     except Exception:
                         current_log = pd.DataFrame()
                     
@@ -1413,7 +1381,7 @@ def render_universal_attendance_workspace(current_user="System"):
                     default_remarks = ""
                     if not current_log.empty:
                         default_status = current_log.iloc[0]['status']
-                        default_remarks = current_log.iloc[0]['remarks']
+                        default_remarks = current_log.iloc[0]['remarks'] if pd.notna(current_log.iloc[0]['remarks']) else ""
                     
                     col_form1, col_form2 = st.columns([1, 2])
                     with col_form1:
@@ -1426,19 +1394,17 @@ def render_universal_attendance_workspace(current_user="System"):
                     if submit_single:
                         now_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO attendance (student_id, date, status, remarks, updated_by, updated_at)
-                                    VALUES (:student_id, :date, :status, :remarks, :up_by, :up_at)
-                                    ON CONFLICT(student_id, date) DO UPDATE SET
-                                        status = EXCLUDED.status,
-                                        remarks = EXCLUDED.remarks,
-                                        updated_by = EXCLUDED.updated_by,
-                                        updated_at = EXCLUDED.updated_at;
-                                """), {
-                                    "student_id": student['student_id'], "date": single_date, "status": single_status,
-                                    "remarks": single_remarks.strip(), "up_by": current_user, "up_at": now_stamp
-                                })
+                            # Upsert record payload natively matching the composite (student_id, date) uniqueness constraint
+                            att_payload = {
+                                "student_id": str(student['student_id']),
+                                "date": str(single_date),
+                                "status": single_status,
+                                "remarks": single_remarks.strip() if single_remarks.strip() else None,
+                                "updated_by": current_user,
+                                "updated_at": now_stamp
+                            }
+                            
+                            supabase.table("attendance").upsert(att_payload, on_conflict="student_id,date").execute()
                             st.success(f"🎉 Successfully tracked attendance for {student['student_name']} on {single_date}!")
                         except Exception as single_err:
                             st.error(f"❌ Failed to log individual attendance record: {single_err}")
