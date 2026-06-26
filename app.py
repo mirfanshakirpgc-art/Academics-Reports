@@ -1,13 +1,6 @@
-# Force-rebuild anchor: v1.0.3
+# Force-rebuild anchor: v1.0.4
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine, text
-import time
-
-# ==============================================================================
-# 1. PAGE CONFIGURATION & DATABASE INITIALIZATION
-# ==============================================================================
-import streamlit as st
 from sqlalchemy import create_engine, text
 import logging
 
@@ -18,26 +11,27 @@ st.set_page_config(
 )
 
 # --- SUPABASE CONNECTION CONFIGURATION ---
+DB_URL = None
+
 if "database" in st.secrets:
     # 💡 ADVANCED NETWORK BYPASS: Force direct IPv4 pool routing
     db_host = st.secrets['database']['host']
-    if db_host == "aws-0-ap-northeast-1.pooler.supabase.com":
+    if "pooler.supabase.com" in db_host:
         # Hardcodes Supabase's underlying regional IPv4 address to bypass IPv6 blocks
         db_host = "3.114.238.169" 
         
     DB_URL = f"postgresql://{st.secrets['database']['username']}:{st.secrets['database']['password']}@{db_host}:{st.secrets['database']['port']}/{st.secrets['database']['database']}"
-else:
-    # Fallback checking string
-    DB_URL = st.secrets.get("DATABASE_URL", None)
+elif "DATABASE_URL" in st.secrets:
+    DB_URL = st.secrets["DATABASE_URL"]
+    if "pooler.supabase.com" in DB_URL:
+        DB_URL = DB_URL.replace("aws-0-ap-northeast-1.pooler.supabase.com:6543", "3.114.238.169:6543")
 
 @st.cache_resource
 def get_db_engine():
     """Creates and caches the database engine connection with pool tuning."""
-    if not DB_URL or "YOUR_DB_PASSWORD" in DB_URL:
+    if not DB_URL or "YOUR_ACTUAL_DB_PASSWORD" in DB_URL:
         return None
     
-    # 💡 FIX: For Supabase Connection Poolers (Port 6543), adding pool_pre_ping 
-    # verifies if the connection is alive before trying to execute DDL statements.
     return create_engine(
         DB_URL, 
         pool_pre_ping=True,
@@ -183,7 +177,6 @@ init_db()
 
 def run_query(query, params=None):
     """Executes a read query against the unified Supabase engine."""
-    import pandas as pd
     if engine is None:
         st.error("Database Engine connection is inactive.")
         return pd.DataFrame()
