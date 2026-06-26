@@ -1359,7 +1359,7 @@ def render_student_management_workspace():
                                     except Exception as admin_err:
                                         st.error(f"❌ Structural Update Interrupted: {admin_err}")
                                         
-import datetime
+import datetime  # Make sure this is present at the top of your file
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
@@ -1373,10 +1373,11 @@ def render_universal_attendance_workspace():
     current_user = st.session_state.get("username", "Admin")
     
     # ==============================================================================
-    # 🛠️ DATABASE SCHEMA INITIALIZATION (WITH AUDIT PATHS)
+    # 🛠️ DATABASE SCHEMA INITIALIZATION & AUTOMATIC MIGRATION
     # ==============================================================================
     try:
         with engine.begin() as conn:
+            # 1. Base table creation
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS attendance (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1384,13 +1385,21 @@ def render_universal_attendance_workspace():
                     date DATE NOT NULL,
                     status TEXT NOT NULL,
                     remarks TEXT,
-                    updated_by TEXT,
-                    updated_at TEXT,
                     UNIQUE(student_id, date)
                 );
             """))
+            
+            # 2. Safe Migration: Check and inject missing audit tracking columns dynamically
+            # This fixes the 'no such column: a.updated_by' crash on existing databases
+            existing_columns_query = conn.execute(text("PRAGMA table_info(attendance);"))
+            columns = [row[1] for row in existing_columns_query.fetchall()]
+            
+            if "updated_by" not in columns:
+                conn.execute(text("ALTER TABLE attendance ADD COLUMN updated_by TEXT;"))
+            if "updated_at" not in columns:
+                conn.execute(text("ALTER TABLE attendance ADD COLUMN updated_at TEXT;"))
     except Exception as init_err:
-        st.error(f"⚠️ Structural initialization failed: {init_err}")
+        st.error(f"⚠️ Structural initialization or database migration failed: {init_err}")
 
     if "active_absentee_ids" not in st.session_state:
         st.session_state.active_absentee_ids = []
@@ -1418,6 +1427,7 @@ def render_universal_attendance_workspace():
         
         col_r1, _ = st.columns([1, 1])
         with col_r1:
+            # FIXED: Safe inline date gathering evaluation to eliminate the NameError
             target_report_date = st.date_input("Select Target Report Date:", value=datetime.date.today(), key="rpt_date")
             
         # ------------------------------------------------------------------------------
@@ -1640,7 +1650,7 @@ def render_universal_attendance_workspace():
                             type="primary"
                         )
                     else:
-                        st.info("ℹ " "No operational records found for this target configuration.")
+                        st.info("ℹ️ No operational records found for this target configuration.")
                         
             else:  # All Sections Campus Master View (With Column Bottom Sum Row)
                 try:
@@ -1700,7 +1710,7 @@ def render_universal_attendance_workspace():
                         type="primary"
                     )
                 else:
-                    st.info("ℹ No records registered globally in the system roster.")
+                    st.info("ℹ️ No records registered globally in the system roster.")
 
     # ==============================================================================
     # 🎯 MODE B: MARK SINGLE STUDENT ATTENDANCE (INDIVIDUAL OVERRIDES WITH LOGS)
@@ -1826,6 +1836,7 @@ def render_universal_attendance_workspace():
 
         col_date, _ = st.columns([1, 4])
         with col_date:
+            # FIXED: Safe inline evaluation to eliminate NameError here too
             attendance_date = st.date_input("Attendance Log Date:", value=datetime.date.today(), key="uni_date")
             
         st.markdown("---")
@@ -1901,6 +1912,7 @@ def render_universal_attendance_workspace():
                             
                             st.session_state.active_absentee_ids = detected_absentees
                             st.toast("Phase 1 complete! Absentees extracted below.", icon="👀")
+                            st.rerun()
                         except Exception as err:
                             st.error(f"❌ Core synchronization transaction aborted: {err}")
 
@@ -1965,7 +1977,7 @@ def render_universal_attendance_workspace():
                 else:
                     st.success("✨ Excellent! No active absences recorded for this section layout group.")
             else: 
-                st.info("ℹ No active student profiles found matching these filters.")
+                st.info("ℹ️ No active student profiles found matching these filters.")
         else:
             st.warning("⏳ Please select your filter parameters to load the attendance register.")
 
