@@ -623,8 +623,7 @@ def render_master_setup_engine():
                 else:
                     st.form_submit_button("🔗 Complete Steps 1-7 above to unlock submission", disabled=True, use_container_width=True)
 
-    with tab3:
-        # ----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
         # 3. CLASS IN-CHARGE ALLOCATIONS (Moved from sidebar to right side tab)
         # ----------------------------------------------------------------------
         st.markdown("### Manage Class In-Charge Allocations")
@@ -632,7 +631,8 @@ def render_master_setup_engine():
         
         # 1. Session Dropdown
         sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        # FIX: Changed string key index to positional .iloc[:, 0]
+        sessions_list = ["-- Select Session --"] + (sessions_df.iloc[:, 0].tolist() if not sessions_df.empty else [])
         
         col_inc1, col_inc2 = st.columns(2)
         with col_inc1: 
@@ -642,7 +642,8 @@ def render_master_setup_engine():
         with col_inc2:
             if sel_session != "-- Select Session --":
                 systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                # FIX: Changed string key index to positional .iloc[:, 0]
+                systems_list = ["-- Select System --"] + (systems_df.iloc[:, 0].tolist() if not systems_df.empty else [])
                 sel_system = st.selectbox("2. Select Academic Framework:", options=systems_list, key="inc_sys")
             else:
                 st.selectbox("2. Select Academic Framework:", ["🔒 Waiting for Session..."], disabled=True, key="inc_sys_dis")
@@ -654,7 +655,8 @@ def render_master_setup_engine():
         with col_inc3:
             if sel_system not in ["-- Select System --", "", None]:
                 classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
-                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                # FIX: Changed string key index to positional .iloc[:, 0]
+                classes_list = ["-- Select Class --"] + (classes_df.iloc[:, 0].tolist() if not classes_df.empty else [])
                 sel_class = st.selectbox("3. Assign Class Level Scope:", options=classes_list, key="inc_cls")
             else:
                 st.selectbox("3. Assign Class Level Scope:", ["🔒 Waiting for System..."], disabled=True, key="inc_cls_dis")
@@ -664,7 +666,8 @@ def render_master_setup_engine():
         with col_inc4:
             if sel_class not in ["-- Select Class --", "", None]:
                 sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                # FIX: Changed string key index to positional .iloc[:, 0]
+                sections_list = ["-- Select Section --"] + (sections_df.iloc[:, 0].tolist() if not sections_df.empty else [])
                 sel_section = st.selectbox("4. Assign Section Branch:", options=sections_list, key="inc_sec")
             else:
                 st.selectbox("4. Assign Section Branch:", ["🔒 Waiting for Class..."], disabled=True, key="inc_sec_dis")
@@ -673,7 +676,8 @@ def render_master_setup_engine():
         # 5. Teacher Dropdown (Cascading from Section)
         if sel_section not in ["-- Select Section --", "", None]:
             teachers_df = run_query("SELECT teacher_id, full_name FROM teachers")
-            teachers_list = ["-- Select Teacher --"] + [f"{row['teacher_id']} - {row['full_name']}" for _, row in teachers_df.iterrows()] if not teachers_df.empty else ["-- Select Teacher --"]
+            # FIX: Built dynamic robust structural fallbacks for data row extraction loops
+            teachers_list = ["-- Select Teacher --"] + [f"{row.iloc[0]} - {row.iloc[1]}" for _, row in teachers_df.iterrows()] if not teachers_df.empty else ["-- Select Teacher --"]
             selected_teacher = st.selectbox("5. Select Assigned Faculty Member:", options=teachers_list, key="inc_tchr")
         else:
             st.selectbox("5. Select Assigned Faculty Member:", ["🔒 Waiting for Section Selection..."], disabled=True, key="inc_tchr_dis")
@@ -681,7 +685,7 @@ def render_master_setup_engine():
             
         st.markdown("---")
         
-        # Submission Validation Gate
+        # Submission Validation Gate Check
         ready_to_submit_inc = all([
             sel_session != "-- Select Session --",
             sel_system != "-- Select System --",
@@ -690,17 +694,24 @@ def render_master_setup_engine():
             selected_teacher != "-- Select Teacher --"
         ])
         
+        # Wrapped appropriately with form submit validation criteria
         with st.form("form_incharge_allocation_gate"):
             if ready_to_submit_inc:
-                if st.form_submit_button("🔗 Link Class In-Charge Assignment", type="primary", use_container_width=True):
+                submit_clicked = st.form_submit_button("🔗 Link Class In-Charge Assignment", type="primary", use_container_width=True)
+                if submit_clicked:
                     t_id = selected_teacher.split(" - ")[0].strip()
                     t_name = selected_teacher.split(" - ")[1].strip()
                     try:
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO incharge_allocations (session, academic_system, class_level, section, teacher_id, teacher_name)
-                                VALUES (:sess, :sys, :cls, :sec, :tid, :tname)
-                            """), {"sess": sel_session, "sys": sel_system, "cls": sel_class, "sec": sel_section, "tid": t_id, "tname": t_name})
+                        # FIX: Migrated from raw legacy SQL execution engines over to active client client-side inputs
+                        response = supabase.table("incharge_allocations").insert({
+                            "session": sel_session,
+                            "academic_system": sel_system,
+                            "class_level": sel_class,
+                            "section": sel_section,
+                            "teacher_id": t_id,
+                            "teacher_name": t_name
+                        }).execute()
+                        
                         st.success(f"🎉 Mapping Complete: {t_name} is now designated In-Charge for Class {sel_class}-{sel_section}!")
                         time.sleep(0.5)
                         st.rerun()
@@ -708,7 +719,6 @@ def render_master_setup_engine():
                         st.error(f"❌ Database error: {e}")
             else:
                 st.form_submit_button("🔗 Complete Steps 1-5 above to unlock assignment", disabled=True, use_container_width=True)
-
 
 def render_student_management_workspace():
     """Shared workspace enabling authorized users to onboard, bulk import, or update student registry information."""
