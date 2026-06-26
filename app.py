@@ -14,8 +14,12 @@ st.set_page_config(
 )
 
 # --- SUPABASE CONNECTION CONFIGURATION ---
-# ⚠️ Replace 'YOUR_DB_PASSWORD' with your actual Supabase database password
-DB_URL = "postgresql://postgres.qykueriwcvgxsbxbbtso:YOUR_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
+# 🛡️ FIXED: Securely load from Streamlit Secrets instead of hardcoding sensitive strings
+if "database" in st.secrets:
+    DB_URL = f"postgresql://{st.secrets['database']['username']}:{st.secrets['database']['password']}@{st.secrets['database']['host']}:{st.secrets['database']['port']}/{st.secrets['database']['database']}"
+else:
+    # Fallback to string if secrets are structured as a single connection string
+    DB_URL = st.secrets.get("DATABASE_URL", "postgresql://postgres.qykueriwcvgxsbxbbtso:YOUR_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres")
 
 @st.cache_resource
 def get_db_engine():
@@ -27,6 +31,20 @@ engine = get_db_engine()
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
     with engine.begin() as conn:
+        # ✨ ADDED/FIXED: Core attendance tracking ledger table mapping
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS attendance (
+                id SERIAL PRIMARY KEY,
+                student_id TEXT NOT NULL,
+                date DATE NOT NULL,
+                status TEXT NOT NULL,
+                remarks TEXT,
+                updated_by TEXT,
+                updated_at TEXT,
+                UNIQUE(student_id, date)
+            );
+        """))
+
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id SERIAL PRIMARY KEY,
@@ -118,7 +136,7 @@ def init_db():
             );
         """))
 
-        # ✨ ADDED HERE: PostgreSQL-compatible Late Arrivals ledger scheme
+        # PostgreSQL-compatible Late Arrivals ledger scheme
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS late_arrivals (
                 id SERIAL PRIMARY KEY,
