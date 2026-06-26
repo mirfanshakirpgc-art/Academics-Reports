@@ -1492,14 +1492,16 @@ def render_universal_attendance_workspace(current_user="System"):
             if report_scope == "Single Section Absentees":
                 st.markdown("##### Filter Targets for Single Section Absentees List:")
                 sessions_df = run_query("academic_sessions")
-                sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty and 'session_name' in sessions_df.columns else [])
+                # UPDATED: Using .iloc[:, 0] to guarantee resilient extraction regardless of driver column name casing
+                sessions_list = ["-- Select Session --"] + (sessions_df.iloc[:, 0].tolist() if not sessions_df.empty else [])
                 
                 col_u1, col_u2, col_u3, col_u4, col_u5 = st.columns(5)
                 with col_u1: sel_session = st.selectbox("1. Session:", options=sessions_list, key="rpt_abs_sess")
                 with col_u2:
                     if sel_session != "-- Select Session --":
                         systems_df = run_query("academic_systems")
-                        systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty and 'system_name' in systems_df.columns else [])
+                        # UPDATED: Using .iloc[:, 0]
+                        systems_list = ["-- Select System --"] + (systems_df.iloc[:, 0].tolist() if not systems_df.empty else [])
                         sel_system = st.selectbox("2. System:", options=systems_list, key="rpt_abs_sys")
                     else:
                         st.selectbox("2. System:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_sys_dis")
@@ -1509,7 +1511,8 @@ def render_universal_attendance_workspace(current_user="System"):
                         classes_df = run_query("classes")
                         if not classes_df.empty and 'sort_order' in classes_df.columns:
                             classes_df = classes_df.sort_values(by=['sort_order', 'id'], ascending=[True, True])
-                        classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty and 'class_level' in classes_df.columns else [])
+                        # UPDATED: Using .iloc[:, 0] to maintain robust fallback positioning
+                        classes_list = ["-- Select Class --"] + (classes_df.iloc[:, 0].tolist() if not classes_df.empty else [])
                         sel_class = st.selectbox("3. Class:", options=classes_list, key="rpt_abs_cls")
                     else:
                         st.selectbox("3. Class:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_cls_dis")
@@ -1517,7 +1520,8 @@ def render_universal_attendance_workspace(current_user="System"):
                 with col_u4:
                     if sel_class != "-- Select Class --":
                         disciplines_df = run_query("disciplines")
-                        disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty and 'discipline_title' in disciplines_df.columns else [])
+                        # UPDATED: Using .iloc[:, 0]
+                        disciplines_list = ["-- Select Discipline --"] + (disciplines_df.iloc[:, 0].tolist() if not disciplines_df.empty else [])
                         sel_discipline = st.selectbox("4. Discipline:", options=disciplines_list, key="rpt_abs_disc")
                     else:
                         st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_disc_dis")
@@ -1525,7 +1529,8 @@ def render_universal_attendance_workspace(current_user="System"):
                 with col_u5:
                     if sel_discipline != "-- Select Discipline --":
                         sections_df = run_query("sections")
-                        sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty and 'section_name' in sections_df.columns else [])
+                        # UPDATED: Using .iloc[:, 0]
+                        sections_list = ["-- Select Section --"] + (sections_df.iloc[:, 0].tolist() if not sections_df.empty else [])
                         sel_section = st.selectbox("5. Section:", options=sections_list, key="rpt_abs_sec")
                     else:
                         st.selectbox("5. Section:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_sec_dis")
