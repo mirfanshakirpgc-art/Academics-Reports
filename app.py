@@ -916,8 +916,8 @@ def render_student_management_workspace():
         st.write("### ✏️ Search, Batch Edit Section, or Modify Profiles")
 
         # Pull reference indices dynamically from Tab 1 Structural Variables
-        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+        sessions_df = run_query("academic_sessions")
+        sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty and 'session_name' in sessions_df.columns else [])
         
         st.markdown("📁 **Step 1: Locate Active Target Parameters**")
         
@@ -930,8 +930,8 @@ def render_student_management_workspace():
         with col_s2:
             if search_session != "-- Select Session --":
                 try:
-                    systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-                    systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                    systems_df = run_query("academic_systems")
+                    systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty and 'system_name' in systems_df.columns else [])
                 except Exception:
                     systems_list = ["-- Select System --", "Annual", "Semester"]
                 search_system = st.selectbox("Filter Academic System:", options=systems_list, key="search_system")
@@ -941,8 +941,8 @@ def render_student_management_workspace():
                 
         with col_s3:
             if search_system != "-- Select System --":
-                classes_df = run_query("SELECT DISTINCT class_level FROM classes")
-                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                classes_df = run_query("classes")
+                classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty and 'class_level' in classes_df.columns else [])
                 search_class = st.selectbox("Filter Class:", options=classes_list, key="search_cls")
             else:
                 st.selectbox("Filter Class:", ["🔒 Waiting..."], disabled=True, key="search_cls_dis")
@@ -951,8 +951,8 @@ def render_student_management_workspace():
         with col_s4:
             if search_class != "-- Select Class --":
                 try:
-                    disc_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-                    if not disc_df.empty:
+                    disc_df = run_query("disciplines")
+                    if not disc_df.empty and 'discipline_title' in disc_df.columns:
                         disc_list = ["-- Select Discipline --"] + disc_df['discipline_title'].tolist()
                     else:
                         disc_list = ["-- Select Discipline --", "Medical"]
@@ -967,8 +967,8 @@ def render_student_management_workspace():
 
         with col_s5:
             if search_discipline != "-- Select Discipline --":
-                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                sections_df = run_query("sections")
+                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty and 'section_name' in sections_df.columns else [])
                 search_sec = st.selectbox("Filter Section:", options=sections_list, key="search_sec")
             else:
                 st.selectbox("Filter Section:", ["🔒 Waiting..."], disabled=True, key="search_sec_dis")
@@ -992,46 +992,51 @@ def render_student_management_workspace():
             search_sec != "-- Select Section --"):
             
             try:
-                with engine.connect() as conn:
-                    query_str = """
-                        SELECT student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline, academic_system
-                        FROM students
-                        WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
-                          AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys))
-                          AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls)) 
-                          AND LOWER(TRIM(discipline)) = LOWER(TRIM(:disc))
-                          AND LOWER(TRIM(section)) = LOWER(TRIM(:sec))
-                        ORDER BY roll_no ASC
-                    """
-                    matched_students = pd.read_sql(
-                        text(query_str), 
-                        conn, 
-                        params={
-                            "sess": search_session, 
-                            "sys": search_system,
-                            "cls": search_class, 
-                            "disc": search_discipline,
-                            "sec": search_sec
-                        }
-                    )
+                # HTTP REST API query replacement handling exact filtering criteria
+                response = supabase.table("students").select(
+                    "student_id, roll_no, student_name, father_name, whatsapp_no, student_no, contact_1, contact_2, home_address, discipline, academic_system, session, class_level, section"
+                ).execute()
                 
-                matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
+                all_students = pd.DataFrame(response.data)
+                
+                if not all_students.empty:
+                    # Filter client-side to handle text matching safely across variations
+                    mask = (
+                        (all_students['session'].astype(str).str.strip().str.lower() == search_session.strip().lower()) &
+                        (all_students['academic_system'].astype(str).str.strip().str.lower() == search_system.strip().lower()) &
+                        (all_students['class_level'].astype(str).str.strip().str.lower() == search_class.strip().lower()) &
+                        (all_students['discipline'].astype(str).str.strip().str.lower() == search_discipline.strip().lower()) &
+                        (all_students['section'].astype(str).str.strip().str.lower() == search_sec.strip().lower())
+                    )
+                    matched_students = all_students[mask].copy()
+                    if 'roll_no' in matched_students.columns:
+                        matched_students = matched_students.sort_values(by='roll_no', ascending=True)
+                else:
+                    matched_students = pd.DataFrame()
+                
+                if not matched_students.empty:
+                    matched_students.columns = [str(c).lower().strip() for c in matched_students.columns]
+                    # Drop tracking filtering columns if you want the exact view structure preserved
+                    matched_students = matched_students[["student_id", "roll_no", "student_name", "father_name", "whatsapp_no", "student_no", "contact_1", "contact_2", "home_address", "discipline", "academic_system"]]
             except Exception as e:
                 st.error(f"Error fetching directory: {e}")
                 matched_students = pd.DataFrame()
                 
             if matched_students.empty:
-                st.info(f"ℹ optical: No student records match parameters: {search_session} | {search_system} | Class {search_class} | {search_discipline} | Section {search_sec}")
+                st.info(f"ℹ No student records match parameters: {search_session} | {search_system} | Class {search_class} | {search_discipline} | Section {search_sec}")
                 
                 with st.expander("🔍 Run Complete Database Verification Check", expanded=True):
                     try:
-                        total_count_df = run_query("SELECT COUNT(*) as total FROM students")
-                        total_records = total_count_df['total'].iloc[0] if not total_count_df.empty else 0
+                        total_count_df = run_query("students", select_query="count")
+                        # If count helper logic differs, Fallback directly to HTTP count modifier:
+                        cnt_resp = supabase.table("students").select("*", count="exact").limit(1).execute()
+                        total_records = cnt_resp.count if cnt_resp.count is not None else 0
+                        
                         st.metric(label="Total Student Rows Found Anywhere in DB Table", value=int(total_records))
                         
                         if total_records > 0:
                             st.write("💡 Data exists in the database! Here is a sample of how the keys look in the table rows:")
-                            raw_sample = run_query("SELECT session, academic_system, class_level, discipline, section FROM students LIMIT 5")
+                            raw_sample = pd.DataFrame(supabase.table("students").select("session, academic_system, class_level, discipline, section").limit(5).execute().data)
                             st.dataframe(raw_sample)
                         else:
                             st.error("❌ The database table currently holds exactly 0 records.")
@@ -1065,43 +1070,35 @@ def render_student_management_workspace():
                     )
                     
                     if st.button("💾 Bulk Save Changes for This Section", type="primary", use_container_width=True):
-                        changed_records = []
+                        success_count = 0
+                        error_occurred = False
+                        
                         for idx, row in edited_df.iterrows():
                             orig_row = matched_students.iloc[idx]
                             if not row.equals(orig_row):
-                                changed_records.append({
-                                    "name": str(row['student_name']).strip(),
-                                    "fname": str(row['father_name']).strip(),
-                                    "roll": int(row['roll_no']),
-                                    "whatsapp": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() and str(row['whatsapp_no']).strip() != 'None' else None,
-                                    "sno": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() and str(row['student_no']).strip() != 'None' else None,
-                                    "c1": str(row['contact_1']).strip(),
-                                    "c2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() and str(row['contact_2']).strip() != 'None' else None,
-                                    "addr": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() and str(row['home_address']).strip() != 'None' else None,
-                                    "id": row['student_id']
-                                })
+                                payload = {
+                                    "student_name": str(row['student_name']).strip(),
+                                    "father_name": str(row['father_name']).strip(),
+                                    "roll_no": int(row['roll_no']),
+                                    "whatsapp_no": str(row['whatsapp_no']).strip() if pd.notna(row['whatsapp_no']) and str(row['whatsapp_no']).strip() and str(row['whatsapp_no']).strip() != 'None' else None,
+                                    "student_no": str(row['student_no']).strip() if pd.notna(row['student_no']) and str(row['student_no']).strip() and str(row['student_no']).strip() != 'None' else None,
+                                    "contact_1": str(row['contact_1']).strip(),
+                                    "contact_2": str(row['contact_2']).strip() if pd.notna(row['contact_2']) and str(row['contact_2']).strip() and str(row['contact_2']).strip() != 'None' else None,
+                                    "home_address": str(row['home_address']).strip() if pd.notna(row['home_address']) and str(row['home_address']).strip() and str(row['home_address']).strip() != 'None' else None,
+                                }
+                                try:
+                                    supabase.table("students").update(payload).eq("student_id", row['student_id']).execute()
+                                    success_count += 1
+                                except Exception as e:
+                                    st.error(f"❌ Failed to update row {row['student_id']}: {e}")
+                                    error_occurred = True
                         
-                        if changed_records:
-                            try:
-                                with engine.begin() as conn:
-                                    conn.execute(text("""
-                                        UPDATE students SET
-                                            student_name = :name,
-                                            father_name = :fname,
-                                            roll_no = :roll,
-                                            whatsapp_no = :whatsapp,
-                                            student_no = :sno,
-                                            contact_1 = :c1,
-                                            contact_2 = :c2,
-                                            home_address = :addr
-                                        WHERE student_id = :id
-                                    """), changed_records)
-                                st.success(f"🎉 Roster synced successfully! Updated {len(changed_records)} records.")
-                                time.sleep(0.5)
-                                st.rerun()
-                            except Exception as bulk_err:
-                                st.error(f"❌ Batch Transaction Interrupted: {bulk_err}")
-                        else:
+                        if success_count > 0:
+                            st.success(f"🎉 Roster synced successfully! Updated {success_count} records.")
+                            import time
+                            time.sleep(0.5)
+                            st.rerun()
+                        elif not error_occurred:
                             st.info("ℹ️ No profile adjustments detected in the roster layout.")
 
                 # ------------------------------------------------------------------
@@ -1119,7 +1116,6 @@ def render_student_management_workspace():
                     else:
                         filtered_df = matched_students
 
-                    # Establish base defaults for tracking variables safely across blocks
                     target_id = None
                     student_data = None
 
@@ -1155,36 +1151,28 @@ def render_student_management_workspace():
                                         st.error("❌ Validation Failed: All mandatory fields must contain text.")
                                     else:
                                         try:
-                                            with engine.begin() as conn:
-                                                conn.execute(text("""
-                                                    UPDATE students SET
-                                                        student_name = :name,
-                                                        father_name = :fname,
-                                                        roll_no = :roll,
-                                                        whatsapp_no = :whatsapp,
-                                                        student_no = :sno,
-                                                        contact_1 = :c1,
-                                                        contact_2 = :c2,
-                                                        home_address = :addr
-                                                    WHERE student_id = :id
-                                                """), {
-                                                    "name": edit_name.strip(), "fname": edit_fname.strip(), "roll": edit_roll,
-                                                    "whatsapp": edit_whatsapp.strip() if edit_whatsapp.strip() else None, 
-                                                    "sno": edit_student_no.strip() if edit_student_no.strip() else None,
-                                                    "c1": edit_c1.strip(), 
-                                                    "c2": edit_c2.strip() if edit_c2.strip() else None, 
-                                                    "addr": edit_addr.strip() if edit_addr.strip() else None,
-                                                    "id": target_id
-                                                })
+                                            payload = {
+                                                "student_name": edit_name.strip(), 
+                                                "father_name": edit_fname.strip(), 
+                                                "roll_no": int(edit_roll),
+                                                "whatsapp_no": edit_whatsapp.strip() if edit_whatsapp.strip() else None, 
+                                                "student_no": edit_student_no.strip() if edit_student_no.strip() else None,
+                                                "contact_1": edit_c1.strip(), 
+                                                "contact_2": edit_c2.strip() if edit_c2.strip() else None, 
+                                                "home_address": edit_addr.strip() if edit_addr.strip() else None
+                                            }
+                                            
+                                            supabase.table("students").update(payload).eq("student_id", target_id).execute()
                                             st.success(f"🎉 Saved successfully!")
+                                            import time
                                             time.sleep(0.5)
                                             st.rerun()
                                         except Exception as update_err:
                                             st.error(f"❌ Database Error: {update_err}")
 
-                # ==============================================================================
-                # 🛠️ ADMINISTRATIVE STRUCTURAL OPERATIONS ENGINE (FOR SINGLE OR FULL SECTION)
-                # ==============================================================================
+    # ==============================================================================
+    # 🛠️ ADMINISTRATIVE STRUCTURAL OPERATIONS ENGINE (FOR SINGLE OR FULL SECTION)
+    # ==============================================================================
                 st.markdown("---")
                 st.markdown("### 🛠️ Structural Actions Panel")
                 st.caption("Apply bulk structural migrations, section re-allocations, cycle promotions, or drop entries.")
