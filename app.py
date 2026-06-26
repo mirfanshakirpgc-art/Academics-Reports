@@ -1364,13 +1364,14 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
-def render_universal_attendance_workspace():
+# ✅ Change 1: Pass current_user down from the RBAC Matrix router
+def render_universal_attendance_workspace(current_user="System"):
     """Shared workspace allowing unrestricted global access to all sections for attendance processing and reporting with auditing logs."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
     st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, override, or export attendance maps.")
     
-    # Get current active username from session state (defaults to Admin if missing)
-    current_user = st.session_state.get("username", "Admin")
+    # ❌ REMOVED: st.session_state.get("username", "Admin") line is gone!
+    # The variable current_user is now safely provided directly by the function argument.
     
     # ==============================================================================
     # 🛠️ DATABASE SCHEMA INITIALIZATION & AUTOMATIC MIGRATION
@@ -2033,7 +2034,8 @@ if user_role == "Principal":
     if app_mode == "Master Panel Overview": st.title("🦅 Principal Strategic Control Command Tower")
     elif app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
     elif app_mode == "Admission Management": render_student_management_workspace()
-    elif app_mode == "Universal Attendance Panel": render_universal_attendance_workspace()
+    # ✅ UPDATED HERE: Passing current_user=user_role
+    elif app_mode == "Universal Attendance Panel": render_universal_attendance_workspace(current_user=user_role)
     elif app_mode == "Universal Marks Override Desk": render_universal_marks_entry_workspace()
     elif app_mode == "Report Generator Engine": render_institutional_report_generator()
     elif app_mode == "📊 Global Institutional Analytics": render_global_analytics_dashboard()
@@ -2061,7 +2063,8 @@ elif user_role == "Vice Principal":
     
     if app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
     elif app_mode == "Student Record Management Workspace": render_student_management_workspace()
-    elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace()
+    # ✅ UPDATED HERE: Passing current_user=user_role
+    elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace(current_user=user_role)
     elif app_mode == "Universal Marks Entry Portal": render_universal_marks_entry_workspace()
     elif app_mode == "📈 Comprehensive Systems Analytics": render_global_analytics_dashboard()
     elif app_mode == "📋 Generate Systems Reports Matrix": render_institutional_report_generator()
@@ -2076,7 +2079,8 @@ elif user_role == "Admission Officer":
     )
     
     if app_mode == "Admission Management": render_student_management_workspace()
-    elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace()
+    # ✅ UPDATED HERE: Passing current_user=user_role
+    elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace(current_user=user_role)
     elif app_mode == "Student Search Directory": st.title("🔍 Student Database Query Index")
 
 # 👨‍🏫 5. TEACHER DASHBOARD
