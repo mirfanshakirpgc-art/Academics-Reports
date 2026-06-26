@@ -2359,21 +2359,3 @@ elif user_role == "Teacher":
     if app_mode == "📝 Subject Marks Entry Sheet Console": st.title("📝 Subject Marks Entry Sheet Console")
     elif app_mode == "📅 Section Attendance Register": st.title("📅 Section Attendance Register")
     elif app_mode == "📊 My Subject Analytics Panel": st.title("📊 My Subject Performance Analytics")
-# ==============================================================================
-# DIAGNOSTIC LIVE CONNECTOR PANEL
-# ==============================================================================
-st.title("🎓 Academic Live Dashboard")
-
-st.subheader("🔗 System Connectivity Status")
-st.success("Successfully routed connection to Supabase via IPv4 Bridge!")
-
-# Quick check to see if database tables can be read smoothly
-try:
-    test_df = run_query("SELECT table_name FROM information_schema.tables WHERE table_schema='public';")
-    if not test_df.empty:
-        st.write("🟢 **Detected Backend Infrastructure Tables:**")
-        st.dataframe(test_df)
-    else:
-        st.warning("Database connected, but no schemas returned.")
-except Exception as e:
-    st.error(f"Error querying operational tables: {e}")
