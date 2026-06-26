@@ -1,30 +1,40 @@
-# Force-rebuild anchor: v1.0.5
+# Force-rebuild anchor: v1.0.6
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
-import logging
 
-st.set_page_config(
-    page_title="Academic Management & Reports System",
-    page_icon="🎓",
-    layout="wide"
-)
-
-# --- CLEAN SUPABASE TOML CONNECTION ---
+# --- ADAPTIVE AUTHENTICATION ENGINE ---
 DB_URL = None
 
 if "database" in st.secrets:
     creds = st.secrets["database"]
-    # Reverting back to using the official host resolution on connection pooling port 6543
-    DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
-elif "DATABASE_URL" in st.secrets:
-    DB_URL = st.secrets["DATABASE_URL"]
+    
+    # Try the clean username format first
+    user = creds.get("username", "postgres")
+    DB_URL = f"postgresql://{user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 
 @st.cache_resource
-def get_db_engine():
-    """Creates a cached database engine using recommended transaction pooling properties."""
-    if not DB_URL or "YOUR_ACTUAL_DB_PASSWORD" in DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
+def get_db_engine(url_str):
+    if not url_str or "YOUR_REAL_SUPABASE_PASSWORD" in url_str:
         return None
+    try:
+        engine = create_engine(url_str, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+        # Test connection actively
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return engine
+    except Exception:
+        # Fallback to alternative pooler username format if the first attempt fails
+        if "database" in st.secrets and "username_pooler" in st.secrets["database"]:
+            alt_user = st.secrets["database"]["username_pooler"]
+            creds = st.secrets["database"]
+            alt_url = f"postgresql://{alt_user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
+            return create_engine(alt_url, pool_pre_ping=True)
+        return None
+
+# Wipe old cache targets completely 
+st.cache_resource.clear()
+engine = get_db_engine(DB_URL)
     
     # Adding connect_args sets a shorter connection timeout to prevent hanging
     return create_engine(
