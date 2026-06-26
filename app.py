@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.1.3
+# Force-rebuild anchor: v1.1.4
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,25 +10,27 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SESSION POOLER ENGINE INITIALIZER ---
+# --- SECURE POOLER CONNECTOR ENGINE ---
 DB_URL = None
 
 if "database" in st.secrets:
     creds = st.secrets["database"]
-    # Build connection explicitly using the pooler address over port 5432
     DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a connection engine optimized for Supabase Session Poolers."""
+    """Generates a connection engine explicitly optimized to pass through connection poolers cleanly."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
         DB_URL, 
-        pool_pre_ping=True
+        pool_pre_ping=True,
+        connect_args={
+            "prepare_threshold": None  # Crucial fallback setting for Supabase transaction poolers
+        }
     )
 
-# Flush any stale connection endpoints out of memory
+# Force clear out stale cached connection instances
 st.cache_resource.clear()
 engine = get_db_engine()
 
