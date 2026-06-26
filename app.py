@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.2.2
+# Force-rebuild anchor: v1.2.3
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,25 +10,21 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CACHE-BUSTING DIRECT CONNECTION ENGINE ---
+# --- CACHE-BUSTING IPV4 POOLER ENGINE ---
 DB_URL = None
 
-# Look for our fresh new secrets key name to break past Streamlit's old cache
 if "supabase_direct" in st.secrets:
     creds = st.secrets["supabase_direct"]
     DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a cached SQL connection engine pointing directly to the database instance."""
+    """Generates a connection engine routed through the IPv4 Session Pooler gateway."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
         DB_URL, 
-        pool_pre_ping=True,
-        connect_args={
-            "sslmode": "prefer"
-        }
+        pool_pre_ping=True
     )
 
 engine = get_db_engine()
