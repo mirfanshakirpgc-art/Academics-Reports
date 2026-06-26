@@ -1365,12 +1365,15 @@ import streamlit as st
 from sqlalchemy import text
 
 def render_universal_attendance_workspace():
-    """Shared workspace allowing unrestricted global access to all sections for attendance processing and reporting."""
+    """Shared workspace allowing unrestricted global access to all sections for attendance processing and reporting with auditing logs."""
     st.subheader("🌐 Global Universal Attendance Control Desk")
     st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, override, or export attendance maps.")
     
+    # Get current active username from session state (defaults to Admin if missing)
+    current_user = st.session_state.get("username", "Admin")
+    
     # ==============================================================================
-    # 🛠️ DATABASE SCHEMA INITIALIZATION
+    # 🛠️ DATABASE SCHEMA INITIALIZATION (UPGRADED FOR LOG TRACKING)
     # ==============================================================================
     try:
         with engine.begin() as conn:
@@ -1381,6 +1384,8 @@ def render_universal_attendance_workspace():
                     date DATE NOT NULL,
                     status TEXT NOT NULL,
                     remarks TEXT,
+                    updated_by TEXT,
+                    updated_at TEXT,
                     UNIQUE(student_id, date)
                 );
             """))
@@ -1403,7 +1408,7 @@ def render_universal_attendance_workspace():
     st.markdown("---")
 
     # ==============================================================================
-    # 📊 MODE C: GENERATE & PRINT ATTENDANCE REPORTS
+    # 📊 MODE C: GENERATE & PRINT ATTENDANCE REPORTS (LOG DETAILS ADDED)
     # ==============================================================================
     if workspace_mode == "📊 Generate & Print Reports":
         st.markdown("### 🖨️ Attendance Report Generator Engine")
@@ -1428,7 +1433,7 @@ def render_universal_attendance_workspace():
                     sel_system = st.selectbox("2. System:", options=systems_list, key="rpt_sys")
                 else:
                     st.selectbox("2. System:", ["🔒 Waiting..."], disabled=True, key="rpt_sys_dis")
-                    sel_system = "-- Select System --"
+                    sel_system = "-- Select Session --"
             with col_u3:
                 if sel_system != "-- Select System --":
                     classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
@@ -1436,7 +1441,7 @@ def render_universal_attendance_workspace():
                     sel_class = st.selectbox("3. Class:", options=classes_list, key="rpt_cls")
                 else:
                     st.selectbox("3. Class:", ["🔒 Waiting..."], disabled=True, key="rpt_cls_dis")
-                    sel_class = "-- Select Class --"
+                    sel_class = "-- Select System --"
             with col_u4:
                 if sel_class != "-- Select Class --":
                     disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
@@ -1444,7 +1449,7 @@ def render_universal_attendance_workspace():
                     sel_discipline = st.selectbox("4. Discipline:", options=disciplines_list, key="rpt_disc")
                 else:
                     st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="rpt_disc_dis")
-                    sel_discipline = "-- Select Discipline --"
+                    sel_discipline = "-- Select Class --"
             with col_u5:
                 if sel_discipline != "-- Select Discipline --":
                     sections_df = run_query("SELECT DISTINCT section_name FROM sections")
@@ -1452,12 +1457,13 @@ def render_universal_attendance_workspace():
                     sel_section = st.selectbox("5. Section:", options=sections_list, key="rpt_sec")
                 else:
                     st.selectbox("5. Section:", ["🔒 Waiting..."], disabled=True, key="rpt_sec_dis")
-                    sel_section = "-- Select Section --"
+                    sel_section = "-- Select Discipline --"
 
             if "-- Select" not in f"{sel_session}{sel_system}{sel_class}{sel_discipline}{sel_section}":
                 report_df = run_query("""
                     SELECT s.roll_no AS [Roll No], s.student_name AS [Student Name], 
                            COALESCE(a.status, 'Not Marked') AS [Status], COALESCE(a.remarks, '—') AS [Remarks],
+                           COALESCE(a.updated_by, '—') AS [Logged By], COALESCE(a.updated_at, '—') AS [Log Timestamp],
                            s.contact_1 AS [Primary Contact]
                     FROM students s
                     LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
@@ -1489,7 +1495,8 @@ def render_universal_attendance_workspace():
                 SELECT s.session AS [Session], s.academic_system AS [System], 
                        s.class_level AS [Class], s.section AS [Section], s.roll_no AS [Roll No], 
                        s.student_name AS [Student Name], COALESCE(a.status, 'Not Marked') AS [Status], 
-                       COALESCE(a.remarks, '—') AS [Remarks]
+                       COALESCE(a.remarks, '—') AS [Remarks], COALESCE(a.updated_by, '—') AS [Logged By], 
+                       COALESCE(a.updated_at, '—') AS [Log Timestamp]
                 FROM students s
                 LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
                 ORDER BY s.session, s.class_level, s.section, s.roll_no ASC
@@ -1559,21 +1566,22 @@ def render_universal_attendance_workspace():
                     submit_single = st.form_submit_button("💾 Save Individual Attendance Record", type="primary", use_container_width=True)
                     
                     if submit_single:
+                        now_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO attendance (student_id, date, status, remarks)
-                                    VALUES (:student_id, :date, :status, :remarks)
+                                    INSERT INTO attendance (student_id, date, status, remarks, updated_by, updated_at)
+                                    VALUES (:student_id, :date, :status, :remarks, :up_by, :up_at)
                                     ON CONFLICT(student_id, date) DO UPDATE SET
                                         status = EXCLUDED.status,
-                                        remarks = EXCLUDED.remarks;
+                                        remarks = EXCLUDED.remarks,
+                                        updated_by = EXCLUDED.updated_by,
+                                        updated_at = EXCLUDED.updated_at;
                                 """), {
-                                    "student_id": student['student_id'],
-                                    "date": single_date,
-                                    "status": single_status,
-                                    "remarks": single_remarks.strip()
+                                    "student_id": student['student_id'], "date": single_date, "status": single_status,
+                                    "remarks": single_remarks.strip(), "up_by": current_user, "up_at": now_stamp
                                 })
-                            st.success(f"🎉 Successfully tracked attendance for {student['student_name']} on {single_date}!")
+                            st.success(f"🎉 Successfully tracked attendance for {student['student_name']}!")
                         except Exception as single_err:
                             st.error(f"❌ Failed to log individual attendance record: {single_err}")
             else:
@@ -1596,7 +1604,7 @@ def render_universal_attendance_workspace():
                 sel_system = st.selectbox("2. Academic System:*", options=systems_list, key="att_sys")
             else:
                 st.selectbox("2. Academic System:", ["🔒 Waiting..."], disabled=True, key="att_sys_dis")
-                sel_system = "-- Select System --"
+                sel_system = "-- Select Session --"
         with col_u3:
             if sel_system != "-- Select System --":
                 classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
@@ -1604,7 +1612,7 @@ def render_universal_attendance_workspace():
                 sel_class = st.selectbox("3. Target Class:*", options=classes_list, key="att_cls")
             else:
                 st.selectbox("3. Target Class:", ["🔒 Waiting..."], disabled=True, key="att_cls_dis")
-                sel_class = "-- Select Class --"
+                sel_class = "-- Select System --"
         with col_u4:
             if sel_class != "-- Select Class --":
                 disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
@@ -1612,7 +1620,7 @@ def render_universal_attendance_workspace():
                 sel_discipline = st.selectbox("4. Discipline:*", options=disciplines_list, key="att_disc")
             else:
                 st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="att_disc_dis")
-                sel_discipline = "-- Select Discipline --"
+                sel_discipline = "-- Select Class --"
         with col_u5:
             if sel_discipline != "-- Select Discipline --":
                 sections_df = run_query("SELECT DISTINCT section_name FROM sections")
@@ -1620,7 +1628,7 @@ def render_universal_attendance_workspace():
                 sel_section = st.selectbox("5. Section Track:*", options=sections_list, key="att_sec")
             else:
                 st.selectbox("5. Section Track:", ["🔒 Waiting..."], disabled=True, key="att_sec_dis")
-                sel_section = "-- Select Section --"
+                sel_section = "-- Select Discipline --"
 
         col_date, _ = st.columns([1, 4])
         with col_date:
@@ -1662,12 +1670,9 @@ def render_universal_attendance_workspace():
                     for idx, row in students_df.iterrows():
                         col_roll, col_check, col_name = st.columns([1, 2, 5])
                         
-                        with col_roll:
-                            st.write(f"#{row['roll_no']}")
-                        with col_check:
-                            is_present = st.checkbox("Present", value=True, key=f"chk_{row['student_id']}", label_visibility="collapsed")
-                        with col_name:
-                            st.write(row['student_name'])
+                        with col_roll: st.write(f"#{row['roll_no']}")
+                        with col_check: is_present = st.checkbox("Present", value=True, key=f"chk_{row['student_id']}", label_visibility="collapsed")
+                        with col_name: st.write(row['student_name'])
                             
                         status_mappings[row['student_id']] = "Present" if is_present else "Absent"
                         st.markdown("<hr style='margin:0.2em; border-color:#f0f2f6;'>", unsafe_allow_html=True)
@@ -1675,15 +1680,15 @@ def render_universal_attendance_workspace():
                     save_initial_register = st.form_submit_button("💾 Phase 1: Save Present Matrix & Identify Absentees", type="primary", use_container_width=True)
                     
                     if save_initial_register:
+                        now_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         initial_payload = []
                         detected_absentees = []
                         
                         for s_id, status in status_mappings.items():
                             initial_payload.append({
-                                "student_id": s_id,
-                                "att_date": attendance_date,
-                                "status": status,
-                                "remarks": "" if status == "Present" else "Pending Review"
+                                "student_id": s_id, "att_date": attendance_date, "status": status,
+                                "remarks": "" if status == "Present" else "Pending Review",
+                                "up_by": current_user, "up_at": now_stamp
                             })
                             if status == "Absent":
                                 detected_absentees.append(s_id)
@@ -1691,9 +1696,12 @@ def render_universal_attendance_workspace():
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO attendance (student_id, date, status, remarks) 
-                                    VALUES (:student_id, :att_date, :status, :remarks)
-                                    ON CONFLICT(student_id, date) DO UPDATE SET status = EXCLUDED.status;
+                                    INSERT INTO attendance (student_id, date, status, remarks, updated_by, updated_at) 
+                                    VALUES (:student_id, :att_date, :status, :remarks, :up_by, :up_at)
+                                    ON CONFLICT(student_id, date) DO UPDATE SET 
+                                        status = EXCLUDED.status,
+                                        updated_by = EXCLUDED.updated_by,
+                                        updated_at = EXCLUDED.updated_at;
                                 """), initial_payload)
                             
                             st.session_state.active_absentee_ids = detected_absentees
@@ -1701,11 +1709,20 @@ def render_universal_attendance_workspace():
                         except Exception as err:
                             st.error(f"❌ Core synchronization transaction aborted: {err}")
 
+                # Phase 3: Standard Follow Up Option Display Panel
                 if st.session_state.active_absentee_ids:
                     st.markdown("---")
                     st.error(f"⚠️ **Absentee Verification Workspace ({len(st.session_state.active_absentee_ids)} Students Missing)**")
                     
                     absent_students_df = students_df[students_df['student_id'].isin(st.session_state.active_absentee_ids)]
+                    
+                    fixed_reasons = [
+                        "Medical / Health Issues", "Family Emergency", "Family Function", 
+                        "Bereavement (Death in Family)", "Transportation Problems", "Out-of-Town Travel", 
+                        "Official or Personal Work", "Household Responsibilities", "Religious Obligations", 
+                        "Personal Reasons", "Other"
+                    ]
+                    contacted_persons = ["Mother", "Father", "Brother", "Sister", "Student", "Relative"]
                     
                     with st.form("absentee_remarks_and_contact_form"):
                         remarks_payload = []
@@ -1718,16 +1735,18 @@ def render_universal_attendance_workspace():
                             c2.markdown(f"📱 **WhatsApp:** `{ab_row['whatsapp_no'] if ab_row['whatsapp_no'] else 'None'}`")
                             c3.markdown(f"🏠 **Alternative:** `{ab_row['contact_2'] if ab_row['contact_2'] else 'None'}`")
                             
-                            note = st.text_input(
-                                f"Reason for Absence ({ab_row['student_name']}):", 
-                                placeholder="e.g., Parent called: Sick leave notice provided", 
-                                key=f"rem_input_{ab_row['student_id']}"
-                            )
+                            col_sel1, col_sel2, col_txt = st.columns([1.5, 1.2, 2])
+                            with col_sel1: reason_sel = st.selectbox("Reason for Absence:", options=fixed_reasons, key=f"reason_{ab_row['student_id']}")
+                            with col_sel2: contacted_sel = st.selectbox("Contacted Person:", options=contacted_persons, key=f"contacted_{ab_row['student_id']}")
+                            with col_txt: custom_note = st.text_input("Additional Notes / Remarks:", placeholder="e.g., Leave application promised", key=f"custom_note_{ab_row['student_id']}").strip()
                             
+                            combined_remarks = f"[{reason_sel}] Call log entry: Talked to {contacted_sel}."
+                            if custom_note:
+                                combined_remarks += f" Note: {custom_note}"
+                                
                             remarks_payload.append({
-                                "student_id": ab_row['student_id'],
-                                "att_date": attendance_date,
-                                "remarks": note.strip() if note.strip() else "Absent (No Reason Provided)"
+                                "student_id": ab_row['student_id'], "att_date": attendance_date, "remarks": combined_remarks,
+                                "up_by": current_user, "up_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                             })
                             st.markdown("<hr style='border-style: dashed; margin: 0.5em 0;'>", unsafe_allow_html=True)
                             
@@ -1738,9 +1757,9 @@ def render_universal_attendance_workspace():
                                 with engine.begin() as conn:
                                     conn.execute(text("""
                                         UPDATE attendance 
-                                        SET remarks = :remarks 
+                                        SET remarks = :remarks, updated_by = :up_by, updated_at = :up_at
                                         WHERE student_id = :student_id AND date = :att_date;
-                                    """), remarks_payload)
+                                """), remarks_payload)
                                 st.success("🎉 All registers, contact paths, and remarks updated!")
                                 st.session_state.active_absentee_ids = []
                                 st.rerun()
