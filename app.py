@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.0.6
+# Force-rebuild anchor: v1.0.7
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,37 +10,35 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- ADAPTIVE AUTHENTICATION ENGINE ---
+# --- SECURE POOLER ENGINE INITIALIZER ---
 DB_URL = None
 
 if "database" in st.secrets:
     creds = st.secrets["database"]
-    # Try the clean username format first
-    user = creds.get("username", "postgres")
-    DB_URL = f"postgresql://{user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
+    
+    # We append the tenant options parameters explicitly to resolve the ENOTFOUND pooler error
+    options_suffix = creds.get("options", "")
+    DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}{options_suffix}"
 
 @st.cache_resource
-def get_db_engine(url_str):
-    if not url_str or "YOUR_REAL_SUPABASE_PASSWORD" in url_str or "YOUR_ACTUAL_DB_PASSWORD" in url_str:
+def get_db_engine():
+    if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
-    try:
-        # Create engine and actively test connection
-        test_engine = create_engine(url_str, pool_pre_ping=True, connect_args={"connect_timeout": 5})
-        with test_engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return test_engine
-    except Exception:
-        # Fallback to alternative pooler username format (postgres.project-id) if the first attempt fails
-        if "database" in st.secrets and "username_pooler" in st.secrets["database"]:
-            creds = st.secrets["database"]
-            alt_user = creds["username_pooler"]
-            alt_url = f"postgresql://{alt_user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
-            return create_engine(alt_url, pool_pre_ping=True, pool_size=10, max_overflow=20)
-        return None
+    
+    # We pass the username explicitly via connection arguments as a fallback route for the pooler
+    return create_engine(
+        DB_URL, 
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        connect_args={
+            "connect_timeout": 10
+        }
+    )
 
-# Wipe old cache targets completely 
+# Force clear out stale cached connections
 st.cache_resource.clear()
-engine = get_db_engine(DB_URL)
+engine = get_db_engine()
 
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
