@@ -49,6 +49,10 @@ def run_query(table_name_or_query: str, params=None, select_query: str = "*"):
             # If it's a full SQL query, extract just the raw table name target
             table = table.split("from")[-1].strip().split(" ")[0].split(";")[0]
             break
+    
+    # 🔄 Fix: Auto-redirect legacy 'sessions' requests to the real database table name
+    if table == "sessions":
+        table = "academic_sessions"
             
     try:
         response = supabase.table(table).select(select_query).execute()
@@ -62,6 +66,11 @@ def insert_data(table_name: str, row_dict: dict):
     if not supabase:
         st.error("Supabase API engine connection is inactive.")
         return None
+        
+    # 🔄 Fix: Ensure inserts to 'sessions' also point to 'academic_sessions'
+    if table_name.lower() == "sessions":
+        table_name = "academic_sessions"
+        
     try:
         return supabase.table(table_name).insert(row_dict).execute()
     except Exception as e:
