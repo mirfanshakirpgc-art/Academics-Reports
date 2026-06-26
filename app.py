@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.1.9
+# Force-rebuild anchor: v1.2.2
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,24 +10,24 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- TIMEOUT PROTECTED CONNECTION ENGINE ---
+# --- CACHE-BUSTING DIRECT CONNECTION ENGINE ---
 DB_URL = None
 
-if "database" in st.secrets:
-    creds = st.secrets["database"]
+# Look for our fresh new secrets key name to break past Streamlit's old cache
+if "supabase_direct" in st.secrets:
+    creds = st.secrets["supabase_direct"]
     DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a cached SQL connection engine with a strict connection timeout limit."""
+    """Generates a cached SQL connection engine pointing directly to the database instance."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
         DB_URL, 
         pool_pre_ping=True,
         connect_args={
-            "connect_timeout": 5,  # Stops the blank running animation screen after 5 seconds
-            "prepare_threshold": None
+            "sslmode": "prefer"
         }
     )
 
