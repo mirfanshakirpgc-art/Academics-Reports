@@ -1434,12 +1434,12 @@ def render_universal_attendance_workspace(current_user="System"):
     if workspace_mode == "📊 Generate & Print Reports":
         st.markdown("### 🖨️ Attendance & Performance Report Generator")
         
-        report_type = st.radio("Select Report Category:", ["📊 General Attendance Metric Summaries", "🚨 Detailed Absentees Ledger Report"], horizontal=True)
+        # ✅ UPDATED HERE: Added the 3rd radio selection option
+        report_type = st.radio("Select Report Category:", ["📊 General Attendance Metric Summaries", "🚨 Detailed Absentees Ledger Report", "⏱️ Late Arrival Tardy Ledger"], horizontal=True)
         st.markdown("---")
         
         col_r1, _ = st.columns([1, 1])
         with col_r1:
-            # FIXED: Safe inline date gathering evaluation to eliminate the NameError
             target_report_date = st.date_input("Select Target Report Date:", value=datetime.date.today(), key="rpt_date")
             
         # ------------------------------------------------------------------------------
@@ -1520,7 +1520,6 @@ def render_universal_attendance_workspace(current_user="System"):
                         abs_df = pd.DataFrame()
                     
                     if not abs_df.empty:
-                        # ✨ SAFE CLEANUP: Fill empty audit tracks with placeholders
                         abs_df["Logged By Staff"] = abs_df["Logged By Staff"].fillna("System / Legacy Entry")
                         abs_df["Timestamp Logged"] = abs_df["Timestamp Logged"].fillna("—")
                         abs_df["Reason of Absence / Follow-up Notes"] = abs_df["Reason of Absence / Follow-up Notes"].fillna("No remarks captured")
@@ -1564,7 +1563,6 @@ def render_universal_attendance_workspace(current_user="System"):
                     master_abs_df = pd.DataFrame()
                 
                 if not master_abs_df.empty:
-                    # ✨ SAFE CLEANUP: Fill empty audit tracks with placeholders
                     master_abs_df["Logged By Staff"] = master_abs_df["Logged By Staff"].fillna("System / Legacy Entry")
                     master_abs_df["Timestamp Logged"] = master_abs_df["Timestamp Logged"].fillna("—")
                     master_abs_df["Reason of Absence / Follow-up Notes"] = master_abs_df["Reason of Absence / Follow-up Notes"].fillna("No remarks captured")
@@ -1582,6 +1580,54 @@ def render_universal_attendance_workspace(current_user="System"):
                     )
                 else:
                     st.success("✨ Incredible! Outstanding day with 100% total campus wide student attendance.")
+
+        # ------------------------------------------------------------------------------
+        # ⏱️ CATEGORY 2: LATE ARRIVAL TARDY LEDGER ENGINE (FETCHES CHECK-INS & DOWNLOADS)
+        # ------------------------------------------------------------------------------
+        elif report_type == "⏱️ Late Arrival Tardy Ledger":
+            st.markdown("### 🖨️ Late Arrival Discipline Tracking Register")
+            
+            try:
+                with engine.connect() as conn:
+                    late_query = text("""
+                        SELECT 
+                            s.class_level || ' - ' || s.section AS [Class Section],
+                            s.roll_no AS [Roll No],
+                            s.student_name AS [Student Name],
+                            l.arrival_time AS [Arrival Time],
+                            l.minutes_late AS [Mins Late],
+                            l.remarks AS [Stated Reason / Notes],
+                            l.updated_by AS [Gate Staff Signature],
+                            l.updated_at AS [Timestamp Logged]
+                        FROM students s
+                        INNER JOIN late_arrivals l ON s.student_id = l.student_id
+                        WHERE l.date = :dt
+                        ORDER BY s.class_level, s.section, l.minutes_late DESC
+                    """)
+                    result = conn.execute(late_query, {"dt": target_report_date})
+                    late_report_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+            except Exception as query_err:
+                st.error(f"❌ Failed to parse late arrival matrix sequence: {query_err}")
+                late_report_df = pd.DataFrame()
+                
+            if not late_report_df.empty:
+                late_report_df["Gate Staff Signature"] = late_report_df["Gate Staff Signature"].fillna("System")
+                late_report_df["Timestamp Logged"] = late_report_df["Timestamp Logged"].fillna("—")
+                late_report_df["Stated Reason / Notes"] = late_report_df["Stated Reason / Notes"].fillna("—")
+
+                st.warning(f"⏳ **Campus Late Arrivals Ledger:** **{target_report_date}** ({len(late_report_df)} Students Logged Tardy)")
+                st.dataframe(late_report_df, use_container_width=True)
+                
+                late_csv = late_report_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download & Print Campus Late Arrival Report (CSV)",
+                    data=late_csv,
+                    file_name=f"Late_Arrivals_Report_{target_report_date}.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
+            else:
+                st.success(f"✨ Excellent discipline! No students were logged late on **{target_report_date}**.")
 
         # ------------------------------------------------------------------------------
         # 📊 CATEGORY 2: ATTENDANCE METRICS SUMMARY REPORT (WITH TOTALS ROW SUMS)
