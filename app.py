@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.0.7
+# Force-rebuild anchor: v1.0.8
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,33 +10,40 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SECURE POOLER ENGINE INITIALIZER ---
+# --- BULLETPROOF SUPABASE CLEANER ---
 DB_URL = None
 
 if "database" in st.secrets:
     creds = st.secrets["database"]
     
-    # We append the tenant options parameters explicitly to resolve the ENOTFOUND pooler error
-    options_suffix = creds.get("options", "")
-    DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}{options_suffix}"
+    # Clean username to make sure "postgres" or project ID isn't duplicated
+    raw_user = creds.get("username", "postgres")
+    if "postgres" in raw_user:
+        # Reset back to the clean base user
+        user = "postgres.qykueriwcvgxsbxbbtso"
+    else:
+        user = f"postgres.{raw_user.replace('postgres.', '')}"
+        
+    # Clean up any potential double-dots or double IDs
+    if user.count("qykueriwcvgxsbxbbtso") > 1:
+        user = "postgres.qykueriwcvgxsbxbbtso"
+
+    DB_URL = f"postgresql://{user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 
 @st.cache_resource
 def get_db_engine():
-    if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
+    if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL or "YOUR_ACTUAL_DB_PASSWORD" in DB_URL:
         return None
     
-    # We pass the username explicitly via connection arguments as a fallback route for the pooler
     return create_engine(
         DB_URL, 
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,
-        connect_args={
-            "connect_timeout": 10
-        }
+        connect_args={"connect_timeout": 10}
     )
 
-# Force clear out stale cached connections
+# Clear old cached connections completely
 st.cache_resource.clear()
 engine = get_db_engine()
 
