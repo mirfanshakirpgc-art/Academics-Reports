@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.1.5
+# Force-rebuild anchor: v1.1.6
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CLEAN DATABASE CONNECTION ENGINE ---
+# --- DIRECT COOPERATIVE POOLER ENGINE ---
 DB_URL = None
 
 if "database" in st.secrets:
@@ -19,7 +19,7 @@ if "database" in st.secrets:
 
 @st.cache_resource
 def get_db_engine():
-    """Creates a database engine targeting the active session pooler on port 5432."""
+    """Generates a connection engine optimized for dedicated regional pooler routing."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
@@ -27,7 +27,7 @@ def get_db_engine():
         pool_pre_ping=True
     )
 
-# Completely clear old cached connections out of memory
+# Clear old cached connections entirely from Streamlit's runtime memory
 st.cache_resource.clear()
 engine = get_db_engine()
 
