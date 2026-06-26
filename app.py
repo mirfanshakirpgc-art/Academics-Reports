@@ -1387,24 +1387,27 @@ def render_universal_attendance_workspace(current_user="System"):
     try:
         with engine.begin() as conn:
             # 1. Base table creation
-            # 🛡️ FIXED: Converted SQLite AUTOINCREMENT style to PostgreSQL SERIAL style for Supabase
+            # 🛡️ FIXED: Converted to native SQLite syntax (INTEGER PRIMARY KEY AUTOINCREMENT)
+            # 🛡️ FIXED: Included audit columns in the initial creation to avoid missing column bugs
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS attendance (
-                    id SERIAL PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     student_id TEXT NOT NULL,
                     date DATE NOT NULL,
                     status TEXT NOT NULL,
                     remarks TEXT,
+                    updated_by TEXT,
+                    updated_at TEXT,
                     UNIQUE(student_id, date)
                 );
             """))
             
             # 2. Safe Migration: Check and inject missing audit tracking columns dynamically
-            # This fixes the 'no such column: a.updated_by' crash on existing databases
-            existing_columns_query = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='attendance';"))
+            # 🛡️ FIXED: Replaced 'information_schema' (Postgres/MySQL) with SQLite's native 'pragma_table_info'
+            existing_columns_query = conn.execute(text("SELECT name FROM pragma_table_info('attendance');"))
             columns = [row[0] for row in existing_columns_query.fetchall()]
             
-            # Fallback check if information_schema query acts up on simple structures
+            # Fallback check if pragma query acts up on simple structures
             if not columns:
                 columns = ["id", "student_id", "date", "status", "remarks", "updated_by", "updated_at"]
             
