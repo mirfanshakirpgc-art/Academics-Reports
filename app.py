@@ -1,16 +1,16 @@
-# Force-rebuild anchor: v1.2.4
+# Force-rebuild anchor: v1.2.6
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 import logging
 
 st.set_page_config(
-    page_title="Academic Management & Reports System",
+    page_title="Academics Reports",  # Set this to match your true project title
     page_icon="🎓",
     layout="wide"
 )
 
-# --- CACHE-BUSTING CLEAN CONNECTION ENGINE ---
+# --- CORRECT MULTI-TENANT POOLER ENGINE ---
 DB_URL = None
 
 if "supabase_direct" in st.secrets:
@@ -19,7 +19,7 @@ if "supabase_direct" in st.secrets:
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a connection engine pointing to the aligned Session Pooler routing gateway."""
+    """Generates an explicit connection engine matching official Supabase pooler routing requirements."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
