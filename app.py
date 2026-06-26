@@ -1,175 +1,56 @@
-# Force-rebuild anchor: v1.2.6
+# Force-rebuild anchor: v2.0.0
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine, text
-import logging
+from supabase import create_client, Client
 
+# --- INTERFACE WEB CONFIGURATION ---
 st.set_page_config(
-    page_title="Academics Reports",  # Set this to match your true project title
+    page_title="Academics Reports",  
     page_icon="🎓",
     layout="wide"
 )
 
-# --- CORRECT MULTI-TENANT POOLER ENGINE ---
-DB_URL = None
+# --- SECURE OFFICIAL HTTP REST CLIENT ENGINE ---
+supabase: Client = None
 
-if "supabase_direct" in st.secrets:
-    creds = st.secrets["supabase_direct"]
-    DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
-
-@st.cache_resource
-def get_db_engine():
-    """Generates an explicit connection engine matching official Supabase pooler routing requirements."""
-    if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
-        return None
-    return create_engine(
-        DB_URL, 
-        pool_pre_ping=True
-    )
-
-engine = get_db_engine()
-
-def init_db():
-    """Automatically compiles schema blueprints if target relational structures do not exist."""
-    if engine is None:
-        st.error("🚨 Database Connection Error: Connection URL is missing or unconfigured. Please check your Streamlit Cloud Secrets.")
-        return
-
+if "supabase" in st.secrets:
     try:
-        with engine.begin() as conn:
-            # Core attendance tracking ledger table mapping
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS attendance (
-                    id SERIAL PRIMARY KEY,
-                    student_id TEXT NOT NULL,
-                    date DATE NOT NULL,
-                    status TEXT NOT NULL,
-                    remarks TEXT,
-                    updated_by TEXT,
-                    updated_at TEXT,
-                    UNIQUE(student_id, date)
-                );
-            """))
-
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id SERIAL PRIMARY KEY,
-                    session_name TEXT NOT NULL,
-                    status TEXT NOT NULL
-                );
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS academic_systems (
-                    id SERIAL PRIMARY KEY,
-                    system_name TEXT NOT NULL,
-                    description TEXT
-                );
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS classes (
-                    id SERIAL PRIMARY KEY,
-                    class_level TEXT NOT NULL,
-                    sort_order INTEGER
-                );
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS sections (
-                    id SERIAL PRIMARY KEY,
-                    section_name TEXT NOT NULL,
-                    max_capacity INTEGER
-                );
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS subjects (
-                    id SERIAL PRIMARY KEY,
-                    subject_name TEXT NOT NULL,
-                    subject_code TEXT NOT NULL,
-                    credit_hours INTEGER
-                );
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS test_types (
-                    id SERIAL PRIMARY KEY,
-                    test_title TEXT NOT NULL,
-                    total_marks INTEGER,
-                    weightage INTEGER
-                );
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS disciplines (
-                    id SERIAL PRIMARY KEY,
-                    discipline_title TEXT NOT NULL,
-                    short_code TEXT NOT NULL
-                );
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS teachers (
-                    teacher_id TEXT PRIMARY KEY,
-                    full_name TEXT NOT NULL,
-                    contact_number TEXT,
-                    email TEXT
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS students (
-                    student_id TEXT PRIMARY KEY,
-                    student_name TEXT NOT NULL,
-                    father_name TEXT NOT NULL,
-                    whatsapp_no TEXT,
-                    student_no TEXT,
-                    contact_1 TEXT NOT NULL,
-                    contact_2 TEXT,
-                    home_address TEXT,
-                    session TEXT NOT NULL,
-                    academic_system TEXT NOT NULL,
-                    class_level TEXT NOT NULL,
-                    discipline TEXT NOT NULL,
-                    section TEXT NOT NULL,
-                    roll_no INTEGER NOT NULL
-                );
-            """))
-            
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS incharge_allocations (
-                    id SERIAL PRIMARY KEY,
-                    session TEXT,
-                    academic_system TEXT,
-                    class_level TEXT,
-                    section TEXT,
-                    teacher_id TEXT,
-                    teacher_name TEXT
-                );
-            """))
-
-            # PostgreSQL-compatible Late Arrivals ledger scheme
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS late_arrivals (
-                    id SERIAL PRIMARY KEY,
-                    student_id TEXT NOT NULL,
-                    date DATE NOT NULL,
-                    arrival_time TEXT NOT NULL,
-                    minutes_late INTEGER NOT NULL,
-                    remarks TEXT,
-                    updated_by TEXT,
-                    updated_at TEXT,
-                    UNIQUE(student_id, date)
-                );
-            """))
+        supabase = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
     except Exception as e:
-        st.error(f"Failed to initialize database structures: {str(e)}")
-        logging.error(f"Database Initialization Critical Failure: {str(e)}")
+        st.error(f"🚨 Failed to establish Supabase HTTP Client connection: {str(e)}")
 
-# Safe invocation
-init_db()
+# --- STREAMLIT-COMPATIBLE HTTP WEB DATA ENGINE ---
 
-def run_query(query, params=None):
-    """Executes a read query against the unified Supabase engine."""
-    if engine is None:
-        st.error("Database Engine connection is inactive.")
+def run_query(table_name: str, select_query: str = "*"):
+    """Reads transactional data from a specified table over a secure web connection.
+    
+    Example Usage inside your code:
+        df = run_query("students")
+    """
+    if not supabase:
+        st.error("Supabase API engine connection is inactive.")
         return pd.DataFrame()
-    with engine.connect() as conn:
-        return pd.read_sql(text(query), conn, params=params)
+    try:
+        response = supabase.table(table_name).select(select_query).execute()
+        return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"HTTP GET fetch failure on table '{table_name}': {str(e)}")
+        return pd.DataFrame()
+
+def insert_data(table_name: str, row_dict: dict):
+    """Inserts a safe record structure into your database table using an HTTP POST.
+    
+    Example Usage inside your code:
+        insert_data("sessions", {"session_name": "2026-2027", "status": "Active"})
+    """
+    if not supabase:
+        st.error("Supabase API engine connection is inactive.")
+        return None
+    try:
+        return supabase.table(table_name).insert(row_dict).execute()
+    except Exception as e:
+        st.error(f"HTTP POST payload insertion failure on table '{table_name}': {str(e)}")
+        return None
 # ==============================================================================
 # 2. SHARED REUSABLE FUNCTIONS (Shared between Authorized Roles)
 # ==============================================================================
