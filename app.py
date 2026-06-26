@@ -1508,6 +1508,11 @@ def render_universal_attendance_workspace():
                         abs_df = pd.DataFrame()
                     
                     if not abs_df.empty:
+                        # ✨ SAFE CLEANUP: Fill empty audit tracks with placeholders
+                        abs_df["Logged By Staff"] = abs_df["Logged By Staff"].fillna("System / Legacy Entry")
+                        abs_df["Timestamp Logged"] = abs_df["Timestamp Logged"].fillna("—")
+                        abs_df["Reason of Absence / Follow-up Notes"] = abs_df["Reason of Absence / Follow-up Notes"].fillna("No remarks captured")
+
                         st.warning(f"🚨 **Absentee List:** `{sel_class} - {sel_section}` on **{target_report_date}** ({len(abs_df)} Absent)")
                         st.dataframe(abs_df, use_container_width=True)
                         
@@ -1547,6 +1552,11 @@ def render_universal_attendance_workspace():
                     master_abs_df = pd.DataFrame()
                 
                 if not master_abs_df.empty:
+                    # ✨ SAFE CLEANUP: Fill empty audit tracks with placeholders
+                    master_abs_df["Logged By Staff"] = master_abs_df["Logged By Staff"].fillna("System / Legacy Entry")
+                    master_abs_df["Timestamp Logged"] = master_abs_df["Timestamp Logged"].fillna("—")
+                    master_abs_df["Reason of Absence / Follow-up Notes"] = master_abs_df["Reason of Absence / Follow-up Notes"].fillna("No remarks captured")
+
                     st.error(f"🚨 **Campus Master Absentee Log:** **{target_report_date}** ({len(master_abs_df)} Total Absences Across All Sections)")
                     st.dataframe(master_abs_df, use_container_width=True)
                     
