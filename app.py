@@ -1369,18 +1369,19 @@ def render_universal_attendance_workspace():
     st.subheader("🌐 Global Universal Attendance Control Desk")
     st.info("🔓 Unrestricted administrative view enabled. Monitor, verify, or override attendance maps for all sections.")
     
+    # Initialize a clean temporary container for multi-step tracking inside memory logs
+    if "active_absentee_ids" not in st.session_state:
+        st.session_state.active_absentee_ids = []
+    
     # ==============================================================================
     # 📑 PHASE 1: CASCADING ACADEMIC PLATFORM FILTERS (5 DROPDOWNS)
     # ==============================================================================
     sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
     sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
     
-    # Structured layout split into 5 horizontal layout blocks
     col_u1, col_u2, col_u3, col_u4, col_u5 = st.columns(5)
     
-    with col_u1:
-        sel_session = st.selectbox("1. Session Cycle:*", options=sessions_list, key="att_sess")
-
+    with col_u1: sel_session = st.selectbox("1. Session Cycle:*", options=sessions_list, key="att_sess")
     with col_u2:
         if sel_session != "-- Select Session --":
             systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
@@ -1389,7 +1390,6 @@ def render_universal_attendance_workspace():
         else:
             st.selectbox("2. Academic System:", ["🔒 Waiting..."], disabled=True, key="att_sys_dis")
             sel_system = "-- Select System --"
-
     with col_u3:
         if sel_system != "-- Select System --":
             classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
@@ -1398,7 +1398,6 @@ def render_universal_attendance_workspace():
         else:
             st.selectbox("3. Target Class:", ["🔒 Waiting..."], disabled=True, key="att_cls_dis")
             sel_class = "-- Select Class --"
-
     with col_u4:
         if sel_class != "-- Select Class --":
             disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
@@ -1407,7 +1406,6 @@ def render_universal_attendance_workspace():
         else:
             st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="att_disc_dis")
             sel_discipline = "-- Select Discipline --"
-
     with col_u5:
         if sel_discipline != "-- Select Discipline --":
             sections_df = run_query("SELECT DISTINCT section_name FROM sections")
@@ -1417,22 +1415,20 @@ def render_universal_attendance_workspace():
             st.selectbox("5. Section Track:", ["🔒 Waiting..."], disabled=True, key="att_sec_dis")
             sel_section = "-- Select Section --"
 
-    # Secondary control row for target logging execution date
     col_date, _ = st.columns([1, 4])
     with col_date:
-        import datetime
         attendance_date = st.date_input("Attendance Log Date:", value=datetime.date.today(), key="uni_date")
         
     st.markdown("---")
     
     # ==============================================================================
-    # 📋 PHASE 2: STUDENT POPULATION AND REGISTER INTERFACE
+    # 📋 PHASE 2: ATTENDANCE CHECKLIST OVERVIEW
     # ==============================================================================
-    # Only pull student roster if all 5 parameters are chosen completely
     if "-- Select" not in f"{sel_session}{sel_system}{sel_class}{sel_discipline}{sel_section}":
         try:
+            # Query active student metrics alongside phone listings securely
             students_df = run_query("""
-                SELECT student_id, roll_no, student_name 
+                SELECT student_id, roll_no, student_name, contact_1, contact_2, whatsapp_no, student_no
                 FROM students 
                 WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess_val))
                   AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys_val))
@@ -1441,85 +1437,127 @@ def render_universal_attendance_workspace():
                   AND LOWER(TRIM(section)) = LOWER(TRIM(:sec_val))
                 ORDER BY roll_no ASC
             """, {
-                "sess_val": sel_session,
-                "sys_val": sel_system,
-                "class_val": sel_class,
-                "disc_val": sel_discipline,
-                "sec_val": sel_section
+                "sess_val": sel_session, "sys_val": sel_system, "class_val": sel_class,
+                "disc_val": sel_discipline, "sec_val": sel_section
             })
         except Exception:
-            # Fallback mock dataset for robustness if database schema is structurally vacant
-            students_df = pd.DataFrame([
-                {"student_id": "STU-DEMO-01", "roll_no": 1, "student_name": "Demo Student Alpha"},
-                {"student_id": "STU-DEMO-02", "roll_no": 2, "student_name": "Demo Student Beta"}
-            ])
-            st.caption("⚠️ Displaying structural simulation layout data. Sync table constraints to link active rosters.")
+            students_df = pd.DataFrame()
             
         if not students_df.empty:
-            st.write(f"### 📋 Attendance Register: `{sel_class} - {sel_section}` ({attendance_date})")
+            st.write(f"### 📋 Attendance Status Grid: `{sel_class} - {sel_section}`")
+            st.caption("💡 Note: All students are marked Present by default. Uncheck a student's box to mark them Absent.")
             
-            with st.form("universal_attendance_submission_form"):
-                attendance_records = []
+            with st.form("attendance_checklist_form"):
+                status_mappings = {}
+                
+                # Table Headers
+                h_col1, h_col2, h_col3 = st.columns([1, 2, 5])
+                h_col1.markdown("**Roll #**")
+                h_col2.markdown("**Status Flag**")
+                h_col3.markdown("**Student Full Name**")
+                st.markdown("<hr style='margin:0.1em; border-color:#d1d5db;'>", unsafe_allow_html=True)
                 
                 for idx, row in students_df.iterrows():
-                    col_roll, col_name, col_status, col_remarks = st.columns([1, 3, 2, 4])
+                    col_roll, col_check, col_name = st.columns([1, 2, 5])
                     
-                    with col_roll: 
-                        st.write(f"**Roll #{row['roll_no']}**")
-                    with col_name: 
+                    with col_roll:
+                        st.write(f"#{row['roll_no']}")
+                    with col_check:
+                        # Value default parameter is assigned True (Pre-checked/Present)
+                        is_present = st.checkbox("Present", value=True, key=f"chk_{row['student_id']}", label_visibility="collapsed")
+                    with col_name:
                         st.write(row['student_name'])
-                    with col_status: 
-                        status = st.radio(
-                            f"Status_{row['student_id']}", 
-                            ["Present", "Absent"], 
-                            horizontal=True, 
-                            label_visibility="collapsed", 
-                            key=f"radio_status_{row['student_id']}"
-                        )
-                    with col_remarks:
-                        if status == "Absent":
-                            remarks = st.text_input("Absent Remarks", placeholder="⚠️ Enter reason...", key=f"urem_{row['student_id']}", label_visibility="collapsed")
-                        else:
-                            remarks = st.text_input("Absent Remarks", value="—", disabled=True, key=f"urem_{row['student_id']}", label_visibility="collapsed")
-                    
-                    attendance_records.append({
-                        "student_id": row['student_id'], 
-                        "status": status, 
-                        "remarks": remarks if status == "Absent" else "",
-                        "att_date": attendance_date
-                    })
+                        
+                    status_mappings[row['student_id']] = "Present" if is_present else "Absent"
                     st.markdown("<hr style='margin:0.2em; border-color:#f0f2f6;'>", unsafe_allow_html=True)
                     
-                submit_attendance = st.form_submit_button("💾 Save & Commit Section Attendance Register (Admin Override)", type="primary", use_container_width=True)
+                save_initial_register = st.form_submit_button("💾 Phase 1: Save Present Matrix & Identify Absentees", type="primary", use_container_width=True)
                 
-                # ==============================================================================
-                # 💾 PHASE 3: TRANSACTIONAL DATABASE PERSISTENCE
-                # ==============================================================================
-                if submit_attendance:
-                    if attendance_records:
+                if save_initial_register:
+                    initial_payload = []
+                    detected_absentees = []
+                    
+                    for s_id, status in status_mappings.items():
+                        initial_payload.append({
+                            "student_id": s_id,
+                            "att_date": attendance_date,
+                            "status": status,
+                            "remarks": "" if status == "Present" else "Pending Review"
+                        })
+                        if status == "Absent":
+                            detected_absentees.append(s_id)
+                            
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO attendance (student_id, date, status, remarks) 
+                                VALUES (:student_id, :att_date, :status, :remarks)
+                                ON CONFLICT(student_id, date) DO UPDATE SET status = EXCLUDED.status;
+                            """), initial_payload)
+                        
+                        st.session_state.active_absentee_ids = detected_absentees
+                        st.toast("Phase 1 complete! Absentees extracted below.", icon="👀")
+                    except Exception as err:
+                        st.error(f"❌ Core synchronization transaction aborted: {err}")
+
+            # ==============================================================================
+            # 📞 PHASE 3: DYNAMIC ABSENTEE FOLLOW-UP & CONTACT PANEL
+            # ==============================================================================
+            if st.session_state.active_absentee_ids:
+                st.markdown("---")
+                st.error(f"⚠️ **Absentee Verification Workspace ({len(st.session_state.active_absentee_ids)} Students Missing)**")
+                st.caption("Review emergency calling cards and compile institutional grounds/remarks regarding their absence below.")
+                
+                # Isolate rows matching tracked absent IDs
+                absent_students_df = students_df[students_df['student_id'].isin(st.session_state.active_absentee_ids)]
+                
+                with st.form("absentee_remarks_and_contact_form"):
+                    remarks_payload = []
+                    
+                    for _, ab_row in absent_students_df.iterrows():
+                        st.markdown(f"##### 👤 {ab_row['student_name']} (Roll #{ab_row['roll_no']})")
+                        
+                        # Render Calling Contact Metrics Container
+                        c1, c2, c3 = st.columns(3)
+                        c1.markdown(f"📞 **Primary:** `{ab_row['contact_1']}`")
+                        c2.markdown(f"📱 **WhatsApp:** `{ab_row['whatsapp_no'] if ab_row['whatsapp_no'] else 'None'}`")
+                        c3.markdown(f"🏠 **Alternative:** `{ab_row['contact_2'] if ab_row['contact_2'] else 'None'}`")
+                        
+                        # Input fields for remarks
+                        note = st.text_input(
+                            f"Reason for Absence ({ab_row['student_name']}):", 
+                            placeholder="e.g., Parent called: Sick leave medical notice provided", 
+                            key=f"rem_input_{ab_row['student_id']}"
+                        )
+                        
+                        remarks_payload.append({
+                            "student_id": ab_row['student_id'],
+                            "att_date": attendance_date,
+                            "remarks": note.strip() if note.strip() else "Absent (No Reason Provided)"
+                        })
+                        st.markdown("<hr style='border-style: dashed; margin: 0.5em 0;'>", unsafe_allow_html=True)
+                        
+                    submit_remarks = st.form_submit_button("🔒 Phase 2: Finalize Absentee Remarks & Lock Log", type="secondary", use_container_width=True)
+                    
+                    if submit_remarks:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO attendance (
-                                        student_id, date, status, remarks
-                                    ) VALUES (
-                                        :student_id, :att_date, :status, :remarks
-                                    )
-                                    ON CONFLICT(student_id, date) DO UPDATE SET
-                                        status = EXCLUDED.status,
-                                        remarks = EXCLUDED.remarks;
-                                """), attendance_records)
-                            
-                            st.success(f"🎉 Attendance register saved and synced securely for {attendance_date}!")
+                                    UPDATE attendance 
+                                    SET remarks = :remarks 
+                                    WHERE student_id = :student_id AND date = :att_date;
+                                """), remarks_payload)
+                            st.success("🎉 All operational registers, contact protocols, and remarks logged successfully!")
+                            st.session_state.active_absentee_ids = []  # Reset target tracking array on clear save execution
                             st.rerun()
-                        except Exception as db_err:
-                            st.error(f"❌ Structural write operation aborted: {db_err}")
-                    else:
-                        st.warning("⚠️ Operational array empty. No data payload found to sync.")
+                        except Exception as rem_err:
+                            st.error(f"❌ Failed to attach log comments: {rem_err}")
+            else:
+                st.success("✨ Excellent! No active absences recorded for this section layout group.")
         else: 
-            st.info(f"ℹ️ No student profiles match the filter criteria: `{sel_session} ➡️ {sel_class}-{sel_section}`.")
+            st.info("ℹ️ No active student profile rows are registered matching these parameters.")
     else:
-        st.warning("⏳ Please complete setting all 5 cascading placement dropdown targets above to load the student registry.")
+        st.warning("⏳ Please select your filter parameters to load the attendance register checklist.")
 
 def render_universal_marks_entry_workspace():
     pass
