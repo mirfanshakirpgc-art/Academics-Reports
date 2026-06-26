@@ -1460,20 +1460,34 @@ def render_universal_attendance_workspace():
                     sel_section = "-- Select Discipline --"
 
             if "-- Select" not in f"{sel_session}{sel_system}{sel_class}{sel_discipline}{sel_section}":
-                report_df = run_query("""
-                    SELECT s.roll_no AS [Roll No], s.student_name AS [Student Name], 
-                           COALESCE(a.status, 'Not Marked') AS [Status], COALESCE(a.remarks, '—') AS [Remarks],
-                           COALESCE(a.updated_by, '—') AS [Logged By], COALESCE(a.updated_at, '—') AS [Log Timestamp],
-                           s.contact_1 AS [Primary Contact]
-                    FROM students s
-                    LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
-                    WHERE LOWER(TRIM(s.session)) = LOWER(TRIM(:sess))
-                      AND LOWER(TRIM(s.academic_system)) = LOWER(TRIM(:sys))
-                      AND LOWER(TRIM(s.class_level)) = LOWER(TRIM(:cls))
-                      AND LOWER(TRIM(s.discipline)) = LOWER(TRIM(:disc))
-                      AND LOWER(TRIM(s.section)) = LOWER(TRIM(:sec))
-                    ORDER BY s.roll_no ASC
-                """, {"dt": target_report_date, "sess": sel_session, "sys": sel_system, "cls": sel_class, "disc": sel_discipline, "sec": sel_section})
+                try:
+                    with engine.connect() as conn:
+                        query_text = text("""
+                            SELECT s.roll_no AS [Roll No], s.student_name AS [Student Name], 
+                                   COALESCE(a.status, 'Not Marked') AS [Status], COALESCE(a.remarks, '—') AS [Remarks],
+                                   COALESCE(a.updated_by, '—') AS [Logged By], COALESCE(a.updated_at, '—') AS [Log Timestamp],
+                                   s.contact_1 AS [Primary Contact]
+                            FROM students s
+                            LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
+                            WHERE LOWER(TRIM(s.session)) = LOWER(TRIM(:sess))
+                              AND LOWER(TRIM(s.academic_system)) = LOWER(TRIM(:sys))
+                              AND LOWER(TRIM(s.class_level)) = LOWER(TRIM(:cls))
+                              AND LOWER(TRIM(s.discipline)) = LOWER(TRIM(:disc))
+                              AND LOWER(TRIM(s.section)) = LOWER(TRIM(:sec))
+                            ORDER BY s.roll_no ASC
+                        """)
+                        result = conn.execute(query_text, {
+                            "dt": target_report_date, 
+                            "sess": sel_session, 
+                            "sys": sel_system, 
+                            "cls": sel_class, 
+                            "disc": sel_discipline, 
+                            "sec": sel_section
+                        })
+                        report_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+                except Exception as query_err:
+                    st.error(f"❌ Section report query execution failed: {query_err}")
+                    report_df = pd.DataFrame()
                 
                 if not report_df.empty:
                     st.markdown(f"#### 📄 Attendance Sheet: `{sel_class} - {sel_section}` for **{target_report_date}**")
@@ -1491,16 +1505,23 @@ def render_universal_attendance_workspace():
                     st.info("ℹ️ No records found matching this configuration target.")
                     
         else:  # All Sections Master View
-            master_df = run_query("""
-                SELECT s.session AS [Session], s.academic_system AS [System], 
-                       s.class_level AS [Class], s.section AS [Section], s.roll_no AS [Roll No], 
-                       s.student_name AS [Student Name], COALESCE(a.status, 'Not Marked') AS [Status], 
-                       COALESCE(a.remarks, '—') AS [Remarks], COALESCE(a.updated_by, '—') AS [Logged By], 
-                       COALESCE(a.updated_at, '—') AS [Log Timestamp]
-                FROM students s
-                LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
-                ORDER BY s.session, s.class_level, s.section, s.roll_no ASC
-            """, {"dt": target_report_date})
+            try:
+                with engine.connect() as conn:
+                    master_query = text("""
+                        SELECT s.session AS [Session], s.academic_system AS [System], 
+                               s.class_level AS [Class], s.section AS [Section], s.roll_no AS [Roll No], 
+                               s.student_name AS [Student Name], COALESCE(a.status, 'Not Marked') AS [Status], 
+                               COALESCE(a.remarks, '—') AS [Remarks], COALESCE(a.updated_by, '—') AS [Logged By], 
+                               COALESCE(a.updated_at, '—') AS [Log Timestamp]
+                        FROM students s
+                        LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = :dt
+                        ORDER BY s.session, s.class_level, s.section, s.roll_no ASC
+                    """)
+                    result = conn.execute(master_query, {"dt": target_report_date})
+                    master_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+            except Exception as master_err:
+                st.error(f"❌ Master report query execution failed: {master_err}")
+                master_df = pd.DataFrame()
             
             if not master_df.empty:
                 st.markdown(f"#### 🌍 Master Campus-Wide Attendance Sheet for **{target_report_date}**")
