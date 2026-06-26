@@ -4,3 +4,4 @@ streamlit
 psycopg2-binary
 sqlalchemy
 xlsxwriter
+supabase>=2.0.0
