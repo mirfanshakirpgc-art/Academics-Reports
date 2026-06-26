@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.0.8
+# Force-rebuild anchor: v1.1.3
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,40 +10,25 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- BULLETPROOF SUPABASE CLEANER ---
+# --- SESSION POOLER ENGINE INITIALIZER ---
 DB_URL = None
 
 if "database" in st.secrets:
     creds = st.secrets["database"]
-    
-    # Clean username to make sure "postgres" or project ID isn't duplicated
-    raw_user = creds.get("username", "postgres")
-    if "postgres" in raw_user:
-        # Reset back to the clean base user
-        user = "postgres.qykueriwcvgxsbxbbtso"
-    else:
-        user = f"postgres.{raw_user.replace('postgres.', '')}"
-        
-    # Clean up any potential double-dots or double IDs
-    if user.count("qykueriwcvgxsbxbbtso") > 1:
-        user = "postgres.qykueriwcvgxsbxbbtso"
-
-    DB_URL = f"postgresql://{user}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
+    # Build connection explicitly using the pooler address over port 5432
+    DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 
 @st.cache_resource
 def get_db_engine():
-    if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL or "YOUR_ACTUAL_DB_PASSWORD" in DB_URL:
+    """Generates a connection engine optimized for Supabase Session Poolers."""
+    if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
-    
     return create_engine(
         DB_URL, 
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        connect_args={"connect_timeout": 10}
+        pool_pre_ping=True
     )
 
-# Clear old cached connections completely
+# Flush any stale connection endpoints out of memory
 st.cache_resource.clear()
 engine = get_db_engine()
 
