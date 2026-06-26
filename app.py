@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.2.3
+# Force-rebuild anchor: v1.2.4
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CACHE-BUSTING IPV4 POOLER ENGINE ---
+# --- CACHE-BUSTING CLEAN CONNECTION ENGINE ---
 DB_URL = None
 
 if "supabase_direct" in st.secrets:
@@ -19,7 +19,7 @@ if "supabase_direct" in st.secrets:
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a connection engine routed through the IPv4 Session Pooler gateway."""
+    """Generates a connection engine pointing to the aligned Session Pooler routing gateway."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
