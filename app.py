@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.1.4
+# Force-rebuild anchor: v1.1.5
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SECURE POOLER CONNECTOR ENGINE ---
+# --- CLEAN DATABASE CONNECTION ENGINE ---
 DB_URL = None
 
 if "database" in st.secrets:
@@ -19,18 +19,15 @@ if "database" in st.secrets:
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a connection engine explicitly optimized to pass through connection poolers cleanly."""
+    """Creates a database engine targeting the active session pooler on port 5432."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
         DB_URL, 
-        pool_pre_ping=True,
-        connect_args={
-            "prepare_threshold": None  # Crucial fallback setting for Supabase transaction poolers
-        }
+        pool_pre_ping=True
     )
 
-# Force clear out stale cached connection instances
+# Completely clear old cached connections out of memory
 st.cache_resource.clear()
 engine = get_db_engine()
 
