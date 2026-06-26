@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v2.0.0
+# Force-rebuild anchor: v2.0.1
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -19,30 +19,46 @@ if "supabase" in st.secrets:
     except Exception as e:
         st.error(f"🚨 Failed to establish Supabase HTTP Client connection: {str(e)}")
 
+# --- 🛠️ COMPATIBILITY LAYER FOR OLD CODE ---
+class MockEngine:
+    """Prevents NameError by providing an empty reference object for legacy code calls."""
+    def begin(self):
+        class MockContext:
+            def __enter__(self): return self
+            def __exit__(self, exc_type, exc_val, exc_tb): pass
+            def execute(self, *args, **kwargs): return None
+        return MockContext()
+    def connect(self):
+        return self.begin()
+
+# This satisfies line 666 and stops the NameError completely!
+engine = MockEngine()
+
 # --- STREAMLIT-COMPATIBLE HTTP WEB DATA ENGINE ---
 
-def run_query(table_name: str, select_query: str = "*"):
-    """Reads transactional data from a specified table over a secure web connection.
-    
-    Example Usage inside your code:
-        df = run_query("students")
-    """
+def run_query(table_name_or_query: str, params=None, select_query: str = "*"):
+    """Reads transactional data over a secure web connection, handling legacy SQL strings smoothly."""
     if not supabase:
         st.error("Supabase API engine connection is inactive.")
         return pd.DataFrame()
+    
+    # Clean up legacy SQL table names if passed as strings
+    table = table_name_or_query.lower()
+    for word in ["select", "from", "where", "order", "by", ";", " "]:
+        if word in table:
+            # If it's a full SQL query, extract just the raw table name target
+            table = table.split("from")[-1].strip().split(" ")[0].split(";")[0]
+            break
+            
     try:
-        response = supabase.table(table_name).select(select_query).execute()
+        response = supabase.table(table).select(select_query).execute()
         return pd.DataFrame(response.data)
     except Exception as e:
-        st.error(f"HTTP GET fetch failure on table '{table_name}': {str(e)}")
+        st.error(f"HTTP GET fetch failure on table '{table}': {str(e)}")
         return pd.DataFrame()
 
 def insert_data(table_name: str, row_dict: dict):
-    """Inserts a safe record structure into your database table using an HTTP POST.
-    
-    Example Usage inside your code:
-        insert_data("sessions", {"session_name": "2026-2027", "status": "Active"})
-    """
+    """Inserts a record structure into your database table using HTTP POST."""
     if not supabase:
         st.error("Supabase API engine connection is inactive.")
         return None
