@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.1.8
+# Force-rebuild anchor: v1.1.9
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CLEAN DATABASE ENGINE CONNECTION ---
+# --- TIMEOUT PROTECTED CONNECTION ENGINE ---
 DB_URL = None
 
 if "database" in st.secrets:
@@ -19,15 +19,18 @@ if "database" in st.secrets:
 
 @st.cache_resource
 def get_db_engine():
-    """Generates a cached SQL connection engine pointing to Supabase."""
+    """Generates a cached SQL connection engine with a strict connection timeout limit."""
     if not DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     return create_engine(
         DB_URL, 
-        pool_pre_ping=True
+        pool_pre_ping=True,
+        connect_args={
+            "connect_timeout": 5,  # Stops the blank running animation screen after 5 seconds
+            "prepare_threshold": None
+        }
     )
 
-# Establish connection without loop-inducing resource clears
 engine = get_db_engine()
 
 def init_db():
