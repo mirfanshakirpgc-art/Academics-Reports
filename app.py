@@ -7,6 +7,10 @@ import time
 # ==============================================================================
 # 1. PAGE CONFIGURATION & DATABASE INITIALIZATION
 # ==============================================================================
+import streamlit as st
+from sqlalchemy import create_engine, text
+import logging
+
 st.set_page_config(
     page_title="Academic Management & Reports System",
     page_icon="🎓",
@@ -14,148 +18,172 @@ st.set_page_config(
 )
 
 # --- SUPABASE CONNECTION CONFIGURATION ---
-# 🛡️ FIXED: Securely load from Streamlit Secrets instead of hardcoding sensitive strings
+# 🛡️ FIXED: Clean checking sequence to guarantee connection string validity
 if "database" in st.secrets:
     DB_URL = f"postgresql://{st.secrets['database']['username']}:{st.secrets['database']['password']}@{st.secrets['database']['host']}:{st.secrets['database']['port']}/{st.secrets['database']['database']}"
+elif "DATABASE_URL" in st.secrets:
+    DB_URL = st.secrets["DATABASE_URL"]
 else:
-    # Fallback to string if secrets are structured as a single connection string
-    DB_URL = st.secrets.get("DATABASE_URL", "postgresql://postgres.qykueriwcvgxsbxbbtso:YOUR_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres")
+    # Set to None to prevent starting a connection loop that will crash the app engine
+    DB_URL = None
 
 @st.cache_resource
 def get_db_engine():
-    """Creates and caches the database engine connection."""
-    return create_engine(DB_URL)
+    """Creates and caches the database engine connection with pool tuning."""
+    if not DB_URL or "YOUR_DB_PASSWORD" in DB_URL:
+        return None
+    
+    # 💡 FIX: For Supabase Connection Poolers (Port 6543), adding pool_pre_ping 
+    # verifies if the connection is alive before trying to execute DDL statements.
+    return create_engine(
+        DB_URL, 
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20
+    )
 
 engine = get_db_engine()
 
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
-    with engine.begin() as conn:
-        # ✨ ADDED/FIXED: Core attendance tracking ledger table mapping
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS attendance (
-                id SERIAL PRIMARY KEY,
-                student_id TEXT NOT NULL,
-                date DATE NOT NULL,
-                status TEXT NOT NULL,
-                remarks TEXT,
-                updated_by TEXT,
-                updated_at TEXT,
-                UNIQUE(student_id, date)
-            );
-        """))
+    if engine is None:
+        st.error("🚨 Database Connection Error: Connection URL is missing or unconfigured. Please check your Streamlit Cloud Secrets.")
+        return
 
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS sessions (
-                id SERIAL PRIMARY KEY,
-                session_name TEXT NOT NULL,
-                status TEXT NOT NULL
-            );
-        """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS academic_systems (
-                id SERIAL PRIMARY KEY,
-                system_name TEXT NOT NULL,
-                description TEXT
-            );
-        """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS classes (
-                id SERIAL PRIMARY KEY,
-                class_level TEXT NOT NULL,
-                sort_order INTEGER
-            );
-        """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS sections (
-                id SERIAL PRIMARY KEY,
-                section_name TEXT NOT NULL,
-                max_capacity INTEGER
-            );
-        """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS subjects (
-                id SERIAL PRIMARY KEY,
-                subject_name TEXT NOT NULL,
-                subject_code TEXT NOT NULL,
-                credit_hours INTEGER
-            );
-        """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS test_types (
-                id SERIAL PRIMARY KEY,
-                test_title TEXT NOT NULL,
-                total_marks INTEGER,
-                weightage INTEGER
-            );
-        """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS disciplines (
-                id SERIAL PRIMARY KEY,
-                discipline_title TEXT NOT NULL,
-                short_code TEXT NOT NULL
-            );
-        """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS teachers (
-                teacher_id TEXT PRIMARY KEY,
-                full_name TEXT NOT NULL,
-                contact_number TEXT,
-                email TEXT
-            );
-        """))
-        
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS students (
-                student_id TEXT PRIMARY KEY,
-                student_name TEXT NOT NULL,
-                father_name TEXT NOT NULL,
-                whatsapp_no TEXT,
-                student_no TEXT,
-                contact_1 TEXT NOT NULL,
-                contact_2 TEXT,
-                home_address TEXT,
-                session TEXT NOT NULL,
-                academic_system TEXT NOT NULL,
-                class_level TEXT NOT NULL,
-                discipline TEXT NOT NULL,
-                section TEXT NOT NULL,
-                roll_no INTEGER NOT NULL
-            );
-        """))
-        
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS incharge_allocations (
-                id SERIAL PRIMARY KEY,
-                session TEXT,
-                academic_system TEXT,
-                class_level TEXT,
-                section TEXT,
-                teacher_id TEXT,
-                teacher_name TEXT
-            );
-        """))
+    try:
+        with engine.begin() as conn:
+            # Core attendance tracking ledger table mapping
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS attendance (
+                    id SERIAL PRIMARY KEY,
+                    student_id TEXT NOT NULL,
+                    date DATE NOT NULL,
+                    status TEXT NOT NULL,
+                    remarks TEXT,
+                    updated_by TEXT,
+                    updated_at TEXT,
+                    UNIQUE(student_id, date)
+                );
+            """))
 
-        # PostgreSQL-compatible Late Arrivals ledger scheme
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS late_arrivals (
-                id SERIAL PRIMARY KEY,
-                student_id TEXT NOT NULL,
-                date DATE NOT NULL,
-                arrival_time TEXT NOT NULL,
-                minutes_late INTEGER NOT NULL,
-                remarks TEXT,
-                updated_by TEXT,
-                updated_at TEXT,
-                UNIQUE(student_id, date)
-            );
-        """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id SERIAL PRIMARY KEY,
+                    session_name TEXT NOT NULL,
+                    status TEXT NOT NULL
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS academic_systems (
+                    id SERIAL PRIMARY KEY,
+                    system_name TEXT NOT NULL,
+                    description TEXT
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS classes (
+                    id SERIAL PRIMARY KEY,
+                    class_level TEXT NOT NULL,
+                    sort_order INTEGER
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS sections (
+                    id SERIAL PRIMARY KEY,
+                    section_name TEXT NOT NULL,
+                    max_capacity INTEGER
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS subjects (
+                    id SERIAL PRIMARY KEY,
+                    subject_name TEXT NOT NULL,
+                    subject_code TEXT NOT NULL,
+                    credit_hours INTEGER
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS test_types (
+                    id SERIAL PRIMARY KEY,
+                    test_title TEXT NOT NULL,
+                    total_marks INTEGER,
+                    weightage INTEGER
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS disciplines (
+                    id SERIAL PRIMARY KEY,
+                    discipline_title TEXT NOT NULL,
+                    short_code TEXT NOT NULL
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS teachers (
+                    teacher_id TEXT PRIMARY KEY,
+                    full_name TEXT NOT NULL,
+                    contact_number TEXT,
+                    email TEXT
+                );
+            """))
+            
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS students (
+                    student_id TEXT PRIMARY KEY,
+                    student_name TEXT NOT NULL,
+                    father_name TEXT NOT NULL,
+                    whatsapp_no TEXT,
+                    student_no TEXT,
+                    contact_1 TEXT NOT NULL,
+                    contact_2 TEXT,
+                    home_address TEXT,
+                    session TEXT NOT NULL,
+                    academic_system TEXT NOT NULL,
+                    class_level TEXT NOT NULL,
+                    discipline TEXT NOT NULL,
+                    section TEXT NOT NULL,
+                    roll_no INTEGER NOT NULL
+                );
+            """))
+            
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS incharge_allocations (
+                    id SERIAL PRIMARY KEY,
+                    session TEXT,
+                    academic_system TEXT,
+                    class_level TEXT,
+                    section TEXT,
+                    teacher_id TEXT,
+                    teacher_name TEXT
+                );
+            """))
 
+            # PostgreSQL-compatible Late Arrivals ledger scheme
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS late_arrivals (
+                    id SERIAL PRIMARY KEY,
+                    student_id TEXT NOT NULL,
+                    date DATE NOT NULL,
+                    arrival_time TEXT NOT NULL,
+                    minutes_late INTEGER NOT NULL,
+                    remarks TEXT,
+                    updated_by TEXT,
+                    updated_at TEXT,
+                    UNIQUE(student_id, date)
+                );
+            """))
+    except Exception as e:
+        st.error(f"Failed to initialize database structures: {str(e)}")
+        logging.error(f"Database Initialization Critical Failure: {str(e)}")
+
+# Safe invocation
 init_db()
 
 def run_query(query, params=None):
     """Executes a read query against the unified Supabase engine."""
     import pandas as pd
+    if engine is None:
+        st.error("Database Engine connection is inactive.")
+        return pd.DataFrame()
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
 
