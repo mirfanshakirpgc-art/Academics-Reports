@@ -1426,19 +1426,17 @@ def render_universal_attendance_workspace(current_user="System"):
             
         if late_search_id:
             try:
-                with engine.connect() as conn:
-                    p_query = text("""
-                        SELECT student_id, student_name, class_level, section, roll_no, contact_1 
-                        FROM students WHERE LOWER(TRIM(student_id)) = LOWER(TRIM(:sid))
-                    """)
-                    p_res = conn.execute(p_query, {"sid": late_search_id})
-                    student_profile = pd.DataFrame(p_res.fetchall(), columns=p_res.keys())
+                # Migrated to Supabase REST engine
+                res = supabase.table("students").select(
+                    "student_id, student_name, class_level, section, roll_no, contact_1"
+                ).ilike("student_id", late_search_id.strip()).execute()
+                student_profile = pd.DataFrame(res.data)
             except Exception:
                 student_profile = pd.DataFrame()
                 
             if not student_profile.empty:
                 student = student_profile.iloc[0]
-                st.success(f"🎯 **Verified Student:** {student['student_name']} (Roll #{student['roll_no']} | {student['class_level']} - {student['section']})")
+                st.success(f"🎯 **Verified Student:** {student['student_name']} (Roll #{int(student['roll_no']) if pd.notna(student['roll_no']) else 0} | {student['class_level']} - {student['section']})")
                 
                 with st.form("late_arrival_entry_form"):
                     col_f1, col_f2 = st.columns(2)
@@ -1454,21 +1452,18 @@ def render_universal_attendance_workspace(current_user="System"):
                         now_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         formatted_arrival_time = arrival_time.strftime("%I:%M %p")
                         try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO late_arrivals (student_id, date, arrival_time, minutes_late, remarks, updated_by, updated_at)
-                                    VALUES (:student_id, :date, :arrival_time, :minutes_late, :remarks, :up_by, :up_at)
-                                    ON CONFLICT(student_id, date) DO UPDATE SET
-                                        arrival_time = EXCLUDED.arrival_time,
-                                        minutes_late = EXCLUDED.minutes_late,
-                                        remarks = EXCLUDED.remarks,
-                                        updated_by = EXCLUDED.updated_by,
-                                        updated_at = EXCLUDED.updated_at;
-                                """), {
-                                    "student_id": student['student_id'], "date": late_date, 
-                                    "arrival_time": formatted_arrival_time, "minutes_late": int(minutes_late),
-                                    "remarks": late_remarks.strip(), "up_by": current_user, "up_at": now_stamp
-                                })
+                            # Upsert record payload mapping to composite natural keys natively
+                            late_payload = {
+                                "student_id": str(student['student_id']),
+                                "date": str(late_date),
+                                "arrival_time": formatted_arrival_time,
+                                "minutes_late": int(minutes_late),
+                                "remarks": late_remarks.strip() if late_remarks.strip() else None,
+                                "updated_by": current_user,
+                                "updated_at": now_stamp
+                            }
+                            
+                            supabase.table("late_arrivals").upsert(late_payload, on_conflict="student_id,date").execute()
                             st.success(f"🎉 Arrival record committed successfully for {student['student_name']}!")
                         except Exception as late_err:
                             st.error(f"❌ Failed to save late arrival record: {late_err}")
@@ -1496,39 +1491,41 @@ def render_universal_attendance_workspace(current_user="System"):
             
             if report_scope == "Single Section Absentees":
                 st.markdown("##### Filter Targets for Single Section Absentees List:")
-                sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
-                sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
+                sessions_df = run_query("academic_sessions")
+                sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty and 'session_name' in sessions_df.columns else [])
                 
                 col_u1, col_u2, col_u3, col_u4, col_u5 = st.columns(5)
                 with col_u1: sel_session = st.selectbox("1. Session:", options=sessions_list, key="rpt_abs_sess")
                 with col_u2:
                     if sel_session != "-- Select Session --":
-                        systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-                        systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                        systems_df = run_query("academic_systems")
+                        systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty and 'system_name' in systems_df.columns else [])
                         sel_system = st.selectbox("2. System:", options=systems_list, key="rpt_abs_sys")
                     else:
                         st.selectbox("2. System:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_sys_dis")
                         sel_system = "-- Select Session --"
                 with col_u3:
                     if sel_system != "-- Select System --":
-                        classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
-                        classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
+                        classes_df = run_query("classes")
+                        if not classes_df.empty and 'sort_order' in classes_df.columns:
+                            classes_df = classes_df.sort_values(by=['sort_order', 'id'], ascending=[True, True])
+                        classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty and 'class_level' in classes_df.columns else [])
                         sel_class = st.selectbox("3. Class:", options=classes_list, key="rpt_abs_cls")
                     else:
                         st.selectbox("3. Class:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_cls_dis")
                         sel_class = "-- Select System --"
                 with col_u4:
                     if sel_class != "-- Select Class --":
-                        disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-                        disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                        disciplines_df = run_query("disciplines")
+                        disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty and 'discipline_title' in disciplines_df.columns else [])
                         sel_discipline = st.selectbox("4. Discipline:", options=disciplines_list, key="rpt_abs_disc")
                     else:
                         st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_disc_dis")
                         sel_discipline = "-- Select Class --"
                 with col_u5:
                     if sel_discipline != "-- Select Discipline --":
-                        sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-                        sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                        sections_df = run_query("sections")
+                        sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty and 'section_name' in sections_df.columns else [])
                         sel_section = st.selectbox("5. Section:", options=sections_list, key="rpt_abs_sec")
                     else:
                         st.selectbox("5. Section:", ["🔒 Waiting..."], disabled=True, key="rpt_abs_sec_dis")
@@ -1536,31 +1533,27 @@ def render_universal_attendance_workspace(current_user="System"):
 
                 if "-- Select" not in f"{sel_session}{sel_system}{sel_class}{sel_discipline}{sel_section}":
                     try:
-                        with engine.connect() as conn:
-                            query_text = text("""
-                                SELECT 
-                                    s.roll_no AS "Roll No",
-                                    s.student_name AS "Student Name",
-                                    s.contact_1 AS "Primary Contact",
-                                    a.remarks AS "Reason of Absence / Follow-up Notes",
-                                    a.updated_by AS "Logged By Staff",
-                                    a.updated_at AS "Timestamp Logged"
-                                FROM students s
-                                INNER JOIN attendance a ON s.student_id = a.student_id
-                                WHERE a.date = :dt 
-                                  AND a.status = 'Absent'
-                                  AND LOWER(TRIM(s.session)) = LOWER(TRIM(:sess))
-                                  AND LOWER(TRIM(s.academic_system)) = LOWER(TRIM(:sys))
-                                  AND LOWER(TRIM(s.class_level)) = LOWER(TRIM(:cls))
-                                  AND LOWER(TRIM(s.discipline)) = LOWER(TRIM(:disc))
-                                  AND LOWER(TRIM(s.section)) = LOWER(TRIM(:sec))
-                                ORDER BY s.roll_no ASC
-                            """)
-                            result = conn.execute(query_text, {
-                                "dt": target_report_date, "sess": sel_session, "sys": sel_system, 
-                                "cls": sel_class, "disc": sel_discipline, "sec": sel_section
+                        # Relational matching via filtering criteria on Supabase 
+                        result_data = supabase.table("attendance").select(
+                            "remarks, updated_by, updated_at, students!inner(roll_no, student_name, contact_1, session, academic_system, class_level, discipline, section)"
+                        ).eq("date", str(target_report_date)).eq("status", "Absent").ilike("students.session", sel_session.strip()).ilike("students.academic_system", sel_system.strip()).ilike("students.class_level", sel_class.strip()).ilike("students.discipline", sel_discipline.strip()).ilike("students.section", sel_section.strip()).execute()
+                        
+                        # Normalize nested objects to flat columns to preserve presentation view architecture
+                        raw_records = result_data.data
+                        flat_records = []
+                        for rec in raw_records:
+                            st_info = rec.get("students", {})
+                            flat_records.append({
+                                "Roll No": st_info.get("roll_no"),
+                                "Student Name": st_info.get("student_name"),
+                                "Primary Contact": st_info.get("contact_1"),
+                                "Reason of Absence / Follow-up Notes": rec.get("remarks"),
+                                "Logged By Staff": rec.get("updated_by"),
+                                "Timestamp Logged": rec.get("updated_at")
                             })
-                            abs_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+                        abs_df = pd.DataFrame(flat_records)
+                        if not abs_df.empty:
+                            abs_df = abs_df.sort_values(by="Roll No", ascending=True)
                     except Exception as query_err:
                         st.error(f"❌ Failed to build absentee breakdown: {query_err}")
                         abs_df = pd.DataFrame()
@@ -1571,7 +1564,7 @@ def render_universal_attendance_workspace(current_user="System"):
                         abs_df["Reason of Absence / Follow-up Notes"] = abs_df["Reason of Absence / Follow-up Notes"].fillna("No remarks captured")
 
                         st.warning(f"🚨 **Absentee List:** `{sel_class} - {sel_section}` on **{target_report_date}** ({len(abs_df)} Absent)")
-                        st.dataframe(abs_df, use_container_width=True)
+                        st.dataframe(abs_df, use_container_width=True, index=False)
                         
                         csv_data = abs_df.to_csv(index=False).encode('utf-8')
                         st.download_button(
@@ -1586,24 +1579,31 @@ def render_universal_attendance_workspace(current_user="System"):
                         
             else:  # All Campus Absentees Master List
                 try:
-                    with engine.connect() as conn:
-                        master_query = text("""
-                            SELECT 
-                                s.class_level || ' - ' || s.section AS "Class Section",
-                                s.roll_no AS "Roll No",
-                                s.student_name AS "Student Name",
-                                s.contact_1 AS "Primary Contact",
-                                a.remarks AS "Reason of Absence / Follow-up Notes",
-                                a.updated_by AS "Logged By Staff",
-                                a.updated_at AS "Timestamp Logged"
-                            FROM students s
-                            INNER JOIN attendance a ON s.student_id = a.student_id
-                            WHERE a.date = :dt 
-                              AND a.status = 'Absent'
-                            ORDER BY s.class_level, s.section, s.roll_no ASC
-                        """)
-                        result = conn.execute(master_query, {"dt": target_report_date})
-                        master_abs_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+                    # Retrieve global student relation joins on target date filter matrix
+                    result_data = supabase.table("attendance").select(
+                        "remarks, updated_by, updated_at, students!inner(class_level, section, roll_no, student_name, contact_1)"
+                    ).eq("date", str(target_report_date)).eq("status", "Absent").execute()
+                    
+                    raw_records = result_data.data
+                    flat_records = []
+                    for rec in raw_records:
+                        st_info = rec.get("students", {})
+                        c_lvl = st_info.get("class_level", "")
+                        c_sec = st_info.get("section", "")
+                        flat_records.append({
+                            "Class Section": f"{c_lvl} - {c_sec}" if c_lvl and c_sec else "Unassigned",
+                            "Roll No": st_info.get("roll_no"),
+                            "Student Name": st_info.get("student_name"),
+                            "Primary Contact": st_info.get("contact_1"),
+                            "Reason of Absence / Follow-up Notes": rec.get("remarks"),
+                            "Logged By Staff": rec.get("updated_by"),
+                            "Timestamp Logged": rec.get("updated_at"),
+                            "_sort_class": c_lvl,
+                            "_sort_sec": c_sec
+                        })
+                    master_abs_df = pd.DataFrame(flat_records)
+                    if not master_abs_df.empty:
+                        master_abs_df = master_abs_df.sort_values(by=["_sort_class", "_sort_sec", "Roll No"], ascending=[True, True, True]).drop(columns=["_sort_class", "_sort_sec"])
                 except Exception as master_err:
                     st.error(f"❌ Failed to fetch global absentee matrix: {master_err}")
                     master_abs_df = pd.DataFrame()
@@ -1614,7 +1614,7 @@ def render_universal_attendance_workspace(current_user="System"):
                     master_abs_df["Reason of Absence / Follow-up Notes"] = master_abs_df["Reason of Absence / Follow-up Notes"].fillna("No remarks captured")
 
                     st.error(f"🚨 **Campus Master Absentee Log:** **{target_report_date}** ({len(master_abs_df)} Total Absences Across All Sections)")
-                    st.dataframe(master_abs_df, use_container_width=True)
+                    st.dataframe(master_abs_df, use_container_width=True, index=False)
                     
                     master_csv = master_abs_df.to_csv(index=False).encode('utf-8')
                     st.download_button(
@@ -1634,24 +1634,32 @@ def render_universal_attendance_workspace(current_user="System"):
             st.markdown("### 🖨️ Late Arrival Discipline Tracking Register")
             
             try:
-                with engine.connect() as conn:
-                    late_query = text("""
-                        SELECT 
-                            s.class_level || ' - ' || s.section AS "Class Section",
-                            s.roll_no AS "Roll No",
-                            s.student_name AS "Student Name",
-                            l.arrival_time AS "Arrival Time",
-                            l.minutes_late AS "Mins Late",
-                            l.remarks AS "Stated Reason / Notes",
-                            l.updated_by AS "Gate Staff Signature",
-                            l.updated_at AS "Timestamp Logged"
-                        FROM students s
-                        INNER JOIN late_arrivals l ON s.student_id = l.student_id
-                        WHERE l.date = :dt
-                        ORDER BY s.class_level, s.section, l.minutes_late DESC
-                    """)
-                    result = conn.execute(late_query, {"dt": target_report_date})
-                    late_report_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+                # Fetching late arrivals linked natively via relation join filters
+                result_data = supabase.table("late_arrivals").select(
+                    "arrival_time, minutes_late, remarks, updated_by, updated_at, students!inner(class_level, section, roll_no, student_name)"
+                ).eq("date", str(target_report_date)).execute()
+                
+                raw_records = result_data.data
+                flat_records = []
+                for rec in raw_records:
+                    st_info = rec.get("students", {})
+                    c_lvl = st_info.get("class_level", "")
+                    c_sec = st_info.get("section", "")
+                    flat_records.append({
+                        "Class Section": f"{c_lvl} - {c_sec}" if c_lvl and c_sec else "Unassigned",
+                        "Roll No": st_info.get("roll_no"),
+                        "Student Name": st_info.get("student_name"),
+                        "Arrival Time": rec.get("arrival_time"),
+                        "Mins Late": rec.get("minutes_late"),
+                        "Stated Reason / Notes": rec.get("remarks"),
+                        "Gate Staff Signature": rec.get("updated_by"),
+                        "Timestamp Logged": rec.get("updated_at"),
+                        "_sort_class": c_lvl,
+                        "_sort_sec": c_sec
+                    })
+                late_report_df = pd.DataFrame(flat_records)
+                if not late_report_df.empty:
+                    late_report_df = late_report_df.sort_values(by=["_sort_class", "_sort_sec", "Mins Late"], ascending=[True, True, False]).drop(columns=["_sort_class", "_sort_sec"])
             except Exception as query_err:
                 st.error(f"❌ Failed to parse late arrival matrix sequence: {query_err}")
                 late_report_df = pd.DataFrame()
@@ -1662,7 +1670,7 @@ def render_universal_attendance_workspace(current_user="System"):
                 late_report_df["Stated Reason / Notes"] = late_report_df["Stated Reason / Notes"].fillna("—")
 
                 st.warning(f"⏳ **Campus Late Arrivals Ledger:** **{target_report_date}** ({len(late_report_df)} Students Logged Tardy)")
-                st.dataframe(late_report_df, use_container_width=True)
+                st.dataframe(late_report_df, use_container_width=True, index=False)
                 
                 late_csv = late_report_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
@@ -1683,39 +1691,62 @@ def render_universal_attendance_workspace(current_user="System"):
             
             if report_scope == "Single Section View Summary":
                 st.markdown("##### Filter Targets for Single Section Analysis:")
-                sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+                sessions_df = run_query("SELECT DISTINCT session_name FROM sessions ORDER BY session_name ASC")
                 sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
                 
                 col_u1, col_u2, col_u3, col_u4, col_u5 = st.columns(5)
-                with col_u1: sel_session = st.selectbox("1. Session:", options=sessions_list, key="rpt_sess")
+                with col_u1: 
+                    sel_session = st.selectbox("1. Session:", options=sessions_list, key="rpt_sess")
+                
                 with col_u2:
                     if sel_session != "-- Select Session --":
-                        systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-                        systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                        systems_df = run_query("""
+                            SELECT DISTINCT academic_system FROM students 
+                            WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) ORDER BY academic_system ASC
+                        """, {"sess": sel_session})
+                        systems_list = ["-- Select System --"] + (systems_df['academic_system'].tolist() if not systems_df.empty else [])
                         sel_system = st.selectbox("2. System:", options=systems_list, key="rpt_sys")
                     else:
                         st.selectbox("2. System:", ["🔒 Waiting..."], disabled=True, key="rpt_sys_dis")
                         sel_system = "-- Select Session --"
+                
                 with col_u3:
                     if sel_system != "-- Select System --":
-                        classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+                        classes_df = run_query("""
+                            SELECT DISTINCT class_level FROM students 
+                            WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
+                              AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys)) ORDER BY class_level ASC
+                        """, {"sess": sel_session, "sys": sel_system})
                         classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
                         sel_class = st.selectbox("3. Class:", options=classes_list, key="rpt_cls")
                     else:
                         st.selectbox("3. Class:", ["🔒 Waiting..."], disabled=True, key="rpt_cls_dis")
                         sel_class = "-- Select System --"
+                
                 with col_u4:
                     if sel_class != "-- Select Class --":
-                        disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-                        disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                        disciplines_df = run_query("""
+                            SELECT DISTINCT discipline FROM students 
+                            WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
+                              AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys))
+                              AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls)) ORDER BY discipline ASC
+                        """, {"sess": sel_session, "sys": sel_system, "cls": sel_class})
+                        disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline'].tolist() if not disciplines_df.empty else [])
                         sel_discipline = st.selectbox("4. Discipline:", options=disciplines_list, key="rpt_disc")
                     else:
                         st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="rpt_disc_dis")
                         sel_discipline = "-- Select Class --"
+                
                 with col_u5:
                     if sel_discipline != "-- Select Discipline --":
-                        sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-                        sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                        sections_df = run_query("""
+                            SELECT DISTINCT section FROM students 
+                            WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
+                              AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys))
+                              AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls))
+                              AND LOWER(TRIM(discipline)) = LOWER(TRIM(:disc)) ORDER BY section ASC
+                        """, {"sess": sel_session, "sys": sel_system, "cls": sel_class, "disc": sel_discipline})
+                        sections_list = ["-- Select Section --"] + (sections_df['section'].tolist() if not sections_df.empty else [])
                         sel_section = st.selectbox("5. Section:", options=sections_list, key="rpt_sec")
                     else:
                         st.selectbox("5. Section:", ["🔒 Waiting..."], disabled=True, key="rpt_sec_dis")
@@ -1739,6 +1770,7 @@ def render_universal_attendance_workspace(current_user="System"):
                                   AND LOWER(TRIM(s.class_level)) = LOWER(TRIM(:cls))
                                   AND LOWER(TRIM(s.discipline)) = LOWER(TRIM(:disc))
                                   AND LOWER(TRIM(s.section)) = LOWER(TRIM(:sec))
+                                FROM students s
                                 GROUP BY s.section
                             """)
                             result = conn.execute(query_text, {
@@ -1910,22 +1942,29 @@ def render_universal_attendance_workspace(current_user="System"):
     # 📋 MODE A: PROCESS BULK SECTION REGISTER (WITH PHASE 1 PRESENT & PHASE 2 VERIFIED REASONS)
     # ==============================================================================
     else:
-        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions")
+        sessions_df = run_query("SELECT DISTINCT session_name FROM sessions ORDER BY session_name ASC")
         sessions_list = ["-- Select Session --"] + (sessions_df['session_name'].tolist() if not sessions_df.empty else [])
         
         col_u1, col_u2, col_u3, col_u4, col_u5 = st.columns(5)
         with col_u1: sel_session = st.selectbox("1. Session Cycle:*", options=sessions_list, key="att_sess")
         with col_u2:
             if sel_session != "-- Select Session --":
-                systems_df = run_query("SELECT DISTINCT system_name FROM academic_systems")
-                systems_list = ["-- Select System --"] + (systems_df['system_name'].tolist() if not systems_df.empty else [])
+                systems_df = run_query("""
+                    SELECT DISTINCT academic_system FROM students 
+                    WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) ORDER BY academic_system ASC
+                """, {"sess": sel_session})
+                systems_list = ["-- Select System --"] + (systems_df['academic_system'].tolist() if not systems_df.empty else [])
                 sel_system = st.selectbox("2. Academic System:*", options=systems_list, key="att_sys")
             else:
                 st.selectbox("2. Academic System:", ["🔒 Waiting..."], disabled=True, key="att_sys_dis")
                 sel_system = "-- Select Session --"
         with col_u3:
             if sel_system != "-- Select System --":
-                classes_df = run_query("SELECT class_level FROM classes ORDER BY sort_order ASC, id ASC")
+                classes_df = run_query("""
+                    SELECT DISTINCT class_level FROM students 
+                    WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
+                      AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys)) ORDER BY class_level ASC
+                """, {"sess": sel_session, "sys": sel_system})
                 classes_list = ["-- Select Class --"] + (classes_df['class_level'].tolist() if not classes_df.empty else [])
                 sel_class = st.selectbox("3. Target Class:*", options=classes_list, key="att_cls")
             else:
@@ -1933,16 +1972,27 @@ def render_universal_attendance_workspace(current_user="System"):
                 sel_class = "-- Select System --"
         with col_u4:
             if sel_class != "-- Select Class --":
-                disciplines_df = run_query("SELECT DISTINCT discipline_title FROM disciplines")
-                disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline_title'].tolist() if not disciplines_df.empty else [])
+                disciplines_df = run_query("""
+                    SELECT DISTINCT discipline FROM students 
+                    WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
+                      AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys))
+                      AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls)) ORDER BY discipline ASC
+                """, {"sess": sel_session, "sys": sel_system, "cls": sel_class})
+                disciplines_list = ["-- Select Discipline --"] + (disciplines_df['discipline'].tolist() if not disciplines_df.empty else [])
                 sel_discipline = st.selectbox("4. Discipline:*", options=disciplines_list, key="att_disc")
             else:
                 st.selectbox("4. Discipline:", ["🔒 Waiting..."], disabled=True, key="att_disc_dis")
                 sel_discipline = "-- Select Class --"
         with col_u5:
             if sel_discipline != "-- Select Discipline --":
-                sections_df = run_query("SELECT DISTINCT section_name FROM sections")
-                sections_list = ["-- Select Section --"] + (sections_df['section_name'].tolist() if not sections_df.empty else [])
+                sections_df = run_query("""
+                    SELECT DISTINCT section FROM students 
+                    WHERE LOWER(TRIM(session)) = LOWER(TRIM(:sess)) 
+                      AND LOWER(TRIM(academic_system)) = LOWER(TRIM(:sys))
+                      AND LOWER(TRIM(class_level)) = LOWER(TRIM(:cls))
+                      AND LOWER(TRIM(discipline)) = LOWER(TRIM(:disc)) ORDER BY section ASC
+                """, {"sess": sel_session, "sys": sel_system, "cls": sel_class, "disc": sel_discipline})
+                sections_list = ["-- Select Section --"] + (sections_df['section'].tolist() if not sections_df.empty else [])
                 sel_section = st.selectbox("5. Section Track:*", options=sections_list, key="att_sec")
             else:
                 st.selectbox("5. Section Track:", ["🔒 Waiting..."], disabled=True, key="att_sec_dis")
@@ -1950,7 +2000,6 @@ def render_universal_attendance_workspace(current_user="System"):
 
         col_date, _ = st.columns([1, 4])
         with col_date:
-            # FIXED: Safe inline evaluation to eliminate NameError here too
             attendance_date = st.date_input("Attendance Log Date:", value=datetime.date.today(), key="uni_date")
             
         st.markdown("---")
@@ -2137,7 +2186,6 @@ if user_role == "Principal":
     if app_mode == "Master Panel Overview": st.title("🦅 Principal Strategic Control Command Tower")
     elif app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
     elif app_mode == "Admission Management": render_student_management_workspace()
-    # ✅ UPDATED HERE: Passing current_user=user_role
     elif app_mode == "Universal Attendance Panel": render_universal_attendance_workspace(current_user=user_role)
     elif app_mode == "Universal Marks Override Desk": render_universal_marks_entry_workspace()
     elif app_mode == "Report Generator Engine": render_institutional_report_generator()
@@ -2166,7 +2214,6 @@ elif user_role == "Vice Principal":
     
     if app_mode == "🛠️ Core Institutional Setup Engine": render_master_setup_engine()
     elif app_mode == "Student Record Management Workspace": render_student_management_workspace()
-    # ✅ UPDATED HERE: Passing current_user=user_role
     elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace(current_user=user_role)
     elif app_mode == "Universal Marks Entry Portal": render_universal_marks_entry_workspace()
     elif app_mode == "📈 Comprehensive Systems Analytics": render_global_analytics_dashboard()
@@ -2182,7 +2229,6 @@ elif user_role == "Admission Officer":
     )
     
     if app_mode == "Admission Management": render_student_management_workspace()
-    # ✅ UPDATED HERE: Passing current_user=user_role
     elif app_mode == "📅 Universal Section Attendance Register": render_universal_attendance_workspace(current_user=user_role)
     elif app_mode == "Student Search Directory": st.title("🔍 Student Database Query Index")
 
@@ -2197,5 +2243,6 @@ elif user_role == "Teacher":
     active_teacher_id = 104 
     
     if app_mode == "📝 Subject Marks Entry Sheet Console": st.title("📝 Subject Marks Entry Sheet Console")
-    elif app_mode == "📅 Section Attendance Register": st.title("📅 Section Attendance Register")
+    # FIXED: Connected the teacher's workspace view to the dynamic workspace engine cleanly
+    elif app_mode == "📅 Section Attendance Register": render_universal_attendance_workspace(current_user=user_role)
     elif app_mode == "📊 My Subject Analytics Panel": st.title("📊 My Subject Performance Analytics")
