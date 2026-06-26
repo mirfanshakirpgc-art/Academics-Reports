@@ -1,4 +1,4 @@
-# Force-rebuild anchor: v1.0.4
+# Force-rebuild anchor: v1.0.5
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -10,36 +10,38 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SUPABASE CONNECTION CONFIGURATION ---
+# --- CLEAN SUPABASE TOML CONNECTION ---
 DB_URL = None
 
 if "database" in st.secrets:
-    # 💡 ADVANCED NETWORK BYPASS: Force direct IPv4 pool routing
-    db_host = st.secrets['database']['host']
-    if "pooler.supabase.com" in db_host:
-        # Hardcodes Supabase's underlying regional IPv4 address to bypass IPv6 blocks
-        db_host = "3.114.238.169" 
-        
-    DB_URL = f"postgresql://{st.secrets['database']['username']}:{st.secrets['database']['password']}@{db_host}:{st.secrets['database']['port']}/{st.secrets['database']['database']}"
+    creds = st.secrets["database"]
+    # Reverting back to using the official host resolution on connection pooling port 6543
+    DB_URL = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
 elif "DATABASE_URL" in st.secrets:
     DB_URL = st.secrets["DATABASE_URL"]
-    if "pooler.supabase.com" in DB_URL:
-        DB_URL = DB_URL.replace("aws-0-ap-northeast-1.pooler.supabase.com:6543", "3.114.238.169:6543")
 
 @st.cache_resource
 def get_db_engine():
-    """Creates and caches the database engine connection with pool tuning."""
-    if not DB_URL or "YOUR_ACTUAL_DB_PASSWORD" in DB_URL:
+    """Creates a cached database engine using recommended transaction pooling properties."""
+    if not DB_URL or "YOUR_ACTUAL_DB_PASSWORD" in DB_URL or "YOUR_REAL_SUPABASE_PASSWORD" in DB_URL:
         return None
     
+    # Adding connect_args sets a shorter connection timeout to prevent hanging
     return create_engine(
         DB_URL, 
         pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20
+        pool_size=5,
+        max_overflow=10,
+        connect_args={"connect_timeout": 10}
     )
 
-engine = get_db_engine()
+# Explicitly clear old broken resource objects out of cache memory
+st.cache_resource.clear()
+
+try:
+    engine = get_db_engine()
+except Exception:
+    engine = None
 
 def init_db():
     """Automatically compiles schema blueprints if target relational structures do not exist."""
@@ -182,7 +184,6 @@ def run_query(query, params=None):
         return pd.DataFrame()
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
-
 # ==============================================================================
 # 2. SHARED REUSABLE FUNCTIONS (Shared between Authorized Roles)
 # ==============================================================================
